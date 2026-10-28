@@ -32,11 +32,8 @@ export default function Crawl({ onToast }: { onToast: (msg: string) => void }) {
   useEffect(() => {
     refresh();
     // 采集进度改为订阅 job 事件（原 1s 轮询）
-    let off = () => {};
-    subscribeEvents('job', (d) => {
+    const off = subscribeEvents('job', (d) => {
       if (d?.crawl) setStatus(d.crawl as CrawlStatus);
-    }).then((o) => {
-      off = o;
     });
     return () => {
       off();
@@ -167,18 +164,19 @@ export default function Crawl({ onToast }: { onToast: (msg: string) => void }) {
               <input
                 type="checkbox"
                 checked={sources.has(s.key)}
-                onChange={() =>
-                  setSources((prev) => {
-                    const next = new Set(prev);
-                    if (next.has(s.key)) next.delete(s.key);
-                    else next.add(s.key);
-                    // 记住本次选择：写回设置，下次进入自动恢复
-                    api.saveSettings({
+                onChange={() => {
+                  const next = new Set(sources);
+                  if (next.has(s.key)) next.delete(s.key);
+                  else next.add(s.key);
+                  setSources(next);
+                  // 记住本次选择（副作用不放 setState updater：React 严格模式会
+                  // 双调用 updater，同一份设置被写两次；副作用还可能被丢弃）
+                  api
+                    .saveSettings({
                       sources: Object.fromEntries(SOURCE_OPTIONS.map((x) => [x.key, next.has(x.key)])),
-                    });
-                    return next;
-                  })
-                }
+                    })
+                    .catch(quiet);
+                }}
               />
             </div>
           ))}
@@ -194,8 +192,9 @@ export default function Crawl({ onToast }: { onToast: (msg: string) => void }) {
               onChange={(e) => {
                 const v = Math.max(1, Math.min(20, Number(e.target.value) || 1));
                 setPages(v);
-                api.saveSettings({ pagesPerKeyword: v }); // 记住页数选择
               }}
+              // 记住页数选择：blur 再落盘，避免每敲一个数字就写一次设置
+              onBlur={() => api.saveSettings({ pagesPerKeyword: pages }).catch(quiet)}
             />
             <div className="hint">页数越多耗时越长，建议 3-5 页</div>
           </div>

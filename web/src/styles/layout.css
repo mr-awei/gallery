@@ -1,4 +1,4 @@
-/* 应用骨架：侧栏 / 主区 / 状态栏 —— 自 styles.css 机械拆分（原第 79–255 行）；import 顺序见 styles.css 入口 */
+/* 应用骨架：顶栏 / 侧栏 / 主区 / 状态栏（参考 Eagle：侧栏只放内容导航，低频工具收进顶栏） */
 
 /* ------------------------------- 布局骨架 ------------------------------- */
 
@@ -6,7 +6,134 @@
   position: relative;
   z-index: 1;
   display: flex;
+  flex-direction: column;
   height: 100%;
+}
+
+/* 顶栏之下：侧栏 + 主区横向排布 */
+.app-body {
+  display: flex;
+  flex: 1;
+  min-height: 0;
+}
+
+/* ------------------------------- 顶栏 ------------------------------- */
+
+.topbar {
+  flex: 0 0 auto;
+  position: relative;
+  /* 顶栏的 backdrop-filter 会形成 z-index:auto 的层叠上下文，
+     若不显式抬高，主区内容会按 DOM 顺序绘制在顶栏（含工具下拉）之上 */
+  z-index: 50;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 10px 16px;
+  border-bottom: 1px solid var(--border);
+  background: var(--surface-side);
+  backdrop-filter: blur(18px);
+}
+.topbar-brand {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+}
+.topbar-title {
+  display: flex;
+  flex-direction: column;
+  line-height: 1.25;
+}
+.topbar-title b {
+  font-size: 15px;
+  background: var(--gradient);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
+.topbar-title span {
+  font-size: 11px;
+  color: var(--muted);
+  max-width: 220px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.topbar-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+/* 工具箱下拉（低频功能聚合入口） */
+.tools-wrap {
+  position: relative;
+}
+.tools-btn .tools-chev {
+  font-size: 10px;
+  color: var(--muted);
+}
+.tools-btn-active {
+  background: linear-gradient(90deg, rgba(255, 77, 141, 0.18), rgba(168, 85, 247, 0.12));
+  color: var(--text);
+}
+.tools-menu {
+  position: absolute;
+  top: calc(100% + 8px);
+  right: 0;
+  min-width: 200px;
+  padding: 6px;
+  border-radius: 12px;
+  border: 1px solid var(--border);
+  background: var(--bg-soft);
+  box-shadow: 0 18px 48px rgba(0, 0, 0, 0.35);
+  z-index: 80;
+}
+.tools-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  padding: 9px 10px;
+  border: none;
+  border-radius: 9px;
+  background: transparent;
+  color: var(--muted);
+  font-size: 13.5px;
+  text-align: left;
+  cursor: pointer;
+  transition: background 0.15s ease, color 0.15s ease;
+}
+.tools-item:hover {
+  background: var(--panel);
+  color: var(--text);
+}
+.tools-item.active {
+  background: linear-gradient(90deg, rgba(255, 77, 141, 0.18), rgba(168, 85, 247, 0.12));
+  color: var(--text);
+}
+
+/* 顶栏图标按钮（设置 / 主题切换） */
+.icon-btn {
+  display: grid;
+  place-items: center;
+  width: 34px;
+  height: 34px;
+  border-radius: 10px;
+  border: 1px solid transparent;
+  background: transparent;
+  color: var(--muted);
+  cursor: pointer;
+  transition: all 0.16s ease;
+}
+.icon-btn:hover {
+  background: var(--panel-strong);
+  color: var(--text);
+}
+.icon-btn-active {
+  background: linear-gradient(90deg, rgba(255, 77, 141, 0.18), rgba(168, 85, 247, 0.12));
+  color: var(--text);
 }
 
 .sidebar {
@@ -17,17 +144,15 @@
   background: var(--surface-side);
   backdrop-filter: blur(18px);
   border-right: 1px solid var(--border);
-  padding: 20px 14px;
+  padding: 14px 12px;
   gap: 6px;
+  /* 文件夹树加入后内容可能超出视口：整体滚动（Eagle 同款），大窗口时 footer 仍贴底 */
+  overflow-y: auto;
+  overflow-x: hidden;
 }
 
-.logo {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  padding: 4px 8px 18px;
-}
 .logo-mark {
+  flex: 0 0 auto;
   width: 36px;
   height: 36px;
   border-radius: 11px;
@@ -39,21 +164,14 @@
   color: #fff;
   box-shadow: 0 8px 24px rgba(255, 77, 141, 0.32);
 }
-.logo-text {
-  display: flex;
-  flex-direction: column;
-  line-height: 1.25;
-}
-.logo-text b {
-  font-size: 15px;
-  background: var(--gradient);
-  -webkit-background-clip: text;
-  background-clip: text;
-  color: transparent;
-}
-.logo-text span {
+
+/* 侧栏分组小标题（资源库 / 文件夹） */
+.side-section-title {
   font-size: 11px;
   color: var(--muted);
+  padding: 2px 10px 4px;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
 }
 
 .nav-item {
@@ -97,32 +215,146 @@
   color: var(--muted);
 }
 
-.sidebar-footer {
-  margin-top: auto;
-  font-size: 11px;
-  color: var(--muted);
-  padding: 12px 10px 0;
-  border-top: 1px solid var(--border);
-  line-height: 1.7;
-}
-.theme-toggle {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 6px;
+.lib-switcher {
   width: 100%;
-  margin-bottom: 10px;
-  padding: 7px 10px;
-  border-radius: 9px;
+  margin: 0 0 4px;
+  padding: 8px 10px;
+  border-radius: 10px;
   border: 1px solid var(--border);
   background: var(--panel);
   color: var(--text);
-  font-size: 12px;
-  transition: all 0.16s ease;
+  font-size: 13px;
+  cursor: pointer;
 }
-.theme-toggle:hover {
+
+.folders-panel {
+  margin-top: 6px;
+  display: flex;
+  flex-direction: column;
+}
+.folders-title {
+  font-size: 11px;
+  color: var(--muted);
+  padding: 0 10px 6px;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+.folder-tree {
+  padding-bottom: 8px;
+}
+.folder-tree-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 8px 6px 10px;
+  font-size: 11px;
+  color: var(--muted);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+.folder-add-btn {
+  display: grid;
+  place-items: center;
+  width: 20px;
+  height: 20px;
+  border: none;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--muted);
+  font-size: 14px;
+  line-height: 1;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+.folder-add-btn:hover {
   background: var(--panel-strong);
-  border-color: var(--border-strong);
+  color: var(--text);
+}
+.folder-node {
+  display: block;
+}
+.folder-row {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+}
+.folder-item {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  flex: 1 1 auto;
+  min-width: 0;
+  padding: 5px 8px;
+  border: none;
+  background: transparent;
+  color: var(--muted);
+  font-size: 13px;
+  border-radius: 8px;
+  text-align: left;
+  cursor: pointer;
+  transition: background 0.15s ease, color 0.15s ease;
+}
+.folder-actions {
+  display: none;
+  gap: 2px;
+  flex: 0 0 auto;
+  padding-right: 4px;
+}
+.folder-row:hover .folder-actions {
+  display: flex;
+}
+.folder-actions button {
+  display: grid;
+  place-items: center;
+  width: 20px;
+  height: 20px;
+  border: none;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--muted);
+  font-size: 11px;
+  line-height: 1;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+.folder-actions button:hover {
+  background: var(--panel-strong);
+  color: var(--text);
+}
+.folder-item:hover {
+  background: var(--panel);
+  color: var(--text);
+}
+.folder-item.active {
+  background: linear-gradient(90deg, rgba(255, 77, 141, 0.18), rgba(168, 85, 247, 0.12));
+  color: var(--text);
+}
+.folder-chevron {
+  width: 14px;
+  flex: 0 0 14px;
+  text-align: center;
+  color: var(--muted);
+  font-size: 10px;
+}
+.folder-chevron.placeholder {
+  visibility: hidden;
+}
+.folder-name {
+  flex: 1 1 auto;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.folder-count {
+  font-size: 11px;
+  color: var(--muted);
+  padding: 0 4px;
+}
+
+/* 侧栏底部留白（原 footer 已移除：主题/设置入口收进顶栏） */
+.sidebar::after {
+  content: '';
+  flex: 0 0 6px;
 }
 
 .main {

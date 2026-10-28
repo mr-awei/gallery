@@ -53,7 +53,9 @@ export default function MasonryGrid({ items, renderItem, mode = 'masonry', layou
   const wrapRef = useRef<HTMLDivElement | null>(null);
   const [width, setWidth] = useState(0);
   const [scrollTop, setScrollTop] = useState(0);
-  const [viewH, setViewH] = useState(0);
+  // 视口高度给初值：为 0 时虚拟窗口算不出可见区间，数据到位也不会渲染任何卡片
+  // （表现为「有数据但整页空白 + 底部已经到底啦」）
+  const [viewH, setViewH] = useState(() => (typeof window === 'undefined' ? 0 : window.innerHeight));
   const scrollElRef = useRef<HTMLElement | null>(null);
   const docTopRef = useRef(0);
   const rafRef = useRef(0);
@@ -100,6 +102,18 @@ export default function MasonryGrid({ items, renderItem, mode = 'masonry', layou
     measure();
   }, [items, layoutKey, measure]);
 
+  // 数据到位后延迟重测一次：切页/窗口刚恢复时首帧尺寸可能尚未稳定，
+  // 会让虚拟窗口算出空区间（数据在、界面空白）
+  useEffect(() => {
+    const t = window.setTimeout(() => {
+      measure();
+      const scroller = scrollElRef.current;
+      setViewH(scroller ? scroller.clientHeight : window.innerHeight);
+      setScrollTop(scroller ? scroller.scrollTop : window.scrollY);
+    }, 120);
+    return () => window.clearTimeout(t);
+  }, [items, layoutKey, measure]);
+
   useEffect(() => {
     const onScroll = () => {
       cancelAnimationFrame(rafRef.current);
@@ -126,11 +140,17 @@ export default function MasonryGrid({ items, renderItem, mode = 'masonry', layou
     };
   }, [items, layoutKey]);
 
-  /** 布局：每张卡片的绝对坐标 + 容器总高 */
+  /**
+   * 布局：每张卡片的绝对坐标 + 容器总高。
+   * 宽度未测到（width=0）时用「窗口宽度 - 侧栏」兜底 —— 此前挂载时 items 为空、
+   * 组件 return null 导致 ref 缺失，宽度测量整个生命周期只跑一次且被跳过，
+   * 数据到位后 width 恒为 0、虚拟窗口永远算不出卡片，图库整页空白（P0）。
+   */
+  const effWidth = width || (typeof window === 'undefined' ? 0 : Math.max(320, window.innerWidth - 280));
   const { positions, totalHeight, sortedByBottom } = useMemo(() => {
-    if (!width) return { positions: [] as Pos[], totalHeight: 0, sortedByBottom: [] as number[] };
-    const cols = columnCount(width, mode);
-    const colW = Math.floor((width - GAP * (cols - 1)) / cols);
+    if (!effWidth) return { positions: [] as Pos[], totalHeight: 0, sortedByBottom: [] as number[] };
+    const cols = columnCount(effWidth, mode);
+    const colW = Math.floor((effWidth - GAP * (cols - 1)) / cols);
     const colHeights = new Array(cols).fill(0);
     const pos: Pos[] = items.map((it) => {
       const w0 = it.width > 0 ? it.width : 3;
@@ -146,11 +166,14 @@ export default function MasonryGrid({ items, renderItem, mode = 'masonry', layou
     // 供虚拟窗口二分：按卡片底边排序的索引
     const byBottom = pos.map((p, i) => i).sort((a, b) => pos[a].y + pos[a].h - (pos[b].y + pos[b].h));
     return { positions: pos, totalHeight: total, sortedByBottom: byBottom };
-  }, [items, width, mode]);
+  }, [items, effWidth, mode]);
 
   /** 可见区间（含 OVERSCAN）：按卡片底边在排序数组上二分 */
   const visible = useMemo(() => {
-    if (!positions.length || !viewH) return [] as number[];
+    if (!positions.length) return [] as number[];
+    // 视口高度/文档偏移还没测到（切页、窗口恢复瞬间）时，先渲染前一批卡片，
+    // 绝不让「有数据却一片空白」出现
+    if (!viewH) return positions.map((_, i) => i).slice(0, 24);
     const top = docTopRef.current + scrollTop - OVERSCAN;
     const bottom = docTopRef.current + scrollTop + viewH + OVERSCAN;
     let lo = 0;
@@ -167,18 +190,19 @@ export default function MasonryGrid({ items, renderItem, mode = 'masonry', layou
       if (positions[idx].y > bottom) break;
       out.push(idx);
     }
-    return out;
+    // 偏移测量失效（二分把所有卡片排除）时兜底渲染首屏，保证图库永远能看到内容
+    return out.length ? out : positions.map((_, i) => i).slice(0, 24);
   }, [positions, sortedByBottom, scrollTop, viewH]);
 
-  if (!items.length) return null;
-
+  // 注意：items 为空时也必须渲染容器 —— 此前在这里 return null 会让 ref 缺失，
+  // 挂载期唯一一次宽度测量被跳过且永不重试，是「数据到位后整页空白」的根因（P0）
   return (
     <div className="masonry-js" style={{ position: 'relative', height: totalHeight || undefined }} ref={wrapRef}>
       {visible.map((i) => {
         const p = positions[i];
         return (
           <div
-            key={items[i].id}
+            key={items[i].path || items[i].id}
             className="m-cell"
             style={{ position: 'absolute', left: p.x, top: p.y, width: p.w, height: p.h }}
           >

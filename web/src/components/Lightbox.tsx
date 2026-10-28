@@ -248,6 +248,9 @@ export default function Lightbox({
     if (content) content.style.overflow = 'hidden';
     return () => {
       if (content) content.style.overflow = prev;
+      // overflow 恢复不会触发 scroll/resize，MasonryGrid 缓存的可视区间不会重算，
+      // 关闭预览后网格会停在打开前那一刻（表现像卡死）。手动踢一次 resize 重测。
+      window.dispatchEvent(new Event('resize'));
     };
   }, []);
 

@@ -1,4 +1,5 @@
 import { enhanceImage, getImage } from './library.js';
+import { getLibraryGeneration } from './db.js';
 
 /**
  * 画质增强后台任务（一次只跑一个）。
@@ -66,8 +67,15 @@ export function startJob(ids, model, standard) {
 }
 
 async function run(ids, model, standard) {
+  // 任务里的 id 属于启动时的那个库：中途切库后这些 id 在新库里指向别的图，
+  // 继续跑会把增强结果写错库，直接中止
+  const generation = getLibraryGeneration();
   for (const id of ids) {
     if (state.cancelled) break;
+    if (generation !== getLibraryGeneration()) {
+      state.lastError = '已切换资源库，增强任务已中止';
+      break;
+    }
     state.currentId = id;
     state.currentProgress = 0;
     try {

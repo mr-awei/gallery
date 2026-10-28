@@ -39,9 +39,11 @@
     width: 68px;
     flex: 0 0 68px;
   }
-  .logo-text,
+  .topbar-title span,
+  .tools-btn > span,
+  .tools-btn .tools-chev,
   .nav-item span,
-  .sidebar-footer {
+  .side-section-title {
     display: none;
   }
 }

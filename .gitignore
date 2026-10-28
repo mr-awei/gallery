@@ -1,6 +1,9 @@
 node_modules/
 dist/
-release-build/
+release-build*/
+release-out/
+.electron-dist/
+build-out*.txt
 data/
 storage/
 docs/

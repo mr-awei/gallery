@@ -1,8 +1,9 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { LEGACY_DIRS } from './config.js';
-import { db, getSettings } from './db.js';
+import { db, getSettings, getLibraryGeneration } from './db.js';
 import { ingest, resyncImageMeta } from './library.js';
+import { bulkImportLocal } from './bulk-import.js';
 
 const EXTS = new Set(['.jpg', '.jpeg', '.png', '.webp']);
 const SKIP_DIRS = new Set([
@@ -49,22 +50,39 @@ export function scanLocalImages(dirs = LEGACY_DIRS, depth = 0) {
  * 导入壁纸库文件夹内的图片（不复制原文件，只登记并生成缩略图）
  */
 let scanRunning = false;
+let scanCancel = false;
 
+/**
+ * 中止进行中的本地扫描（切换资源库时调用）。
+ * 扫描是跨 await 的长任务：切库后 db / 缩略图目录都会指向新库，继续跑下去
+ * 就会把旧库的图写进新库。这里只置标记，真正的拦截至库写入前由 ingest 的
+ * 库代数校验完成。
+ */
+export function cancelLocalImport() {
+  if (scanRunning) scanCancel = true;
+}
+
+/**
+ * 扫描素材目录并入库。走 bulk-import 的流水线：
+ * 解码/编码/pHash/主色在 worker 池里并行，主线程只做批量 SQLite 写入。
+ */
 export async function importLocalImages(options = {}) {
   const settings = getSettings();
   const { dirs = [settings.storageDir || LEGACY_DIRS[0]], keyword = '', onProgress = null } =
     options;
-  const known = new Set(db.prepare('SELECT abs_path FROM images').all().map((r) => r.abs_path));
-  const files = scanLocalImages(dirs).filter((f) => !known.has(f));
-
-  const result = { total: files.length, saved: 0, duplicate: 0, dropped: 0, errors: 0 };
   scanRunning = true;
+  scanCancel = false;
   try {
-    await importFiles(files, settings, keyword, onProgress, result);
+    return await bulkImportLocal({
+      dirs,
+      keyword,
+      onProgress,
+      isCancelled: () => scanCancel,
+    });
   } finally {
     scanRunning = false;
+    scanCancel = false;
   }
-  return result;
 }
 
 /** 有限并发执行异步任务（next 指针派发；JS 单线程，各任务对共享计数器的修改天然安全） */
@@ -78,30 +96,6 @@ async function mapLimit(list, limit, fn) {
     }
   });
   await Promise.all(workers);
-}
-
-async function importFiles(files, settings, keyword, onProgress, result) {
-  // 单张 ingest 的耗时大头是 sharp 解码 / pHash / CLIP 编码（CPU + 异步 IO），
-  // SQLite 写入是同步操作天然串行安全。并发 3 比逐张串行快约 2-3 倍，又不会打满磁盘。
-  let finished = 0;
-  const total = Math.max(1, files.length);
-  await mapLimit(files, 3, async (file) => {
-    const folder = path.basename(path.dirname(file));
-    const dirSource = folder === 'raw' ? 'bing' : 'local';
-    const dirKeyword = keyword || (folder === 'raw' ? '邓紫棋' : '壁纸库');
-    try {
-      const res = await ingest({ absPath: file, source: dirSource, keyword: dirKeyword, skipPhashDupe: true }, settings);
-      if (res.ok) result.saved++;
-      else if (res.reason === 'duplicate') result.duplicate++;
-      else result.dropped++;
-    } catch (err) {
-      result.errors++;
-      console.error('[import] 失败', file, err.message);
-    }
-    finished++;
-    if (onProgress) onProgress(Math.round((finished / total) * 100), file, result);
-  });
-  return result;
 }
 
 /* ------------------------- 素材文件夹实时监听 ------------------------- */
@@ -143,8 +137,12 @@ function scheduleWatchIngest(delayMs = 2000) {
     const knownRows = new Map(
       db.prepare('SELECT id, abs_path FROM images').all().map((r) => [r.abs_path, r.id])
     );
+    // 监听回调是延迟执行的（防抖 2s）：期间可能已经切了库，
+    // 这些文件属于旧库，不能写进新库
+    const generation = getLibraryGeneration();
     let saved = 0;
     await mapLimit(files, 3, async (f) => {
+      if (generation !== getLibraryGeneration()) return;
       // 已登记的文件被手动替换 / 修改：重新同步元数据（宽高、pHash、特征、缩略图）
       const knownId = knownRows.get(f);
       if (knownId) {
@@ -162,6 +160,7 @@ function scheduleWatchIngest(delayMs = 2000) {
             source: folder === 'raw' ? 'bing' : 'local',
             keyword: folder === 'raw' ? '邓紫棋' : '壁纸库',
             skipPhashDupe: true,
+            libGeneration: generation,
           },
           settings
         );

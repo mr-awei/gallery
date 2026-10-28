@@ -36,6 +36,8 @@ for (const dir of [DATA_DIR, IMAGE_DIR, THUMB_DIR, TRASH_DIR]) {
 }
 
 export const DB_FILE = path.join(DATA_DIR, 'gallery.db');
+// 全局库：存 settings + 库注册表（跨库共享的应用级数据），与「每个库一个 gallery.db」分离
+export const GLOBAL_DB_FILE = path.join(DATA_DIR, 'global.db');
 
 export const PORT = Number(process.env.PORT || 3001);
 

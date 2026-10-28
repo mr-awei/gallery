@@ -15,7 +15,7 @@ export function getStoredTheme(): Theme {
   } catch {
     /* 忽略隐私模式等异常 */
   }
-  return 'dark';
+  return 'light';
 }
 
 export function applyTheme(theme: Theme) {

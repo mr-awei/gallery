@@ -172,6 +172,18 @@ export default function FilterBar({
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
   }, [cap]);
+  // 搜索词草稿 + 250ms 防抖：逐键提交会每键打一次全量列表查询（FTS + COUNT），
+  // 停顿后再查；外部重置（清除筛选 / chips）时同步回输入框
+  const [qDraft, setQDraft] = useState(filters.q);
+  useEffect(() => {
+    setQDraft(filters.q);
+  }, [filters.q]);
+  useEffect(() => {
+    if (qDraft === filters.q) return;
+    const t = setTimeout(() => onChange({ q: qDraft }), 250);
+    return () => clearTimeout(t);
+  }, [qDraft]);
+
   // 外部筛选变化（清空 / 来自大图“找同色系”等）时同步草稿，并清掉“已交互”标记
   useEffect(() => {
     setDraft({ hex: filters.colorHex || '#ff4d6d', tol: filters.colorTol ?? 48 });
@@ -221,8 +233,8 @@ export default function FilterBar({
           <input
             className="input"
             placeholder="搜索文件名 / 标签 / 关键词…"
-            value={filters.q}
-            onChange={(e) => onChange({ q: e.target.value })}
+            value={qDraft}
+            onChange={(e) => setQDraft(e.target.value)}
           />
         </div>
 

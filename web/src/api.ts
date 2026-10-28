@@ -17,10 +17,12 @@ import type {
   WallpaperLogItem,
   FeedbackItem,
   Filters,
+  FolderNode,
   ImageItem,
   KbRule,
   KbStats,
   Keyword,
+  Library,
   Settings,
   SimilarGroups,
   Stats,
@@ -279,6 +281,44 @@ export const api = {
     request<{ items: ImageItem[]; total: number; page: number; pageSize: number; hasMore: boolean }>(
       `/api/images?${buildQuery(filters, page, pageSize)}`, opts
     ),
+  // 资源库（多资源库）
+  libraries: () => request<{ libraries: Library[]; activeId: number | null }>('/api/libraries'),
+  createLibrary: (payload: { name: string; rootPath?: string; libFolder: string }) =>
+    request<{ ok: boolean; id: number }>('/api/libraries', {
+      method: 'POST',
+      body: JSON.stringify(payload),
+    }),
+  activateLibrary: (id: number) =>
+    request<{ ok: boolean; library: Library }>(`/api/libraries/${id}/activate`, { method: 'POST' }),
+  deleteLibrary: (id: number) =>
+    request<{ ok: boolean; libraries: Library[]; activeId: number | null }>(`/api/libraries/${id}`, {
+      method: 'DELETE',
+    }),
+  // 文件夹树（多层级文件夹）
+  folders: () => request<{ folders: FolderNode[] }>('/api/folders'),
+  folderImages: (id: number, page: number, pageSize: number, opts?: { signal?: AbortSignal }) =>
+    request<{ items: ImageItem[]; total: number; hasMore: boolean }>(
+      `/api/folders/${id}/images?page=${page}&pageSize=${pageSize}`, opts
+    ),
+  createFolder: (name: string, parentId?: number | null) =>
+    request<{ ok: boolean; id: number; folders: FolderNode[] }>('/api/folders', {
+      method: 'POST',
+      body: JSON.stringify({ name, parentId: parentId ?? null }),
+    }),
+  renameFolder: (id: number, name: string) =>
+    request<{ ok: boolean; folders: FolderNode[] }>(`/api/folders/${id}`, {
+      method: 'PUT',
+      body: JSON.stringify({ name }),
+    }),
+  deleteFolder: (id: number) =>
+    request<{ ok: boolean; removed: number; folders: FolderNode[] }>(`/api/folders/${id}`, {
+      method: 'DELETE',
+    }),
+  addToFolder: (id: number, imageIds: number[]) =>
+    request<{ ok: boolean; added: number; folders: FolderNode[] }>(`/api/folders/${id}/images`, {
+      method: 'POST',
+      body: JSON.stringify({ imageIds }),
+    }),
   patch: (id: number, patch: Partial<Pick<ImageItem, 'favorite' | 'tags' | 'title' | 'rating' | 'note'>>) =>
     request<ImageItem>(`/api/images/${id}`, { method: 'PATCH', body: JSON.stringify(patch) }),
   similarTo: (id: number, minCos: number) =>
@@ -380,7 +420,20 @@ export const api = {
     }>('/api/network/test', { method: 'POST' }),
   importLocal: () => request<{ ok: boolean }>('/api/import/local', { method: 'POST' }),
   importStatus: () =>
-    request<{ running: boolean; progress: number; message: string }>('/api/import/status'),
+    request<{
+      running: boolean;
+      progress: number;
+      message: string;
+      result?: {
+        total?: number;
+        saved?: number;
+        duplicate?: number;
+        dropped?: number;
+        errors?: number;
+        unchanged?: number;
+        cancelled?: number;
+      };
+    }>('/api/import/status'),
   systemInfo: () => request<SystemInfo>('/api/system/info'),
   wallpaper: (id: number, style?: string) =>
     request<WallpaperResult>(`/api/images/${id}/wallpaper`, {
@@ -501,7 +554,15 @@ export const api = {
       body: JSON.stringify({ dir }),
     }),
   scanFolder: () =>
-    request<{ ok: boolean; saved?: number; duplicate?: number; message?: string }>('/api/library/scan', {
+    request<{
+      ok: boolean;
+      total?: number;
+      saved?: number;
+      duplicate?: number;
+      dropped?: number;
+      errors?: number;
+      message?: string;
+    }>('/api/library/scan', {
       method: 'POST',
     }),
   missingFiles: () => request<{ count: number; ids: number[] }>('/api/library/missing'),

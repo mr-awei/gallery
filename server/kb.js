@@ -432,7 +432,12 @@ export async function summarizeWithAI() {
     }
     db.exec('COMMIT');
   } catch (err) {
-    db.exec('ROLLBACK');
+    // 回滚自身失败（连接已断等）不应掩盖原始异常
+    try {
+      db.exec('ROLLBACK');
+    } catch {
+      /* 忽略 */
+    }
     throw err;
   }
   const stats = rescoreAll();

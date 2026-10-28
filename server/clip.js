@@ -9,7 +9,7 @@
  */
 import fs from 'node:fs';
 import { pipeline, env } from '@huggingface/transformers';
-import { db } from './db.js';
+import { db, getLibraryGeneration } from './db.js';
 import { MODEL_CACHE_DIR } from './config.js';
 
 // 模型缓存放可写目录：打包版代码在只读 asar 内，指向 asar 会导致首次下载必挂
@@ -20,6 +20,7 @@ env.remoteHost = process.env.CLIP_HUB_HOST || 'https://hf-mirror.com';
 
 const MODEL_ID = 'Xenova/clip-vit-base-patch32';
 const DIM = 512;
+export const CLIP_DIM = DIM; // 供聚类等模块预加载缓存
 
 let extractorPromise = null;
 let loadError = '';
@@ -69,23 +70,11 @@ export async function embedImage(input) {
   return normalizeInPlace(data);
 }
 
-export function saveEmbedding(imageId, vec) {
-  db.prepare(
-    'INSERT INTO clip_vec(image_id, dim, vec, created_at) VALUES (?, ?, ?, ?) ON CONFLICT(image_id) DO UPDATE SET dim = excluded.dim, vec = excluded.vec'
-  ).run(imageId, vec.length, Buffer.from(vec.buffer, vec.byteOffset, vec.byteLength), new Date().toISOString());
-  invalidateVecCache();
-}
-
 export function getEmbedding(imageId) {
   const row = db.prepare('SELECT dim, vec FROM clip_vec WHERE image_id = ?').get(imageId);
   if (!row) return null;
   // 读回时归一化：兼容归一化修复前入库的未归一化向量（点积即余弦）
   return normalizeInPlace(new Float32Array(row.vec.buffer, row.vec.byteOffset, row.dim));
-}
-
-export function deleteEmbedding(imageId) {
-  db.prepare('DELETE FROM clip_vec WHERE image_id = ?').run(imageId);
-  invalidateVecCache();
 }
 
 /** 重新建模（图片内容被旋转/增强覆盖后调用），失败静默（补算任务会兜底） */
@@ -101,54 +90,204 @@ export function embeddingCount() {
   return db.prepare('SELECT COUNT(*) AS c FROM clip_vec').get().c;
 }
 
-/** 全库向量内存缓存：预归一化 + 按维度分组连续存储。
- *  每次相似检索免掉「全表 SELECT BLOB → new Float32Array → 重算范数」，
- *  查询只剩纯点积循环。写删向量时整体失效（懒重建，成本一次全表读）。 */
-let vecCache = null; // Map<dim, { ids: Int32Array, data: Float32Array, count: number }>
+/* ------------------------------ 向量内存索引 ------------------------------ */
+/**
+ * 分片增量缓存（替代旧的「全量单块 + 一写全失效」）：
+ * - 按维度分组，每片 SHARD_CAP 条连续存储；写/删只动所在分片。
+ *   旧实现每 save/delete 一条就把整个缓存扔掉、下次查询全表重读——
+ *   批量导入或补算时等于每张图都触发一次全表扫描，百万级直接不可用。
+ * - 删除先做墓碑（空槽复用），碎片超阈值就地紧凑化该分片。
+ * - 查询两段式：先算前半维点积，用 Cauchy–Schwarz 上界
+ *   （cos ≤ headDot + ‖queryTail‖·‖vecTail‖）剪枝，无假阴性；幸存者才算全维。
+ *   图库向量普遍彼此 cos ≤ 0.8，典型查询可剪掉大半候选。
+ * 内存量级与旧版相同（512 维 × 4B 常驻，百万张 ≈ 2GB），纯 JS 无 ANN 前提的折衷；
+ * 进一步省内存需 sqlite-vec / 量化，见 docs。 */
+const SHARD_CAP = 4096;
+const vecStores = new Map(); // Map<dim, store>
 
-function invalidateVecCache() {
-  vecCache = null;
+/** 切库后必须调用：缓存里是上一个库的向量，留着会把新库导入误判成重复 */
+export function resetVecCache() {
+  vecStores.clear();
 }
 
-function loadVecCache() {
-  const rows = db.prepare('SELECT image_id, dim, vec FROM clip_vec').all();
-  const groups = new Map();
+function tailNormOf(data, offset, head, dim) {
+  let headSq = 0;
+  for (let j = 0; j < head; j++) headSq += data[offset + j] * data[offset + j];
+  const v = 1 - headSq;
+  return v > 0 ? Math.sqrt(v) : 0;
+}
+
+function newShard(dim) {
+  return {
+    ids: new Int32Array(SHARD_CAP),
+    data: new Float32Array(SHARD_CAP * dim),
+    tail: new Float32Array(SHARD_CAP),
+    count: 0,
+    holes: [],
+  };
+}
+
+function loadStore(dim) {
+  const rows = db.prepare('SELECT image_id, vec FROM clip_vec WHERE dim = ?').all(dim);
+  const store = { dim, shards: [], idIndex: new Map(), total: 0 };
+  let shard = null;
   for (const r of rows) {
-    let g = groups.get(r.dim);
-    if (!g) {
-      g = { ids: [], vecs: [] };
-      groups.set(r.dim, g);
+    if (!shard || shard.count >= SHARD_CAP) {
+      shard = newShard(dim);
+      store.shards.push(shard);
     }
-    g.ids.push(r.image_id);
-    // 读回即归一化：兼容归一化修复前入库的向量
-    g.vecs.push(normalizeInPlace(new Float32Array(r.vec.buffer, r.vec.byteOffset, r.dim)));
+    const slot = shard.count++;
+    const normed = normalizeInPlace(new Float32Array(r.vec.buffer, r.vec.byteOffset, dim));
+    shard.data.set(normed, slot * dim);
+    shard.ids[slot] = r.image_id;
+    shard.tail[slot] = tailNormOf(shard.data, slot * dim, dim >> 1, dim);
+    store.idIndex.set(r.image_id, { s: store.shards.length - 1, i: slot });
   }
-  for (const [dim, g] of groups) {
-    const count = g.ids.length;
-    const data = new Float32Array(count * dim);
-    for (let i = 0; i < count; i++) data.set(g.vecs[i], i * dim);
-    groups.set(dim, { ids: Int32Array.from(g.ids), data, count });
+  store.total = rows.length;
+  vecStores.set(dim, store);
+  return store;
+}
+
+function getStore(dim) {
+  return vecStores.get(dim) || loadStore(dim);
+}
+
+/** 预加载某维度的全量向量缓存（聚类前调用，避免 cachedVector 逐条回库） */
+export function ensureVecCache(dim = DIM) {
+  return getStore(dim);
+}
+
+/** 分片内墓碑过多时紧凑化（把尾部活体往前挪，更新 idIndex） */
+function compactShard(store, si) {
+  const shard = store.shards[si];
+  const { dim } = store;
+  const live = [];
+  for (let i = 0; i < shard.count; i++) {
+    if (shard.ids[i] !== 0) live.push([shard.ids[i], shard.tail[i], i]);
   }
-  vecCache = groups;
+  const data = new Float32Array(SHARD_CAP * dim);
+  const ids = new Int32Array(SHARD_CAP);
+  const tail = new Float32Array(SHARD_CAP);
+  live.forEach(([id, tn, oldSlot], i) => {
+    data.set(shard.data.subarray(oldSlot * dim, oldSlot * dim + dim), i * dim);
+    ids[i] = id;
+    tail[i] = tn;
+    store.idIndex.set(id, { s: si, i });
+  });
+  store.shards[si] = { ids, data, tail, count: live.length, holes: [] };
+}
+
+function removeFromStore(store, imageId) {
+  const pos = store.idIndex.get(imageId);
+  if (!pos) return;
+  const shard = store.shards[pos.s];
+  if (shard && shard.ids[pos.i] === imageId) {
+    shard.ids[pos.i] = 0;
+    shard.holes.push(pos.i);
+    if (shard.holes.length > shard.count / 3) compactShard(store, pos.s);
+  }
+  store.idIndex.delete(imageId);
+  store.total--;
+}
+
+function insertIntoStore(store, imageId, normed) {
+  let shard = store.shards[store.shards.length - 1];
+  if (!shard || (shard.count >= SHARD_CAP && !shard.holes.length)) {
+    shard = newShard(store.dim);
+    store.shards.push(shard);
+  }
+  let slot;
+  if (shard.holes.length) {
+    slot = shard.holes.pop();
+  } else {
+    slot = shard.count++;
+  }
+  const { dim } = store;
+  shard.data.set(normed, slot * dim);
+  shard.ids[slot] = imageId;
+  shard.tail[slot] = tailNormOf(shard.data, slot * dim, dim >> 1, dim);
+  store.idIndex.set(imageId, { s: store.shards.length - 1, i: slot });
+  store.total++;
+}
+
+export function saveEmbedding(imageId, vec) {
+  db.prepare(
+    'INSERT INTO clip_vec(image_id, dim, vec, created_at) VALUES (?, ?, ?, ?) ON CONFLICT(image_id) DO UPDATE SET dim = excluded.dim, vec = excluded.vec'
+  ).run(imageId, vec.length, Buffer.from(vec.buffer, vec.byteOffset, vec.byteLength), new Date().toISOString());
+  const dim = vec.length;
+  const store = getStore(dim);
+  const pos = store.idIndex.get(imageId);
+  if (pos) {
+    const shard = store.shards[pos.s];
+    if (shard && shard.ids[pos.i] === imageId) {
+      if (store.dim === dim) {
+        // 同维度重建模：原地覆盖
+        shard.data.set(vec, pos.i * dim);
+        shard.tail[pos.i] = tailNormOf(shard.data, pos.i * dim, dim >> 1, dim);
+        return;
+      }
+      removeFromStore(store, imageId); // 跨维度（实际不会发生，防御）
+    }
+  }
+  // 缓存写入用归一化副本，DB 保持调用方原样（读取路径本就归一化）
+  insertIntoStore(store, imageId, normalizeInPlace(Float32Array.from(vec)));
+}
+
+export function deleteEmbedding(imageId) {
+  db.prepare('DELETE FROM clip_vec WHERE image_id = ?').run(imageId);
+  // 不知道该向量是哪个维度：逐 store 清（store 数 = 出现过的维度数，通常 1）
+  for (const store of vecStores.values()) removeFromStore(store, imageId);
+}
+
+/** 缓存中的向量副本（无则 null）。供聚类等场景避免逐 id 回库查询 */
+export function cachedVector(imageId) {
+  for (const store of vecStores.values()) {
+    const pos = store.idIndex.get(imageId);
+    if (pos) {
+      const shard = store.shards[pos.s];
+      if (shard && shard.ids[pos.i] === imageId) {
+        return shard.data.slice(pos.i * store.dim, pos.i * store.dim + store.dim);
+      }
+    }
+  }
+  return null;
 }
 
 /** 全库中与 vec 余弦最高的前 k 个（排除自身），返回 [{ id, cos }] */
 export function topSimilar(vec, { k = 24, minCos = 0.8, excludeId = 0 } = {}) {
-  if (!vecCache) loadVecCache();
-  const group = vecCache.get(vec.length);
+  const dim = vec.length;
+  const head = dim >> 1;
+  const store = getStore(dim);
   const scored = [];
-  if (group && group.count) {
-    const { ids, data, count } = group;
+  let qTailSq = 1;
+  for (let j = 0; j < head; j++) qTailSq -= vec[j] * vec[j];
+  const qTail = qTailSq > 0 ? Math.sqrt(qTailSq) : 0;
+  let guard = 0;
+  const LIMIT = Math.max(k * 8, 4096);
+  for (const shard of store.shards) {
+    const { ids, data, tail, count } = shard;
     for (let i = 0; i < count; i++) {
       const id = ids[i];
-      if (id === excludeId) continue;
-      let dot = 0;
-      const base = i * vec.length;
-      for (let j = 0; j < vec.length; j++) dot += vec[j] * data[base + j];
-      if (dot >= minCos) scored.push({ id, cos: dot });
+      if (id === 0 || id === excludeId) continue;
+      const base = i * dim;
+      // 第一段：前半维点积 + 尾范数上界剪枝（上界 < minCos 必然不是近邻）
+      let h = 0;
+      for (let j = 0; j < head; j++) h += vec[j] * data[base + j];
+      if (h + qTail * tail[i] < minCos) continue;
+      let dot = h;
+      for (let j = head; j < dim; j++) dot += vec[j] * data[base + j];
+      if (dot >= minCos) {
+        scored.push({ id, cos: dot });
+        // 命中远超 k 时就地收敛：排序截断，防止 minCos 很低时数组膨胀
+        if (++guard >= LIMIT) {
+          scored.sort((a, b) => b.cos - a.cos);
+          scored.length = k;
+          guard = 0;
+        }
+      }
     }
-    scored.sort((a, b) => b.cos - a.cos);
   }
+  scored.sort((a, b) => b.cos - a.cos);
   return scored.slice(0, k);
 }
 
@@ -171,6 +310,8 @@ export function backfillStatus() {
 /** 为所有缺失特征的图片补算（异步后台跑，进度见 backfillStatus） */
 export async function startBackfill() {
   if (backfillState.running) return { ok: false, message: '补算正在进行中' };
+  // 补算是跨 await 的长任务：中途切库后 id 属于旧库，写进新库就是错数据
+  const generation = getLibraryGeneration();
   const ids = db
     .prepare(
       `SELECT id, abs_path FROM images WHERE id NOT IN (SELECT image_id FROM clip_vec) ORDER BY id`
@@ -184,6 +325,10 @@ export async function startBackfill() {
     try {
       await getExtractor();
       for (const { id, abs_path } of ids) {
+        if (generation !== getLibraryGeneration()) {
+          backfillState.error = '已切换资源库，补算中止';
+          break;
+        }
         try {
           if (fs.existsSync(abs_path)) {
             const vec = await embedImage(abs_path);
@@ -193,8 +338,10 @@ export async function startBackfill() {
           console.error('[clip] 建模失败', id, err?.message || err);
         }
         backfillState.done++;
-        // 节流：给主线程留喘息，避免推理高峰期拖慢同一进程的 HTTP 出图与删图
-        await new Promise((r) => setTimeout(r, 40));
+        // 节流：让事件循环转一圈，推理高峰期 HTTP 才不会被饿死。
+        // 用 setImmediate 而非 setTimeout(40)：固定 40ms 是给每张图白加 40ms
+        // 纯睡眠（百万张 ≈ 11 小时），setImmediate 同样让出主线程但不空等。
+        await new Promise((r) => setImmediate(r));
       }
     } catch (err) {
       backfillState.error = err?.message || String(err);

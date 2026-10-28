@@ -82,8 +82,7 @@ export default function Enhance({ onToast, onLibraryChanged }: Props) {
 
   useEffect(() => {
     let tick = 0;
-    let off = () => {};
-    subscribeEvents('job', (d) => {
+    const off = subscribeEvents('job', (d) => {
       try {
         if (d?.enhance && jobRef.current?.running) {
           const st = d.enhance;
@@ -108,8 +107,6 @@ export default function Enhance({ onToast, onLibraryChanged }: Props) {
       } catch {
         /* ignore */
       }
-    }).then((o) => {
-      off = o;
     });
     return () => {
       off();

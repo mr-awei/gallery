@@ -56,19 +56,24 @@ async function ensure(): Promise<void> {
   return connecting;
 }
 
-/** 订阅某类事件；返回退订函数 */
-export async function subscribeEvents(type: 'job' | 'library' | 'live' | 'hello', fn: Handler): Promise<() => void> {
+/**
+ * 订阅某类事件；返回退订函数（同步返回）。
+ * 之前是 async：退订句柄要等建连 promise resolve 才拿得到，组件若在 resolve 前
+ * 卸载（快速进出页面），清理执行的还是空函数，handler 就永远留在全局 Map 里。
+ * handler 是同步入队的，退订没有理由异步化。
+ */
+export function subscribeEvents(type: 'job' | 'library' | 'live' | 'hello', fn: Handler): () => void {
   let set = handlersByType.get(type);
   if (!set) {
     set = new Set();
     handlersByType.set(type, set);
+    // 连接早就建好的情况下才订阅这个类型：ensure() 里的 attach 循环已经跑过了，
+    // 不在这里补挂一次，这个类型的事件永远收不到（谁先订阅谁活，后订阅的静默失效）
+    if (source) attach(type);
   }
   set.add(fn);
-  try {
-    await ensure();
-  } catch {
-    /* 建连失败不抛给组件，静默退化为无推送（页面仍有初次加载与手动刷新） */
-  }
+  // 建连失败不抛给组件，静默退化为无推送（页面仍有初次加载与手动刷新）
+  void ensure().catch(() => {});
   return () => {
     set?.delete(fn);
     if (set && !set.size) handlersByType.delete(type);

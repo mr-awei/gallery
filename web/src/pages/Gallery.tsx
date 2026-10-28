@@ -1,6 +1,6 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { api, downloadFile, quiet } from '../api';
-import type { Filters, ImageItem, Playlist } from '../types';
+import type { Filters, ImageItem, FolderNode, Playlist } from '../types';
 import FilterBar from '../components/FilterBar';
 import ImageCard from '../components/ImageCard';
 import { promptDialog } from '../components/Dialogs';
@@ -32,6 +32,14 @@ interface Props {
   onRefresh: () => void;
   onToast?: (msg: string) => void;
   importing?: boolean;
+  /** 导入进度：progress 0-100，saved 为已入库张数，message 为服务端任务名（边导边显示时用） */
+  importProgress?: {
+    progress: number;
+    saved: number;
+    total?: number;
+    unchanged?: number;
+    message?: string;
+  } | null;
   missingCount?: number;
   /** 手动刷新序号：变化时清除图片卡片加载失败的残留状态（不再重挂载整页卡片） */
   refreshSeq?: number;
@@ -40,6 +48,7 @@ interface Props {
   onRelocateMissing?: () => void;
   onPurgeMissing?: () => void;
   onAddToPlaylist?: (playlistId: number | string) => void;
+  onAddToFolder?: (folderId: number | string) => void;
   /** 把当前筛选结果整体标记为已看 */
   onMarkAllSeen?: () => void;
 }
@@ -49,6 +58,8 @@ export default function Gallery(props: Props) {
   const [missingDismissed, setMissingDismissed] = useState(false);
   const [playlists, setPlaylists] = useState<Playlist[]>([]);
   const [showPlaylistPick, setShowPlaylistPick] = useState(false);
+  const [folders, setFolders] = useState<FolderNode[]>([]);
+  const [showFolderPick, setShowFolderPick] = useState(false);
   const {
     items,
     hasMore,
@@ -66,6 +77,34 @@ export default function Gallery(props: Props) {
   useEffect(() => {
     if (selected.size > 0) api.playlists().then(setPlaylists).catch(quiet);
   }, [selected.size]);
+
+  // 多选时同步拉取文件夹树，供「加入文件夹」选择
+  useEffect(() => {
+    if (selected.size > 0) api.folders().then((r) => setFolders(r.folders)).catch(quiet);
+  }, [selected.size]);
+
+  // 文件夹树按层级排序 + 深度映射（用于「加入文件夹」下拉缩进显示）
+  const { sortedFolders, folderDepth } = useMemo(() => {
+    const byParent = new Map<number | null, FolderNode[]>();
+    for (const f of folders) {
+      const k = f.parent_id ?? null;
+      const arr = byParent.get(k);
+      if (arr) arr.push(f);
+      else byParent.set(k, [f]);
+    }
+    const depth = new Map<number, number>();
+    const sorted: FolderNode[] = [];
+    const walk = (pid: number | null, d: number) => {
+      const kids = (byParent.get(pid) || []).slice().sort((a, b) => a.name.localeCompare(b.name, 'zh-Hans-CN'));
+      for (const f of kids) {
+        depth.set(f.id, d);
+        sorted.push(f);
+        walk(f.id, d + 1);
+      }
+    };
+    walk(null, 0);
+    return { sortedFolders: sorted, folderDepth: depth };
+  }, [folders]);
 
   useEffect(() => {
     const el = sentinel.current;
@@ -162,6 +201,35 @@ export default function Gallery(props: Props) {
         </div>
       )}
 
+      {props.importing && (
+        <div
+          className="import-banner"
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: 10,
+            padding: '8px 12px',
+            marginBottom: 12,
+            borderRadius: 8,
+            background: 'rgba(120, 140, 255, 0.12)',
+            color: 'var(--text)',
+            fontSize: 13,
+          }}
+        >
+          <span className="spinner" />
+          <span>
+            {props.importProgress?.message || '正在扫描素材文件夹'}
+            {props.importProgress?.progress != null
+              ? ` ${Math.min(99, Math.max(0, props.importProgress.progress))}%`
+              : ''}
+            {props.importProgress?.saved ? `（已入库 ${props.importProgress.saved} 张）` : ''}
+            {props.importProgress?.total ? `／共 ${props.importProgress.total} 张` : ''}
+            {props.importProgress?.unchanged ? `，跳过 ${props.importProgress.unchanged} 张未变化` : ''}
+            —— 新图片会边扫描边出现
+          </span>
+        </div>
+      )}
+
         <FilterBar
           filters={props.filters}
           onChange={props.onFiltersChange}
@@ -177,15 +245,27 @@ export default function Gallery(props: Props) {
       {!items.length && !loading && (
         <div className="empty">
           <div className="big">🖼️</div>
-          <h3>{props.importing ? '正在导入本地素材…' : '还没有符合条件的图片'}</h3>
-          <p>
-            前往「采集」页面，选择关键词与来源开始自动采集全网邓紫棋高清图，
-            <br />
-            采集结果会自动去重并按分辨率筛选后进入图库。
-          </p>
-          <button className="btn primary" onClick={props.onStartCrawl}>
-            立即开始采集
-          </button>
+          <h3>
+            {props.importing
+              ? `正在扫描素材文件夹… ${Math.min(99, Math.max(0, props.importProgress?.progress ?? 0))}${
+                  props.importProgress?.saved ? `（已入库 ${props.importProgress.saved} 张）` : ''
+                }`
+              : '还没有符合条件的图片'}
+          </h3>
+          {props.importing ? (
+            <p>图片会边扫描边显示，无需等待全部完成。</p>
+          ) : (
+            <p>
+              前往「采集」页面，选择关键词与来源开始自动采集全网邓紫棋高清图，
+              <br />
+              采集结果会自动去重并按分辨率筛选后进入图库。
+            </p>
+          )}
+          {!props.importing && (
+            <button className="btn primary" onClick={props.onStartCrawl}>
+              立即开始采集
+            </button>
+          )}
         </div>
       )}
 
@@ -258,6 +338,37 @@ export default function Gallery(props: Props) {
                 </option>
               ))}
               <option value="__new__">＋ 新建清单…</option>
+            </select>
+          )}
+          {props.onAddToFolder && (
+            <button className="btn sm" onClick={() => setShowFolderPick((v) => !v)}>
+              <IconFolder /> 加入文件夹
+            </button>
+          )}
+          {props.onAddToFolder && showFolderPick && (
+            <select
+              className="input"
+              style={{ width: 190, padding: '5px 9px', fontSize: 12.5 }}
+              autoFocus
+              defaultValue=""
+              onChange={(e) => {
+                const v = e.target.value;
+                if (!v) return;
+                void (async () => {
+                  const name = v === '__new__' ? await promptDialog('新文件夹名称') : '';
+                  props.onAddToFolder!(v === '__new__' ? `__new__:${name || ''}` : Number(v));
+                  setShowFolderPick(false);
+                })();
+              }}
+            >
+              <option value="">选择文件夹…</option>
+              {sortedFolders.map((f) => (
+                <option key={f.id} value={f.id}>
+                  {'　'.repeat(folderDepth.get(f.id) || 0)}
+                  {f.name}（{f.count ?? 0}）
+                </option>
+              ))}
+              <option value="__new__">＋ 新建文件夹…</option>
             </select>
           )}
           <button className="btn sm danger" onClick={() => onBulk('delete')}>

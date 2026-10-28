@@ -1,5 +1,6 @@
-import { db, getSettings } from './db.js';
-import { ingest, KEEP_REASONS } from './library.js';
+import { db, getSettings, getLibraryGeneration } from './db.js';
+import { KEEP_REASONS } from './library.js';
+import { bulkIngestBuffers } from './bulk-import.js';
 import { httpFetch } from './http.js';
 import { sanitizeResults } from './sanitize.js';
 
@@ -415,6 +416,8 @@ export function startCrawl(config) {
 }
 
 async function runJob(jobRef, settings) {
+  // 采集是跨 await 的长任务：中途切库后下载到的图会写进新库，记下代数以便中止
+  const generation = getLibraryGeneration();
   const existingUrls = new Set(
     db
       .prepare('SELECT source_url FROM images')
@@ -430,6 +433,10 @@ async function runJob(jobRef, settings) {
   let searchDone = false;
   let cursor = 0;
   const concurrency = Math.max(1, Math.min(12, Number(settings.concurrency) || 5));
+  // 下载与入库解耦：下载协程把 buffer 投进 ingestQueue，ingestLoop 攒批入库
+  const ingestQueue = [];
+  let ingestClosed = false;
+  const ingestPromise = ingestLoop(jobRef, settings, generation, ingestQueue, () => ingestClosed);
   // 各采集源需要的凭据与过滤条件（wallhaven API Key、微博 Cookie、最低分辨率）
   const searchOpts = {
     wallhavenApiKey: settings.wallhavenApiKey || '',
@@ -441,6 +448,7 @@ async function runJob(jobRef, settings) {
   // 下载 worker：与搜索并行，候选一出现就开始下载
   async function downloadWorker() {
     for (;;) {
+      if (jobRef.stopRequested || generation !== getLibraryGeneration()) return;
       if (cursor >= queue.length) {
         if (searchDone || jobRef.stopRequested) return;
         await sleep(150);
@@ -449,7 +457,7 @@ async function runJob(jobRef, settings) {
       const item = queue[cursor++];
       jobRef.download.active++;
       try {
-        await downloadOne(jobRef, item, settings);
+        await downloadOne(jobRef, item, settings, ingestQueue);
       } finally {
         jobRef.download.active--;
       }
@@ -463,6 +471,11 @@ async function runJob(jobRef, settings) {
     for (const sourceKey of jobRef.sources) {
       for (let page = 0; page < jobRef.pages; page++) {
         if (jobRef.stopRequested) break outer;
+        if (generation !== getLibraryGeneration()) {
+          jobRef.stopRequested = true;
+          log(jobRef, 'warn', '已切换资源库：采集中止（避免下载结果写进别的库）');
+          break outer;
+        }
         const source = SOURCES[sourceKey];
         jobRef.current = { keyword, source: source.label, page: page + 1 };
         try {
@@ -507,10 +520,17 @@ async function runJob(jobRef, settings) {
 
   searchDone = true;
   await workers;
+  ingestClosed = true; // 下载全部结束：等入库队列清空后再宣告完成
+  await ingestPromise;
   finish(jobRef, jobRef.stopRequested ? '已手动停止' : '采集完成');
 }
 
-async function downloadOne(jobRef, item, settings) {
+/**
+ * 下载单个候选并投递到批量入库队列。
+ * 下载与入库解耦：下载协程只管网络 IO（拿到 buffer 就走），入库由 ingestLoop
+ * 攒批交给 bulkIngestBuffers（worker 池派生 + 批量事务），主线程不再逐张解码。
+ */
+async function downloadOne(jobRef, item, settings, ingestQueue) {
   try {
     const maxBytes = Number(settings.maxFileSize) * 1024 * 1024;
     let buffer;
@@ -529,36 +549,9 @@ async function downloadOne(jobRef, item, settings) {
         throw err;
       }
     }
-    const result = await ingest(
-      { buffer, source: item.source, keyword: item.keyword, sourceUrl: item.url, title: item.keyword },
-      settings
-    );
     jobRef.download.done++;
     jobRef.stats.downloaded++;
-    if (result.ok) {
-      jobRef.download.saved++;
-      jobRef.stats.saved++;
-      if (jobRef.stats.saved % 10 === 1 || jobRef.stats.saved <= 3) {
-        log(
-          jobRef,
-          'success',
-          `✓ 已保存 ${jobRef.stats.saved} 张（队列 ${jobRef.download.queued - jobRef.download.done}）最新：${result.image.width}×${result.image.height} · ${item.source} · ${item.keyword}`
-        );
-      }
-    } else {
-      const map = {
-        [KEEP_REASONS.tooSmall]: '分辨率不足',
-        [KEEP_REASONS.tooLight]: '文件过小',
-        [KEEP_REASONS.badFormat]: '格式不支持',
-        [KEEP_REASONS.duplicate]: '重复图片',
-        [KEEP_REASONS.tooLarge]: '文件过大',
-        [KEEP_REASONS.failed]: '处理失败',
-        [KEEP_REASONS.aiFilter]: '知识库判定低分',
-      };
-      const reason = map[result.reason] || result.reason;
-      jobRef.stats.dropped[result.reason] = (jobRef.stats.dropped[result.reason] || 0) + 1;
-      log(jobRef, 'warn', `× 丢弃（${reason}）${item.source} · ${item.url.slice(0, 70)}`);
-    }
+    ingestQueue.push({ item, buffer });
   } catch (err) {
     jobRef.download.done++;
     jobRef.download.failed++;
@@ -572,6 +565,83 @@ async function downloadOne(jobRef, item, settings) {
       message,
     });
     log(jobRef, 'error', `× 下载失败 ${item.url.slice(0, 70)} — ${message}`);
+  }
+}
+
+const DROP_LABELS = {
+  [KEEP_REASONS.tooSmall]: '分辨率不足',
+  [KEEP_REASONS.tooLight]: '文件过小',
+  [KEEP_REASONS.badFormat]: '格式不支持',
+  [KEEP_REASONS.duplicate]: '重复图片',
+  [KEEP_REASONS.tooLarge]: '文件过大',
+  [KEEP_REASONS.failed]: '处理失败',
+  [KEEP_REASONS.aiFilter]: '知识库判定低分',
+};
+
+/** 批量入库的逐条结果回调：把统计与日志更新到任务上（口径与旧逐条 ingest 完全一致） */
+function applyIngestResult(jobRef, item, result) {
+  if (result.ok) {
+    jobRef.download.saved++;
+    jobRef.stats.saved++;
+    if (jobRef.stats.saved % 10 === 1 || jobRef.stats.saved <= 3) {
+      log(
+        jobRef,
+        'success',
+        `✓ 已保存 ${jobRef.stats.saved} 张（队列 ${jobRef.download.queued - jobRef.download.done}）最新：${result.image.width}×${result.image.height} · ${item.source} · ${item.keyword}`
+      );
+    }
+  } else {
+    const reason = DROP_LABELS[result.reason] || result.reason;
+    jobRef.stats.dropped[result.reason] = (jobRef.stats.dropped[result.reason] || 0) + 1;
+    log(jobRef, 'warn', `× 丢弃（${reason}）${item.source} · ${item.url.slice(0, 70)}`);
+  }
+}
+
+/**
+ * 入库消费协程：攒批（BATCH 条）交给 bulkIngestBuffers。
+ * 下载协程与消费协程共享队列；下载侧结束（closed）且队列清空后退出。
+ */
+const INGEST_BATCH = 24;
+
+async function ingestLoop(jobRef, settings, generation, ingestQueue, isClosed) {
+  for (;;) {
+    if (jobRef.stopRequested || generation !== getLibraryGeneration()) {
+      ingestQueue.length = 0; // 中止：未入库的下载结果直接丢弃
+      return;
+    }
+    if (!ingestQueue.length) {
+      if (isClosed()) return;
+      await sleep(120);
+      continue;
+    }
+    const batch = ingestQueue.splice(0, INGEST_BATCH);
+    const items = batch.map((e) => ({
+      buffer: e.buffer,
+      source: e.item.source,
+      keyword: e.item.keyword,
+      sourceUrl: e.item.url,
+      title: e.item.keyword,
+    }));
+    try {
+      await bulkIngestBuffers(items, {
+        libGeneration: generation,
+        onEach: (i, r) => applyIngestResult(jobRef, batch[i].item, r),
+      });
+    } catch (err) {
+      // 批量整体异常：逐条按失败统计（与下载失败同一出口）
+      for (const e of batch) {
+        jobRef.download.failed++;
+        jobRef.stats.failed++;
+        addFailure(jobRef, {
+          source: SOURCES[e.item.source]?.label || e.item.source,
+          keyword: e.item.keyword,
+          url: e.item.url,
+          reason: '入库失败',
+          message: err?.message || String(err),
+        });
+      }
+      log(jobRef, 'error', `× 一批 ${batch.length} 张入库失败：${err?.message || err}`);
+    }
   }
 }
 
@@ -590,11 +660,12 @@ function finish(jobRef, message) {
 }
 
 /**
- * 下载并入库一组直链（用于初始素材）
+ * 下载并入库一组直链（用于初始素材）。批量走流水线（worker 派生 + 批量事务），
+ * 下载间隔保留节流避免对源站过快。
  */
 export async function ingestUrls(urls, { source = 'seed', keyword = '初始素材' } = {}) {
-  const settings = getSettings();
-  const results = [];
+  const buffers = [];
+  const okUrls = [];
   for (const url of urls) {
     try {
       const buffer = await httpGet(url, {
@@ -603,12 +674,35 @@ export async function ingestUrls(urls, { source = 'seed', keyword = '初始素�
         maxBytes: 40 * 1024 * 1024,
         headers: { Referer: 'https://www.doubao.com/' },
       });
-      const result = await ingest({ buffer, source, keyword, sourceUrl: url, title: keyword }, settings);
-      results.push({ url, ok: result.ok, reason: result.reason, id: result.id });
+      buffers.push(buffer);
+      okUrls.push(url);
     } catch (err) {
-      results.push({ url, ok: false, reason: 'failed', error: err.message });
+      buffers.push(null);
+      okUrls.push(url);
     }
     await sleep(500);
+  }
+  const results = new Array(okUrls.length);
+  const slots = [];
+  for (let i = 0; i < okUrls.length; i++) {
+    if (!buffers[i]) {
+      results[i] = { url: okUrls[i], ok: false, reason: 'failed', error: '下载失败' };
+      continue;
+    }
+    slots.push(i);
+  }
+  if (slots.length) {
+    const perItem = new Array(slots.length);
+    await bulkIngestBuffers(
+      slots.map((i) => ({ buffer: buffers[i], source, keyword, sourceUrl: okUrls[i], title: keyword })),
+      { onEach: (i, r) => (perItem[i] = r) }
+    );
+    slots.forEach((slot, i) => {
+      const r = perItem[i];
+      results[slot] = r
+        ? { url: okUrls[slot], ok: r.ok, reason: r.reason, id: r.id, duplicateOf: r.duplicateOf }
+        : { url: okUrls[slot], ok: false, reason: 'failed', error: '入库失败' };
+    });
   }
   return results;
 }

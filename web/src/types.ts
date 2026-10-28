@@ -181,6 +181,30 @@ export interface Filters {
   colorTol: number;
 }
 
+/** 资源库（多资源库） */
+export interface Library {
+  id: number;
+  name: string;
+  path: string;
+  root_path: string;
+  thumb_dir: string;
+  created_at: string;
+  last_opened: string;
+  is_active: number;
+  /** 是否可删除（默认库不可删） */
+  deletable?: boolean;
+}
+
+/** 文件夹树节点（后端扁平返回，前端按 parent_id 组装） */
+export interface FolderNode {
+  id: number;
+  name: string;
+  parent_id: number | null;
+  path: string;
+  anchor_path: string;
+  count: number;
+}
+
 export interface SimilarGroup {
   key: string;
   /** 系统推荐保留的那张（组内画质最佳） */
@@ -375,6 +399,8 @@ export interface Settings {
   /** 微博登录会话的 User-Agent：微博风控把登录态与 UA 绑定，采集请求需复用同一 UA */
   weiboUserAgent: string;
   storageDir: string;
+  /** 是否已完成首次引导（首次启动选择图片文件夹） */
+  onboarded?: boolean;
   deletePolicy: 'trash' | 'permanent' | 'unlink';
   scoreThreshold: number;
   wallpaperFill: 'blur' | 'solid' | 'black';

@@ -49,17 +49,10 @@ function dctLowFreq(gray) {
   return out;
 }
 
-export async function computePHash(input) {
-  const raw = await sharp(input, { failOn: 'none' })
-    .resize(N, N, { fit: 'fill' })
-    .greyscale()
-    .raw()
-    .toBuffer({ resolveWithObject: true });
-
+/** 32×32 灰度图（长度 1024、单通道）→ pHash */
+export function phashFromGrey32(grey) {
   const gray = new Float64Array(N * N);
-  const data = raw.data;
-  const channels = raw.info.channels;
-  for (let i = 0; i < N * N; i++) gray[i] = data[i * channels];
+  for (let i = 0; i < N * N; i++) gray[i] = grey[i];
 
   const dct = dctLowFreq(gray);
 
@@ -76,6 +69,16 @@ export async function computePHash(input) {
   let bits = '';
   for (let i = 0; i < block.length; i++) bits += block[i] > median ? '1' : '0';
   return BigInt('0b' + bits).toString(16).padStart(16, '0');
+}
+
+/** 路径 / Buffer → pHash（缩到 32×32 灰度后走同一套 DCT） */
+export async function computePHash(input) {
+  const raw = await sharp(input, { failOn: 'none' })
+    .resize(N, N, { fit: 'fill' })
+    .greyscale()
+    .raw()
+    .toBuffer({ resolveWithObject: true });
+  return phashFromGrey32(raw.data);
 }
 
 /**

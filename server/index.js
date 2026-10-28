@@ -1,6 +1,7 @@
 import { startServer } from './app.js';
 import { PORT, API_TOKEN } from './config.js';
 import { watchStorageDir } from './importer.js';
+import { backfillFolders } from './folders.js';
 
 let port;
 try {
@@ -16,3 +17,5 @@ try {
 const suffix = API_TOKEN ? `?token=${API_TOKEN}` : '';
 console.log(`\n  邓紫棋照片采集器  →  http://localhost:${port}/${suffix}\n`);
 watchStorageDir();
+// 首次升级：为库中已有图片按磁盘目录回填文件夹树（幂等）
+backfillFolders();
