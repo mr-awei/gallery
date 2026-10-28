@@ -53,6 +53,21 @@ CREATE TABLE IF NOT EXISTS libraries (
   import_pending INTEGER NOT NULL DEFAULT 0   -- 1 = 上次扫描未完成，重启后要继续
 );
 `);
+// 存量库迁移：libraries 表的多库字段是分批加的，老全局库缺列时
+// 启动查询直接报 no such column 导致服务起不来（listen 回调抛错）。
+{
+  const ensureLibColumn = (column, ddl) => {
+    const cols = globalDb.prepare('PRAGMA table_info(libraries)').all();
+    if (!cols.some((c) => c.name === column)) {
+      globalDb.exec(`ALTER TABLE libraries ADD COLUMN ${ddl}`);
+    }
+  };
+  ensureLibColumn('root_path', "root_path TEXT NOT NULL DEFAULT ''");
+  ensureLibColumn('thumb_dir', "thumb_dir TEXT NOT NULL DEFAULT ''");
+  ensureLibColumn('last_opened', "last_opened TEXT NOT NULL DEFAULT ''");
+  ensureLibColumn('is_active', 'is_active INTEGER NOT NULL DEFAULT 0');
+  ensureLibColumn('import_pending', 'import_pending INTEGER NOT NULL DEFAULT 0');
+}
 
 /* ------------------------------- 库连接 ------------------------------- */
 
