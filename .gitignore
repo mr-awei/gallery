@@ -15,7 +15,10 @@ docs/
 e_pid.txt
 
 # 日志与临时输出
+logs/
 *.log
+*.log.*
+*.old
 *.err
 tsconfig.tsbuildinfo
 

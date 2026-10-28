@@ -202,7 +202,10 @@ export interface FolderNode {
   parent_id: number | null;
   path: string;
   anchor_path: string;
+  /** 直接挂在该夹的图片数 */
   count: number;
+  /** 含全部子孙夹的聚合图片数（Eagle 式树上的数字） */
+  total: number;
 }
 
 export interface SimilarGroup {

@@ -285,8 +285,9 @@ export function buildApp({ desktop = false } = {}) {
     next();
   });
 
-  // 路由组已拆分至 routes/*.js，此处统一注册
-  const ctx = { desktop, sseBroadcast, startLocalImport, asyncRoute, colorFilterIds };
+  // 路由组已拆分至 routes/*.js，此处统一注册。
+  // importState 是重赋值型 let（不能传对象引用），routes 经 getter 读最新值
+  const ctx = { desktop, sseBroadcast, startLocalImport, asyncRoute, colorFilterIds, importState: () => importState };
   registerTidy(app, ctx);
   registerEnhance(app, ctx);
   registerFiles(app, ctx);

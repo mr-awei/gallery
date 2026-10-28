@@ -57,12 +57,23 @@ export function linkImageByPath(imageId, absPath, rootPath = getSettings().stora
   return folderId;
 }
 
-/** 返回全部文件夹（含每个夹直接图片数），前端按 parent_id 组装树 */
+/** 返回全部文件夹（含每个夹直接图片数 count 与含后代聚合数 total），前端按 parent_id 组装树。
+ *  聚合数在 JS 里按 path 深度自底向上累加（O(n)），避免每夹一条 LIKE 聚合的树深倍查询。 */
 export function listFolderTree() {
   const folders = db.prepare('SELECT id, name, parent_id, path, anchor_path FROM folders ORDER BY name ASC').all();
   const counts = db.prepare('SELECT folder_id, COUNT(*) AS c FROM image_folders GROUP BY folder_id').all();
   const countMap = new Map(counts.map((r) => [r.folder_id, r.c]));
-  return folders.map((f) => ({ ...f, count: countMap.get(f.id) || 0 }));
+  const nodes = folders.map((f) => ({ ...f, count: countMap.get(f.id) || 0, total: countMap.get(f.id) || 0 }));
+  // path 形如 '/1/5/9/'，深度 = path.split('/').length；越深越先处理，把 total 上滚给父链
+  const byId = new Map(nodes.map((n) => [n.id, n]));
+  const ordered = [...nodes].sort((a, b) => b.path.split('/').length - a.path.split('/').length);
+  for (const n of ordered) {
+    if (n.total && n.parent_id != null) {
+      const p = byId.get(n.parent_id);
+      if (p) p.total += n.total;
+    }
+  }
+  return nodes;
 }
 
 /** 查某文件夹（含全部后代）的图片行（原始行，由调用方转 DTO）。

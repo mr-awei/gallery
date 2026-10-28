@@ -215,16 +215,187 @@
   color: var(--muted);
 }
 
-.lib-switcher {
-  width: 100%;
+/* --------------------- Eagle 式资源库切换器 --------------------- */
+.lib-switcher-wrap {
+  position: relative;
   margin: 0 0 4px;
-  padding: 8px 10px;
+}
+.lib-trigger {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  padding: 9px 10px;
   border-radius: 10px;
   border: 1px solid var(--border);
   background: var(--panel);
   color: var(--text);
   font-size: 13px;
   cursor: pointer;
+  transition: border-color 0.15s ease, background 0.15s ease;
+}
+.lib-trigger:hover {
+  border-color: var(--muted);
+}
+.lib-trigger-name {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  text-align: left;
+  font-weight: 600;
+}
+.lib-trigger-caret {
+  flex: 0 0 auto;
+  color: var(--muted);
+  font-size: 10px;
+}
+.lib-panel {
+  position: fixed;
+  z-index: 90;
+  min-width: 240px;
+  max-width: 320px;
+  border-radius: 12px;
+  border: 1px solid var(--border);
+  background: var(--solid-panel);
+  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.28);
+  overflow: hidden;
+  animation: lib-panel-in 0.12s ease;
+}
+@keyframes lib-panel-in {
+  from {
+    opacity: 0;
+    transform: translateY(-4px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+.lib-panel-head {
+  padding: 8px 12px 4px;
+  font-size: 11px;
+  color: var(--muted);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+.lib-panel-list {
+  max-height: 320px;
+  overflow-y: auto;
+  padding: 2px 6px 6px;
+}
+.lib-row {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 7px 8px;
+  border-radius: 8px;
+  cursor: pointer;
+  font-size: 13px;
+  color: var(--text);
+  transition: background 0.12s ease;
+}
+.lib-row:hover {
+  background: var(--panel);
+}
+.lib-row.active {
+  background: linear-gradient(90deg, rgba(255, 77, 141, 0.18), rgba(168, 85, 247, 0.12));
+}
+.lib-row-icon {
+  display: grid;
+  place-items: center;
+  flex: 0 0 auto;
+  color: var(--muted);
+}
+.lib-row-icon svg {
+  width: 15px;
+  height: 15px;
+}
+.lib-row-name {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.lib-row-check {
+  flex: 0 0 auto;
+  color: var(--accent);
+  font-size: 12px;
+}
+.lib-row-more {
+  flex: 0 0 auto;
+  display: none;
+  place-items: center;
+  width: 22px;
+  height: 22px;
+  border: none;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--muted);
+  font-size: 14px;
+  line-height: 1;
+  cursor: pointer;
+}
+.lib-row:hover .lib-row-more,
+.lib-row-more:focus {
+  display: grid;
+}
+.lib-row-more:hover {
+  background: var(--panel-strong);
+  color: var(--text);
+}
+.lib-menu {
+  position: fixed;
+  z-index: 95;
+  min-width: 170px;
+  padding: 4px;
+  border-radius: 10px;
+  border: 1px solid var(--border);
+  background: var(--solid-panel);
+  box-shadow: 0 10px 26px rgba(0, 0, 0, 0.3);
+  display: flex;
+  flex-direction: column;
+  animation: lib-panel-in 0.12s ease;
+}
+.lib-menu button {
+  border: none;
+  background: transparent;
+  color: var(--text);
+  font-size: 13px;
+  text-align: left;
+  padding: 8px 10px;
+  border-radius: 7px;
+  cursor: pointer;
+}
+.lib-menu button:hover:not(:disabled) {
+  background: var(--panel);
+}
+.lib-menu button:disabled {
+  color: var(--muted);
+  cursor: not-allowed;
+  opacity: 0.7;
+}
+.lib-menu button.danger:hover:not(:disabled) {
+  background: rgba(239, 68, 68, 0.14);
+  color: #ef4444;
+}
+.lib-panel-create {
+  width: 100%;
+  border: none;
+  border-top: 1px solid var(--border);
+  background: transparent;
+  color: var(--text);
+  font-size: 13px;
+  padding: 10px 12px;
+  cursor: pointer;
+  text-align: left;
+  transition: background 0.12s ease;
+}
+.lib-panel-create:hover {
+  background: var(--panel);
 }
 
 .folders-panel {
@@ -328,6 +499,19 @@
 .folder-item.active {
   background: linear-gradient(90deg, rgba(255, 77, 141, 0.18), rgba(168, 85, 247, 0.12));
   color: var(--text);
+}
+/* 根素材文件夹：树的顶层锚点（当前库素材根），视觉上与普通子夹区分 */
+.folder-root-row {
+  margin: 0 0 2px;
+}
+.folder-item.folder-root {
+  font-weight: 600;
+}
+.folder-item.folder-root .folder-name::before {
+  content: '▼ ';
+  font-size: 9px;
+  color: var(--accent);
+  vertical-align: 1px;
 }
 .folder-chevron {
   width: 14px;

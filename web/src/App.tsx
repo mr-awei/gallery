@@ -17,6 +17,7 @@ import DeleteReasonDialog, { reasonLabel } from './components/DeleteReasonDialog
 import DialogHost, { confirmDialog, promptDialog } from './components/Dialogs';
 import Onboarding from './components/Onboarding';
 import FolderTree from './components/FolderTree';
+import LibrarySwitcher from './components/LibrarySwitcher';
 import CreateLibraryDialog from './components/CreateLibraryDialog';
 import {
   IconDashboard,
@@ -342,32 +343,38 @@ const importingRef = useRef(false);
     [activeLibId, load, refreshStats, followImport, resetLibBaseline, showToast]
   );
 
-  // 删除当前资源库（只删库自建产物，素材图片保留；默认库不可删）
-  const deleteActiveLibrary = useCallback(async () => {
-    const lib = libraries.find((l) => l.id === activeLibId);
-    if (!lib) return;
-    if (!lib.deletable) return showToast('默认资源库不可删除');
-    const ok = await confirmDialog(
-      `确定删除资源库「${lib.name}」？将移除注册并删除库目录（gallery.db + 缩略图），素材图片会保留。`
-    );
-    if (!ok) return;
-    try {
-      const r = await api.deleteLibrary(lib.id);
-      setLibraries(r.libraries);
-      setActiveLibId(r.activeId);
-      setFolderId(null);
-      setFolders([]);
-      setView('gallery');
-      pageRef.current = 1;
-      resetLibBaseline();
-      load(1, true);
-      refreshStats();
-      api.folders().then((x) => setFolders(x.folders)).catch(quiet);
-      showToast('已删除资源库');
-    } catch (err) {
-      showToast((err as Error).message);
-    }
-  }, [activeLibId, libraries, load, refreshStats, resetLibBaseline, showToast]);
+  // 删除资源库（Eagle 式「从列表删除」：可删任意库，不必先切换过去。
+  // 只删库自建产物，素材图片保留；默认库不可删。删当前库则切回剩余库并重载）
+  const deleteLibraryAt = useCallback(
+    async (lib: Library) => {
+      if (!lib.deletable) return showToast('默认资源库不可删除');
+      const isCurrent = lib.id === activeLibId;
+      const ok = await confirmDialog(
+        `从列表删除资源库「${lib.name}」？将移除注册并删除库目录（gallery.db + 缩略图），素材图片会保留。` +
+          (isCurrent ? '\n\n这是当前打开的资源库，删除后会切换到其他库。' : '')
+      );
+      if (!ok) return;
+      try {
+        const r = await api.deleteLibrary(lib.id);
+        setLibraries(r.libraries);
+        if (isCurrent) {
+          setActiveLibId(r.activeId);
+          setFolderId(null);
+          setFolders([]);
+          setView('gallery');
+          pageRef.current = 1;
+          resetLibBaseline();
+          load(1, true);
+          refreshStats();
+          api.folders().then((x) => setFolders(x.folders)).catch(quiet);
+        }
+        showToast(`已删除资源库「${lib.name}」`);
+      } catch (err) {
+        showToast((err as Error).message);
+      }
+    },
+    [activeLibId, load, refreshStats, resetLibBaseline, showToast]
+  );
 
   // 新建资源库后：刷新库列表、切到新库并扫描
   const onLibraryCreated = useCallback(
@@ -955,40 +962,14 @@ const importingRef = useRef(false);
       <div className="app-body">
       <aside className="sidebar">
         <div className="side-section-title">资源库</div>
-        {libraries.length > 0 && (
-          <select
-            className="lib-switcher"
-            value={activeLibId ?? ''}
-            onChange={(e) => switchLibrary(Number(e.target.value))}
-            title="切换资源库"
-          >
-            {libraries.map((l) => (
-              <option key={l.id} value={l.id}>
-                {l.name}
-              </option>
-            ))}
-          </select>
-        )}
-        <div style={{ display: 'flex', gap: 6, marginBottom: 6 }}>
-          <button
-            className="btn ghost sm"
-            style={{ flex: 1, justifyContent: 'center' }}
-            onClick={() => setShowCreateLib(true)}
-            title="新建资源库"
-          >
-            + 新建库
-          </button>
-          {libraries.find((l) => l.id === activeLibId)?.deletable && (
-            <button
-              className="btn ghost sm danger"
-              style={{ flex: 1, justifyContent: 'center' }}
-              onClick={deleteActiveLibrary}
-              title="删除当前资源库"
-            >
-              删除库
-            </button>
-          )}
-        </div>
+        <LibrarySwitcher
+          libraries={libraries}
+          activeLibId={activeLibId}
+          onSwitch={switchLibrary}
+          onDelete={deleteLibraryAt}
+          onCreate={() => setShowCreateLib(true)}
+          onOpenInExplorer={(lib) => openFolder(lib.path).catch(quiet)}
+        />
         {NAV.map((n) => (
           <button
             key={n.key}
@@ -1010,6 +991,13 @@ const importingRef = useRef(false);
           <FolderTree
             folders={folders}
             activeId={folderId}
+            rootName={libraries.find((l) => l.id === activeLibId)?.name ?? '全部'}
+            rootPath={libraries.find((l) => l.id === activeLibId)?.root_path ?? ''}
+            rootActive={!folderId && view === 'gallery'}
+            onOpenRoot={() => {
+              setFolderId(null);
+              setView('gallery');
+            }}
             onOpen={enterFolder}
             onCreate={createFolderAt}
             onRename={renameFolderAt}

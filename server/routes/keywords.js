@@ -2,14 +2,32 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { applyProxy } from '../network.js';
-import { SOURCES } from '../crawler.js';
+import { SOURCES, getJobStatus, startCrawl, stopCrawl, ingestUrls } from '../crawler.js';
+import { SEED_URLS } from '../config.js';
 import * as ai from '../ai.js';
 import * as lib from '../library.js';
+import {
+  addImagesToFolder,
+  createVirtualFolder,
+  deleteFolder,
+  folderImageRows,
+  listFolderTree,
+  removeImagesFromFolder,
+  renameFolder,
+} from '../folders.js';
+import {
+  activateLibrary,
+  createLibrary,
+  deleteLibrary,
+  getActiveLibrary,
+  listLibraries,
+  setActiveRoot,
+} from '../libraries.js';
 import { watchStorageDir } from '../importer.js';
 import { db, getSettings, saveSettings, listKeywords, addKeyword, updateKeyword, deleteKeyword } from '../db.js';
 
 export function register(app, ctx) {
-  const { asyncRoute, sseBroadcast, startLocalImport } = ctx;
+  const { asyncRoute, sseBroadcast, startLocalImport, importState: importStateRef } = ctx;
 
 
   app.get('/api/keywords', (_req, res) => res.json(listKeywords()));
@@ -203,7 +221,7 @@ export function register(app, ctx) {
   /* ------------------------------- 导入 / 维护 ------------------------------ */
   // importState / startLocalImport 已在模块顶层定义（bootstrap 复用）
 
-  app.get('/api/import/status', (_req, res) => res.json(importState));
+  app.get('/api/import/status', (_req, res) => res.json(importStateRef()));
 
   app.post(
     '/api/import/local',

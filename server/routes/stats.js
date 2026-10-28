@@ -1,6 +1,10 @@
 // 统计路由：总量/来源/分辨率/方向/收藏/增长趋势等聚合视图（从 app.js 拆出）
 import { getJobStatus } from '../crawler.js';
 import * as lib from '../library.js';
+import * as ai from '../ai.js';
+import * as kb from '../kb.js';
+import { findMissing, importLocalImages, purgeMissing, relocateMissing } from '../importer.js';
+import { getNetwork, saveNetwork, testNetwork, applyProxy, PROXY_MODES } from '../network.js';
 import { db } from '../db.js';
 
 export function register(app, ctx) {
