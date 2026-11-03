@@ -1,10 +1,14 @@
 import path from 'node:path';
 import fs from 'node:fs';
-import { globalDb, openLibrary, setActiveLibrary, getActiveLibrary, saveSettings } from './db.js';
+import { globalDb, openLibrary, setActiveLibrary, getActiveLibrary, getSettings, saveSettings } from './db.js';
+import { resetPrivacy } from './lib/privacy.js';
 import { DATA_DIR } from './config.js';
 import { watchStorageDir, cancelLocalImport } from './importer.js';
 import { initPhashIndex } from './library.js';
+import { clearThumbQueue } from './lib/thumb-queue.js';
+import { clearPreviewQueue } from './lib/preview-queue.js';
 import { resetVecCache } from './clip.js';
+import { applyProxy } from './network.js';
 
 /**
  * 资源库管理：每个库是一个自包含目录（内含 gallery.db / thumbs/）。
@@ -29,18 +33,24 @@ export function getLibrary(id) {
 }
 
 /** 新建一个资源库（不切换），返回新库 id。
- *  无论用户选择的是盘符根还是具体目录，都在所选位置下自动创建
- *  与库名同名的子目录作为库目录，避免 gallery.db / thumbs 直接落进所选目录。 */
+ *  库数据默认放在素材文件夹下的隐藏目录 .gemvault/lib_xxx/ —— 库跟着素材走
+ *  （Eagle 的 xxx.library 同一个思路），整个素材目录拷走就带走了库。
+ *  想分开存放就传 libFolder，按其指定位置建。 */
 export function createLibrary({ name, rootPath, libFolder }) {
   const libName = String(name || '').trim();
+  const root = String(rootPath || '').trim();
   const libDir = String(libFolder || '').trim();
   if (!libName) throw new Error('资源库名称不能为空');
-  if (!libDir) throw new Error('资源库位置不能为空');
+  if (!root && !libDir) throw new Error('请选择素材文件夹');
+  // 默认：数据库 / 缩略图落在 <素材文件夹>/.gemvault/ 里。
+  // 以前建库要用户填「库数据目录」+「素材根目录」两个路径，可这两件事在用户脑子里
+  // 就是同一个问题（我的图放哪），只有实现者才需要区分。
+  const dataBase = libDir ? path.resolve(libDir) : path.join(path.resolve(root), '.gemvault');
   // 库目录用 ASCII 名（node:sqlite 在 Windows 中文路径下有句柄泄漏 bug，中文库目录无法删除）。
   // 显示名 name 仍为中文；目录名 = 库名中的 ASCII 字符 + 时间戳，保证唯一且可整体删除。
   const asciiBase = libName.replace(/[^a-zA-Z0-9_-]/g, '') || 'lib';
   const dirName = `${asciiBase}_${Date.now().toString(36)}`;
-  const dir = path.join(path.resolve(libDir), dirName);
+  const dir = path.join(dataBase, dirName);
   fs.mkdirSync(dir, { recursive: true });
   const thumbDir = path.join(dir, 'thumbs');
   fs.mkdirSync(thumbDir, { recursive: true });
@@ -52,8 +62,34 @@ export function createLibrary({ name, rootPath, libFolder }) {
       `INSERT INTO libraries(name, path, root_path, thumb_dir, created_at, is_active)
        VALUES (?, ?, ?, ?, ?, 0)`
     )
-    .run(libName, dir, rootPath || '', thumbDir, now);
+    .run(libName, dir, root ? path.resolve(root) : '', thumbDir, now);
   return Number(info.lastInsertRowid);
+}
+
+/**
+ * 当前库身份（详情面板 / 顶栏用）。
+ * 永远返回一个对象：内存里的 activeLibrary 在启动早期、切库瞬间、以及异常路径下都可能
+ * 还没就绪，此时回落到注册表，再回落到设置里的素材目录。之前这里返回 null，
+ * 前端「所属资源库」就显示成「—」，用户不知道图到底进了哪个库。
+ */
+export function currentLibraryInfo() {
+  const mem = getActiveLibrary();
+  const lib =
+    mem ||
+    globalDb.prepare('SELECT id, name, path, root_path FROM libraries WHERE is_active = 1').get() ||
+    globalDb.prepare('SELECT id, name, path, root_path FROM libraries ORDER BY id LIMIT 1').get() ||
+    null;
+  const settings = getSettings();
+  if (lib) {
+    return {
+      id: String(lib.id),
+      name: lib.name || '默认图库',
+      // root_path 才是「图片存在哪」；为空时退回素材目录，最后才是库自身目录
+      path: lib.root_path || settings.storageDir || lib.path || '',
+    };
+  }
+  // 注册表为空（首次启动迁移中途）也不能显示空：直接按设置里的素材目录兜底
+  return { id: '', name: '默认图库', path: settings.storageDir || '' };
 }
 
 /** Settings 页修改当前库的素材根目录时，同步回库注册表（单一权威） */
@@ -76,14 +112,22 @@ export function activateLibrary(id) {
   cancelLocalImport();
   // 切连接 + 更新内存中的激活库元信息
   setActiveLibrary(lib);
+  // 旧库排队的补图任务必须清掉：它们是按旧库的 id 排的，继续跑会拿这些 id
+  // 往新库的 thumbs 目录里写文件（缩略图张冠李戴，且永远清理不掉）
+  clearThumbQueue();
+  clearPreviewQueue();
   // 内存索引随库重建：pHash 索引 / CLIP 向量缓存若残留上个库的数据，
   // 新库导入会被旧库的哈希/向量误判成重复（ingest 甚至会按旧库 id 删图）
   initPhashIndex();
   resetVecCache();
+  // 隐私夹的解锁状态是「按文件夹 id」记的：换库后 id 会撞，必须清空，否则新库里同名 id 白给看
+  resetPrivacy();
   // 把当前库的素材根目录同步到 settings.storageDir（importer / library 都读它）
   saveSettings({ storageDir: lib.root_path || '' });
   // 素材文件夹变了，重挂 fs.watch 监听目标
   watchStorageDir();
+  // 网络代理也是按库独立的设置：切库后让 Chromium 网络栈应用新库的代理配置
+  applyProxy().catch(() => {});
   return lib;
 }
 
@@ -127,6 +171,16 @@ export function deleteLibrary(id) {
       fs.rmdirSync(libDir);
     } catch {
       /* 非空则保留 */
+    }
+    // 库目录默认建在素材文件夹的 .gemvault/ 下：库都删完了就把这个空壳也收掉，
+    // 别在用户素材目录里留下一个空文件夹（还删不掉，看着像垃圾）
+    const parent = path.dirname(libDir);
+    if (path.basename(parent).toLowerCase() === '.gemvault') {
+      try {
+        fs.rmdirSync(parent);
+      } catch {
+        /* 还有别的库在共用，保留 */
+      }
     }
   }, 50);
   return { id, activeId: getActiveLibrary()?.id ?? null };

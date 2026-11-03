@@ -1,85 +1,32 @@
 import { getSettings, saveSettings } from './db.js';
+import { PROXY_MODES, applyProxyNet, normalizeNet, proxyRules as rulesOf, registerProxyAuthFor } from './proxy.js';
 
 /**
  * 网络 / 代理设置：代理规则通过 Chromium(session.setProxy) 生效，
  * 因此采集、AI、缩略图下载全部走同一出口。
+ *
+ * 只做「读库 + 转调」：规则纯逻辑与 Electron 会话应用在 ./proxy.js，
+ * 主进程在服务端独立进程化后直接复用那一份（不 import 本文件，避免拉进 SQLite）。
  */
 
-export const PROXY_MODES = [
-  { key: 'off', label: '关闭（直连）' },
-  { key: 'system', label: '系统代理（自动）' },
-  { key: 'http', label: 'HTTP' },
-  { key: 'https', label: 'HTTPS' },
-  { key: 'socks5', label: 'SOCKS5' },
-  { key: 'socks4', label: 'SOCKS4' },
-];
-
-let electronSession = null;
-async function session() {
-  if (!electronSession) {
-    electronSession = import('electron')
-      .then((m) => (m && m.session ? m.session : null))
-      .catch(() => null);
-  }
-  return electronSession;
-}
+export { PROXY_MODES };
 
 export function getNetwork() {
-  const s = getSettings().network || {};
-  return {
-    mode: s.mode || 'off',
-    host: s.host || '127.0.0.1',
-    port: Number(s.port) || 7890,
-    username: s.username || '',
-    password: s.password || '',
-    bypass: s.bypass || '<local>',
-  };
+  return normalizeNet(getSettings().network);
 }
 
 export function proxyRules(net = getNetwork()) {
-  if (net.mode === 'off' || net.mode === 'system') return '';
-  return `${net.mode}://${net.host}:${net.port}`;
+  return rulesOf(net);
 }
 
 /** 应用代理到 Chromium 会话（桌面端） */
 export async function applyProxy() {
-  const ses = await session();
-  if (!ses) return false;
-  const net = getNetwork();
-  try {
-    if (net.mode === 'off') {
-      await ses.defaultSession.setProxy({ mode: 'direct' });
-    } else if (net.mode === 'system') {
-      await ses.defaultSession.setProxy({ mode: 'system' });
-    } else {
-      await ses.defaultSession.setProxy({
-        mode: 'fixed_servers',
-        proxyRules: proxyRules(net),
-        proxyBypassRules: net.bypass || '<local>',
-      });
-    }
-    return true;
-  } catch (err) {
-    console.error('[network] 应用代理失败', err.message);
-    return false;
-  }
+  return applyProxyNet(getNetwork());
 }
 
 /** 代理需要账号密码时，由 Chromium 触发 login 事件 */
 export function registerProxyAuth() {
-  import('electron')
-    .then((m) => {
-      if (!m?.app) return;
-      m.app.on('login', (event, _webContents, _details, authInfo, callback) => {
-        if (!authInfo.isProxy) return;
-        const net = getNetwork();
-        if (net.username || net.password) {
-          event.preventDefault();
-          callback(net.username, net.password);
-        }
-      });
-    })
-    .catch(() => {});
+  registerProxyAuthFor(getNetwork);
 }
 
 export function saveNetwork(patch) {

@@ -12,10 +12,21 @@ import { Readable } from 'node:stream';
 import { pipeline } from 'node:stream/promises';
 import { httpFetch } from './http.js';
 
-/** 已知模型的强校验哈希（hex）。留空 = 仅做大小 + 历史记录（sidecar）校验。 */
+/**
+ * 已知模型的强校验哈希（hex，键 = `<repo>/<镜像内路径>`）。
+ *
+ * 这里的条目才是「可信参照」：首次下载完成后，把 `<dest>.sha256` 里的值抄进来就完成固化了
+ * （换机器重装时会拿清单比对，镜像投毒 / 传输损坏都会被发现）。
+ * 清单为空时不要谎报「校验通过」——`isPinned()` 为 false 时上层应显示「仅记录哈希，未与清单比对」。
+ */
 export const KNOWN_SHA256 = {
   // 'sunseeker001/U-2-Net-Human-Seg/onnx/model.onnx': '<sha256 hex>',
 };
+
+/** 该仓库路径是否有固定过的可信哈希（false = 只有 sidecar 自记录，不能算校验通过） */
+export function isPinned(repoPath) {
+  return /^[0-9a-f]{64}$/i.test(String(KNOWN_SHA256[repoPath] || ''));
+}
 
 function sha256File(p) {
   return new Promise((resolve, reject) => {
@@ -47,14 +58,25 @@ async function readSidecar(dest) {
  * @param {string}  [opts.sha256]   期望哈希（空则回退 sidecar 记录）
  * @param {(p:number, done:number, total:number)=>void} [opts.onProgress] 0~1
  */
-export async function downloadModelFile({ mirrors, repoPath, dest, minBytes = 16, maxBytes = 0, sha256 = '', onProgress }) {
+export async function downloadModelFile({
+  mirrors,
+  repoPath,
+  dest,
+  minBytes = 16,
+  maxBytes = 0,
+  sha256 = '',
+  onProgress,
+  signal,
+}) {
   await fsp.mkdir(path.dirname(dest), { recursive: true });
   const part = `${dest}.part`;
   let lastErr = null;
+  const aborted = () => !!signal?.aborted;
 
   for (const base of mirrors) {
+    if (aborted()) throw new Error('已取消下载');
     try {
-      const res = await httpFetch(`${base}${repoPath}`, { redirect: 'follow' });
+      const res = await httpFetch(`${base}${repoPath}`, { redirect: 'follow', signal });
       if (!res.ok || !res.body) throw new Error(`HTTP ${res.status}`);
       const total = Number(res.headers.get('content-length')) || 0;
       if (maxBytes && total > maxBytes) throw new Error('文件超出预期大小');
@@ -65,6 +87,7 @@ export async function downloadModelFile({ mirrors, repoPath, dest, minBytes = 16
         Readable.fromWeb(res.body),
         async function* (source) {
           for await (const chunk of source) {
+            if (aborted()) throw new Error('已取消下载');
             done += chunk.length;
             if (maxBytes && done > maxBytes) throw new Error('文件超出预期大小');
             hash.update(chunk);
@@ -84,24 +107,46 @@ export async function downloadModelFile({ mirrors, repoPath, dest, minBytes = 16
 
       await fsp.rename(part, dest);
       await fsp.writeFile(`${dest}.sha256`, `${digest}\n`, 'utf8').catch(() => {});
-      return { size, sha256: digest };
+      // verified=false 表示「没有任何可信参照」，只是自己记下了这次下载的哈希
+      return { size, sha256: digest, verified: !!expect };
     } catch (err) {
       lastErr = err;
       await fsp.rm(part, { force: true }).catch(() => {});
+      // 取消 / 主动中止时不要再试下一个镜像：那会把「取消」变成「换源继续下」
+      if (aborted() || err?.name === 'AbortError' || /已取消/.test(String(err?.message || ''))) {
+        throw new Error('已取消下载', { cause: err });
+      }
     }
   }
   throw new Error(`模型下载失败：${lastErr?.message || '镜像与官方源都不可达'}`);
 }
 
-/** 供既有模块核对已存在文件是否可信（体积 + sidecar/清单哈希） */
-export async function verifyModelFile(dest, { minBytes = 16, sha256 = '' } = {}) {
+/**
+ * 供既有模块核对已存在文件是否可信（体积 + sidecar/清单哈希）。
+ * 返回 `{ ok, verified }`：`verified=false` 意味着只自洽（与上次下载记录的哈希一致），
+ * 没有任何外部可信参照 —— 调用方据此决定是否敢说自己「校验通过」。
+ */
+export async function verifyModelFileDetailed(dest, { minBytes = 16, sha256 = '' } = {}) {
   try {
     const st = await fsp.stat(dest);
-    if (st.size < minBytes) return false;
-    const expect = sha256 || (await readSidecar(dest));
-    if (!expect) return true; // 无参照：只做体积校验
-    return (await sha256File(dest)) === expect;
-  } catch {
-    return false;
+    if (st.size < minBytes) return { ok: false, verified: false, reason: '体积异常' };
+    const pinned = String(sha256 || '').trim();
+    const expect = pinned || (await readSidecar(dest));
+    if (!expect) return { ok: true, verified: false, reason: '无参照哈希' };
+    const digest = await sha256File(dest);
+    return {
+      ok: digest === expect,
+      verified: !!pinned,
+      sha256: digest,
+      reason: digest === expect ? '' : '哈希不匹配',
+    };
+  } catch (err) {
+    return { ok: false, verified: false, reason: err?.message || String(err) };
   }
+}
+
+/** 兼容旧调用：只关心是否可用 */
+export async function verifyModelFile(dest, opts = {}) {
+  const r = await verifyModelFileDetailed(dest, opts);
+  return r.ok;
 }

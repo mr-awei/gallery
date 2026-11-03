@@ -1,30 +1,43 @@
 import fs from 'node:fs';
+import fsp from 'node:fs/promises';
 import path from 'node:path';
 import { LEGACY_DIRS } from './config.js';
-import { db, getSettings, getLibraryGeneration } from './db.js';
+import { db, getSettings, getLibraryGeneration, getActiveLibrary } from './db.js';
 import { ingest, resyncImageMeta } from './library.js';
+import { ingestMedia, isMediaPath, MEDIA_EXTS } from './lib/media.js';
 import { bulkImportLocal } from './bulk-import.js';
+import { SOURCES } from './crawler.js';
+import { shouldSkipDir, isSkippedPath } from './lib/skip-dirs.js';
+import { liveBus } from './live-bus.js';
 
-const EXTS = new Set(['.jpg', '.jpeg', '.png', '.webp']);
-const SKIP_DIRS = new Set([
-  'node_modules',
-  '.git',
-  'app',
-  'dist',
-  'storage',
-  'trash',
-  'data',
-  'thumbs',
-  '.codebuddy',
-  'system volume information',
-  '$recycle.bin',
-]);
-const MAX_DEPTH = 4;
+// 扫描/监听白名单：图片 + Eagle 式多格式素材（视频/音频/字体/PDF/Office/3D）
+// 排除表（thumbs / .gemvault / .library …）统一在 lib/skip-dirs.js，别再本地复制一份
+const EXTS = new Set(['.jpg', '.jpeg', '.png', '.webp', ...[...MEDIA_EXTS].map((e) => `.${e}`)]);
+const DEFAULT_MAX_DEPTH = 4;
+
+/**
+ * 来源推断：目录名正好是某个采集源的 key（bing / baidu / weibo…）就沿用该来源，
+ * 否则一律按用户自己的本地素材登记。
+ * 以前只特判了 `raw`（`folder === 'raw' ? 'bing' : 'local'`）——既漏掉了别的源目录，
+ * 也把“父目录恰好叫 raw”的普通素材误标成 bing。
+ */
+const SOURCE_DIRS = new Set(Object.keys(SOURCES));
+function sourceFromDir(dirName) {
+  const key = String(dirName || '').toLowerCase();
+  return SOURCE_DIRS.has(key) ? key : 'local';
+}
+
+/** 遍历深度上限：与 bulk-import 共用设置项 importMaxDepth（默认 4 层） */
+function resolveMaxDepth() {
+  const v = Number(getSettings().importMaxDepth);
+  return Number.isFinite(v) && v > 0 ? Math.min(16, Math.floor(v)) : DEFAULT_MAX_DEPTH;
+}
 
 /** 递归扫描壁纸库文件夹下的所有图片 */
-export function scanLocalImages(dirs = LEGACY_DIRS, depth = 0) {
+export function scanLocalImages(dirs = LEGACY_DIRS, depth = 0, maxDepth = null) {
   const files = [];
-  if (depth > MAX_DEPTH) return files;
+  const limit = maxDepth ?? resolveMaxDepth();
+  if (depth > limit) return files;
   for (const dir of dirs) {
     if (!fs.existsSync(dir)) continue;
     let entries;
@@ -36,8 +49,8 @@ export function scanLocalImages(dirs = LEGACY_DIRS, depth = 0) {
     for (const entry of entries) {
       const full = path.join(dir, entry.name);
       if (entry.isDirectory()) {
-        if (SKIP_DIRS.has(entry.name.toLowerCase())) continue;
-        files.push(...scanLocalImages([full], depth + 1));
+        if (shouldSkipDir(entry.name)) continue;
+        files.push(...scanLocalImages([full], depth + 1, limit));
         continue;
       }
       if (EXTS.has(path.extname(entry.name).toLowerCase())) files.push(full);
@@ -104,7 +117,9 @@ async function mapLimit(list, limit, fn) {
 
 let watcher = null;
 let watchedDir = '';
-const watchPending = new Set();
+// file -> 收集该事件时的库代数。防抖回调是延迟执行的，期间可能已切库：
+// 旧库的积压事件绝不能写进新库（曾导致 A 库的文件被整批 ingest 进 B 库）
+const watchPending = new Map();
 let watchTimer = null;
 
 function closeWatcher() {
@@ -130,23 +145,32 @@ function scheduleWatchIngest(delayMs = 2000) {
       scheduleWatchIngest(5000);
       return;
     }
-    const files = [...watchPending].filter((f) => fs.existsSync(f));
-    watchPending.clear();
+    const nowGen = getLibraryGeneration();
+    // 只处理当前库期间收集的文件；上一个库的积压事件整体作废
+    const files = [...watchPending]
+      .filter((f, gen) => gen === nowGen && fs.existsSync(f))
+      .map(([f]) => f);
+    for (const f of files) watchPending.delete(f);
     if (!files.length) return;
     const settings = getSettings();
+    const root = path.resolve(settings.storageDir || '');
+    if (!root) return;
     const knownRows = new Map(
       db.prepare('SELECT id, abs_path FROM images').all().map((r) => [r.abs_path, r.id])
     );
-    // 监听回调是延迟执行的（防抖 2s）：期间可能已经切了库，
-    // 这些文件属于旧库，不能写进新库
-    const generation = getLibraryGeneration();
+    const generation = nowGen;
+    const libName = getActiveLibrary()?.name || '';
     let saved = 0;
     await mapLimit(files, 3, async (f) => {
       if (generation !== getLibraryGeneration()) return;
+      // 最后防线：只登记当前素材根目录下的文件（切库时序等任何漏网路径都拦在这里）
+      const rel = path.relative(root, f);
+      if (rel.startsWith('..') || path.isAbsolute(rel)) return;
       // 已登记的文件被手动替换 / 修改：重新同步元数据（宽高、pHash、特征、缩略图）
       const knownId = knownRows.get(f);
       if (knownId) {
-        if (await resyncImageMeta(knownId)) {
+        // 非图片素材没有 sharp 可解元数据，跳过重同步
+        if (!isMediaPath(f) && (await resyncImageMeta(knownId))) {
           saved++;
           console.log('[watch] 文件已更新，元数据已同步:', f);
         }
@@ -154,16 +178,22 @@ function scheduleWatchIngest(delayMs = 2000) {
       }
       const folder = path.basename(path.dirname(f));
       try {
-        const res = await ingest(
-          {
-            absPath: f,
-            source: folder === 'raw' ? 'bing' : 'local',
-            keyword: folder === 'raw' ? '邓紫棋' : '壁纸库',
-            skipPhashDupe: true,
-            libGeneration: generation,
-          },
-          settings
-        );
+        const res = isMediaPath(f)
+          ? await ingestMedia({
+              absPath: f,
+              source: sourceFromDir(folder),
+              keyword: libName,
+            })
+          : await ingest(
+              {
+                absPath: f,
+                source: sourceFromDir(folder),
+                keyword: libName,
+                skipPhashDupe: true,
+                libGeneration: generation,
+              },
+              settings
+            );
         if (res.ok) {
           saved++;
           console.log('[watch] 新文件已入库:', f);
@@ -172,25 +202,40 @@ function scheduleWatchIngest(delayMs = 2000) {
         console.error('[watch] 入库失败', f, err?.message || err);
       }
     });
-    if (saved) console.log(`[watch] 本次自动登记 ${saved} 张`);
+    if (saved) {
+      console.log(`[watch] 本次自动登记 ${saved} 张`);
+      liveBus.emit('library-changed', { added: saved });
+    }
   }, delayMs);
 }
 
 /** 开始/更新素材文件夹监听（storageDir 变更后重复调用即可换目标） */
 export function watchStorageDir() {
-  const dir = getSettings().storageDir || '';
-  if (!dir) return;
+  const settings = getSettings();
+  const dir = settings.storageDir || '';
+  // 关掉监控就把监听摘了（不然回调里还得每次判断，而且句柄一直占着目录）
+  if (!dir || settings.watchEnabled === false) {
+    closeWatcher();
+    return;
+  }
   if (watcher && watchedDir === dir) return;
   closeWatcher();
+  // 重挂 = 换库/换目录：作废上一个目录积累的变化事件，
+  // 否则旧目录的积压会被防抖回调 ingest 进当前库（跨库串图的根源）
+  watchPending.clear();
+  const gen = getLibraryGeneration();
   try {
     watcher = fs.watch(dir, { recursive: true }, (_event, filename) => {
       if (!filename) return;
+      // 开关随时可能被改：回调里再确认一次，避免关掉之后仍有排队事件入库
+      if (getSettings().watchEnabled === false) return;
       const full = path.join(dir, filename);
       if (!EXTS.has(path.extname(full).toLowerCase())) return;
-      // 跳过回收站 / 缩略图等内部目录
-      const parts = full.toLowerCase().split(/[\\/]/);
-      if (parts.some((p) => SKIP_DIRS.has(p))) return;
-      watchPending.add(full);
+      // 跳过回收站 / 缩略图 / 库数据目录（.gemvault）/ 资产目录（.library）等内部目录。
+      // 这一条尤其关键：库数据默认就在素材文件夹里，监听不过滤的话
+      // 每写一张缩略图就触发一轮回扫
+      if (isSkippedPath(full)) return;
+      watchPending.set(full, gen);
       scheduleWatchIngest();
     });
     watchedDir = dir;
@@ -206,10 +251,51 @@ export function findMissing() {
   return rows.filter((r) => !fs.existsSync(r.abs_path));
 }
 
+/**
+ * 异步版缺失检查：并发 access 逐行探测，不阻塞事件循环。
+ * 同步版在全表上逐行 existsSync，万级库会把事件循环卡住数秒
+ * （Windows + 杀软 hook 放大更明显），期间所有 API 排队 —— 表现为打开软件后卡很久。
+ */
+export async function findMissingAsync(concurrency = 64) {
+  const rows = db.prepare('SELECT id, abs_path FROM images').all();
+  const missing = [];
+  let cursor = 0;
+  async function worker() {
+    while (cursor < rows.length) {
+      const row = rows[cursor++];
+      try {
+        await fsp.access(row.abs_path);
+      } catch {
+        missing.push(row);
+      }
+    }
+  }
+  const n = Math.min(concurrency, rows.length);
+  await Promise.all(Array.from({ length: n }, worker));
+  return { count: missing.length, ids: missing.map((m) => m.id) };
+}
+
+/* /api/library/missing 是前端首屏必拉接口：结果缓存（并发请求共享同一 promise），
+ * 导入完成 / 清理 / 重定位后主动失效，60s 兜底过期。 */
+let missingCache = null;
+let missingAt = 0;
+export function invalidateMissingCache() {
+  missingCache = null;
+  missingAt = 0;
+}
+export function getMissingCached(maxAgeMs = 60_000) {
+  if (!missingCache || Date.now() - missingAt > maxAgeMs) {
+    missingAt = Date.now();
+    missingCache = findMissingAsync().catch(() => ({ count: 0, ids: [] }));
+  }
+  return missingCache;
+}
+
 export function purgeMissing() {
   const missing = findMissing();
   const del = db.prepare('DELETE FROM images WHERE id = ?');
   for (const row of missing) del.run(row.id);
+  invalidateMissingCache();
   return missing.length;
 }
 
@@ -251,5 +337,6 @@ export function relocateMissing() {
     usedPaths.add(match.absPath);
     relocated++;
   }
+  invalidateMissingCache();
   return { relocated, remaining: findMissing().length };
 }

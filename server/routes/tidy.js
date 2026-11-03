@@ -7,6 +7,14 @@ import { db, getSettings } from '../db.js';
 export function register(app, ctx) {
   const { asyncRoute, colorFilterIds } = ctx;
 
+  /** 扫描范围：?ids=1,2,3 或 body.ids（当前筛选结果 / 手动选区）；缺省即全库 */
+  const scopeOf = (src) => {
+    const raw = src?.ids;
+    const list = Array.isArray(raw) ? raw : String(raw || '').split(',');
+    const ids = list.map(Number).filter((n) => Number.isFinite(n) && n > 0);
+    return ids.length ? { ids } : {};
+  };
+
   app.get('/api/tidy/stats', (_req, res) => {
     const total = db.prepare('SELECT COUNT(*) AS c FROM images').get().c;
     const noDominant = db.prepare("SELECT COUNT(*) AS c FROM images WHERE dominant = ''").get().c;
@@ -15,7 +23,8 @@ export function register(app, ctx) {
       .get().c;
     const noRating = db.prepare('SELECT COUNT(*) AS c FROM images WHERE rating = 0').get().c;
     const rated = db.prepare('SELECT COUNT(*) AS c FROM images WHERE rating > 0').get().c;
-    res.json({ total, noDominant, noAiDesc, noRating, rated });
+    const noObjHash = db.prepare("SELECT COUNT(*) AS c FROM images WHERE obj_phash = ''").get().c;
+    res.json({ total, noDominant, noAiDesc, noRating, rated, noObjHash });
   });
 
   /* ------------------------------ 相似图整理 ------------------------------ */
@@ -26,8 +35,9 @@ export function register(app, ctx) {
         0,
         Math.min(24, Number(req.query.threshold) || getSettings().phashThreshold || 10)
       );
-      const groups = lib.listSimilarGroups(threshold);
-      res.json({ threshold, count: groups.length, groups });
+      const scope = scopeOf(req.query);
+      const groups = lib.listSimilarGroups(threshold, undefined, undefined, scope);
+      res.json({ threshold, scope: scope.ids ? scope.ids.length : 0, count: groups.length, groups });
     })
   );
 
@@ -39,8 +49,9 @@ export function register(app, ctx) {
       if (!clip.clipReady()) {
         return res.status(503).json({ error: 'CLIP 模型尚未加载完成，稍后再试（首次需下载模型）' });
       }
-      const groups = await lib.listClipSimilarGroups(minCos);
-      res.json({ minCos, count: groups.length, groups });
+      const scope = scopeOf(req.query);
+      const groups = await lib.listClipSimilarGroups(minCos, undefined, scope);
+      res.json({ minCos, scope: scope.ids ? scope.ids.length : 0, count: groups.length, groups });
     })
   );
 
@@ -49,9 +60,10 @@ export function register(app, ctx) {
   app.post('/api/clip/backfill', (_req, res) => res.json(clip.startBackfill()));
 
   // 同名跨格式去重：同目录同名（如 5.jpg 与 5.png）视为同一张，推荐保留 PNG；删除复用 /api/similar/resolve
-  app.get('/api/dupes/format', (_req, res) => {
-    const groups = lib.listFormatDupes();
-    res.json({ count: groups.length, groups });
+  app.get('/api/dupes/format', (req, res) => {
+    const scope = scopeOf(req.query);
+    const groups = lib.listFormatDupes(scope);
+    res.json({ scope: scope.ids ? scope.ids.length : 0, count: groups.length, groups });
   });
 
   app.post(
@@ -94,6 +106,15 @@ export function register(app, ctx) {
         Number(req.body?.limit) || 300,
         req.body?.force === true || req.body?.force === 'true'
       );
+      res.json({ ok: true, ...result });
+    })
+  );
+
+  /* 补算主体哈希（白底抠图归一化 pHash）：相似分组的候选哈希升级，分次执行可重复调用 */
+  app.post(
+    '/api/maintenance/subject',
+    asyncRoute(async (req, res) => {
+      const result = await lib.backfillSubjectHash(Number(req.body?.limit) || 300);
       res.json({ ok: true, ...result });
     })
   );

@@ -1,23 +1,46 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import type { Filters } from '../types';
-import { BUCKET_LABELS, ORIENTATION_LABELS, SOURCE_LABELS, SOURCE_OPTIONS, desktop } from '../api';
-import { IconColumns, IconGrid, IconSearch } from './Icons';
+import { BUCKET_LABELS, ORIENTATION_LABELS, SOURCE_LABELS, api, desktop, quiet } from '../api';
+import { IconColumns, IconGrid, IconList, IconSearch } from './Icons';
+import { THUMB_DEFAULT, THUMB_MAX, THUMB_MIN, THUMB_PRESETS, clampThumbWidth, thumbPresetOf } from '../lib/thumb-size';
 import ColorPad from './ColorPad';
 
 interface Props {
   filters: Filters;
   onChange: (patch: Partial<Filters>) => void;
   tags: { tag: string; count: number }[];
-  viewMode: 'masonry' | 'grid';
-  onViewMode: (mode: 'masonry' | 'grid') => void;
+  viewMode: 'masonry' | 'grid' | 'list';
+  onViewMode: (mode: 'masonry' | 'grid' | 'list') => void;
+  /** 缩略图尺寸滑块（列宽 px） */
+  colWidth?: number;
+  onColWidth?: (w: number) => void;
   total: number;
   hideFavorite?: boolean;
+  /** 当前在文件夹里：排序下拉才提供「手动排序」（顺序存在 image_folders.sort_order） */
+  canManualSort?: boolean;
   onMarkAllSeen?: () => void;
 }
 
-// 采集源跟随 SOURCE_OPTIONS，另加本地导入与初始素材
-const SOURCES = [...SOURCE_OPTIONS.map((s) => s.key), 'local', 'seed'];
+/** 「待整理」智能视图（Eagle 式固定入口） */
+const PENDING_LABEL: Record<string, string> = {
+  noFolder: '待整理·未分类',
+  noTags: '待整理·无标签',
+  noRating: '待整理·未评分',
+};
+
+/** 支持入库的素材类型（Eagle 多格式） */
+const KINDS: { key: string; label: string }[] = [
+  { key: 'image', label: '图片' },
+  { key: 'gif', label: 'GIF' },
+  { key: 'video', label: '视频' },
+  { key: 'audio', label: '音频' },
+  { key: 'font', label: '字体' },
+  { key: 'pdf', label: 'PDF' },
+  { key: 'office', label: 'Office' },
+  { key: 'model', label: '3D 模型' },
+];
+
 const BUCKETS = ['sd', 'fhd', '2k', '4k'];
 /** 12 个色相区间 + 黑白灰（粗筛快捷键）。
  *  区间 i 对应色相 [i*30, (i+1)*30)：0红 1橙 2黄 3黄绿 4绿 5青绿 6青 7蓝 8靛 9紫 10品红 11玫粉 */
@@ -70,10 +93,15 @@ export default function FilterBar({
   tags,
   viewMode,
   onViewMode,
+  colWidth,
+  onColWidth,
   total,
   hideFavorite,
+  canManualSort,
   onMarkAllSeen,
 }: Props) {
+  /** 当前列宽（收进合法区间，老 localStorage 里的小值也不会让滑块越界） */
+  const curW = clampThumbWidth(colWidth ?? THUMB_DEFAULT);
   const toggleIn = (key: 'source' | 'bucket', value: string) => {
     const list = filters[key];
     onChange({ [key]: list.includes(value) ? list.filter((v) => v !== value) : [...list, value] } as Partial<Filters>);
@@ -82,6 +110,24 @@ export default function FilterBar({
   const [openKey, setOpenKey] = useState<string | null>(null);
   const toggleDrop = (key: string) => setOpenKey((cur) => (cur === key ? null : key));
   const rootRef = useRef<HTMLDivElement>(null);
+
+  // 来源筛选项来自后端（含「本地导入」），前端不再硬编码一份可能与后端脱节的列表
+  const [sources, setSources] = useState<string[]>([]);
+  const [labels, setLabels] = useState<Record<string, string>>({});
+  useEffect(() => {
+    let alive = true;
+    api
+      .crawlConfig()
+      .then((c) => {
+        if (!alive) return;
+        setSources(c.sources.map((s) => s.key));
+        setLabels(Object.fromEntries(c.sources.map((s) => [s.key, s.label])));
+      })
+      .catch(quiet);
+    return () => {
+      alive = false;
+    };
+  }, []);
 
   // 点击面板外 / Esc 关闭
   useEffect(() => {
@@ -99,6 +145,12 @@ export default function FilterBar({
   }, [openKey]);
 
   const selectedHues = filters.hue ? filters.hue.split(',').filter(Boolean) : [];
+
+  /** 色系快筛：多选即取并集（后端 hue 用逗号串存，'gray' 表示无彩度图） */
+  const toggleHue = (v: string) => {
+    const next = selectedHues.includes(v) ? selectedHues.filter((x) => x !== v) : [...selectedHues, v];
+    onChange({ hue: next.join(',') });
+  };
 
   /* 颜色草稿：色盘拖动/选色高频变化，静止 150ms 后才提交筛选（与「停下即搜」一致）。
    * 用 useEffect 去抖（与智能检索页同款），比“事件内 setTimeout”更稳，不会被卸载清理误清。 */
@@ -217,14 +269,34 @@ export default function FilterBar({
     chips.push({ label: filters.colorHex.toUpperCase(), swatch: filters.colorHex, clear: () => onChange({ colorHex: '' }) });
   if (selectedHues.length) {
     const h = HUES.find((x) => x.v === selectedHues[0]);
-    chips.push({ label: h ? `色系·${h.t}` : '黑白灰', clear: () => onChange({ hue: '' }) });
+    const label =
+      selectedHues.length > 1 ? `色系·${selectedHues.length} 项` : h ? `色系·${h.t}` : '黑白灰';
+    chips.push({ label, clear: () => onChange({ hue: '' }) });
+  }
+  if (filters.kind && filters.kind !== 'all') {
+    const k = KINDS.find((x) => x.key === filters.kind);
+    chips.push({ label: `类型·${k?.label || filters.kind}`, clear: () => onChange({ kind: 'all' }) });
+  }
+  if (filters.pending) {
+    chips.push({ label: PENDING_LABEL[filters.pending] || '待整理', clear: () => onChange({ pending: '' }) });
   }
 
   const resetAll = () =>
-    onChange({ favorite: 'all', source: [], bucket: [], orientation: 'all', seen: 'all', minRating: 0, hue: '', colorHex: '' });
+    onChange({
+      favorite: 'all',
+      source: [],
+      bucket: [],
+      orientation: 'all',
+      seen: 'all',
+      minRating: 0,
+      hue: '',
+      colorHex: '',
+      kind: 'all',
+      pending: '',
+    });
 
   return (
-    <div>
+    <div data-tour="filterbar">
       <div className="toolbar">
         <div className="search-box">
           <span className="icon">
@@ -232,7 +304,16 @@ export default function FilterBar({
           </span>
           <input
             className="input"
-            placeholder="搜索文件名 / 标签 / 关键词…"
+            placeholder="搜索文件名 / 标签…（支持 tag: color: rating: folder:）"
+            title={
+              '搜索语法（可与关键词混用）：\n' +
+              'tag:风景            按标签（别名也算）\n' +
+              'color:红 / color:#ff0000   按色系或精确色号\n' +
+              'rating:>=4          按星级（>= / <= / > / < / =）\n' +
+              'folder:参考         按文件夹（含子夹）\n' +
+              'kind:video          按类型\n' +
+              'is:favorite / is:unseen    收藏 / 未看过'
+            }
             value={qDraft}
             onChange={(e) => setQDraft(e.target.value)}
           />
@@ -244,14 +325,21 @@ export default function FilterBar({
           onChange={(e) => onChange({ sort: e.target.value })}
         >
           <option value="newest">最新采集</option>
-          <option value="recommend">推荐（按我的口味）</option>
+          <option value="name">名称 A → Z</option>
+          <option value="nameDesc">名称 Z → A</option>
+          <option value="recommend">推荐（个人偏好 + 评分）</option>
           <option value="rating">我的星级优先</option>
-          <option value="smart">智能排序（AI 高分优先）</option>
+          <option value="smart">评分排序（知识库打分优先）</option>
           <option value="worst">低分优先（待清理）</option>
           <option value="oldest">最早采集</option>
           <option value="resolution">分辨率最高</option>
           <option value="largest">文件最大</option>
           <option value="random">随机</option>
+          {(canManualSort || filters.sort === 'manual') && (
+            <option value="manual" disabled={!canManualSort}>
+              手动排序（拖拽定序）
+            </option>
+          )}
         </select>
 
         <select className="select" value={filters.tag} onChange={(e) => onChange({ tag: e.target.value })}>
@@ -263,7 +351,49 @@ export default function FilterBar({
           ))}
         </select>
 
-        <div style={{ marginLeft: 'auto', display: 'flex', gap: 6 }}>
+        <div style={{ marginLeft: 'auto', display: 'flex', gap: 6, alignItems: 'center' }}>
+          {desktop?.captureScreenshot && (
+            <button
+              className="btn sm"
+              title="截图入库：框选屏幕区域存进图库（全局快捷键 Ctrl+Shift+S）"
+              onClick={() => {
+                // 统一入口：桌面端由主进程抓底图，浏览器端给提示
+                if (desktop?.grabScreen) window.dispatchEvent(new Event('gem:screenshot'));
+                else void desktop?.captureScreenshot?.();
+              }}
+            >
+              📷
+            </button>
+          )}
+          {/* Eagle 式缩略图尺寸：五档预设 + 无极滑块，只在两种缩略视图下可用 */}
+          {onColWidth && viewMode !== 'list' && (
+            <div className="thumb-size-group">
+              <div className="thumb-presets" role="group" aria-label="缩略图预设尺寸">
+                {THUMB_PRESETS.map((p) => (
+                  <button
+                    key={p.key}
+                    type="button"
+                    className={`thumb-preset${thumbPresetOf(curW)?.key === p.key ? ' on' : ''}`}
+                    onClick={() => onColWidth(p.width)}
+                    title={`${p.label}：列宽约 ${p.width}px`}
+                  >
+                    {p.label}
+                  </button>
+                ))}
+              </div>
+              <input
+                className="thumb-size"
+                type="range"
+                min={THUMB_MIN}
+                max={THUMB_MAX}
+                step={1}
+                value={curW}
+                onChange={(e) => onColWidth(Number(e.target.value))}
+                title={`缩略图大小：${curW}px（可无极拖动）`}
+                aria-label="缩略图大小"
+              />
+            </div>
+          )}
           <button
             className={`btn sm${viewMode === 'masonry' ? ' primary' : ''}`}
             onClick={() => onViewMode('masonry')}
@@ -277,6 +407,13 @@ export default function FilterBar({
             title="网格视图"
           >
             <IconGrid />
+          </button>
+          <button
+            className={`btn sm${viewMode === 'list' ? ' primary' : ''}`}
+            onClick={() => onViewMode('list')}
+            title="列表视图"
+          >
+            <IconList />
           </button>
         </div>
 
@@ -305,13 +442,13 @@ export default function FilterBar({
           open={openKey === 'source'}
           onToggle={() => toggleDrop('source')}
         >
-          {SOURCES.map((s) => (
+          {sources.map((s) => (
             <button
               key={s}
               className={`chip${filters.source.includes(s) ? ' active' : ''}`}
               onClick={() => toggleIn('source', s)}
             >
-              {SOURCE_LABELS[s]}
+              {labels[s] || SOURCE_LABELS[s] || s}
             </button>
           ))}
         </Drop>
@@ -393,6 +530,23 @@ export default function FilterBar({
         </Drop>
 
         <Drop
+          label="类型"
+          active={!!filters.kind && filters.kind !== 'all'}
+          open={openKey === 'kind'}
+          onToggle={() => toggleDrop('kind')}
+        >
+          {[{ key: 'all', label: '全部' }, ...KINDS].map((k) => (
+            <button
+              key={k.key}
+              className={`chip${(filters.kind || 'all') === k.key ? ' active' : ''}`}
+              onClick={() => onChange({ kind: k.key })}
+            >
+              {k.label}
+            </button>
+          ))}
+        </Drop>
+
+        <Drop
           label="颜色"
           active={!!filters.colorHex || !!selectedHues.length}
           badge={selectedHues.length || (filters.colorHex ? 1 : undefined)}
@@ -400,7 +554,31 @@ export default function FilterBar({
           open={openKey === 'color'}
           onToggle={() => toggleDrop('color')}
         >
-          <div className="sec-label">精确颜色 · 拖动色盘 / 输入色号 / 吸管取色</div>
+          <div className="sec-label">色系快筛 · 可多选（黑白灰单独一项）</div>
+          <div className="hue-row">
+            {HUES.map((h) => (
+              <button
+                key={h.v}
+                type="button"
+                className={`hue-chip${selectedHues.includes(h.v) ? ' on' : ''}`}
+                style={{ background: h.c }}
+                title={`只看${h.t}色系`}
+                aria-label={`只看${h.t}色系`}
+                onClick={() => toggleHue(h.v)}
+              />
+            ))}
+            <button
+              type="button"
+              className={`chip hue-gray${selectedHues.includes('gray') ? ' active' : ''}`}
+              title="只看黑白灰（无彩度）图片"
+              onClick={() => toggleHue('gray')}
+            >
+              黑白灰
+            </button>
+          </div>
+          <div className="sec-label" style={{ marginTop: 14 }}>
+            精确颜色 · 拖动色盘 / 输入色号 / 吸管取色
+          </div>
           <div className="cpad-sm">
             <ColorPad
               value={draft.hex}

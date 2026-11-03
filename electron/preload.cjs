@@ -7,6 +7,8 @@ contextBridge.exposeInMainWorld('desktopAPI', {
   revealFile: (p) => ipcRenderer.invoke('reveal-file', p),
   // 走 Electron 下载管理器（弹「另存为」），避免 window.open 产生空白窗口
   download: (url) => ipcRenderer.invoke('download-file', url),
+  // 原生拖拽导出：把卡片拖到资源管理器/微信/PS 时落成真实文件（不是 URL）
+  dragOut: (p) => ipcRenderer.send('drag-out', p),
   // 桌面端信息：实际生效的全局快捷键等（被其它软件占用时会自动换备用键）
   appInfo: () => ipcRenderer.invoke('app-info'),
   // 保存并应用动态壁纸配置（主进程据此创建/销毁桌面层窗口）
@@ -19,11 +21,42 @@ contextBridge.exposeInMainWorld('desktopAPI', {
   setTheme: (theme) => ipcRenderer.invoke('set-theme', theme),
   // 全屏截图（吸管取色）：返回 { dataUrl, x, y, width, height, scale }
   screenCapture: () => ipcRenderer.invoke('screen-capture'),
+  // 截图入库（Eagle 式）：唤起主窗口进入区域框选态，返回 { ok, pending }
+  captureScreenshot: () => ipcRenderer.invoke('capture-screenshot'),
+  // 框选底图：{ dataUrl, width, height, scale }
+  grabScreen: () => ipcRenderer.invoke('grab-screen'),
+  // 框选结束（截完/取消）：把窗口还原成进框选前的尺寸与显示状态
+  endShot: () => ipcRenderer.invoke('end-shot'),
+  // 主进程请求开始框选（全局快捷键 / 托盘触发），返回取消订阅函数
+  onShotRequest: (cb) => {
+    const handler = () => cb();
+    ipcRenderer.on('shot-request', handler);
+    return () => ipcRenderer.removeListener('shot-request', handler);
+  },
+  // 全局快捷键重新注册后广播实际生效的键位（设置页开关快捷键时即时更新提示）
+  onHotkeysChanged: (cb) => {
+    const handler = (_e, payload) => cb(payload);
+    ipcRenderer.on('hotkeys-changed', handler);
+    return () => ipcRenderer.removeListener('hotkeys-changed', handler);
+  },
   // 本地 API 鉴权令牌（渲染进程的 fetch 需要带 Bearer 头）
   getApiToken: () => ipcRenderer.invoke('get-api-token'),
+  // 多窗口浏览：再开一个窗口看同一份图库（共享本地服务与数据库）
+  openNewWindow: () => ipcRenderer.invoke('window:new'),
   // 开机自启开关（读/写系统登录项）
   getAutoLaunch: () => ipcRenderer.invoke('get-auto-launch'),
   setAutoLaunch: (enabled) => ipcRenderer.invoke('set-auto-launch', enabled),
   // 检查更新：{ ok, hasUpdate, latest, current, url } 或 { ok: false, msg }
   checkForUpdates: () => ipcRenderer.invoke('check-for-updates'),
+  // 应用内更新（electron-updater，仅安装版可用）
+  updateCheck: () => ipcRenderer.invoke('update-check'),
+  updateDownload: () => ipcRenderer.invoke('update-download'),
+  updateInstall: () => ipcRenderer.invoke('update-install'),
+  updateState: () => ipcRenderer.invoke('update-state'),
+  // 更新状态变化（检查/下载进度/已下载/出错），返回取消订阅函数
+  onUpdateState: (cb) => {
+    const handler = (_e, payload) => cb(payload);
+    ipcRenderer.on('update-state', handler);
+    return () => ipcRenderer.removeListener('update-state', handler);
+  },
 });

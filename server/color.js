@@ -63,7 +63,7 @@ function medianCutQuantize(pixels, maxColors) {
     }
     return [makeBox(sorted.slice(0, cut)), makeBox(sorted.slice(cut))];
   };
-  let boxes = [makeBox(pixels)];
+  const boxes = [makeBox(pixels)];
   while (boxes.length < maxColors) {
     boxes.sort((a, b) => b.score - a.score);
     const box = boxes.shift();

@@ -169,3 +169,990 @@ select {
   opacity: 0.5;
   font-size: 13px;
 }
+
+/* ---------------- 全应用拖拽 / 粘贴入库（Eagle 三件套） ---------------- */
+.gi-drop {
+  position: fixed;
+  inset: 0;
+  z-index: 900;
+  pointer-events: none;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(10, 10, 16, 0.55);
+  backdrop-filter: blur(3px);
+}
+.gi-drop-box {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  padding: 34px 54px;
+  border-radius: 18px;
+  border: 2px dashed rgba(255, 77, 141, 0.7);
+  background: rgba(24, 24, 34, 0.9);
+  box-shadow: 0 24px 60px rgba(0, 0, 0, 0.45);
+}
+.gi-drop-box b {
+  font-size: 18px;
+}
+.gi-drop-box span {
+  font-size: 12.5px;
+  color: var(--text-dim, rgba(232, 232, 242, 0.62));
+}
+.gi-busy {
+  position: fixed;
+  left: 50%;
+  bottom: 26px;
+  transform: translateX(-50%);
+  z-index: 901;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 9px 16px;
+  border-radius: 22px;
+  font-size: 12.5px;
+  color: #fff;
+  background: rgba(24, 24, 34, 0.94);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  box-shadow: 0 14px 34px rgba(0, 0, 0, 0.4);
+}
+.gi-busy-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--gradient);
+  animation: gi-pulse 1s ease-in-out infinite;
+}
+@keyframes gi-pulse {
+  0%, 100% { opacity: 0.35; transform: scale(0.85); }
+  50% { opacity: 1; transform: scale(1.15); }
+}
+
+/* ---------------- 截图区域框选（Eagle 截图） ---------------- */
+.shot-mask {
+  position: fixed;
+  inset: 0;
+  z-index: 1000;
+  cursor: crosshair;
+  user-select: none;
+  overflow: hidden;
+}
+.shot-mask.grabbing {
+  cursor: crosshair;
+}
+.shot-bg {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: fill;
+  pointer-events: none;
+}
+.shot-dim {
+  position: absolute;
+  background: rgba(6, 6, 12, 0.55);
+  pointer-events: none;
+}
+.shot-frame {
+  position: absolute;
+  border: 1px solid rgba(255, 77, 141, 0.95);
+  box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.4), 0 0 22px rgba(255, 77, 141, 0.35);
+  pointer-events: none;
+}
+.shot-size {
+  position: absolute;
+  padding: 2px 8px;
+  border-radius: 6px;
+  font-size: 11.5px;
+  font-variant-numeric: tabular-nums;
+  color: #fff;
+  background: rgba(20, 20, 28, 0.92);
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  pointer-events: none;
+}
+.shot-bar {
+  position: absolute;
+  left: 50%;
+  bottom: 28px;
+  transform: translateX(-50%);
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 14px;
+  border-radius: 14px;
+  background: rgba(18, 18, 26, 0.94);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  box-shadow: 0 18px 44px rgba(0, 0, 0, 0.5);
+  cursor: default;
+}
+.shot-hint {
+  font-size: 12px;
+  color: rgba(232, 232, 242, 0.7);
+  margin-right: 4px;
+}
+
+/* 页面级错误边界：渲染崩了要看到发生了什么，而不是一片白 */
+.crash {
+  display: grid;
+  place-items: center;
+  min-height: 60vh;
+  padding: 32px 16px;
+}
+.crash-card {
+  width: min(calc(560px * var(--ui-scale, 1)), 100%);
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 22px 24px;
+  border-radius: 16px;
+  background: var(--panel);
+  border: 1px solid var(--border);
+}
+.crash-title {
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--text);
+}
+.crash-msg {
+  font-family: ui-monospace, "Cascadia Code", Consolas, monospace;
+  font-size: 12.5px;
+  line-height: 1.6;
+  color: var(--err);
+  background: rgba(248, 113, 113, 0.08);
+  border: 1px solid rgba(248, 113, 113, 0.25);
+  border-radius: 10px;
+  padding: 10px 12px;
+  white-space: pre-wrap;
+  word-break: break-word;
+  max-height: 220px;
+  overflow: auto;
+}
+.crash-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.crash-details {
+  font-size: 12px;
+  color: var(--muted);
+}
+.crash-details summary {
+  cursor: pointer;
+  user-select: none;
+}
+.crash-details pre {
+  max-height: 240px;
+  margin: 8px 0 0;
+  padding: 10px 12px;
+  overflow: auto;
+  font-family: ui-monospace, "Cascadia Code", Consolas, monospace;
+  font-size: 11.5px;
+  line-height: 1.6;
+  color: var(--text);
+  white-space: pre-wrap;
+  word-break: break-word;
+  background: var(--panel-strong);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+}
+.crash-hint {
+  font-size: 12px;
+  color: var(--muted);
+}
+
+/* ------------------------------- 自绘下拉框 -------------------------------
+   原生 <select> 的弹出层在 Electron/Windows 上由系统菜单渲染，常常点了不出、
+   option 也没法跟着主题配色，统一换成这层 DOM 弹层（见 components/Select.tsx） */
+.sel-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  justify-content: space-between;
+  min-width: 0;
+  max-width: 100%;
+  padding: 9px 12px;
+  font-size: 13px;
+  font-family: inherit;
+  color: var(--text);
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  cursor: pointer;
+  text-align: left;
+  transition: border-color 0.16s ease, background 0.16s ease;
+}
+.sel-btn:hover:not(:disabled) {
+  border-color: var(--border-strong);
+}
+.sel-btn.open,
+.sel-btn:focus-visible {
+  border-color: rgba(255, 77, 141, 0.6);
+  background: rgba(255, 255, 255, 0.07);
+  outline: none;
+}
+.sel-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+.sel-label {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.sel-caret {
+  flex: 0 0 auto;
+  color: var(--muted);
+  transition: transform 0.16s ease;
+}
+.sel-btn.open .sel-caret {
+  transform: rotate(180deg);
+  color: var(--accent);
+}
+
+.sel-pop {
+  position: fixed;
+  /* 弹层是 portal 到 body 的，层级必须高过所有自绘弹窗（水印 400 / 批量确认 1500），
+     否则「点开下拉框一片空白」——其实是被弹窗遮罩盖住了 */
+  z-index: 3200;
+  display: flex;
+  flex-direction: column;
+  min-width: 200px;
+  padding: 6px;
+  background: var(--solid-panel, #16161f);
+  border: 1px solid var(--border-strong, rgba(255, 255, 255, 0.16));
+  border-radius: 12px;
+  box-shadow: 0 18px 44px rgba(0, 0, 0, 0.55);
+  overflow: hidden;
+  animation: selIn 0.12s ease;
+}
+@keyframes selIn {
+  from {
+    opacity: 0;
+    transform: translateY(-4px);
+  }
+}
+.sel-search {
+  padding: 2px 2px 6px;
+}
+.sel-search input {
+  width: 100%;
+  padding: 6px 9px;
+  font-size: 12.5px;
+  color: var(--text);
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  outline: none;
+}
+.sel-list {
+  overflow-y: auto;
+  min-height: 0;
+}
+.sel-group {
+  padding: 8px 9px 4px;
+  font-size: 11px;
+  color: var(--muted);
+  letter-spacing: 0.02em;
+}
+.sel-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 7px 9px;
+  border-radius: 8px;
+  font-size: 12.8px;
+  color: var(--text);
+  cursor: pointer;
+  white-space: nowrap;
+}
+.sel-item.hover {
+  background: rgba(255, 255, 255, 0.07);
+}
+.sel-item.on {
+  color: var(--accent);
+}
+.sel-item.dis {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+.sel-item-label {
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.sel-empty {
+  padding: 14px 10px;
+  font-size: 12px;
+  color: var(--muted);
+  text-align: center;
+}
+/* ---------------------------- 工具栏自定义面板 ---------------------------- */
+.tcz-mask {
+  position: fixed;
+  inset: 0;
+  z-index: 400;
+  display: grid;
+  place-items: center;
+  background: rgba(0, 0, 0, 0.55);
+  backdrop-filter: blur(3px);
+}
+.tcz-card {
+  width: min(760px, 92vw);
+  max-height: min(78vh, 620px);
+  display: flex;
+  flex-direction: column;
+  padding: 16px 18px 14px;
+  background: var(--solid-panel, #16161f);
+  border: 1px solid var(--border-strong, rgba(255, 255, 255, 0.16));
+  border-radius: 16px;
+  box-shadow: 0 26px 70px rgba(0, 0, 0, 0.6);
+}
+.tcz-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+.tcz-head h4 {
+  margin: 0;
+  font-size: 15px;
+  font-weight: 600;
+}
+.tcz-hint {
+  margin: 6px 0 12px;
+  font-size: 12px;
+  color: var(--muted);
+  line-height: 1.5;
+}
+.tcz-body {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 14px;
+  min-height: 0;
+}
+.tcz-col {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
+.tcz-col h5 {
+  margin: 0 0 8px;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-dim, #b9b9c6);
+}
+.tcz-col h5 em {
+  font-style: normal;
+  color: var(--muted);
+  font-weight: 400;
+}
+.tcz-list {
+  flex: 1;
+  min-height: 120px;
+  overflow-y: auto;
+  padding: 6px;
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+}
+.tcz-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 8px;
+  border-radius: 8px;
+  font-size: 12.8px;
+}
+.tcz-row:hover {
+  background: rgba(255, 255, 255, 0.05);
+}
+.tcz-row.muted {
+  color: var(--muted);
+}
+.tcz-name {
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.tcz-ops {
+  display: flex;
+  gap: 2px;
+  opacity: 0.45;
+}
+.tcz-row:hover .tcz-ops {
+  opacity: 1;
+}
+.tcz-ops button {
+  width: 22px;
+  height: 22px;
+  display: grid;
+  place-items: center;
+  font-size: 12px;
+  color: var(--muted);
+  background: none;
+  border: 1px solid transparent;
+  border-radius: 6px;
+  cursor: pointer;
+}
+.tcz-ops button:hover:not(:disabled) {
+  color: var(--text);
+  background: rgba(255, 255, 255, 0.08);
+  border-color: var(--border);
+}
+.tcz-ops button:disabled {
+  opacity: 0.3;
+  cursor: default;
+}
+.tcz-empty {
+  padding: 18px 8px;
+  font-size: 12px;
+  color: var(--muted);
+  text-align: center;
+}
+.tcz-foot {
+  display: flex;
+  gap: 8px;
+  margin-top: 14px;
+}
+
+/* ============ 水印 / 相框工作台 ============ */
+.wm-mask {
+  position: fixed;
+  inset: 0;
+  z-index: 400;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+  background: rgba(0, 0, 0, 0.55);
+  backdrop-filter: blur(2px);
+}
+.wm-card {
+  display: flex;
+  flex-direction: column;
+  width: min(1180px, 96vw);
+  /* 92vh 再留 24px 给遮罩内边距：小窗口下卡片不能顶出可视区，否则底部按钮会被吃掉 */
+  height: min(830px, calc(100vh - 40px));
+  max-height: calc(100vh - 24px);
+  overflow: hidden;
+  background: var(--solid-panel);
+  border: 1px solid var(--border-strong);
+  border-radius: 14px;
+  box-shadow: 0 24px 70px rgba(0, 0, 0, 0.4);
+}
+.wm-head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 12px 16px;
+  border-bottom: 1px solid var(--border);
+}
+.wm-head b {
+  font-size: 14px;
+}
+.wm-sub {
+  font-size: 12px;
+  color: var(--muted);
+}
+.wm-close {
+  margin-left: auto;
+}
+.wm-body {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 396px;
+  min-height: 0;
+  overflow: hidden;
+  flex: 1;
+}
+/* min-height:0 是关键：预览列里有一张按原始比例的大图，
+   不显式压住的话它会按图片高度把 grid 行撑到 800px+，溢出的部分被卡片裁掉，
+   页脚按钮就骑在下面那一列上（用户看到的「图片显示不全 / 按钮被遮挡」）。 */
+.wm-preview {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  min-width: 0;
+  min-height: 0;
+  flex: 1;
+  padding: 14px;
+  background: var(--panel);
+}
+.wm-stage {
+  position: relative;
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 0;
+  overflow: hidden;
+  background: #1a1a1a;
+  border-radius: 10px;
+}
+.wm-stage img {
+  max-width: 100%;
+  max-height: 100%;
+  object-fit: contain;
+}
+.wm-empty {
+  font-size: 12px;
+  color: rgba(255, 255, 255, 0.45);
+}
+.wm-stage-mask {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  font-size: 12px;
+  color: #fff;
+  background: rgba(0, 0, 0, 0.42);
+}
+.wm-stage-err {
+  position: absolute;
+  left: 12px;
+  right: 12px;
+  bottom: 12px;
+  padding: 9px 11px;
+  font-size: 12px;
+  line-height: 1.5;
+  color: #ffd9dd;
+  background: rgba(178, 26, 48, 0.9);
+  border-radius: 8px;
+}
+/* 预览有图但没画出水印时的解释：比错误轻，比沉默清楚 */
+.wm-stage-note {
+  position: absolute;
+  left: 12px;
+  right: 12px;
+  bottom: 12px;
+  padding: 9px 11px;
+  font-size: 12px;
+  line-height: 1.5;
+  color: #ffe8c2;
+  background: rgba(122, 78, 12, 0.92);
+  border-radius: 8px;
+}
+.wm-tip {
+  margin: 6px 0 0;
+  font-size: 11.5px;
+  line-height: 1.5;
+  color: #e0b062;
+}
+.wm-preview-foot {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  font-size: 11px;
+  color: var(--muted);
+}
+.wm-tag {
+  padding: 2px 8px;
+  border: 1px solid var(--border);
+  border-radius: 99px;
+}
+.wm-progress {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 11px;
+  color: var(--muted);
+}
+.wm-progress-bar {
+  flex: 1;
+  height: 4px;
+  overflow: hidden;
+  background: var(--panel-strong);
+  border-radius: 99px;
+}
+.wm-progress-bar i {
+  display: block;
+  height: 100%;
+  background: var(--accent);
+  transition: width 0.3s ease;
+}
+.wm-panel {
+  overflow-y: auto;
+  padding: 14px 16px 20px;
+  border-left: 1px solid var(--border);
+}
+.wm-sec + .wm-sec {
+  margin-top: 16px;
+  padding-top: 14px;
+  border-top: 1px solid var(--border);
+}
+.wm-sec h4 {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin: 0 0 9px;
+  font-size: 12px;
+  font-weight: 600;
+}
+.wm-sec h4 em {
+  font-style: normal;
+  font-weight: 400;
+  color: var(--muted);
+}
+.wm-fields {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 6px;
+}
+.wm-field {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 8px;
+  font-size: 12px;
+  color: var(--muted);
+  cursor: pointer;
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+}
+.wm-field.on {
+  color: var(--text);
+  background: rgba(255, 77, 141, 0.12);
+  border-color: rgba(255, 77, 141, 0.45);
+}
+.wm-field.void span {
+  opacity: 0.55;
+}
+.wm-field i {
+  margin-left: auto;
+  padding: 0 5px;
+  font-style: normal;
+  font-size: 10px;
+  color: var(--muted);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+}
+.wm-field input {
+  accent-color: var(--accent);
+}
+.wm-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-top: 10px;
+}
+.wm-row-label {
+  font-size: 12px;
+  color: var(--muted);
+}
+.wm-switch {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  cursor: pointer;
+}
+.wm-switch input {
+  accent-color: var(--accent);
+}
+.wm-sel {
+  flex: 1;
+  min-width: 0;
+}
+/* 面板里的下拉按钮跟旁边的输入框一样高（省/市/区三个下拉挤在一行时尤其明显） */
+.wm-sel .sel-btn {
+  height: 30px;
+  padding: 0 8px 0 10px;
+  font-size: 12px;
+  border-radius: 8px;
+  background: var(--bg-elev, #1b1b1d);
+}
+.wm-row-label {
+  flex: none;
+  white-space: nowrap;
+}
+/* 「水印上显示：杭州 · 西湖」那一行 */
+.wm-loc-foot {
+  margin-top: 6px;
+  align-items: center;
+}
+.wm-loc-foot .wm-hint {
+  margin: 0;
+}
+.wm-loc-foot .wm-hint b {
+  color: var(--text);
+  font-weight: 600;
+}
+/* 拍摄地点输入框 + 字体刷新按钮 */
+.wm-input {
+  flex: 1;
+  min-width: 0;
+  height: 30px;
+  padding: 0 10px;
+  border-radius: 8px;
+  border: 1px solid var(--border);
+  background: var(--bg-elev, #1b1b1d);
+  color: var(--fg);
+  font-size: 12px;
+}
+.wm-input:focus {
+  outline: none;
+  border-color: var(--accent);
+}
+.wm-font-scan {
+  flex: none;
+  height: 30px;
+  padding: 0 10px;
+  font-size: 12px;
+}
+.wm-sec > .wm-hint {
+  margin: 8px 0 0;
+  font-size: 11px;
+  color: var(--muted);
+}
+.wm-styles {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 6px;
+  max-height: 196px;
+  overflow-y: auto;
+  padding-right: 2px;
+}
+.wm-style {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 7px 9px;
+  text-align: left;
+  cursor: pointer;
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+}
+.wm-style b {
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--text);
+}
+.wm-style i {
+  overflow: hidden;
+  font-style: normal;
+  font-size: 10px;
+  color: var(--muted);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.wm-style:hover {
+  border-color: var(--border-strong);
+}
+.wm-style.on {
+  background: rgba(255, 77, 141, 0.1);
+  border-color: rgba(255, 77, 141, 0.55);
+}
+.wm-style.plain {
+  grid-column: span 2;
+}
+/* 「不含所选信息」：这款样式只排某几项，当前勾选对不上，选了也出不来图 */
+.wm-style.lack {
+  border-style: dashed;
+}
+.wm-style-lack {
+  align-self: flex-start;
+  margin-top: 1px;
+  padding: 0 5px;
+  font-size: 9.5px;
+  font-style: normal;
+  line-height: 15px;
+  color: #f3b23c;
+  background: rgba(243, 178, 60, 0.12);
+  border-radius: 5px;
+}
+.wm-slider {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  margin-bottom: 8px;
+  font-size: 12px;
+  color: var(--muted);
+}
+.wm-slider input {
+  flex: 1;
+  accent-color: var(--accent);
+}
+.wm-slider b {
+  width: 42px;
+  font-weight: 500;
+  text-align: right;
+  color: var(--text);
+}
+.wm-foot {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 11px 16px;
+  border-top: 1px solid var(--border);
+}
+.wm-hint {
+  flex: 1;
+  font-size: 11px;
+  color: var(--muted);
+}
+.wm-hint.bad {
+  color: #ff6b81;
+}
+
+@media (max-width: 980px) {
+  .wm-body {
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-rows: minmax(0, 42vh) minmax(0, 1fr);
+  }
+  .wm-panel {
+    border-left: none;
+    border-top: 1px solid var(--border);
+  }
+}
+
+/* ============ 新手教程导览 ============ */
+.tour-root {
+  position: fixed;
+  inset: 0;
+  z-index: 3000;
+}
+/* 遮罩用超大的外阴影一次性铺满，中心留出被讲解的区域 */
+.tour-hole {
+  position: fixed;
+  z-index: 0;
+  border-radius: 12px;
+  box-shadow:
+    0 0 0 9999px rgba(6, 6, 8, 0.62),
+    0 0 0 2px rgba(255, 77, 141, 0.7);
+  transition:
+    left 0.22s ease,
+    top 0.22s ease,
+    width 0.22s ease,
+    height 0.22s ease;
+  pointer-events: none;
+}
+.tour-dim {
+  position: fixed;
+  inset: 0;
+  background: rgba(6, 6, 8, 0.62);
+}
+.tour-card {
+  position: fixed;
+  z-index: 1;
+  width: 344px;
+  max-width: calc(100vw - 24px);
+  padding: 14px 16px 13px;
+  background: var(--solid-panel);
+  border: 1px solid var(--border-strong);
+  border-radius: 13px;
+  box-shadow: 0 22px 60px rgba(0, 0, 0, 0.5);
+  outline: none;
+  animation: rise 0.18s ease;
+}
+.tour-card.center {
+  left: 50%;
+  top: 50%;
+  transform: translate(-50%, -50%);
+}
+.tour-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.tour-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  color: #fff;
+  background: var(--accent);
+  border-radius: 7px;
+}
+.tour-badge svg {
+  width: 13px;
+  height: 13px;
+}
+.tour-count {
+  font-size: 11px;
+  letter-spacing: 0.04em;
+  color: var(--muted);
+}
+.tour-x {
+  margin-left: auto;
+  display: inline-flex;
+  padding: 3px;
+  color: var(--muted);
+  cursor: pointer;
+  background: none;
+  border: none;
+  border-radius: 6px;
+}
+.tour-x:hover {
+  color: var(--text);
+  background: var(--panel);
+}
+.tour-title {
+  margin-top: 9px;
+  font-size: 14px;
+  font-weight: 600;
+  line-height: 1.45;
+}
+.tour-body {
+  margin: 6px 0 0;
+  font-size: 12.5px;
+  line-height: 1.75;
+  color: var(--muted);
+}
+.tour-tip {
+  margin-top: 9px;
+  padding: 7px 9px;
+  font-size: 11.5px;
+  line-height: 1.65;
+  color: var(--text);
+  background: rgba(255, 77, 141, 0.09);
+  border-left: 2px solid var(--accent);
+  border-radius: 0 7px 7px 0;
+}
+.tour-foot {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  margin-top: 14px;
+}
+.tour-dots {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  margin-right: auto;
+}
+.tour-dot {
+  width: 6px;
+  height: 6px;
+  padding: 0;
+  cursor: pointer;
+  background: var(--border-strong);
+  border: none;
+  border-radius: 99px;
+  transition: width 0.18s ease;
+}
+.tour-dot.on {
+  width: 16px;
+  background: var(--accent);
+}
+.tour-skip {
+  color: var(--muted);
+}
+
+/* 设置卡片标题右侧的状态徽标 */
+.settings-badge {
+  margin-left: 8px;
+  padding: 2px 8px;
+  font-size: 11px;
+  font-weight: 400;
+  color: var(--muted);
+  background: var(--panel-strong);
+  border: 1px solid var(--border);
+  border-radius: 99px;
+  vertical-align: middle;
+}

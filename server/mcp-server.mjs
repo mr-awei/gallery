@@ -4,7 +4,7 @@
  * ------------------------------------------------------------
  * 把壁纸 / 图库操作暴露成 MCP 工具，让任意 MCP 客户端（Claude Desktop、
  * CodeBuddy、Cursor 等）直接驱动本机图库，例如：
- *   - "换张邓紫棋的 live 图"        → set_wallpaper_by_query
+ *   - "换张演唱会的 live 图"        → set_wallpaper_by_query
  *   - "切到有山的壁纸"             → set_wallpaper_by_query
  *   - "看看当前壁纸"              → current_wallpaper
  *   - "把收藏里评分高的导出来"     → 组合 list_favorites + ...
@@ -12,7 +12,8 @@
  * 运行：node server/mcp-server.mjs   （默认连接 http://127.0.0.1:3001）
  * 端口可用环境变量 GEM_MCP_PORT / GEM_MCP_BASE 覆盖。
  *
- * 协议：JSON-RPC 2.0 over stdio，标准 Content-Length 帧（与官方 SDK 互通）。
+ * 协议：JSON-RPC 2.0 over stdio，**每条消息一行 JSON**（MCP stdio 传输规范）。
+ * 注意：这里是 MCP，不是 LSP —— 不存在 Content-Length 帧，用 LSP 的帧格式解析会一条都读不出来。
  * 设计为零依赖，仅用 Node 内置 fetch。
  */
 import process from 'node:process';
@@ -56,49 +57,35 @@ function resolveApiToken() {
 const API_TOKEN = resolveApiToken();
 
 /* ------------------------------- MCP 帧读写 ------------------------------- */
+// MCP stdio：一条消息 = 一行 JSON，以 \n 分隔（同 JSON Lines）。
+// 旧实现照搬 LSP 的 Content-Length 头，而客户端发来的正文里没有这个头，
+// parseMessages 一个包都解不出来 → 对所有 MCP 客户端都没有响应。
 
-let outBuf = Buffer.alloc(0);
-let inBuf = Buffer.alloc(0);
-
+/** 只允许写协议消息到 stdout，避免别处的 console.log 污染管道 */
 function send(obj) {
-  const json = JSON.stringify(obj);
-  const frame = `Content-Length: ${Buffer.byteLength(json)}\r\n\r\n${json}`;
-  process.stdout.write(frame);
+  process.stdout.write(JSON.stringify(obj) + '\n');
 }
 
-function parseMessages(buf) {
-  const msgs = [];
-  let offset = 0;
-  while (offset < buf.length) {
-    const headerEnd = buf.indexOf('\r\n\r\n', offset);
-    if (headerEnd === -1) break;
-    const header = buf.slice(offset, headerEnd).toString('utf8');
-    const m = header.match(/Content-Length:\s*(\d+)/i);
-    if (!m) {
-      // 未知帧，跳过这一行继续
-      offset = headerEnd + 4;
-      continue;
-    }
-    const len = Number(m[1]);
-    const start = headerEnd + 4;
-    if (buf.length < start + len) break; // 还没收全
-    const body = buf.slice(start, start + len);
-    try {
-      msgs.push(JSON.parse(body.toString('utf8')));
-    } catch {
-      /* 忽略非法 JSON */
-    }
-    offset = start + len;
-  }
-  return { msgs, rest: buf.slice(offset) };
-}
-
+let inBuf = '';
+process.stdin.setEncoding('utf8');
 process.stdin.on('data', (chunk) => {
-  inBuf = Buffer.concat([inBuf, chunk]);
-  const { msgs, rest } = parseMessages(inBuf);
-  inBuf = rest;
-  for (const msg of msgs) handle(msg);
+  inBuf += chunk;
+  let idx;
+  while ((idx = inBuf.indexOf('\n')) !== -1) {
+    const line = inBuf.slice(0, idx).replace(/\r$/, '').trim();
+    inBuf = inBuf.slice(idx + 1);
+    if (!line) continue;
+    let msg;
+    try {
+      msg = JSON.parse(line);
+    } catch {
+      continue; // 非法行直接跳过，不影响后续消息
+    }
+    // handle 是异步的：单个请求出错不能拖垮整个 stdio 循环
+    handle(msg).catch((e) => process.stderr.write(`[gem-mcp] handle error: ${e?.stack || e}\n`));
+  }
 });
+process.stdin.on('end', () => process.exit(0));
 
 /* ------------------------------- 工具实现 ------------------------------- */
 
@@ -125,11 +112,11 @@ const TOOLS = [
   {
     name: 'search_images',
     description:
-      '用自然语言在邓紫棋图库里搜图（AI 语义搜索：会理解"演唱会""有山""红色礼服"等含义并匹配）。返回命中图片的 id 与标题。',
+      '用自然语言在图库里搜图（AI 语义搜索：会理解"演唱会""有山""红色礼服"等含义并匹配）。返回命中图片的 id 与标题。',
     inputSchema: {
       type: 'object',
       properties: {
-        query: { type: 'string', description: '自然语言描述，如 "邓紫棋演唱会舞台" "有山景的写真" "红色礼服" "微笑近照"' },
+        query: { type: 'string', description: '自然语言描述，如 "演唱会舞台" "有山景的写真" "红色礼服" "微笑近照"' },
         limit: { type: 'number', description: '返回数量上限，默认 12' },
       },
       required: ['query'],
@@ -155,7 +142,7 @@ const TOOLS = [
   {
     name: 'set_wallpaper_by_query',
     description:
-      '按自然语言描述搜图并把最匹配的一张设为桌面壁纸。例如"换张邓紫棋的 live 图""切到有山的壁纸""来张红色礼服的"。',
+      '按自然语言描述搜图并把最匹配的一张设为桌面壁纸。例如"换张演唱会的 live 图""切到有山的壁纸""来张红色礼服的"。',
     inputSchema: {
       type: 'object',
       properties: {

@@ -5,21 +5,29 @@ import crypto from 'node:crypto';
 import { execFileSync } from 'node:child_process';
 import sharp from 'sharp';
 import jpegtranPkg from 'jpegtran-bin';
-import { db, getSettings, getLibraryGeneration, withTransaction } from './db.js';
+import { db, getSettings, getLibraryGeneration } from './db.js';
 import { IMAGE_DIR } from './config.js';
 import { linkImageByPath } from './folders.js';
-import { computePHash, hammingHex } from './phash.js';
+import { computePHash } from './phash.js';
+import { computeSubjectPHash } from './lib/subject.js';
 import * as clip from './clip.js';
-import { getSharpness, invalidateQuality } from './quality.js';
+import { invalidateQuality } from './quality.js';
 import { scoreImage } from './kb.js';
-import { aiModelOf, isAiModel, runUpscale, isCommunityModel, communityModelOf, cuganInstalled, listCuganModels } from './ai-upscale.js';
-import { srModelOf, runSr } from './sr-deep.js';
-import { httpFetch } from './http.js';
-import { existingThumbPath, ensureThumbDirFor, thumbPathFor, removeThumbFiles } from './thumbs.js';
+import { existingThumbPath, ensureThumbDirFor, thumbPathFor, removeThumbFiles, mtimeOf } from './thumbs.js';
+import { md5File, md5Buffer } from './lib/hash.js';
+import { pushEditBackup } from './lib/undo.js';
 
 const jpegtran = typeof jpegtranPkg === 'string' ? jpegtranPkg : jpegtranPkg.default;
 
-export const ALLOWED_FORMATS = new Set(['jpeg', 'jpg', 'png', 'webp']);
+/**
+ * 允许入库的位图格式（sharp 自带解码能力范围内的全部）。
+ *
+ * 以前只有 jpeg/png/webp：拖一张 GIF、AVIF、TIFF 进来会被判「格式不支持」，
+ * 而 Eagle 同样一张图能收 —— 用户视角就是「你们支持得太少」。
+ * bmp / ico / heic 没有内建解码器，列进来只会变成假承诺，不放。
+ * 注意 sharp 对 AVIF 报的 format 是 heif（见 imageTypeOf），所以 heif 必须在此。
+ */
+export const ALLOWED_FORMATS = new Set(['jpeg', 'jpg', 'png', 'webp', 'gif', 'heif', 'tiff', 'tif']);
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
@@ -214,6 +222,22 @@ function extOf(format) {
   return format || 'jpg';
 }
 
+/**
+ * sharp 报的是「容器格式」：AVIF 和 HEIC 都报 heif，只能按 compression 区分（av1 = AVIF）。
+ * 扩展名/MIME 必须按真实格式写，否则存成 xxx.heif 在资源管理器里打不开、前端也显示不出后缀。
+ */
+function imageTypeOf(meta) {
+  const raw = String(meta?.format || '').toLowerCase();
+  if (raw === 'heif') {
+    return meta?.compression === 'av1'
+      ? { format: 'avif', ext: 'avif', mime: 'image/avif' }
+      : { format: 'heic', ext: 'heic', mime: 'image/heic' };
+  }
+  if (raw === 'tiff' || raw === 'tif') return { format: 'tiff', ext: 'tif', mime: 'image/tiff' };
+  if (raw === 'jpeg' || raw === 'jpg') return { format: 'jpeg', ext: 'jpg', mime: 'image/jpeg' };
+  return { format: raw, ext: raw, mime: raw ? `image/${raw}` : '' };
+}
+
 const INVALID_CHARS = /[\\/:*?"<>|\r\n\t]/g;
 
 /** 采集到的图片直接写入用户指定的本地文件夹，并使用可读文件名 */
@@ -223,14 +247,15 @@ export function resolveStorageDir(settings = getSettings()) {
   return dir;
 }
 
-export function buildFileName({ keyword, source, width, height, format }) {
+export function buildFileName({ keyword, source, width, height, format, ext }) {
   const safe = (s) => String(s || '').replace(INVALID_CHARS, '').replace(/\s+/g, ' ').trim().slice(0, 30);
   const stamp = new Date().toISOString().slice(0, 19).replace(/[-:]/g, '').replace('T', '-');
   // 6 位随机后缀：秒级时间戳 + 相同尺寸仍可能撞名（同一批两张不同图会生成同名文件，
   // 仅扩展名不同，曾被误当成「同名 jpg/png 同一张照片」）
   const suffix = crypto.randomBytes(3).toString('hex');
-  const parts = [safe(keyword) || '邓紫棋', source, `${width}x${height}`, stamp, suffix];
-  return `${parts.join('_')}.${extOf(format)}`;
+  const parts = [safe(keyword) || '壁纸', source, `${width}x${height}`, stamp, suffix];
+  // ext 优先：avif/heic 在 sharp 里都叫 heif，只有 imageTypeOf 知道该写哪个后缀
+  return `${parts.join('_')}.${ext || extOf(format)}`;
 }
 
 /** 是否由本应用管理（可随图库一起删除）的文件 */
@@ -240,9 +265,22 @@ export function isManagedPath(p, settings = getSettings()) {
   return dirs.some((d) => p.startsWith(d));
 }
 
-export async function ensureThumb(id, absPath) {
-  const target = existingThumbPath(id); // 桶内优先，兼容旧平铺
-  if (target) return target;
+/**
+ * 生成（或复用）缩略图。
+ *
+ * force：新入库的行专用 —— 全新的 id 不可能有合法缓存，磁盘上同名的东西一定是
+ * 「上一辈子这个 id」留下的，先清干净再画，否则列表里会显示别人的图。
+ * 不传 force 时用「缓存不早于源文件」来判断能否复用：源图被旋转/裁切/替换后
+ * mtime 变新，旧的缩略图和预览图也会自动作废。
+ */
+export async function ensureThumb(id, absPath, { force = false } = {}) {
+  if (force) {
+    await removeThumbFiles(id); // 连灯箱预览图一起清：它同样按 id 命名
+  } else {
+    const hit = existingThumbPath(id, mtimeOf(absPath)); // 桶内优先，兼容旧平铺
+    if (hit) return hit;
+  }
+  const gen = getLibraryGeneration();
   try {
     await ensureThumbDirFor(id);
     const target = thumbPathFor(id);
@@ -251,6 +289,15 @@ export async function ensureThumb(id, absPath) {
       .resize({ width: 640, withoutEnlargement: true })
       .jpeg({ quality: 80, mozjpeg: true })
       .toFile(target);
+    // 写回 DB：批量导入的「这张已处理过」判断看的是 thumb 字段，
+    // 懒补全（浏览时现补）不写回的话，下次扫描会把这些图再派生一遍
+    if (getLibraryGeneration() === gen) {
+      try {
+        db.prepare('UPDATE images SET thumb = ? WHERE id = ?').run(target, id);
+      } catch {
+        /* 行可能已被删除，忽略 */
+      }
+    }
     return target;
   } catch (err) {
     console.error('[thumb] 生成缩略图失败', id, err.message);
@@ -337,16 +384,21 @@ async function rotateImageInner(id, dir = 'cw') {
     info = r.info;
   }
 
+  pushEditBackup(row, 'rotate');
   await writeFileAtomic(row.abs_path, data);
 
   const newHash = await computePHash(data).catch(() => '');
-  db.prepare('UPDATE images SET width = ?, height = ?, size_bytes = ?, phash = ? WHERE id = ?').run(
-    info.width,
-    info.height,
-    data.length,
-    newHash,
-    id
-  );
+  // 同 persistEdit：旋转也要换缓存版本号，否则（尤其 180°/方形图）尺寸没变，
+  // 浏览器继续拿 7 天强缓存里的旧图，看起来像「转了个寂寞」。
+  let fsMtime = Number(row.fs_mtime || 0) + 1;
+  try {
+    fsMtime = Math.max(Math.round(fs.statSync(row.abs_path).mtimeMs / 1000), fsMtime);
+  } catch {
+    /* 保留递增兜底值 */
+  }
+  db.prepare(
+    'UPDATE images SET width = ?, height = ?, size_bytes = ?, phash = ?, fs_mtime = ? WHERE id = ?'
+  ).run(info.width, info.height, data.length, newHash, fsMtime, id);
   if (newHash) indexPhash(id, newHash);
   if (clip.clipReady()) clip.reembed(id, row.abs_path); // 内容已改变，重建深度特征
   invalidateQuality(id); // 清晰度缓存同步失效，下次分组时重算
@@ -400,13 +452,35 @@ function originalSizeOf(row) {
   return null;
 }
 
+/** 解析主色板列：损坏的 JSON 不应该让整张卡片 500 */
+function parsePalette(raw) {
+  if (!raw) return [];
+  try {
+    const list = JSON.parse(raw);
+    if (!Array.isArray(list)) return [];
+    return list
+      .map((c) => (typeof c === 'string' ? { h: c, p: 0 } : c && typeof c.h === 'string' ? { h: c.h, p: Number(c.p) || 0 } : null))
+      .filter(Boolean);
+  } catch {
+    return [];
+  }
+}
+
 export function toDTO(row) {
   const tags = row.tags ? row.tags.split(',').map((t) => t.trim()).filter(Boolean) : [];
-  // 以文件修改时间作版本号，文件被修改后（如旋转）浏览器缓存自动失效
-  let ver = '';
-  try {
-    ver = `?v=${Math.floor(fs.statSync(row.abs_path).mtimeMs)}`;
-  } catch {}
+  // 缓存版本号：用导入时落库的文件指纹 fs_mtime，不再逐行 statSync ——
+  // 万级库每个列表请求做 N 次同步 IO 会拖慢接口并阻塞事件循环。
+  // 文件被修改（旋转/替换）时由 resyncImageMeta 更新 fs_mtime 保持缓存失效能力。
+  const mtime = Number(row.fs_mtime) || 0;
+  // 封面版本单独拼在缩略图 URL 上：换封面只重写 thumbs/<id>.jpg，原文件没动，
+  // 不带上它就永远是 7 天前那张封面
+  const coverVer = Number(row.cover_ver) || 0;
+  const ver = mtime ? `?v=${mtime}` : '';
+  // 老库 fs_mtime 可能是 0，这里始终带版本（0-0）——只要后续有增量就一定能失效缓存
+  const thumbVer = `?v=${mtime}-${coverVer}`;
+  // 预览图同样带版本：带版本才能给长缓存（灯箱重复打开直接命中浏览器缓存，
+  // 不再每次发条件请求），增强/旋转写回原图后 mtime 变化自动失效
+  const previewVer = `?v=${mtime}`;
   const orig = originalSizeOf(row);
   return {
     enhanced: !!orig,
@@ -422,6 +496,13 @@ export function toDTO(row) {
     height: row.height,
     sizeBytes: row.size_bytes,
     mime: row.mime,
+    /** 素材类型：image / gif / video / audio / font / pdf / office / model（Eagle 式多格式） */
+    mediaKind: row.media_kind || 'image',
+    /** 音视频时长（秒）；0 = 尚未探明 */
+    duration: Number(row.duration) || 0,
+    /** 自定义封面帧（秒），视频/GIF 缩略图取自该时间点 */
+    coverTs: Number(row.cover_ts) || 0,
+    md5: row.md5 || '',
     favorite: row.favorite === 1,
     viewed: !!row.viewed_at,
     viewCount: row.view_count || 0,
@@ -429,6 +510,8 @@ export function toDTO(row) {
     rating: row.rating || 0,
     note: row.note || '',
     dominant: row.dominant || '',
+    /** 主色板（导入时算好落库）：[{h:'#rrggbb', p:占比}]，供「导出调色板」直接使用 */
+    palette: parsePalette(row.palette),
     hue: row.hue ?? '',
     tags,
     createdAt: row.created_at,
@@ -437,7 +520,9 @@ export function toDTO(row) {
     orientation: orientationOf(row.width, row.height),
     bucket: bucketOf(row.width, row.height),
     path: row.abs_path,
-    thumbUrl: `/api/images/${row.id}/thumb${ver}`,
+    thumbUrl: `/api/images/${row.id}/thumb${thumbVer}`,
+    /** 灯箱预览图（长边 1920 JPEG）：带文件版本号，可安全长缓存 */
+    previewUrl: `/api/images/${row.id}/preview${previewVer}`,
     url: `/api/images/${row.id}/file${ver}`,
     downloadUrl: `/api/images/${row.id}/download${ver}`,
   };
@@ -481,6 +566,10 @@ export async function ingest(params, settings = getSettings()) {
     // 任务启动时记下的库代数：跨 await 的长任务（导入）中途若切了库，
     // 这里比对发现代数变了就放弃入库，避免把 A 库的图写进 B 库
     libGeneration = null,
+    // 用户主动采集（拖拽 / 右键「采集这张图片」）用：不过 minFileSize / minResolution 门槛。
+    // 「小于 30KB」「短边不到 800」是给爬虫批量抓图定的,拿来拦用户自己挑的图就是拦错人：
+    // AI 生成站常常只把 512/768 的预览图放进 <img>，Eagle 照收，我们却判 lowres 丢掉了。
+    skipQuality = false,
   } = params;
 
   const minBytes = Number(settings.minFileSize) * 1024;
@@ -489,19 +578,19 @@ export async function ingest(params, settings = getSettings()) {
   const threshold = Number(settings.phashThreshold);
 
   let finalPath = absPath;
-  let sizeBytes = 0;
+  let sizeBytes;
   // 文件指纹：批量导入据此跳过内容未变的文件（增量扫描）
   let fsMtime = 0;
 
   if (buffer) {
     sizeBytes = buffer.length;
-    if (sizeBytes < minBytes) return { ok: false, reason: KEEP_REASONS.tooLight };
+    if (!skipQuality && sizeBytes < minBytes) return { ok: false, reason: KEEP_REASONS.tooLight };
     if (sizeBytes > maxBytes) return { ok: false, reason: KEEP_REASONS.tooLarge };
   } else if (absPath) {
     const stat = fs.statSync(absPath);
     sizeBytes = stat.size;
     fsMtime = Math.round(stat.mtimeMs / 1000);
-    if (sizeBytes < minBytes) return { ok: false, reason: KEEP_REASONS.tooLight };
+    if (!skipQuality && sizeBytes < minBytes) return { ok: false, reason: KEEP_REASONS.tooLight };
     if (sizeBytes > maxBytes) return { ok: false, reason: KEEP_REASONS.tooLarge };
   } else {
     return { ok: false, reason: KEEP_REASONS.failed };
@@ -516,17 +605,24 @@ export async function ingest(params, settings = getSettings()) {
   }
 
   const format = (meta.format || '').toLowerCase();
-  if (!ALLOWED_FORMATS.has(format)) return { ok: false, reason: KEEP_REASONS.badFormat };
+  // 失败时把实际格式带回去：插件端才能说清「不支持的是 avif 还是 heic」，
+  // 而不是一句没头没尾的「目标不是可用的图片」
+  if (!ALLOWED_FORMATS.has(format)) {
+    return { ok: false, reason: KEEP_REASONS.badFormat, format: format || 'unknown' };
+  }
+  const type = imageTypeOf(meta);
 
   const width = meta.width || 0;
   const height = meta.height || 0;
-  if (!width || !height) return { ok: false, reason: KEEP_REASONS.badFormat };
-  if (Math.max(width, height) < minLong) return { ok: false, reason: KEEP_REASONS.tooSmall };
+  if (!width || !height) return { ok: false, reason: KEEP_REASONS.badFormat, format };
+  if (!skipQuality && Math.max(width, height) < minLong) {
+    return { ok: false, reason: KEEP_REASONS.tooSmall, format };
+  }
 
   // 落盘：采集到的图片直接写入本地保存文件夹
   if (buffer || (copyToStorage && absPath)) {
     const dir = resolveStorageDir(settings);
-    const name = buildFileName({ keyword, source, width, height, format });
+    const name = buildFileName({ keyword, source, width, height, format, ext: type.ext });
     let finalPathCandidate = path.join(dir, name);
     if (fs.existsSync(finalPathCandidate)) {
       finalPathCandidate = path.join(dir, name.replace(/(\.\w+)$/, `_${crypto.randomBytes(2).toString('hex')}$1`));
@@ -534,6 +630,14 @@ export async function ingest(params, settings = getSettings()) {
     finalPath = finalPathCandidate;
     if (buffer) await fsp.writeFile(finalPath, buffer);
     else await fsp.copyFile(absPath, finalPath);
+    // 写盘/复制后必须重取文件指纹：buffer 路径原本没有 fs_mtime，导致「上传进来的图」
+    // 在 DTO 里永远没有 ?v= 版本号。原图/缩略图响应带 7 天强缓存，没有版本号就意味着
+    // 后续裁切/调色/旋转完，浏览器会一直拿旧图。
+    try {
+      fsMtime = Math.round(fs.statSync(finalPath).mtimeMs / 1000);
+    } catch {
+      /* 取不到就沿用上面 absPath 分支的值（buffer 分支则为 0） */
+    }
   }
 
   // 切库保护：入库前再确认一次还是当初那个库（此刻 db 可能已经指向新库）。
@@ -546,11 +650,19 @@ export async function ingest(params, settings = getSettings()) {
   // 旧实现对大图解码 3 次（pHash、缩略图、主色各一次），导入大量相机原图时极慢。
   // 现在每张图只解码一次原图（生成缩略图），pHash 与主色改从 640px 缩略图算，
   // 结果等价（都是缩到 32×32 / 160×160），解码量下降一个数量级。
+  // 内容指纹：完全重复检测用。刚写完/刚解码过的文件基本都在系统缓存里，代价远小于一次 sharp 解码。
+  let md5 = '';
+  try {
+    md5 = buffer ? md5Buffer(buffer) : await md5File(finalPath);
+  } catch {
+    /* 指纹失败不影响入库 */
+  }
+
   const info = db
     .prepare(
       `INSERT INTO images (title, abs_path, thumb, source, keyword, source_url, width, height,
-        size_bytes, mime, phash, favorite, tags, created_at, fs_mtime)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, ?, ?, ?)`
+        size_bytes, mime, phash, favorite, tags, created_at, fs_mtime, md5, media_kind)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, ?, ?, ?, ?, ?)`
     )
     .run(
       title || path.basename(finalPath),
@@ -562,16 +674,21 @@ export async function ingest(params, settings = getSettings()) {
       width,
       height,
       sizeBytes,
-      `image/${format === 'jpg' ? 'jpeg' : format}`,
+      // mime 按真实格式写：heif 容器要区分 AVIF / HEIC，tiff 不能写成 image/tiff 之外的花样
+      type.mime || 'application/octet-stream',
       '',
       tags,
       new Date().toISOString(),
-      fsMtime
+      fsMtime,
+      md5,
+      'image'
     );
   const id = Number(info.lastInsertRowid);
 
-  // 缩略图：每张图唯一一次整图解码
-  const thumb = await ensureThumb(id, finalPath);
+  // 缩略图：每张图唯一一次整图解码。
+  // force：这个 id 是刚插进去的，磁盘上若有同名缩略图/预览图，只可能是旧库残留，
+  // 不先清掉就会被下面这次复用 → 列表显示别人的图、pHash 也按别人的图算。
+  const thumb = await ensureThumb(id, finalPath, { force: true });
 
   // pHash 从缩略图派生（若缩略图生成失败则回退到原图，保证查重可用）
   let phash = '';
@@ -597,7 +714,7 @@ export async function ingest(params, settings = getSettings()) {
   if (!skipPhashDupe && clip.clipReady()) {
     try {
       const vec = await clip.embedImage(finalPath);
-      const dup = clip.topSimilar(vec, { k: 1, minCos: 0.965 });
+      const dup = await clip.topSimilar(vec, { k: 1, minCos: 0.965 });
       if (dup.length) {
         db.prepare('DELETE FROM images WHERE id = ?').run(id);
         if (thumb) await removeFileRetry(thumb).catch(() => {});
@@ -674,6 +791,42 @@ export function setTags(id, tags) {
   return toDTO(getImage(id));
 }
 
+/**
+ * 自定义缩略图：视频/GIF 的封面帧、手动换封面都走这里。
+ * 统一转成 jpg 落到 id 分桶目录，和 sharp 生成的缩略图同路径，前端 <img> 无需区分来源。
+ */
+export async function setCustomThumb(id, buf, _fmt = 'png') {
+  const row = db.prepare('SELECT id FROM images WHERE id = ?').get(id);
+  if (!row) throw new Error('图片不存在');
+  await ensureThumbDirFor(id);
+  const target = thumbPathFor(id);
+  await sharp(buf).rotate().resize(640, 640, { fit: 'inside', withoutEnlargement: true }).jpeg({ quality: 86 }).toFile(target);
+  // cover_ver 自增 = 缩略图 URL 换版本（原文件没动，fs_mtime 变不了）
+  db.prepare('UPDATE images SET thumb = ?, cover_ver = cover_ver + 1 WHERE id = ?').run(target, id);
+  return target;
+}
+
+/**
+ * 恢复默认缩略图（Eagle 的「Reset cover」）：
+ * 删掉自定义封面帧；图片 / GIF 顺手按原图重建一张，其它素材置空让前端回落到图标卡。
+ */
+export async function resetThumb(id) {
+  const row = db.prepare('SELECT id, abs_path, media_kind FROM images WHERE id = ?').get(id);
+  if (!row) throw new Error('图片不存在');
+  await removeThumbFiles(id);
+  db.prepare('UPDATE images SET thumb = ?, cover_ts = 0, cover_ver = cover_ver + 1 WHERE id = ?').run('', id);
+  const kind = row.media_kind || 'image';
+  if ((kind === 'image' || kind === 'gif') && row.abs_path) {
+    try {
+      const p = await ensureThumb(id, row.abs_path);
+      db.prepare('UPDATE images SET thumb = ? WHERE id = ?').run(p || '', id);
+    } catch {
+      /* 原图缺失或解码失败：留空，卡片走占位/缺失态 */
+    }
+  }
+  return toDTO(getImage(id));
+}
+
 export function renameTitle(id, title) {
   db.prepare('UPDATE images SET title = ? WHERE id = ?').run(String(title || ''), id);
   return toDTO(getImage(id));
@@ -703,7 +856,20 @@ export function setNote(id, note) {
 
 /* ------------------------------- 标签管理 ------------------------------- */
 // 实现已拆到 lib/tags.js（此处 re-export 保持既有调用方 import 路径不变）
-export { listTags, renameTag, deleteTag, mergeTags } from './lib/tags.js';
+export {
+  listTags,
+  listTagsRich,
+  listTagGroups,
+  setTagMeta,
+  setTagParent,
+  reorderTags,
+  renameTagGroup,
+  clearTagGroup,
+  removeTagMeta,
+  renameTag,
+  deleteTag,
+  mergeTags,
+} from './lib/tags.js';
 
 /* ------------------------------- 智能文件夹 ------------------------------- */
 // 实现已拆到 lib/smartfolders.js，通用小工具在 lib/utils.js（同样 re-export 保持兼容）
@@ -759,6 +925,30 @@ export async function backfillDominant(limit = 300, force = false) {
   return { done, remain };
 }
 
+/** 补算主体哈希（白底抠图+主体包围盒归一化后的 pHash），一次一批可重复调用。
+ *  为什么存在：全图 pHash 被白底背景主导，不同商品也判相似——见 lib/subject.js 头注。
+ *  从缩略图算（与全图 pHash 同源，整图内容一致；6000×4000 原图解码太慢）。
+ *  抠不出主体（非白底/纯色图）写入 'SKIP' 占位，避免每次补算都重试同一批失败图。 */
+export async function backfillSubjectHash(limit = 300) {
+  const rows = db
+    .prepare("SELECT id, thumb, abs_path FROM images WHERE obj_phash = '' LIMIT ?")
+    .all(Math.max(1, Math.min(5000, limit)));
+  let done = 0;
+  for (const row of rows) {
+    const src = row.thumb && fs.existsSync(row.thumb) ? row.thumb : row.abs_path;
+    let obj = 'SKIP';
+    try {
+      if (fs.existsSync(src)) obj = (await computeSubjectPHash(src)) || 'SKIP';
+    } catch {
+      obj = 'SKIP';
+    }
+    db.prepare('UPDATE images SET obj_phash = ? WHERE id = ?').run(obj, row.id);
+    if (obj !== 'SKIP') done++;
+  }
+  const remain = db.prepare("SELECT COUNT(*) AS c FROM images WHERE obj_phash = ''").get().c;
+  return { done, remain, skipped: rows.length - done };
+}
+
 /* ---------------------------- 相似图分组（整理） ---------------------------- */
 // 实现已拆到 lib/tidy.js（re-export 保持既有调用方 import 路径不变）
 export {
@@ -778,6 +968,7 @@ export {
   markAllViewed,
   buildImageFilter,
   listImages,
+  listImageIds,
 } from './lib/query.js';
 
 /* ------------------------- 删除 / 回收站 / 文件重命名 ------------------------- */

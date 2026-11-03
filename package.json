@@ -24,13 +24,16 @@
     "dist": "vite build && electron-builder",
     "dist:dir": "vite build && electron-builder --dir",
     "typecheck": "tsc --noEmit -p tsconfig.json && tsc --noEmit -p tsconfig.node.json",
-    "lint": "node scripts/lint.mjs",
+    "lint": "eslint . && node scripts/lint.mjs",
+    "lint:fix": "eslint . --fix",
     "smoke": "node scripts/smoke.mjs",
-    "verify": "npm run lint && npm run typecheck && npm run smoke",
+    "unit": "node --test \"test/**/*.test.mjs\"",
+    "verify": "npm run lint && npm run typecheck && npm run unit && npm run smoke",
     "test": "npm run verify"
   },
   "dependencies": {
     "@huggingface/transformers": "^3.8.1",
+    "@webtoon/psd": "^0.4.0",
     "archiver": "^7.0.1",
     "archiver-utils": "^5.0.2",
     "call-bind-apply-helpers": "^1.0.2",
@@ -38,9 +41,12 @@
     "decompress-tarbz2": "^4.1.1",
     "decompress-targz": "^4.1.1",
     "decompress-unzip": "^4.0.1",
+    "electron-updater": "^6.8.11",
     "express": "^5.1.0",
     "jpegtran-bin": "^7.0.0",
+    "jszip": "^3.10.2",
     "lru-cache": "^11.2.2",
+    "mammoth": "^1.13.0",
     "react": "^18.3.1",
     "react-dom": "^18.3.1",
     "semver": "^7.7.3",
@@ -48,16 +54,21 @@
     "side-channel-list": "^1.0.0",
     "side-channel-map": "^1.0.1",
     "side-channel-weakmap": "^1.0.2",
+    "three": "^0.187.0",
+    "xlsx": "^0.18.5",
     "yallist": "^5.0.0"
   },
   "devDependencies": {
+    "@eslint/js": "^10.0.1",
     "@types/node": "^22.10.2",
     "@types/react": "^18.3.17",
     "@types/react-dom": "^18.3.5",
+    "@types/three": "^0.186.0",
     "@vitejs/plugin-react": "^4.3.4",
     "concurrently": "^9.1.2",
     "electron": "^44.4.5",
     "electron-builder": "^26.0.12",
+    "eslint": "^10.14.0",
     "typescript": "^5.7.2",
     "vite": "^6.0.7"
   },
@@ -78,17 +89,32 @@
       "!node_modules/react-dom/**",
       "!node_modules/scheduler/**"
     ],
+    "extraResources": [
+      {
+        "from": "extension",
+        "to": "extension",
+        "filter": ["**/*"]
+      }
+    ],
     "asarUnpack": [
       "**/node_modules/sharp/**",
       "**/node_modules/@img/**",
       "**/node_modules/jpegtran-bin/**",
       "**/node_modules/onnxruntime-node/**",
       "**/node_modules/onnxruntime-common/**",
+      "**/node_modules/@huggingface/**",
       "**/node_modules/semver/**",
       "**/node_modules/detect-libc/**"
     ],
     "compression": "maximum",
     "forceCodeSigning": false,
+    "publish": [
+      {
+        "provider": "github",
+        "owner": "mr-awei",
+        "repo": "gemvault"
+      }
+    ],
     "win": {
       "target": [
         {

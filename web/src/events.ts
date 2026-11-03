@@ -13,9 +13,23 @@ type Handler = (data: any) => void;
 const handlersByType = new Map<string, Set<Handler>>();
 let source: EventSource | null = null;
 let connecting: Promise<void> | null = null;
+/**
+ * 当前这条 EventSource 上已经挂过监听的类型。
+ * 以前没有这个集合：某个类型退订到空就把 Map 里的 set 删掉，下次再订阅又走
+ * `attach(type)` 重新 addEventListener —— 同一条连接上叠出第二个、第三个监听器，
+ * 一次推送触发 N 次回调（详情页与网格同时订阅时表现为刷新风暴）。
+ */
+let attachedTypes = new Set<string>();
+
+/** 还有没有存活的订阅者（Map 里可能留着空集合） */
+function hasSubscriber() {
+  for (const set of handlersByType.values()) if (set.size) return true;
+  return false;
+}
 
 function attach(type: string) {
-  if (!source) return;
+  if (!source || attachedTypes.has(type)) return;
+  attachedTypes.add(type);
   source.addEventListener(type, (e) => {
     let data: any = {};
     try {
@@ -39,17 +53,20 @@ async function ensure(): Promise<void> {
   connecting = (async () => {
     const token = await getApiToken();
     const es = new EventSource(`/api/events${token ? `?token=${encodeURIComponent(token)}` : ''}`);
+    // 新连接 = 从零开始挂监听，旧连接的挂载记录必须作废
+    attachedTypes = new Set();
     // 断线兜底：EventSource 默认自动重连；若连接被永久关闭则 10s 后重建
     es.onerror = () => {
       if (es.readyState === EventSource.CLOSED) {
         source = null;
+        attachedTypes = new Set();
         setTimeout(() => {
-          if (handlersByType.size) void ensure();
+          if (hasSubscriber()) void ensure();
         }, 10000);
       }
     };
-    for (const type of handlersByType.keys()) attach(type);
     source = es;
+    for (const type of handlersByType.keys()) attach(type);
   })().finally(() => {
     connecting = null;
   });
@@ -75,7 +92,7 @@ export function subscribeEvents(type: 'job' | 'library' | 'live' | 'hello', fn: 
   // 建连失败不抛给组件，静默退化为无推送（页面仍有初次加载与手动刷新）
   void ensure().catch(() => {});
   return () => {
+    // 只移除订阅者，不删 Map 里的集合：删了下次订阅会重新 attach，监听器就叠起来了
     set?.delete(fn);
-    if (set && !set.size) handlersByType.delete(type);
   };
 }

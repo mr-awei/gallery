@@ -8,7 +8,7 @@ export const REASON_OPTIONS = [
   { key: 'blur', label: '模糊 / 低清' },
   { key: 'lowres', label: '分辨率太低' },
   { key: 'watermark', label: '有水印或平台 Logo' },
-  { key: 'notHer', label: '不是邓紫棋本人' },
+  { key: 'notHer', label: '不是目标人物' },
   { key: 'duplicate', label: '重复画面' },
   { key: 'tinyPerson', label: '人物画面占比过小' },
   { key: 'faceCovered', label: '脸被遮挡 / 看不清' },
@@ -28,7 +28,7 @@ export const REASON_OPTIONS = [
   { key: 'other', label: '其他' },
 ];
 
-/** 把内部原因代码翻译成中文（notHer → 不是邓紫棋本人） */
+/** 把内部原因代码翻译成中文（notHer → 不是目标人物） */
 export const reasonLabel = (key: string) =>
   REASON_OPTIONS.find((r) => r.key === key)?.label || key;
 

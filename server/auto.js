@@ -122,13 +122,22 @@ export async function pickImage(cfg) {
     }
     const hour = new Date().getHours();
     const wantDark = cfg.useTimeAware !== false && (hour >= 21 || hour < 6); // 夜间偏好暗色
+    // 个人偏好模型没训练时 pref 全是 50，把它按 0.25 混进去只是个常数偏移
+    // （等价于 score*0.4+33.5），看着像「智能」其实排序完全由规则分决定。
+    // 未训练就不参与，然后把剩余权重归一化，保证「说的和算的一致」。
+    const prefTrained = pref.prefStatus().trained;
     const weights = pool.map((r) => {
       let w = Math.max(0, Number(r.score) || 0);
       if (useFit) {
         const f = fit.getFit(r.id);
         const fs = f ? Number(f.score) || 60 : 60;
-        const ps = pref.prefScore(r.id); // 本地偏好模型（未训练时为 50，即不偏不倚）
-        w = w * 0.4 + fs * 0.35 + ps * 0.25; // 知识库评分 / 壁纸适配度 / 个人偏好
+        const parts = [
+          { w: 0.4, v: w },
+          { w: 0.35, v: fs },
+        ];
+        if (prefTrained) parts.push({ w: 0.25, v: pref.prefScore(r.id) });
+        const sumW = parts.reduce((a, p) => a + p.w, 0);
+        w = parts.reduce((a, p) => a + p.w * p.v, 0) / sumW; // 知识库评分 / 壁纸适配度 [/ 个人偏好]
         // 用户反馈纠偏：被点过「不喜欢」的图大幅降权，点过「喜欢」的加一点
         if (f) {
           w -= Math.min(40, (f.dislikes || 0) * 14);
@@ -183,11 +192,10 @@ export async function applyNow(scopeOverride = null, playlistIdOverride = null) 
     scope: scopeOverride || current.scope || 'all',
     playlistId: playlistIdOverride ?? current.playlistId,
   };
-  let imageId = await pickImage(cfg);
+  const imageId = await pickImage(cfg);
   if (!imageId) throw new Error('该范围内没有可用图片');
 
   // 闭环：抽到的图低于画质标准时，先自动增强再设为壁纸（可选开关）
-  let enhanced = false;
   if (cfg.autoEnhance === true) {
     const std = settings.enhance?.standard || '1080p';
     const target = lib.getStandardResolution(std, settings.enhance || {});
@@ -195,9 +203,9 @@ export async function applyNow(scopeOverride = null, playlistIdOverride = null) 
     if (row0 && (row0.width < target.width || row0.height < target.height)) {
       try {
         const model = settings.enhance?.model || 'sharp-standard';
-        await lib.enhanceImage(imageId, model, { standard: std });
-        enhanced = true;
-        console.log('[auto] 已自动增强候选壁纸：', row0.title);
+        const result = await lib.enhanceImage(imageId, model, { standard: std });
+        // 已达标（noop）时文件没变，别记成「已增强」
+        if (!result?.noop) console.log('[auto] 已自动增强候选壁纸：', row0.title);
       } catch (err) {
         console.error('[auto] 自动增强失败，按原图使用：', err?.message || err);
       }
@@ -242,6 +250,37 @@ export async function applyNow(scopeOverride = null, playlistIdOverride = null) 
   return { imageId, title: row?.title || '', ...result, appliedAt: nowIso };
 }
 
+/**
+ * 挑选策略「实际会用到什么」——纯描述，不参与计算。
+ *
+ * 前端选项文案一直是「AI 智能适配」，但这条链路里没有任何 AI：
+ * 适配度是本地启发式（留白/亮度/对比/复杂度），个人偏好模型未训练时也不参与。
+ * 这里把真实参与项列出来，让设置页照实展示，而不是按名字猜。
+ */
+export function pickPlan(cfg = getSettings().autoWallpaper || {}) {
+  const order = cfg.order || 'smart';
+  if (order === 'random') {
+    return { order, engine: 'random', label: '等概率随机', parts: ['random'] };
+  }
+  if (order === 'sequential') {
+    return { order, engine: 'sequential', label: '按入库顺序轮换', parts: ['sequential'] };
+  }
+  const useFit = order === 'ai' && cfg.useAiFit !== false;
+  const trained = pref.prefStatus().trained;
+  const parts = ['score'];
+  if (useFit) parts.push('fit');
+  if (useFit && trained) parts.push('pref');
+  return {
+    order,
+    engine: parts.join('+'),
+    label: useFit
+      ? `知识库评分 + 本地适配度${trained ? ' + 个人偏好模型' : ''}`
+      : `知识库评分${trained ? ' + 个人偏好模型' : ''}（未启用适配度）`,
+    parts,
+    prefTrained: trained,
+  };
+}
+
 export function getAutoStatus() {
   const cfg = getSettings().autoWallpaper || {};
   const next = computeNextRun(cfg);
@@ -255,6 +294,8 @@ export function getAutoStatus() {
     nextRunAt: next ? next.toISOString() : null,
     scopeCount: count,
     running: !!timer,
+    // 当前策略真实使用的评分项（设置页据此写人话，别让用户以为在跑 AI）
+    pick: pickPlan(cfg),
     lastLog: last
       ? { imageId: last.image_id, title: last.title, scope: last.scope, appliedAt: last.applied_at }
       : null,

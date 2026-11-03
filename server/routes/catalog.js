@@ -1,6 +1,6 @@
 // 清单（playlist）路由：分组管理的增删改查与批量加入（从 app.js 拆出）
 import * as lib from '../library.js';
-import { db } from '../db.js';
+import { db, withTransaction } from '../db.js';
 
 export function register(app, ctx) {
   const { asyncRoute } = ctx;
@@ -85,19 +85,25 @@ export function register(app, ctx) {
     '/api/playlists/:id/images',
     asyncRoute(async (req, res) => {
       const playlistId = Number(req.params.id);
-      const ids = (req.body?.ids || []).map(Number).filter(Boolean);
-      const insert = db.prepare(
-        'INSERT OR IGNORE INTO playlist_items(playlist_id, image_id, added_at) VALUES (?, ?, ?)'
-      );
-      let added = 0;
-      const now = new Date().toISOString();
-      for (const imageId of ids) {
-        if (!lib.getImage(imageId)) continue;
-        const info = insert.run(playlistId, imageId, now);
-        added += Number(info.changes || 0);
+      if (!db.prepare('SELECT 1 FROM playlists WHERE id = ?').get(playlistId)) {
+        return res.status(404).json({ error: '清单不存在' });
       }
-      db.prepare('UPDATE playlists SET updated_at = ? WHERE id = ?').run(now, playlistId);
-      res.json({ ok: true, added, playlists: listPlaylists() });
+      // 去重 + 上限，防止一次塞十几万条把连接锁住
+      const ids = [...new Set((req.body?.ids || []).map(Number).filter(Boolean))].slice(0, 5000);
+      const now = new Date().toISOString();
+      // 单条 SQL 完成「图片存在 + 未重复」校验，整批一个事务：
+      // 旧实现每张图一次 SELECT 一次 INSERT，几千张就是几千次往返，中途失败还留半批数据
+      const added = withTransaction(() => {
+        const ins = db.prepare(
+          `INSERT OR IGNORE INTO playlist_items(playlist_id, image_id, added_at)
+           SELECT ?, id, ? FROM images WHERE id = ?`
+        );
+        let n = 0;
+        for (const imageId of ids) n += Number(ins.run(playlistId, imageId, now).changes || 0);
+        db.prepare('UPDATE playlists SET updated_at = ? WHERE id = ?').run(now, playlistId);
+        return n;
+      });
+      res.json({ ok: true, added, skipped: ids.length - added, playlists: listPlaylists() });
     })
   );
 

@@ -9,6 +9,8 @@
     "allowJs": true,
     "checkJs": false,
     "noEmit": true,
+    // scripts/smoke.mjs 会 import 前端的调色预览实现来做逐像素比对，那边写的是 '../types.ts'
+    "allowImportingTsExtensions": true,
     "skipLibCheck": true,
     "resolveJsonModule": true,
     "types": ["node"]

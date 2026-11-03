@@ -8,6 +8,14 @@ export interface ImageItem {
   height: number;
   sizeBytes: number;
   mime: string;
+  /** 素材类型：image / gif / video / audio / font / pdf / office / model / design / raw / bookmark（Eagle 式多格式） */
+  mediaKind: 'image' | 'gif' | 'video' | 'audio' | 'font' | 'pdf' | 'office' | 'model' | 'design' | 'raw' | 'bookmark' | 'other';
+  /** 音视频时长（秒），0 = 尚未探明 */
+  duration: number;
+  /** 自定义封面帧（秒） */
+  coverTs: number;
+  /** 内容指纹（MD5），完全重复检测用 */
+  md5: string;
   favorite: boolean;
   /** 是否看过（进入大图预览即标记） */
   viewed: boolean;
@@ -26,10 +34,17 @@ export interface ImageItem {
   matchHex?: string;
   dist?: number;
   tags: string[];
+  /**
+   * 继承来的标签（来自所属文件夹的 tags，只读，不写库）。
+   * 与 tags 分开存，用户才分得清「这是我打的」还是「文件夹带过来的」。
+   */
+  inheritedTags?: string[];
   createdAt: string;
   orientation: 'portrait' | 'landscape' | 'square';
   bucket: 'sd' | 'fhd' | '2k' | '4k';
   thumbUrl: string;
+  /** 灯箱预览图（长边 1920）：带版本号，可长缓存 */
+  previewUrl?: string;
   url: string;
   downloadUrl: string;
   /** 本地磁盘绝对路径（桌面端可直接打开/设为壁纸） */
@@ -110,6 +125,8 @@ export interface KbRule {
   enabled: number;
   created_at: string;
   updated_at: string;
+  /** true = 这条规则当前打不中任何图（ai_term 规则遇库里没有 AI 描述数据） */
+  dormant?: boolean;
 }
 
 export interface FeedbackItem {
@@ -148,6 +165,8 @@ export interface SystemInfo {
 }
 
 export interface Stats {
+  /** 当前资源库身份：多库各存各的 DB，图片记录本身不带库字段，只能由服务端告知 */
+  library?: { id: string; name: string; path: string } | null;
   total: number;
   favorite: number;
   totalSize: number;
@@ -179,6 +198,77 @@ export interface Filters {
   colorHex: string;
   /** 颜色宽容度 0-160（后端 tol，越大越宽松；UI 显示的准确度 = 160 - 该值） */
   colorTol: number;
+  /** 素材类型：all / image / video / gif / audio / font / pdf / office / model */
+  kind?: string;
+  /** 待整理入口：noFolder 未分类 / noTags 无标签 / noRating 未评分 */
+  pending?: '' | 'noFolder' | 'noTags' | 'noRating';
+}
+
+/** 素材类型（多格式） */
+export type MediaKind =
+  | 'image'
+  | 'gif'
+  | 'video'
+  | 'audio'
+  | 'font'
+  | 'pdf'
+  | 'office'
+  | 'model'
+  | 'design'
+  | 'raw'
+  | 'bookmark'
+  | 'other';
+
+/** 标签树节点：Eagle 式「分组 + 颜色 + 父子层级」 */
+export interface TagNode {
+  tag: string;
+  count: number;
+  group: string;
+  color: string;
+  parent: string;
+  sortOrder: number;
+}
+
+/** 标注元素（坐标一律是相对原图的比例 0~1） */
+export interface AnnotationItem {
+  id: string;
+  kind: 'rect' | 'arrow' | 'text' | 'mosaic' | 'brush' | 'highlight' | 'pen';
+  color: string;
+  size: number;
+  text?: string;
+  x?: number;
+  y?: number;
+  w?: number;
+  h?: number;
+  to?: { x: number; y: number };
+  points?: [number, number][];
+}
+
+export interface ImageComment {
+  id: number;
+  body: string;
+  author: string;
+  createdAt: string;
+}
+
+/** 完全重复（MD5 一致）分组 */
+export interface DupeGroup {
+  md5: string;
+  size: number;
+  count: number;
+  items: Array<{
+    id: number;
+    title: string;
+    url: string;
+    thumbUrl: string;
+    width: number;
+    height: number;
+    sizeBytes: number;
+    source: string;
+    createdAt: string;
+    absPath: string;
+    mediaKind: string;
+  }>;
 }
 
 /** 资源库（多资源库） */
@@ -206,6 +296,14 @@ export interface FolderNode {
   count: number;
   /** 含全部子孙夹的聚合图片数（Eagle 式树上的数字） */
   total: number;
+  /** 封面：手动指定优先，未指定时后端自动取夹内最新一张 */
+  cover?: { imageId: number; manual: boolean; thumbUrl: string; kind: string } | null;
+  /** 文件夹标签（逗号分隔）：夹内素材在搜索时自动继承这些标签 */
+  tags?: string;
+  /** 隐私空间：是否设置了密码锁 */
+  locked?: boolean;
+  /** 本次会话是否已解锁（重启后回到锁定态） */
+  unlocked?: boolean;
 }
 
 export interface SimilarGroup {
@@ -291,7 +389,7 @@ export interface AutoWallpaperConfig {
   minutes: number;
   scope: 'all' | 'favorites' | 'playlist';
   playlistId: number | null;
-  /** ai 智能适配（评分+壁纸适配度+时间）/ smart 按 AI 评分加权随机（优先高分）/ random 等概率 / sequential 按顺序 */
+  /** ai = 知识库评分 + 本地启发式适配度（+ 已训练的个人偏好 + 时间偏好）/ smart 只按知识库评分加权随机 / random 等概率 / sequential 按顺序 */
   order: 'random' | 'sequential' | 'smart' | 'ai';
   /** 评估「适不适合做壁纸」并参与排序 */
   useAiFit?: boolean;
@@ -358,6 +456,8 @@ export interface AutoWallpaperStatus {
   nextRunAt: string | null;
   scopeCount: number;
   running: boolean;
+  /** 当前排序策略真实参与的评分项（后端 pickPlan 算的，不是按选项名猜的） */
+  pick?: { order: string; engine: string; label: string; parts: string[]; prefTrained?: boolean };
   lastLog: { imageId: number; title: string; scope: string; appliedAt: string } | null;
 }
 
@@ -380,11 +480,45 @@ export interface NetworkConfig {
   modes?: { key: string; label: string }[];
 }
 
+/** 水印预设里的参数：与 api.ts 的 WatermarkParams 同形，但不含「这次怎么存」的字段 */
+export interface WatermarkPresetParams {
+  style: string;
+  frame: string;
+  fields: string[];
+  logo: boolean;
+  brand: string;
+  model: string;
+  size: number;
+  opacity: number;
+  color: string;
+  font: string;
+  location: string;
+  /** 三级选择器的选择结果（老预设没有这个字段，套用时按「手填地点」处理） */
+  place?: { province: string; city: string; district: string; detail: string };
+}
+
+/** 一条水印预设（settings.watermarkPresets 的元素） */
+export interface WatermarkPreset {
+  id: string;
+  name: string;
+  params: WatermarkPresetParams;
+  /** 保存/导入的时间戳（ms） */
+  at: number;
+}
+
 export interface Settings {
   minResolution: number;
   minFileSize: number;
   phashThreshold: number;
   pagesPerKeyword: number;
+  /** 导入时目录遍历深度上限（层），默认 4 */
+  importMaxDepth: number;
+  /** 调色台历史记录保留步数（默认 100，1~500） */
+  historySteps: number;
+  /** 水印预设（跨库共享）：整套排版参数，随设置一起存 */
+  watermarkPresets?: WatermarkPreset[];
+  /** 关窗行为（桌面端）：true = 收到托盘继续后台跑，false = 关窗即退出 */
+  closeToTray?: boolean;
   maxFileSize: number;
   concurrency: number;
   sources: Record<string, boolean>;
@@ -402,8 +536,12 @@ export interface Settings {
   /** 微博登录会话的 User-Agent：微博风控把登录态与 UA 绑定，采集请求需复用同一 UA */
   weiboUserAgent: string;
   storageDir: string;
+  /** 文件夹监控：递归监听素材文件夹，新文件自动入库（默认开） */
+  watchEnabled?: boolean;
   /** 是否已完成首次引导（首次启动选择图片文件夹） */
   onboarded?: boolean;
+  /** 是否已看过新手教程（跳过也算），设置页可重新播放 */
+  tourDone?: boolean;
   deletePolicy: 'trash' | 'permanent' | 'unlink';
   scoreThreshold: number;
   wallpaperFill: 'blur' | 'solid' | 'black';
@@ -454,6 +592,9 @@ export interface EnhanceModel {
   id: string;
   label: string;
   desc: string;
+  /** resample = 插值放大（不合成细节）；ai = 模型超分 */
+  engine?: 'resample' | 'ai';
+  engineLabel?: string;
 }
 
 export interface EnhanceCandidates {
@@ -490,12 +631,15 @@ export interface EnhanceJobStatus {
   cancelled: boolean;
   total: number;
   done: number;
+  skipped: number;
   failed: number;
   model: string;
   standard: string;
   currentId: number | null;
   currentTitle: string;
   currentProgress: number;
+  /** true = 当前这张图拿不到中间进度（如 Swin2SR 推理阶段），别显示百分比 */
+  currentIndeterminate?: boolean;
   startedAt: string | null;
   finishedAt: string | null;
   lastError: string;
@@ -508,3 +652,342 @@ export interface Keyword {
   enabled: number;
   created_at: string;
 }
+
+/** 曲线控制点：[x, y]，取值 0..255（x 升序，首末点固定 0,0 / 255,255） */
+export type CurvePoint = [number, number];
+
+/** 曲线通道：rgb = 主通道（合成后作用于三原色），r/g/b = 单原色通道（PS 曲线面板同构） */
+export type CurveChannel = 'rgb' | 'r' | 'g' | 'b';
+
+/** 四通道曲线；空数组 = 恒等（不调整） */
+export interface CurveSet {
+  rgb: CurvePoint[];
+  r: CurvePoint[];
+  g: CurvePoint[];
+  b: CurvePoint[];
+}
+
+export const CURVES_DEFAULTS: CurveSet = { rgb: [], r: [], g: [], b: [] };
+
+/** 通道显示顺序与名称（与 PS 曲线的「RGB / 红 / 绿 / 蓝」一致） */
+export const CURVE_CHANNELS: { key: CurveChannel; label: string; color: string }[] = [
+  { key: 'rgb', label: 'RGB', color: '#e6e8f2' },
+  { key: 'r', label: '红', color: '#ff6b6b' },
+  { key: 'g', label: '绿', color: '#4ade80' },
+  { key: 'b', label: '蓝', color: '#60a5fa' },
+];
+
+/** PS「色相/饱和度」的通道：全图 + 六个色带 */
+export type HueBandKey = 'master' | 'red' | 'yellow' | 'green' | 'cyan' | 'blue' | 'magenta';
+
+/** 单个通道的三项：色相角偏移（度，-180..180）、饱和度（-100..100）、明度（-100..100） */
+export interface HueBand {
+  h: number;
+  s: number;
+  l: number;
+}
+
+/** PS「色相/饱和度」全量参数（7 通道 + 着色） */
+export interface HueSatParams {
+  bands: Record<HueBandKey, HueBand>;
+  /** 着色：把整幅图归到单一色相（PS 里勾选后通道锁死为全图） */
+  colorize: boolean;
+  /** 着色目标色相 0..360 */
+  colorizeHue: number;
+  /** 着色饱和度 0..100 */
+  colorizeSat: number;
+  /** 着色明度 -100..100 */
+  colorizeLight: number;
+}
+
+export const HUE_BANDS: { key: HueBandKey; label: string; color: string }[] = [
+  { key: 'master', label: '全图', color: '#e6e8f2' },
+  { key: 'red', label: '红色', color: '#ff5c5c' },
+  { key: 'yellow', label: '黄色', color: '#ffd93d' },
+  { key: 'green', label: '绿色', color: '#4ade80' },
+  { key: 'cyan', label: '青色', color: '#38d6e0' },
+  { key: 'blue', label: '蓝色', color: '#5b9dff' },
+  { key: 'magenta', label: '洋红', color: '#e879f9' },
+];
+
+const zeroBand = (): HueBand => ({ h: 0, s: 0, l: 0 });
+
+export const HUE_SAT_DEFAULTS: HueSatParams = {
+  bands: {
+    master: zeroBand(),
+    red: zeroBand(),
+    yellow: zeroBand(),
+    green: zeroBand(),
+    cyan: zeroBand(),
+    blue: zeroBand(),
+    magenta: zeroBand(),
+  },
+  colorize: false,
+  colorizeHue: 210,
+  colorizeSat: 25,
+  colorizeLight: 0,
+};
+
+/** 新建一份可安全改写的默认值（对象层级深，避免多处共享同一引用） */
+export function makeHueSat(): HueSatParams {
+  return {
+    bands: {
+      master: zeroBand(),
+      red: zeroBand(),
+      yellow: zeroBand(),
+      green: zeroBand(),
+      cyan: zeroBand(),
+      blue: zeroBand(),
+      magenta: zeroBand(),
+    },
+    colorize: false,
+    colorizeHue: 210,
+    colorizeSat: 25,
+    colorizeLight: 0,
+  };
+}
+
+/** 色相/饱和度是否全默认（批量/保存按钮判断） */
+export function isHueSatDefault(hs: HueSatParams | undefined): boolean {
+  if (!hs) return true;
+  if (hs.colorize) return false;
+  return Object.values(hs.bands).every((b) => !b || (!b.h && !b.s && !b.l));
+}
+
+/* ============ Camera Raw「混色器」：8 个色带 × 色相/饱和度/明亮度 ============ */
+
+/** 混色器色带（Camera Raw 的 8 个颜色范围，按色相环顺序） */
+export type MixBandKey = 'red' | 'orange' | 'yellow' | 'green' | 'aqua' | 'blue' | 'purple' | 'magenta';
+
+/** 单个色带的三项，均为 -100..100 */
+export interface MixBand {
+  h: number;
+  s: number;
+  l: number;
+}
+
+export interface ColorMixerParams {
+  bands: Record<MixBandKey, MixBand>;
+}
+
+/** center = 该色带在色相环上的中心角（度），权重按到中心的角距离衰减 */
+export const MIX_BANDS: { key: MixBandKey; label: string; color: string; center: number }[] = [
+  { key: 'red', label: '红色', color: '#ff4d4d', center: 0 },
+  { key: 'orange', label: '橙色', color: '#ff9a3c', center: 30 },
+  { key: 'yellow', label: '黄色', color: '#ffd93d', center: 60 },
+  { key: 'green', label: '绿色', color: '#4ade80', center: 120 },
+  { key: 'aqua', label: '浅绿色', color: '#38d6e0', center: 180 },
+  { key: 'blue', label: '蓝色', color: '#5b9dff', center: 240 },
+  { key: 'purple', label: '紫色', color: '#a78bfa', center: 280 },
+  { key: 'magenta', label: '洋红', color: '#e879f9', center: 320 },
+];
+
+const zeroMix = (): MixBand => ({ h: 0, s: 0, l: 0 });
+
+export function makeColorMixer(): ColorMixerParams {
+  return {
+    bands: {
+      red: zeroMix(),
+      orange: zeroMix(),
+      yellow: zeroMix(),
+      green: zeroMix(),
+      aqua: zeroMix(),
+      blue: zeroMix(),
+      purple: zeroMix(),
+      magenta: zeroMix(),
+    },
+  };
+}
+
+export const COLOR_MIXER_DEFAULTS: ColorMixerParams = makeColorMixer();
+
+/** 混色器是否全默认 */
+export function isColorMixerDefault(m: ColorMixerParams | undefined): boolean {
+  if (!m) return true;
+  return MIX_BANDS.every(({ key }) => {
+    const b = m.bands?.[key];
+    return !b || (!b.h && !b.s && !b.l);
+  });
+}
+
+/** 混色器页签（PS 里是「色相 / 饱和度 / 明亮度」三个页签） */
+export type MixTab = 'hue' | 'sat' | 'lum';
+
+export const MIX_TABS: { key: MixTab; label: string }[] = [
+  { key: 'hue', label: '色相' },
+  { key: 'sat', label: '饱和度' },
+  { key: 'lum', label: '明亮度' },
+];
+
+/* ============ Camera Raw「颜色分级」：阴影/中间调/高光/全局 ============ */
+
+export type GradeZoneKey = 'shadows' | 'midtones' | 'highlights' | 'global';
+
+/** 单个区域：色相 0..360、饱和度 0..100、明度 -100..100 */
+export interface GradeZone {
+  hue: number;
+  sat: number;
+  lum: number;
+}
+
+export interface ColorGradeParams {
+  zones: Record<GradeZoneKey, GradeZone>;
+  /** 混合 0..100：三个亮度区域之间的过渡柔度 */
+  blending: number;
+  /** 平衡 -100..100：把区域分界往暗（负）/往亮（正）推 */
+  balance: number;
+}
+
+export const GRADE_ZONES: { key: GradeZoneKey; label: string; color: string }[] = [
+  { key: 'shadows', label: '阴影', color: '#7aa2ff' },
+  { key: 'midtones', label: '中间调', color: '#9aa4bd' },
+  { key: 'highlights', label: '高光', color: '#ffd98a' },
+  { key: 'global', label: '全局', color: '#e6e8f2' },
+];
+
+const zeroZone = (): GradeZone => ({ hue: 0, sat: 0, lum: 0 });
+
+export function makeColorGrade(): ColorGradeParams {
+  return {
+    zones: { shadows: zeroZone(), midtones: zeroZone(), highlights: zeroZone(), global: zeroZone() },
+    blending: 50,
+    balance: 0,
+  };
+}
+
+export const COLOR_GRADE_DEFAULTS: ColorGradeParams = makeColorGrade();
+
+/** 颜色分级是否全默认（色相单独不为 0 不算：饱和度 0 时染色不生效） */
+export function isColorGradeDefault(g: ColorGradeParams | undefined): boolean {
+  if (!g) return true;
+  return GRADE_ZONES.every(({ key }) => {
+    const z = g.zones?.[key];
+    return !z || (!z.sat && !z.lum);
+  });
+}
+
+/** Camera Raw 调色参数（全部 0 = 原图；范围 -100..100，sharpen/clarity 0..100） */
+export interface AdjustParams {
+  /** 色温：负冷正暖（吸管取样后会自动换算到这里） */
+  temperature: number;
+  /** 色调：负绿正品红 */
+  tint: number;
+  exposure: number;
+  contrast: number;
+  /** 高光：正提亮高光、负压暗 */
+  highlights: number;
+  /** 阴影：正提亮暗部、负压暗 */
+  shadows: number;
+  /** 白色：正提高白点（更通透） */
+  whites: number;
+  /** 黑色：正抬高黑点（更灰） */
+  blacks: number;
+  saturation: number;
+  /** 自然饱和度：只提低饱和处，避免肤色/高饱和区过艳 */
+  vibrance: number;
+  /** 色相旋转：-100..100 → ±45° */
+  hue: number;
+  /** PS 色相/饱和度：7 个通道 + 着色 */
+  hueSat: HueSatParams;
+  /** Camera Raw 混色器：8 色带 × 色相/饱和度/明亮度 */
+  colorMixer: ColorMixerParams;
+  /** Camera Raw 颜色分级：阴影/中间调/高光/全局 + 混合/平衡 */
+  colorGrade: ColorGradeParams;
+  /** 清晰度：中间调局部对比 */
+  clarity: number;
+  sharpen: number;
+  /** 曲线：主通道 + 三原色通道 */
+  curves: CurveSet;
+}
+
+export const ADJUST_DEFAULTS: AdjustParams = {
+  temperature: 0,
+  tint: 0,
+  exposure: 0,
+  contrast: 0,
+  highlights: 0,
+  shadows: 0,
+  whites: 0,
+  blacks: 0,
+  saturation: 0,
+  vibrance: 0,
+  hue: 0,
+  hueSat: HUE_SAT_DEFAULTS,
+  colorMixer: COLOR_MIXER_DEFAULTS,
+  colorGrade: COLOR_GRADE_DEFAULTS,
+  clarity: 0,
+  sharpen: 0,
+  curves: { rgb: [], r: [], g: [], b: [] },
+};
+
+/** 恒等曲线（用于判断"是否调整过"） */
+export function isCurveIdentity(curve: CurvePoint[] | undefined): boolean {
+  if (!curve || curve.length < 2) return true;
+  return curve.every(([x, y]) => Math.abs(x - y) <= 1);
+}
+
+/** 任意通道是否画过曲线 */
+export function hasAnyCurve(curves: CurveSet | undefined): boolean {
+  if (!curves) return false;
+  return (Object.keys(CURVES_DEFAULTS) as CurveChannel[]).some((k) => !isCurveIdentity(curves[k]));
+}
+
+/** 参数是否全为默认值（批量/保存按钮的禁用判断） */
+export function isAdjustDefault(p: AdjustParams): boolean {
+  const { curves, hueSat, colorMixer, colorGrade, ...rest } = p;
+  return (
+    Object.values(rest).every((v) => Math.abs(v) < 0.5) &&
+    !hasAnyCurve(curves) &&
+    isHueSatDefault(hueSat) &&
+    isColorMixerDefault(colorMixer) &&
+    isColorGradeDefault(colorGrade)
+  );
+}
+
+/** 编辑结果的保存方式：默认覆盖原图；copy = 另存副本到指定目录 */
+export interface EditSaveOptions {
+  saveMode?: 'overwrite' | 'copy';
+  targetDir?: string;
+  addToLibrary?: boolean;
+}
+
+/** 单张编辑返回：item 在「另存且未入库」时为 null（原图未变） */
+export interface EditResult {
+  ok: boolean;
+  item: ImageItem | null;
+  savedPath: string;
+  copied: boolean;
+  note?: string;
+}
+
+/** 批量编辑任务状态（服务端 /api/edit/job） */
+export interface EditJobStatus {
+  running: boolean;
+  cancelled: boolean;
+  total: number;
+  done: number;
+  failed: number;
+  op: string;
+  label: string;
+  currentId: number | null;
+  currentTitle: string;
+  startedAt: string | null;
+  finishedAt: string | null;
+  lastError: string;
+  failures: { id: number; ok: boolean; error?: string }[];
+}
+
+/** 顶层视图（侧栏入口 + 顶栏工具箱 + URL 的 v 参数共用同一套枚举） */
+export type View =
+  | 'dashboard'
+  | 'gallery'
+  | 'favorites'
+  | 'tidy'
+  | 'playlists'
+  | 'crawl'
+  | 'bookmarks'
+  | 'knowledge'
+  | 'search'
+  | 'smart'
+  | 'enhance'
+  | 'settings';

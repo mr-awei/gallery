@@ -6,7 +6,7 @@
 export function sanitizeResults(list, { limit = 240 } = {}) {
   const seen = new Set();
   const out = [];
-  for (const it of list) {
+  for (const it of list || []) {
     const u = String(it?.url || '');
     if (!/^https?:\/\//i.test(u) || u.length > 2048 || seen.has(u)) continue;
     seen.add(u);

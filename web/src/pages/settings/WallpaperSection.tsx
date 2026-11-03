@@ -11,6 +11,7 @@ import type {
   WallpaperMonitors,
 } from '../../types';
 import Card from './Card';
+import Select from '../../components/Select';
 import AppUpdateCard from './AppUpdateCard';
 
 interface Props {
@@ -49,6 +50,15 @@ export default function WallpaperSection({ settings, patch, onToast }: Props) {
   useEffect(() => {
     api.playlists().then(setPlaylists).catch(quiet);
     loadAuto();
+  }, []);
+
+  // 主进程重注册快捷键后会广播实际生效的键位：直接更新提示，
+  // 不用等用户重开设置页（以前改了开关，页面上的键位说明还是旧的）
+  useEffect(() => {
+    const off = desktop?.onHotkeysChanged?.((hotkeys) => {
+      setAppInfo((prev) => (prev ? { ...prev, hotkeys } : prev));
+    });
+    return () => off?.();
   }, []);
 
   const loadAuto = () => {
@@ -97,16 +107,16 @@ export default function WallpaperSection({ settings, patch, onToast }: Props) {
               <Card title="设为壁纸" desc="图片比例与屏幕不同（如竖图做横屏壁纸）时，四周留白的处理方式。">
                 <div className="field">
                   <label>留白填充方式</label>
-                  <select
+                  <Select
                     className="select"
                     style={{ width: '100%' }}
                     value={settings.wallpaperFill || 'blur'}
-                    onChange={(e) => patch({ wallpaperFill: e.target.value as SettingsType['wallpaperFill'] })}
+                    onChange={(v) => patch({ wallpaperFill: v as SettingsType['wallpaperFill'] })}
                   >
                     <option value="blur">模糊同图铺底（推荐，同 iOS / macOS 做法）</option>
                     <option value="solid">纯色铺底（取图片主色）</option>
                     <option value="black">纯黑铺底</option>
-                  </select>
+                  </Select>
                   <div className="hint">
                     任意比例的图片都会先合成一张<b>屏幕分辨率的壁纸</b>：原图按原始比例<b>完整居中显示</b>，
                     四周用上面的方式填充 —— 不裁切、不变形、不缩放只显示一部分，始终完整展示
@@ -125,16 +135,16 @@ export default function WallpaperSection({ settings, patch, onToast }: Props) {
                   >
                   <div className="field">
                     <label>多屏模式</label>
-                    <select
+                    <Select
                       className="select"
                       style={{ width: '100%' }}
                       value={settings.wallpaperMode || 'single'}
-                      onChange={(e) => patch({ wallpaperMode: e.target.value as SettingsType['wallpaperMode'] })}
+                      onChange={(v) => patch({ wallpaperMode: v as SettingsType['wallpaperMode'] })}
                     >
                       <option value="single">主屏一张（默认）</option>
                       <option value="span">跨屏合成一张（多屏无缝衔接同一张图）</option>
                       <option value="per-monitor">每个屏幕不同图片（各自按屏幕比例合成）</option>
-                    </select>
+                    </Select>
                   </div>
 
                   {!!monitors?.monitors?.length && (
@@ -173,6 +183,14 @@ export default function WallpaperSection({ settings, patch, onToast }: Props) {
                       onChange={(e) => patch({ globalShortcuts: e.target.checked })}
                     />
                   </div>
+                  <div className="switch-row">
+                    <span>关闭窗口时最小化到托盘（关掉则关窗即退出）</span>
+                    <input
+                      type="checkbox"
+                      checked={settings.closeToTray !== false}
+                      onChange={(e) => patch({ closeToTray: e.target.checked })}
+                    />
+                  </div>
                   <div className="hint" style={{ lineHeight: 1.9 }}>
                     · 换一张壁纸：<b>{prettyHotkey(appInfo?.hotkeys?.next) || '未生效'}</b>
                     {appInfo?.hotkeys?.next && appInfo.hotkeys.next !== 'CommandOrControl+Alt+W' && (
@@ -181,7 +199,7 @@ export default function WallpaperSection({ settings, patch, onToast }: Props) {
                     ，任何窗口下都生效
                     <br />· 收藏当前壁纸：<b>{prettyHotkey(appInfo?.hotkeys?.favorite) || '未生效'}</b>
                     <br />· 唤出主窗口：<b>{prettyHotkey(appInfo?.hotkeys?.window) || '未生效'}</b>
-                    <br />· 托盘图标：左键打开窗口，右键可换壁纸 / 收藏 / 不喜欢（排除该图并换下一张）/ 暂停定时切换
+                    <br />· 托盘图标：左键打开窗口，右键可换壁纸 / 收藏 / 不喜欢（排除该图并换下一张）/ 暂停定时切换 / 框选截图
                     <br />· 「不喜欢」会自动归因（暗了 / 糊了 / 有噪点 / 闭眼了 / 动作变形…），只针对该原因学习，不会连坐整个来源或关键词
                     {isDesktop && !appInfo?.shortcutEnabled && (
                       <>
@@ -257,43 +275,41 @@ export default function WallpaperSection({ settings, patch, onToast }: Props) {
 
                     <div className="field">
                       <label>壁纸类型</label>
-                      <select
+                      <Select
                         className="select"
                         style={{ width: '100%' }}
                         value={live?.mode || 'slideshow'}
-                        onChange={(e) => applyLive({ mode: e.target.value as LiveWallpaperConfig['mode'] })}
+                        onChange={(v) => applyLive({ mode: v as LiveWallpaperConfig['mode'] })}
                       >
                         <option value="slideshow">相册轮播（从收藏/全库自动播放，带缓慢缩放）</option>
                         <option value="video">本地视频循环（mp4 / webm）</option>
                         <option value="web">网页（任意网址，如网页动画 / 在线壁纸）</option>
-                      </select>
+                      </Select>
                     </div>
 
                     {live?.mode === 'slideshow' && (
                       <>
                         <div className="field">
                           <label>轮播范围</label>
-                          <select
+                          <Select
                             className="select"
                             style={{ width: '100%' }}
                             value={live?.scope || 'favorites'}
-                            onChange={(e) => applyLive({ scope: e.target.value as LiveWallpaperConfig['scope'] })}
+                            onChange={(v) => applyLive({ scope: v as LiveWallpaperConfig['scope'] })}
                           >
                             <option value="favorites">仅收藏</option>
                             <option value="all">全库</option>
                             {!!playlists?.length && <option value="playlist">指定清单</option>}
-                          </select>
+                          </Select>
                         </div>
                         {live?.scope === 'playlist' && (
                           <div className="field">
                             <label>选择清单</label>
-                            <select
+                            <Select
                               className="select"
                               style={{ width: '100%' }}
                               value={live?.playlistId ?? ''}
-                              onChange={(e) =>
-                                applyLive({ playlistId: e.target.value ? Number(e.target.value) : null })
-                              }
+                              onChange={(v) => applyLive({ playlistId: v ? Number(v) : null })}
                             >
                               <option value="">— 请选择 —</option>
                               {playlists?.map((p) => (
@@ -301,7 +317,7 @@ export default function WallpaperSection({ settings, patch, onToast }: Props) {
                                   {p.name}
                                 </option>
                               ))}
-                            </select>
+                            </Select>
                           </div>
                         )}
                         <div className="two-col">
@@ -429,17 +445,17 @@ export default function WallpaperSection({ settings, patch, onToast }: Props) {
 
                 <div className="field">
                   <label>切换频率</label>
-                  <select
+                  <Select
                     className="select"
                     style={{ width: '100%' }}
                     value={autoStatus?.config?.mode || 'day'}
-                    onChange={(e) => saveAuto({ mode: e.target.value as AutoConfig['mode'] })}
+                    onChange={(v) => saveAuto({ mode: v as AutoConfig['mode'] })}
                   >
                     <option value="day">每天</option>
                     <option value="week">每周</option>
                     <option value="month">每月</option>
                     <option value="custom">自定义间隔（分钟）</option>
-                  </select>
+                  </Select>
                 </div>
 
                 {autoStatus?.config?.mode === 'custom' ? (
@@ -467,18 +483,18 @@ export default function WallpaperSection({ settings, patch, onToast }: Props) {
                     {autoStatus?.config?.mode === 'week' && (
                       <div className="field">
                         <label>星期几</label>
-                        <select
+                        <Select
                           className="select"
                           style={{ width: '100%' }}
                           value={autoStatus?.config?.weekday ?? 1}
-                          onChange={(e) => saveAuto({ weekday: Number(e.target.value) })}
+                          onChange={(v) => saveAuto({ weekday: Number(v) })}
                         >
                           {[1, 2, 3, 4, 5, 6, 7].map((d) => (
                             <option key={d} value={d}>
                               星期{'日一二三四五六'[d % 7]}
                             </option>
                           ))}
-                        </select>
+                        </Select>
                       </div>
                     )}
                     {autoStatus?.config?.mode === 'month' && (
@@ -501,26 +517,26 @@ export default function WallpaperSection({ settings, patch, onToast }: Props) {
 
                 <div className="field">
                   <label>切换范围</label>
-                  <select
+                  <Select
                     className="select"
                     style={{ width: '100%' }}
                     value={autoStatus?.config?.scope || 'favorites'}
-                    onChange={(e) => saveAuto({ scope: e.target.value as AutoConfig['scope'] })}
+                    onChange={(v) => saveAuto({ scope: v as AutoConfig['scope'] })}
                   >
                     <option value="all">全库</option>
                     <option value="favorites">收藏 / 喜欢</option>
                     <option value="playlist">指定清单</option>
-                  </select>
+                  </Select>
                 </div>
 
                 {autoStatus?.config?.scope === 'playlist' && (
                   <div className="field">
                     <label>选择清单</label>
-                    <select
+                    <Select
                       className="select"
                       style={{ width: '100%' }}
                       value={autoStatus?.config?.playlistId ?? ''}
-                      onChange={(e) => saveAuto({ playlistId: Number(e.target.value) || null })}
+                      onChange={(v) => saveAuto({ playlistId: Number(v) || null })}
                     >
                       <option value="">（请选择）</option>
                       {(playlists || []).map((p) => (
@@ -528,28 +544,34 @@ export default function WallpaperSection({ settings, patch, onToast }: Props) {
                           {p.name}（{p.count}）
                         </option>
                       ))}
-                    </select>
+                    </Select>
                   </div>
                 )}
 
                 <div className="field">
                   <label>切换顺序</label>
-                  <select
+                  <Select
                     className="select"
                     style={{ width: '100%' }}
                     value={autoStatus?.config?.order || 'smart'}
-                    onChange={(e) => saveAuto({ order: e.target.value as AutoConfig['order'] })}
+                    onChange={(v) => saveAuto({ order: v as AutoConfig['order'] })}
                   >
-                    <option value="ai">AI 智能适配（推荐）：知识库评分 + 壁纸适配度 + 时间偏好</option>
-                    <option value="smart">智能：高分图片更常出现（用 AI 评分加权）</option>
+                    <option value="ai">适配度加权（推荐）：知识库评分 + 本地适配度 + 个人偏好</option>
+                    <option value="smart">评分加权：高分图片更常出现（只用知识库评分）</option>
                     <option value="random">随机（每张等概率）</option>
                     <option value="sequential">按顺序轮流</option>
-                  </select>
+                  </Select>
                   <div className="hint">
                     评分来自知识库（采集时的 AI 打分 + 你的删除反馈），分数越高越容易被抽中，但低分图仍会偶尔出现
                     <br />
-                    「AI 智能适配」会额外评估这张图<strong>适不适合做壁纸</strong>（留白、亮度、对比、复杂度，配了视觉模型还会让 AI 看一眼），
-                    并按时间挑：白天偏明亮、夜间偏暗色
+                    「适配度加权」里的<strong>适配度是本地启发式</strong>：按留白、亮度、对比、画面复杂度算分，
+                    <strong>不是 AI 判断</strong>；配了视觉模型才会额外让模型看一眼构图（没配就走本地算法）。
+                    另按时间挑：白天偏明亮、夜间偏暗色
+                    <br />
+                    当前实际参与打分：<b>{autoStatus?.pick?.label || '—'}</b>
+                    {autoStatus?.pick && !autoStatus.pick.prefTrained && (
+                      <span>（个人偏好模型未训练，暂不参与；去「AI 与偏好」里训练后会加入）</span>
+                    )}
                   </div>
                 </div>
 
@@ -573,7 +595,7 @@ export default function WallpaperSection({ settings, patch, onToast }: Props) {
                   <label className="switch-row">
                     <span>
                       评估「适不适合做壁纸」（留白 / 亮度 / 构图）
-                      <span className="hint">　配了视觉模型时会让 AI 看一眼构图与主体位置</span>
+                      <span className="hint">　勾选后本地算法按留白/亮度/对比/复杂度算适配度；配了视觉模型才会再让 AI 复核主体位置</span>
                     </span>
                     <input
                       type="checkbox"

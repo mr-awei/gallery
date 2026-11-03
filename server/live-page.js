@@ -63,6 +63,26 @@ export const LIVE_HTML = `<!doctype html>
   }
 
   /* ------------------------------- 相册轮播 ------------------------------- */
+  // 清单指纹：轮播跑完一轮后比对。壁纸窗口一开就是几天，只靠 15s 的配置轮询发现不了
+  // 「又收藏了新图 / 取消收藏 / 换了范围」，不主动刷清单就会一直播启动那一刻的那批图。
+  const sigOf = (d) => (d.items || []).map((x) => x.id).join(',') + '|' + d.interval + '|' + d.kenBurns;
+  let playlistSig = '';
+  let refreshing = false;
+  async function refreshPlaylistIfChanged() {
+    if (refreshing) return;
+    refreshing = true;
+    try {
+      const d = await (await api('/api/wallpaper/live/playlist')).json();
+      if (!d || !d.items || !d.items.length) return;
+      if (sigOf(d) === playlistSig) return;
+      await startSlideshow(); // 清单变了：按新清单（含新间隔）重开轮播
+    } catch {
+      /* 网络抖动：下一轮再试 */
+    } finally {
+      refreshing = false;
+    }
+  }
+
   async function startSlideshow() {
     let data = { items: [], interval: 15, kenBurns: true };
     try { data = await (await api('/api/wallpaper/live/playlist')).json(); } catch {}
@@ -70,6 +90,7 @@ export const LIVE_HTML = `<!doctype html>
       say('相册里还没有图片：请先收藏几张，或在设置里把范围改成「全库」');
       return;
     }
+    playlistSig = sigOf(data);
     stage.innerHTML = '';
     layers = [0, 1].map(() => {
       const el = document.createElement('div');
@@ -92,6 +113,8 @@ export const LIVE_HTML = `<!doctype html>
       layers[front].classList.remove('on');
       front = 1 - front;
       index++;
+      // 跑完一整轮才刷新清单：避免每张图都打一次接口
+      if (index % data.items.length === 0) refreshPlaylistIfChanged();
     };
     clearInterval(timer);
     timer = setInterval(step, Math.max(5, Number(data.interval) || 15) * 1000);

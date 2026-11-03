@@ -3,12 +3,19 @@ import { getJobStatus } from '../crawler.js';
 import * as lib from '../library.js';
 import * as ai from '../ai.js';
 import * as kb from '../kb.js';
-import { findMissing, importLocalImages, purgeMissing, relocateMissing } from '../importer.js';
+import { getMissingCached, importLocalImages, purgeMissing, relocateMissing } from '../importer.js';
 import { getNetwork, saveNetwork, testNetwork, applyProxy, PROXY_MODES } from '../network.js';
+// 用命名空间引入：本文件同时用到 searchByColor / searchByImageDataUrl / aiSearch，
+// 之前只解构了 searchByColor，导致 /api/search/ai 与 /api/search/by-image 一调用就 ReferenceError
+import * as search from '../search.js';
 import { db } from '../db.js';
+import { currentLibraryInfo } from '../libraries.js';
+import { logOp } from '../oplog.js';
+import { hiddenImagesClause } from '../lib/privacy.js';
 
 export function register(app, ctx) {
-  const { asyncRoute } = ctx;
+  // ctx.importState 是 getter 函数（app.js 里 `importState: () => importState`）
+  const { asyncRoute, sseBroadcast, importState: importStateRef } = ctx;
 
 
   app.get(
@@ -19,52 +26,64 @@ export function register(app, ctx) {
         WHEN MAX(width, height) < 2048 THEN 'fhd'
         WHEN MAX(width, height) < 3840 THEN '2k'
         ELSE '4k' END`;
-      const total = db.prepare('SELECT COUNT(*) AS c FROM images').get().c;
-      const favorite = db.prepare('SELECT COUNT(*) AS c FROM images WHERE favorite = 1').get().c;
-      const sizeRow = db.prepare('SELECT COALESCE(SUM(size_bytes),0) AS s FROM images').get();
+      // 隐私空间：锁住未解锁的文件夹，其素材连同统计一起隐形（否则仪表盘缩略图会漏出去）
+      const hidden = hiddenImagesClause();
+      const lockSql = hidden ? ` AND ${hidden.sql}` : '';
+      const lockParams = hidden ? hidden.params : [];
+      const total = db.prepare(`SELECT COUNT(*) AS c FROM images WHERE 1=1${lockSql}`).get(...lockParams).c;
+      const favorite = db
+        .prepare(`SELECT COUNT(*) AS c FROM images WHERE favorite = 1${lockSql}`)
+        .get(...lockParams).c;
+      const sizeRow = db
+        .prepare(`SELECT COALESCE(SUM(size_bytes),0) AS s FROM images WHERE 1=1${lockSql}`)
+        .get(...lockParams);
       const bySource = db
-        .prepare('SELECT source, COUNT(*) AS count FROM images GROUP BY source ORDER BY count DESC')
-        .all();
+        .prepare(`SELECT source, COUNT(*) AS count FROM images WHERE 1=1${lockSql} GROUP BY source ORDER BY count DESC`)
+        .all(...lockParams);
       const byBucket = db
-        .prepare(`SELECT ${bucketExpr} AS bucket, COUNT(*) AS count FROM images GROUP BY bucket`)
-        .all();
+        .prepare(`SELECT ${bucketExpr} AS bucket, COUNT(*) AS count FROM images WHERE 1=1${lockSql} GROUP BY bucket`)
+        .all(...lockParams);
       const byOrientation = db
         .prepare(
           `SELECT CASE
             WHEN height > width * 1.15 THEN 'portrait'
             WHEN width > height * 1.15 THEN 'landscape'
             ELSE 'square' END AS orientation,
-            COUNT(*) AS count FROM images GROUP BY orientation`
+            COUNT(*) AS count FROM images WHERE 1=1${lockSql} GROUP BY orientation`
         )
-        .all();
+        .all(...lockParams);
       const trendRows = db
         .prepare(
-          'SELECT substr(created_at, 1, 10) AS date, COUNT(*) AS count FROM images GROUP BY date ORDER BY date DESC LIMIT 14'
+          `SELECT substr(created_at, 1, 10) AS date, COUNT(*) AS count FROM images
+             WHERE 1=1${lockSql} GROUP BY date ORDER BY date DESC LIMIT 14`
         )
-        .all();
+        .all(...lockParams);
 
-      const tagCounter = new Map();
-      for (const row of db.prepare("SELECT tags FROM images WHERE tags <> ''").all()) {
-        for (const tag of row.tags.split(',')) {
-          const t = tag.trim();
-          if (t) tagCounter.set(t, (tagCounter.get(t) || 0) + 1);
-        }
-      }
-      const topTags = [...tagCounter.entries()]
-        .map(([tag, count]) => ({ tag, count }))
-        .sort((a, b) => b.count - a.count)
-        .slice(0, 12);
+      // 热点标签：直接走 item_tags 倒排表（主键是 tag 前缀，GROUP BY tag 可走索引）。
+      // 旧实现把整列 tags 拉进 Node 逐条 split 再聚合，百万级要几十秒并吃掉大量内存。
+      // 有隐私夹时要 join images 才能套用同一段排除条件；没有的话保持原来的快路径
+      const topTags = db
+        .prepare(
+          `SELECT t.tag, COUNT(*) AS count FROM item_tags t${
+            hidden ? ' JOIN images images ON images.id = t.image_id' : ''
+          } WHERE 1=1${lockSql} GROUP BY t.tag ORDER BY count DESC, t.tag ASC LIMIT 12`
+        )
+        .all(...lockParams);
 
       const recent = db
-        .prepare('SELECT * FROM images ORDER BY created_at DESC, id DESC LIMIT 12')
-        .all()
+        .prepare(`SELECT * FROM images WHERE 1=1${lockSql} ORDER BY created_at DESC, id DESC LIMIT 12`)
+        .all(...lockParams)
         .map(lib.toDTO);
       const largest = db
-        .prepare('SELECT * FROM images ORDER BY (width * height) DESC LIMIT 4')
-        .all()
+        .prepare(`SELECT * FROM images WHERE 1=1${lockSql} ORDER BY (width * height) DESC LIMIT 4`)
+        .all(...lockParams)
         .map(lib.toDTO);
 
+      // 当前库身份：详情面板要回答「这张图在哪个库里」。
+      // 多库各存各的 gallery.db，图片记录本身不带库字段，库身份只能由服务端给出。
+      // 这里必须永远给一个库：返回 null 时前端只能显示「—」，用户就没法定位图片了
       res.json({
+        library: currentLibraryInfo(),
         total,
         favorite,
         totalSize: sizeRow.s,
@@ -80,15 +99,10 @@ export function register(app, ctx) {
     })
   );
 
+  // 标签树：count + 分组 / 颜色 / 父标签 / 排序（Eagle 的标签体系）
+  // 兼容老前端：每项仍带 tag / count，新字段视作附加信息
   app.get('/api/tags', (_req, res) => {
-    const counter = new Map();
-    for (const row of db.prepare("SELECT tags FROM images WHERE tags <> ''").all()) {
-      for (const tag of row.tags.split(',')) {
-        const t = tag.trim();
-        if (t) counter.set(t, (counter.get(t) || 0) + 1);
-      }
-    }
-    res.json([...counter.entries()].map(([tag, count]) => ({ tag, count })).sort((a, b) => b.count - a.count));
+    res.json({ tags: lib.listTagsRich(), groups: lib.listTagGroups() });
   });
 
   /* ----------------------------------- AI ---------------------------------- */
@@ -138,6 +152,31 @@ export function register(app, ctx) {
     })
   );
 
+  /** 自然语言搜图：本地 CLIP 文本塔做跨模态召回（不依赖云端 AI） */
+  app.post(
+    '/api/search/semantic',
+    asyncRoute(async (req, res) => {
+      const query = String(req.body?.query || req.body?.q || '').trim();
+      if (!query) return res.status(400).json({ error: '缺少 query 参数' });
+      const limit = Math.min(300, Math.max(1, Number(req.body?.limit) || 60));
+      try {
+        const r = await search.semanticSearch(query, { limit });
+        res.json({
+          query,
+          total: r.items.length,
+          items: r.items,
+          engine: r.engine,
+          degraded: r.degraded,
+          reason: r.reason,
+          keywords: r.keywords,
+          covered: r.covered,
+        });
+      } catch (err) {
+        res.status(500).json({ error: err.message });
+      }
+    })
+  );
+
   /** AI 语义搜索：自然语言 → 结构化过滤 + 关键词，复用现有 OpenAI 兼容 AI（无需 embedding） */
   app.post(
     '/api/search/ai',
@@ -146,8 +185,18 @@ export function register(app, ctx) {
       if (!query) return res.status(400).json({ error: '缺少 query 参数' });
       const limit = Math.min(300, Math.max(1, Number(req.body?.limit) || 60));
       try {
-        const items = await search.aiSearch(query, { limit });
-        res.json({ query, total: items.length, items });
+        const r = await search.aiSearch(query, { limit });
+        // engine: llm = 真的过了 LLM 抽词；keyword = 其实只是关键词 LIKE。
+        // degraded 只在「配了 AI 但解析失败」时为 true，前端据此决定提示文案。
+        res.json({
+          query,
+          total: r.items.length,
+          items: r.items,
+          engine: r.engine,
+          degraded: r.degraded,
+          reason: r.reason,
+          keywords: r.keywords,
+        });
       } catch (err) {
         res.status(500).json({ error: err.message });
       }
@@ -159,12 +208,21 @@ export function register(app, ctx) {
     '/api/search/by-image',
     asyncRoute(async (req, res) => {
       const dataUrl = req.body?.image || req.body?.dataUrl || req.body?.url;
-      const maxHamming = Math.max(0, Math.min(32, Number(req.body?.maxHamming) ?? 10));
+      // 以前写 Number(x) ?? 10：Number(undefined) 是 NaN 而不是 null/undefined，
+      // ?? 兜不住，Math.min/max 一路把结果算成 NaN，相似图搜索只能返回空。
+      const rawHamming = req.body?.maxHamming;
+      const hammingNum = Number(rawHamming);
+      const maxHamming =
+        rawHamming == null || rawHamming === '' || !Number.isFinite(hammingNum)
+          ? 10
+          : Math.max(0, Math.min(32, hammingNum));
       const limit = Math.min(100, Math.max(1, Number(req.body?.limit) || 24));
       if (!dataUrl) return res.status(400).json({ error: '缺少 image（base64 data url）' });
       try {
-        const items = await search.searchByImageDataUrl(dataUrl, { limit, maxHamming });
-        res.json({ total: items.length, items });
+        const r = await search.searchByImageDataUrl(dataUrl, { limit, maxHamming });
+        // engine: clip = 深度特征（语义级相似）；phash = 哈希（构图/像素级相似）。
+        // 前端必须按引擎改文案，否则哈希结果会被说成「几乎相同」。
+        res.json({ total: r.items.length, items: r.items, engine: r.engine });
       } catch (err) {
         res.status(400).json({ error: err.message });
       }
@@ -197,6 +255,38 @@ export function register(app, ctx) {
     })
   );
 
+  /* --------------------------- 标签别名 / 同义词 --------------------------- */
+
+  app.get('/api/tags/aliases', (_req, res) => {
+    res.json({ aliases: lib.listAliases() });
+  });
+
+  app.put(
+    '/api/tags/alias',
+    asyncRoute(async (req, res) => {
+      try {
+        const aliases = lib.setAlias(req.body?.alias, req.body?.tag);
+        sseBroadcast('tags', { path: req.path });
+        res.json({ ok: true, aliases });
+      } catch (err) {
+        res.status(400).json({ error: err.message });
+      }
+    })
+  );
+
+  app.delete(
+    '/api/tags/alias/:alias',
+    asyncRoute(async (req, res) => {
+      try {
+        const aliases = lib.deleteAlias(decodeURIComponent(req.params.alias));
+        sseBroadcast('tags', { path: req.path });
+        res.json({ ok: true, aliases });
+      } catch (err) {
+        res.status(400).json({ error: err.message });
+      }
+    })
+  );
+
   /* ------------------------------ 智能文件夹 ------------------------------ */
 
   app.get('/api/smart-folders', (_req, res) => res.json(lib.listSmartFolders()));
@@ -225,8 +315,11 @@ export function register(app, ctx) {
   app.get(
     '/api/smart-folders/:id/images',
     asyncRoute(async (req, res) => {
-      const r = lib.previewSmartFolder(Number(req.params.id));
-      res.json({ folder: r.folder, total: r.total, items: r.items });
+      // limit 必须夹紧：同文件其它接口都 clamp，这里 ?limit=1000000 会把整库 DTO 拉进内存
+      const limit = Math.min(Math.max(Number(req.query.limit) || 200, 1), 200);
+      const offset = Math.max(Number(req.query.offset) || 0, 0);
+      const r = lib.previewSmartFolder(Number(req.params.id), limit, offset);
+      res.json({ folder: r.folder, total: r.total, items: r.items, limit: r.limit, offset: r.offset });
     })
   );
 
@@ -261,7 +354,7 @@ export function register(app, ctx) {
     '/api/kb/rules/:id',
     asyncRoute(async (req, res) => {
       kb.setRule(Number(req.params.id), req.body || {});
-      kb.rescoreAll();
+      kb.requestRescore();
       res.json({ ok: true, rules: kb.listRules() });
     })
   );
@@ -270,7 +363,7 @@ export function register(app, ctx) {
     '/api/kb/rules/:id',
     asyncRoute(async (req, res) => {
       kb.deleteRule(Number(req.params.id));
-      kb.rescoreAll();
+      kb.requestRescore();
       res.json({ ok: true, rules: kb.listRules() });
     })
   );
@@ -299,15 +392,15 @@ export function register(app, ctx) {
   app.post(
     '/api/library/scan',
     asyncRoute(async (_req, res) => {
-      if (importState.running) return res.json({ ok: false, message: '导入任务正在运行' });
+      if (importStateRef().running) return res.json({ ok: false, message: '导入任务正在运行' });
       const result = await importLocalImages();
       res.json({ ok: true, ...result });
     })
   );
 
   app.get('/api/library/missing', (_req, res) => {
-    const missing = findMissing();
-    res.json({ count: missing.length, ids: missing.map((m) => m.id) });
+    // 前端首屏必拉：走异步并发检查 + 60s 缓存，不再同步全表 existsSync 阻塞事件循环
+    getMissingCached().then((r) => res.json(r));
   });
 
   app.post(
@@ -332,7 +425,19 @@ export function register(app, ctx) {
   app.post(
     '/api/trash/:id/restore',
     asyncRoute(async (req, res) => {
-      res.json(await lib.restoreFromTrash(Number(req.params.id)));
+      const trashId = Number(req.params.id);
+      // 恢复前的 image_id 记下来：撤销「恢复」= 把这张再删回回收站
+      const row = db.prepare('SELECT image_id FROM trash WHERE id = ?').get(trashId);
+      const result = await lib.restoreFromTrash(trashId);
+      const newId = Number(result?.item?.id || result?.id || 0);
+      if (newId) {
+        logOp({
+          op: 'restore',
+          summary: `从回收站恢复 1 张（原 id ${row?.image_id ?? '?'}）`,
+          payload: { imageIds: [newId] },
+        });
+      }
+      res.json(result);
     })
   );
 

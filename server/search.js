@@ -163,17 +163,21 @@ export function searchByColor(hex, tol = 48, limit = 120) {
  */
 export async function searchByImageBuffer(buffer, { limit = 24, maxHamming = 10 } = {}) {
   // CLIP 深度特征优先：对裁剪/旋转/加滤镜的同类图远比哈希鲁棒（模型未就绪时自动退回哈希方案）
+  // 返回值必须带上真实引擎：两种模式的可信度差一个量级，前端不能都写成「高度相似」
   if (clip.clipReady()) {
     try {
       const vec = await clip.embedImage(buffer);
-      const hits = clip.topSimilar(vec, { k: limit, minCos: 0.82 });
+      const hits = await clip.topSimilar(vec, { k: limit, minCos: 0.82 });
       if (hits.length) {
         const byId = new Map(hits.map((h) => [h.id, h.cos]));
         const rows = db
           .prepare(`SELECT * FROM images WHERE id IN (${hits.map(() => '?').join(',')})`)
           .all(...hits.map((h) => h.id));
         const sorted = rows.sort((a, b) => byId.get(b.id) - byId.get(a.id));
-        return sorted.map((r) => ({ ...lib.toDTO(r), cos: +byId.get(r.id).toFixed(4) }));
+        return {
+          engine: 'clip',
+          items: sorted.map((r) => ({ ...lib.toDTO(r), cos: +byId.get(r.id).toFixed(4) })),
+        };
       }
     } catch (err) {
       console.error('[clip] 以图搜图失败，退回哈希方案', err?.message || err);
@@ -213,7 +217,10 @@ export async function searchByImageBuffer(buffer, { limit = 24, maxHamming = 10 
     verified.push(c);
   }
 
-  return verified.slice(0, limit).map((s) => ({ ...lib.toDTO(s.row), hamming: s.dist }));
+  return {
+    engine: 'phash',
+    items: verified.slice(0, limit).map((s) => ({ ...lib.toDTO(s.row), hamming: s.dist })),
+  };
 }
 
 export async function searchByImageDataUrl(dataUrl, opts = {}) {
@@ -228,20 +235,108 @@ export async function searchByImagePath(filePath, opts = {}) {
   return searchByImageBuffer(buffer, opts);
 }
 
+/* ------------------------------- 自然语言搜图（本地 CLIP） ------------------------------- */
+
+/**
+ * 本地语义检索：一句话 → CLIP 文本塔 512 维 → 与已建索引的图像向量比余弦。
+ *
+ * 和下面的 aiSearch 是两回事，别混：
+ *  - 这里是真的跨模态召回，能搜「暖色调的日落海边」这种库里的标签根本没写过的描述；
+ *  - aiSearch 是 LLM 抽词 + LIKE，标题/标签/描述里没有那个词就搜不到。
+ *
+ * 模型没就绪、文本塔加载失败、或者库里一张向量都没有时，退回 aiSearch，
+ * 并把 degraded/reason 如实带出去（前端不能把关键词结果标成语义搜索）。
+ */
+export async function semanticSearch(query, { limit = 60, minCos = 0.18 } = {}) {
+  const q = String(query || '').trim();
+  if (!q) return { items: [], engine: 'keyword', degraded: false, reason: '查询为空', keywords: [] };
+
+  let reason;
+  // 文本塔是独立懒加载的：首次要下 ~85MB（已缓存约 10 秒）。绝不能把请求挂在那里等，
+  // 先把加载点着，给 4 秒窗口；没就绪就回 loading，前端隔几秒自动重试。
+  if (!clip.textEncoderReady()) {
+    const loading = clip.textEncoderLoad();
+    loading.catch(() => {});
+    await Promise.race([
+      loading.then(() => true).catch(() => true),
+      new Promise((r) => setTimeout(() => r(false), 4000)),
+    ]);
+  }
+
+  if (clip.textEncoderReady()) {
+    try {
+      const vec = await clip.embedText(q);
+      const hits = await clip.topSimilar(vec, { k: limit, minCos });
+      const indexed = clip.embeddingCount();
+      const total = db.prepare('SELECT COUNT(*) AS c FROM images').get().c;
+      if (hits.length) {
+        const byId = new Map(hits.map((h) => [h.id, h.cos]));
+        const rows = db
+          .prepare(`SELECT * FROM images WHERE id IN (${hits.map(() => '?').join(',')})`)
+          .all(...hits.map((h) => h.id));
+        const sorted = rows.sort((a, b) => byId.get(b.id) - byId.get(a.id));
+        return {
+          engine: 'clip',
+          items: sorted.map((r) => ({ ...lib.toDTO(r), cos: +byId.get(r.id).toFixed(4) })),
+          keywords: [],
+          degraded: false,
+          reason: '',
+          covered: { indexed, total },
+        };
+      }
+      // 模型可用但没命中：**不要**退回关键词。语义模式下用户描述的画面本来就可能
+      // 一个字都不在标题/标签里，退回 LIKE 只会给一堆看似相关的噪音。
+      return {
+        engine: 'clip',
+        items: [],
+        keywords: [],
+        degraded: false,
+        reason: '',
+        covered: { indexed, total },
+      };
+    } catch (err) {
+      reason = `语义检索失败：${String(err?.message || err).slice(0, 160)}`;
+    }
+  } else {
+    // 4 秒还没好：没报错就是还在下载/加载 —— 回「加载中」，后台继续，前端几秒后自动重试
+    const loadError = clip.textEncoderError();
+    if (!loadError) {
+      return {
+        items: [],
+        engine: 'loading',
+        keywords: [],
+        degraded: false,
+        reason: '文本模型首次加载中（约 85MB），几秒后自动重试',
+      };
+    }
+    reason = `文本模型加载失败：${String(loadError).slice(0, 160)}`;
+  }
+
+  // 降级：LLM 抽词 / 关键词。engine 保持 keyword，degraded 明确为 true
+  const fallback = await aiSearch(q, { limit });
+  return { ...fallback, degraded: true, reason: reason || fallback.reason };
+}
+
 /* ------------------------------- AI 语义 / 视觉搜索 ------------------------------- */
 
 /**
  * AI 语义搜索：把自然语言交给 LLM，转成「结构化过滤条件 + 关键词」，再在本地库检索。
- * 复用现有 OpenAI 兼容 AI（无需 embedding）。未配置 AI 时自动退化为纯关键词搜索。
+ * 复用现有 OpenAI 兼容 AI（无需 embedding）。
+ *
+ * 注意：这里**没有** embedding/向量召回，本质是「LLM 抽词 + LIKE」。所以必须把
+ * engine/degraded 一起返回：未配置 AI 或解析失败时结果只是整句关键词匹配，
+ * 页面上不能再标成「AI 语义搜索」。
  */
 export async function aiSearch(query, { limit = 60 } = {}) {
   const q = String(query || '').trim();
-  if (!q) return [];
+  if (!q) return { items: [], engine: 'keyword', degraded: false, reason: '', keywords: [] };
 
+  const configured = ai.aiStatus().ready;
   let filters = {};
   let keywords = [];
+  let reason = '';
 
-  if (ai.aiStatus().ready) {
+  if (configured) {
     try {
       const parsed = await ai.chatJson(
         [
@@ -258,16 +353,22 @@ export async function aiSearch(query, { limit = 60 } = {}) {
         { temperature: 0.1, timeout: 8000 }
       );
       filters = parsed?.filters || {};
-      keywords = Array.isArray(parsed?.keywords) ? parsed.keywords : [];
-    } catch {
-      // LLM 失败则退化
+      keywords = Array.isArray(parsed?.keywords) ? parsed.keywords.filter(Boolean) : [];
+      if (!keywords.length) reason = 'AI 没有抽出可用关键词';
+    } catch (err) {
+      reason = String(err?.message || err).slice(0, 200);
     }
+  } else {
+    reason = '未配置 AI，直接按关键词匹配';
   }
 
-  // 没有 AI 或解析失败时，用整句做关键词
+  const engine = keywords.length && !reason ? 'llm' : 'keyword';
+  // 只有「配了 AI 却没解析成功」才算降级；本来就没配属于正常的关键词模式
+  const degraded = configured && engine !== 'llm';
+  // 没有可用关键词时，用整句做关键词
   if (!keywords.length) keywords = [q];
 
-  return runStructuredSearch(filters, keywords, limit);
+  return { items: runStructuredSearch(filters, keywords, limit), engine, degraded, reason, keywords, filters };
 }
 
 /** 结构化条件 + 关键词混合检索（本地 SQL，零额外依赖） */

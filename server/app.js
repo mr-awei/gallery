@@ -1,55 +1,26 @@
 import express from 'express';
 import fs from 'node:fs';
 import path from 'node:path';
-import { PORT, WEB_DIST, SEED_URLS } from './config.js';
-import {
-  db,
-  getSettings,
-  saveSettings,
-  listKeywords,
-  addKeyword,
-  updateKeyword,
-  deleteKeyword,
-} from './db.js';
+import { PORT, WEB_DIST } from './config.js';
+import { db, getSettings } from './db.js';
+import { logOp } from './oplog.js';
 import * as lib from './library.js';
-import {
-  listLibraries,
-  createLibrary,
-  activateLibrary,
-  setActiveRoot,
-  getActiveLibrary,
-  deleteLibrary,
-  setImportPending,
-  isImportPending,
-} from './libraries.js';
-import {
-  listFolderTree,
-  folderImageRows,
-  createVirtualFolder,
-  renameFolder,
-  deleteFolder,
-  addImagesToFolder,
-  removeImagesFromFolder,
-} from './folders.js';
-import { getJobStatus, startCrawl, stopCrawl, ingestUrls, SOURCES } from './crawler.js';
+import { undoLastEdit, lastEdit, hasUndo } from './lib/undo.js';
+import { getActiveLibrary, setImportPending, isImportPending } from './libraries.js';
+import { getJobStatus } from './crawler.js';
 import * as clip from './clip.js';
-import { importLocalImages, findMissing, purgeMissing, relocateMissing, watchStorageDir } from './importer.js';
+import { importLocalImages, watchStorageDir, invalidateMissingCache } from './importer.js';
 import { sweepThumbTemp } from './bulk-import.js';
-import { openFolder, revealFile, setWallpaper, platform, listMonitors, isFullscreenAppRunning } from './desktop.js';
-import { LIVE_HTML } from './live-page.js';
-import * as ai from './ai.js';
+import { prefetchPreviews } from './lib/preview-queue.js';
+import { openFolder, revealFile, setWallpaper, platform } from './desktop.js';
 import * as kb from './kb.js';
 import * as search from './search.js';
 import * as wallpaper from './wallpaper.js';
 import * as aiUpscale from './ai-upscale.js';
 import * as srDeep from './sr-deep.js';
-import * as fit from './wallpaper-fit.js';
-import * as pref from './preference.js';
 import * as matting from './matting.js';
 import * as enhanceJob from './enhance-job.js';
-import { getNetwork, saveNetwork, applyProxy, testNetwork, PROXY_MODES } from './network.js';
 import * as auto from './auto.js';
-import { httpFetch } from './http.js';
 import { liveBus } from './live-bus.js';
 import { apiAuth } from './auth.js';
 import { register as registerTidy } from './routes/tidy.js';
@@ -59,8 +30,32 @@ import { register as registerStats } from './routes/stats.js';
 import { register as registerCatalog } from './routes/catalog.js';
 import { register as registerWallpaper } from './routes/wallpaper.js';
 import { register as registerKeywords } from './routes/keywords.js';
+import { register as registerEdit } from './routes/edit.js';
+import { register as registerOrganize } from './routes/organize.js';
+import { register as registerAnnotate } from './routes/annotate.js';
+import { register as registerUpload } from './routes/upload.js';
+import { register as registerExport } from './routes/export.js';
+import { register as registerMaintenance } from './routes/maintenance.js';
+import { register as registerJobs } from './routes/jobs.js';
+import { register as registerBookmarks } from './routes/bookmarks.js';
+import { register as registerExtension } from './routes/extension.js';
+import { register as registerOcr } from './routes/ocr.js';
+import { register as registerSource } from './routes/source.js';
+import { register as registerInspect } from './routes/inspect.js';
+import { register as registerActions } from './routes/actions.js';
+import { register as registerTransfer } from './routes/transfer.js';
+import { markInterruptedJobs, pruneJobs } from './jobs.js';
 
 const asyncRoute = (fn) => (req, res, next) => Promise.resolve(fn(req, res, next)).catch(next);
+
+/** target 是否位于 root 之内（Windows 大小写不敏感，比较前统一小写） */
+function isInsideDir(root, target) {
+  const rel = path.relative(path.resolve(root).toLowerCase(), path.resolve(target).toLowerCase());
+  return rel === '' || (!rel.startsWith('..') && !path.isAbsolute(rel));
+}
+
+/** 只有图片/视频这类素材才允许「在文件夹中显示」（副本可能被保存在库外） */
+const MEDIA_EXT_RE = /\.(jpe?g|png|webp|gif|bmp|avif|heic|tiff?|svg|psd|mp4|webm|mov|mkv|avi)$/i;
 
 /* ------------------------- 实时事件（SSE）与导入状态 ------------------------- */
 /* 放在模块级：bootstrap()（进程启动时的首次扫描）也要能广播库变化，
@@ -99,6 +94,9 @@ function startLocalImport(message = '扫描本地图片…') {
     return null;
   }
   importState = { running: true, progress: 0, message, result: null };
+  // 导入前记下 image 表的最大 id：撤销「这次导入」时用它当边界（比记几千个 id 省内存，
+  // 也不会因为百万级导入把 payload 撑爆）
+  const importMaxId = Number(db.prepare('SELECT COALESCE(MAX(id), 0) AS m FROM images').get()?.m || 0);
   // 落盘标记：进程若被强杀，重启后据此接着扫（半截记录 + 未登记的文件）
   const pendingLibId = getActiveLibrary()?.id;
   setImportPending(true, pendingLibId);
@@ -122,6 +120,14 @@ function startLocalImport(message = '扫描本地图片…') {
   })
     .then((result) => {
       setImportPending(false, pendingLibId);
+      // 导入也可撤销：记一条边界（本次新入库的都是 id > importMaxId 的行）
+      if (Number(result?.saved) > 0) {
+        logOp({
+          op: 'import',
+          summary: `导入 ${result.saved} 张（${result.source || '本地'}）`,
+          payload: { maxId: importMaxId, saved: result.saved, source: result.source || '' },
+        });
+      }
       // 被切库叫停的任务：不算完成，也不算失败
       const cancelled = Number(result?.cancelled) > 0;
       importState = {
@@ -131,8 +137,10 @@ function startLocalImport(message = '扫描本地图片…') {
         result,
       };
       sseBroadcast('library', { imported: result.saved, cancelled });
-      // 批量导入不逐张建模（百万张会堆积上百万次推理），统一交给补算任务后台跑
-      if (clip.clipReady()) clip.startBackfill();
+      invalidateMissingCache(); // 文件落库/清理后，缺失检查缓存作废
+      // 批量导入不逐张建模（百万张会堆积上百万次推理），统一交给补算任务后台跑；
+      // 延迟启动给用户紧接着的列表浏览让路（补算是重 CPU 任务）
+      if (clip.clipReady()) setTimeout(() => clip.startBackfill(), 5_000);
       // 收尾后补跑排队中的扫描（新库的自动扫描）
       if (pendingImportMessage) {
         const next = pendingImportMessage;
@@ -173,13 +181,15 @@ function bootstrap() {
   sweepThumbTemp();
   const imageCount = db.prepare('SELECT COUNT(*) AS c FROM images').get().c;
   console.log(`[db] 图片 ${imageCount} 张，pHash 索引 ${lib.initPhashIndex()} 条`);
-  // 后台预加载 CLIP 模型（首次会下载 ~150MB，之后走本地缓存）；就绪后补算缺失特征
+  // 后台预加载 CLIP 模型（首次会下载 ~150MB，之后走本地缓存）；就绪后补算缺失特征。
+  // 补算延迟 15s：万级库特征补全是持续数分钟的重 CPU 任务，启动即跑会抢占
+  // 首屏（缩略图/列表 SQL）的 CPU —— 表现为打开软件后卡很久
   clip
     .clipLoad()
     .then((r) => {
       if (!r.ok) return console.log('[clip] 模型加载失败（CLIP 功能暂不可用）：', r.error);
       console.log('[clip] 模型就绪，已建模', clip.embeddingCount(), '张');
-      if (clip.embeddingCount() < imageCount) clip.startBackfill();
+      if (clip.embeddingCount() < imageCount) setTimeout(() => clip.startBackfill(), 15_000);
     })
     .catch(() => {});
   // 上次扫描被强杀打断：库里留着「已登记但缺缩略图」的半截记录，还有一批文件没登记。
@@ -191,10 +201,8 @@ function bootstrap() {
     // 走统一的 startLocalImport：会把进度写进 importState 并在完成时广播 library，
     // 前端无需重启就能看到启动时自动导入的图片
     startLocalImport(msg)
-      ?.then(async (result) => {
+      ?.then((result) => {
         console.log('[导入] 完成', result);
-        const seeds = await ingestUrls(SEED_URLS);
-        console.log('[种子素材]', seeds.map((s) => (s.ok ? 'ok' : s.reason)).join(', '));
       })
       .catch((err) => console.error('[导入] 失败', err));
   }
@@ -247,6 +255,23 @@ export function buildApp({ desktop = false } = {}) {
 
   // 服务端单点采样：任务状态全在进程内存里，1.5s 对比一次，变化才广播。
   // 此前是「N 个页面 × 各自 setInterval × HTTP 请求」，现在收敛为进程内一次快照对比。
+  // 素材入库（采集协程 / 目录监听 / 后台批量）不经过 HTTP 中间件，
+  // 必须自己广播「库已变化」：否则前端停在上一次的张数，用户得手动点刷新才看得到新图。
+  // 600ms 合并窗口：采集是 24 张一批入库，逐批广播会把前端打成刷新风暴
+  let ingestPending = 0;
+  let ingestTimer = null;
+  liveBus.on('library-changed', (payload) => {
+    ingestPending += Math.max(1, Number(payload?.added) || 1);
+    if (ingestTimer) return;
+    ingestTimer = setTimeout(() => {
+      ingestTimer = null;
+      const added = ingestPending;
+      ingestPending = 0;
+      sseBroadcast('library', { source: 'ingest', added });
+    }, 600);
+    ingestTimer.unref?.();
+  });
+
   const jobSnapshot = () => ({
     crawl: getJobStatus(),
     import: importState,
@@ -285,6 +310,11 @@ export function buildApp({ desktop = false } = {}) {
     next();
   });
 
+  // 上次进程退出时没跑完的任务（采集/批量编辑/增强/模型下载）一律标成 interrupted：
+  // 否则它们会永远停在 running，任务中心显示「进行中」但实际什么都没发生
+  markInterruptedJobs();
+  pruneJobs(200);
+
   // 路由组已拆分至 routes/*.js，此处统一注册。
   // importState 是重赋值型 let（不能传对象引用），routes 经 getter 读最新值
   const ctx = { desktop, sseBroadcast, startLocalImport, asyncRoute, colorFilterIds, importState: () => importState };
@@ -295,6 +325,20 @@ export function buildApp({ desktop = false } = {}) {
   registerCatalog(app, ctx);
   registerWallpaper(app, ctx);
   registerKeywords(app, ctx);
+  registerEdit(app, ctx);
+  registerOrganize(app, ctx);
+  registerAnnotate(app, ctx);
+  registerUpload(app, ctx);
+  registerExport(app, ctx);
+  registerMaintenance(app, ctx);
+  registerJobs(app, ctx);
+  registerBookmarks(app, ctx);
+  registerExtension(app, ctx);
+  registerOcr(app, ctx);
+  registerSource(app, ctx);
+  registerInspect(app, ctx);
+  registerActions(app, ctx);
+  registerTransfer(app, ctx);
 
   /* -------------------------------- 系统能力 ------------------------------- */
 
@@ -311,8 +355,13 @@ export function buildApp({ desktop = false } = {}) {
   app.post(
     '/api/system/open-folder',
     asyncRoute(async (req, res) => {
-      const dir = req.body?.path || getSettings().storageDir;
-      lib.resolveStorageDir(getSettings());
+      // 路径必须落在素材库根目录内：本地服务对任何进程开放，不校验就等于给了
+      // 「用系统文件管理器打开任意目录」的能力（UNC 路径还能外带凭据）
+      const root = lib.resolveStorageDir(getSettings());
+      const dir = req.body?.path ? path.resolve(String(req.body.path)) : root;
+      if (!isInsideDir(root, dir)) {
+        return res.status(400).json({ error: '只能打开素材库目录内的文件夹' });
+      }
       openFolder(dir);
       res.json({ ok: true, path: dir });
     })
@@ -323,7 +372,14 @@ export function buildApp({ desktop = false } = {}) {
     asyncRoute(async (req, res) => {
       const target = req.body?.path;
       if (!target) return res.status(400).json({ error: '缺少路径' });
-      revealFile(target);
+      const abs = path.resolve(String(target));
+      const root = lib.resolveStorageDir(getSettings());
+      // 库内随便定位；库外（用户自选的副本保存目录）只允许真实存在的素材文件，
+      // 否则这里就成了「用资源管理器定位任意 exe / 可执行脚本」的入口
+      if (!isInsideDir(root, abs) && !(fs.existsSync(abs) && MEDIA_EXT_RE.test(abs))) {
+        return res.status(400).json({ error: '只能定位素材库内的文件' });
+      }
+      revealFile(abs);
       res.json({ ok: true });
     })
   );
@@ -363,7 +419,48 @@ export function buildApp({ desktop = false } = {}) {
     asyncRoute(async (req, res) => {
       // 统一走 library.listImages（结构化筛选 + FTS 搜索 + 排序 + 分页）
       const colorIds = colorFilterIds(req.query);
-      res.json(lib.listImages({ ...req.query, colorIds }));
+      const data = lib.listImages({ ...req.query, colorIds });
+      res.json(data);
+      // 这一页的灯箱预览图交给后台预取：用户点开时就是磁盘命中（几毫秒），
+      // 而不是等着现解码 20MB 的原图（那就是「模糊一两秒」的来源）。
+      // 只取前 24 张：一屏放不下更多，翻页快的人也不必为没看过的图付 CPU。
+      prefetchPreviews(data.items?.slice(0, 24).map((it) => it.id));
+    })
+  );
+
+  // 当前筛选条件下的全部 id（Ctrl+A 全选用）：只回 id，不翻页也不回表
+  app.get(
+    '/api/images/ids',
+    asyncRoute(async (req, res) => {
+      const colorIds = colorFilterIds(req.query);
+      res.json(lib.listImageIds({ ...req.query, colorIds }));
+    })
+  );
+
+  // 最近一次可撤销的编辑（前端显示「撤销」入口）
+  app.get(
+    '/api/undo/last',
+    asyncRoute(async (_req, res) => {
+      res.json({ last: lastEdit() });
+    })
+  );
+
+  // 撤销一次覆盖写回。body 可带 imageId：不给就撤销全库最近一次
+  app.post(
+    '/api/undo',
+    asyncRoute(async (req, res) => {
+      const id = Number(req.body?.imageId) || 0;
+      const r = await undoLastEdit(id);
+      if (!r.ok) return res.status(409).json({ error: r.reason || '没有可撤销的编辑' });
+      const item = lib.getImage(r.id);
+      res.json({ item: item ? lib.toDTO(item) : null, kind: r.kind });
+    })
+  );
+
+  app.get(
+    '/api/images/:id/undo',
+    asyncRoute(async (req, res) => {
+      res.json({ canUndo: hasUndo(Number(req.params.id)) });
     })
   );
 
@@ -393,7 +490,7 @@ export function buildApp({ desktop = false } = {}) {
         vec = await clip.embedImage(row.abs_path);
         clip.saveEmbedding(id, vec);
       }
-      const hits = clip.topSimilar(vec, { k: limit, minCos, excludeId: id });
+      const hits = await clip.topSimilar(vec, { k: limit, minCos, excludeId: id });
       const cosById = new Map(hits.map((h) => [h.id, h.cos]));
       const items = hits.length
         ? db
@@ -410,12 +507,17 @@ export function buildApp({ desktop = false } = {}) {
     '/api/images/:id',
     asyncRoute(async (req, res) => {
       const id = Number(req.params.id);
-      if (!lib.getImage(id)) return res.status(404).json({ error: '图片不存在' });
+      const before = lib.getImage(id);
+      if (!before) return res.status(404).json({ error: '图片不存在' });
       if (req.body.favorite !== undefined) lib.setFavorite(id, !!req.body.favorite);
       if (req.body.tags !== undefined) lib.setTags(id, req.body.tags);
       if (req.body.title !== undefined) lib.renameTitle(id, req.body.title);
       if (req.body.rating !== undefined) lib.setRating(id, req.body.rating);
       if (req.body.note !== undefined) lib.setNote(id, req.body.note);
+      // 打标可撤销：记下改之前的标签串（单张的 PATCH 也要记，批量改标签同理在下面路由里记）
+      if (req.body.tags !== undefined) {
+        logOp({ op: 'tags', summary: `修改标签：${before.title || `图片 ${id}`}`, payload: { items: [{ id, before: before.tags || '' }] } });
+      }
       res.json(lib.toDTO(lib.getImage(id)));
     })
   );
@@ -423,7 +525,12 @@ export function buildApp({ desktop = false } = {}) {
   app.delete(
     '/api/images/:id',
     asyncRoute(async (req, res) => {
-      const result = await lib.removeImage(Number(req.params.id));
+      const id = Number(req.params.id);
+      const result = await lib.removeImage(id);
+      // 删除进回收站也要进撤销栈：以前只有编辑类能撤销，误删只能手动翻回收站找
+      if (result.ok) {
+        logOp({ op: 'trash', summary: '删除 1 张图片', payload: { imageIds: [id] } });
+      }
       res.json(result);
     })
   );
@@ -469,12 +576,16 @@ export function buildApp({ desktop = false } = {}) {
 
 
 
+  /* 未知接口一律回 JSON：不写这条的话，/api/typo 会掉进前端托管的 404 或 HTML 兜底，
+     前端 request() 解析 JSON 失败，只能给用户「请求失败 404 / 返回了无效数据」这种没法排查的提示 */
+  app.use('/api', (_req, res) => res.status(404).json({ error: '接口不存在' }));
+
   /* -------------------------------- 前端托管 -------------------------------- */
 
   if (fs.existsSync(WEB_DIST)) {
     // 静态直出也要带 CSP（生产前端无内联脚本、无 eval，可收紧到 self）
     const htmlCsp =
-      "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; media-src 'self' data: blob:; font-src 'self' data:; connect-src 'self'; object-src 'none'; base-uri 'self'; form-action 'self'";
+      "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; media-src 'self' data: blob:; font-src 'self' data:; connect-src 'self' data: blob:; object-src 'none'; base-uri 'self'; form-action 'self'";
     app.use(
       express.static(WEB_DIST, {
         maxAge: '1h',
@@ -499,9 +610,17 @@ export function buildApp({ desktop = false } = {}) {
     });
   }
 
-  app.use((err, _req, res, _next) => {
-    console.error('[api error]', err);
-    res.status(500).json({ error: err.message || '服务器内部错误' });
+  // 全局兜底：走到这里说明 asyncRoute 的 catch 也没兜住（同步抛错 / 中间件异常）。
+  // 记下方法+路径，否则日志里只有堆栈没有「哪个接口崩的」。
+  app.use((err, req, res, _next) => {
+    if (res.headersSent) return;
+    // 请求体本身有问题（前端传了坏 JSON / 超大 body）不是 500，别让日志被这类噪音刷屏
+    if (err?.type === 'entity.parse.failed') return res.status(400).json({ error: '请求体不是合法 JSON' });
+    if (err?.type === 'entity.too.large') return res.status(413).json({ error: '请求体过大（上限 50MB）' });
+
+    const status = Number(err?.status || err?.statusCode) || 500;
+    console.error(`[api error] ${req.method} ${req.originalUrl || req.url}`, err);
+    res.status(status).json({ error: err.message || '服务器内部错误' });
   });
 
   return app;
@@ -512,10 +631,13 @@ export function startServer(port = PORT, options = {}) {
   const app = buildApp(options);
   return new Promise((resolve, reject) => {
     const server = app.listen(port, '127.0.0.1', () => {
-      const actualPort = server.address().port;
+      // Node 25 + Express 5：监听失败时回调也会先被调用一次，此时 address() 为 null，
+      // 不能读 port —— 交给下方 error 处理（reject / 换端口重试）
+      const addr = server.address();
+      if (!addr) return;
       bootstrap();
       auto.startScheduler();
-      resolve({ server, port: actualPort });
+      resolve({ server, port: addr.port });
     });
     server.on('error', (err) => {
       if (err?.code === 'EADDRINUSE' && port !== 0 && options.desktop) {

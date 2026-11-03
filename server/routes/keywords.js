@@ -1,10 +1,6 @@
 // 关键词 / 设置 / 图库文件夹与多资源库路由（从 app.js 拆出）
-import fs from 'node:fs';
-import path from 'node:path';
 import { applyProxy } from '../network.js';
-import { SOURCES, getJobStatus, startCrawl, stopCrawl, ingestUrls } from '../crawler.js';
-import { SEED_URLS } from '../config.js';
-import * as ai from '../ai.js';
+import { CRAWL_LIMITS, SOURCES, getJobStatus, startCrawl, stopCrawl } from '../crawler.js';
 import * as lib from '../library.js';
 import {
   addImagesToFolder,
@@ -14,16 +10,29 @@ import {
   listFolderTree,
   removeImagesFromFolder,
   renameFolder,
+  reorderFolderImages,
+  setFolderCover,
+  setFolderTags,
 } from '../folders.js';
+import { attachInheritedTags } from '../lib/query.js';
+import {
+  clearFolderPassword,
+  lockedFolders,
+  sealFolder,
+  setFolderPassword,
+  unlockFolder,
+} from '../lib/privacy.js';
 import {
   activateLibrary,
   createLibrary,
   deleteLibrary,
   getActiveLibrary,
+  isImportPending,
   listLibraries,
   setActiveRoot,
 } from '../libraries.js';
 import { watchStorageDir } from '../importer.js';
+import { logOp } from '../oplog.js';
 import { db, getSettings, saveSettings, listKeywords, addKeyword, updateKeyword, deleteKeyword } from '../db.js';
 
 export function register(app, ctx) {
@@ -107,8 +116,17 @@ export function register(app, ctx) {
     '/api/libraries/:id/activate',
     asyncRoute(async (req, res) => {
       const library = activateLibrary(Number(req.params.id));
-      // 新库的素材目录里往往已有图片，主动全量扫一次
-      if (library.root_path) startLocalImport('已切换到新资源库，正在扫描…');
+      // 全量扫描只在「这个库确实还没数据」时做：
+      //   - 新库首次打开（images 为空）
+      //   - 上次扫描被打断（import_pending）
+      // 以前每次切库都无条件扫一遍，大库上就是几千张图重新解码 + 生成缩略图，
+      // CPU 被打满几分钟，用户感知就是「切库要三四十秒、什么都点不动」。
+      // 已有数据的库靠 fs.watch 跟进增量（activateLibrary 里已重挂监听）。
+      const hasRows = Number(db.prepare('SELECT COUNT(*) AS c FROM images').get()?.c || 0) > 0;
+      if (library.root_path && (!hasRows || isImportPending())) {
+        // 延迟 3s：先让前端把新库的首屏数据拉完，用户立刻看到内容，扫描在后台静默补齐
+        setTimeout(() => startLocalImport('已切换到新资源库，正在后台扫描素材…'), 3000);
+      }
       sseBroadcast('library', { path: req.path });
       res.json({ ok: true, library });
     })
@@ -155,17 +173,121 @@ export function register(app, ctx) {
     })
   );
 
-  app.get('/api/folders/:id/images', (req, res) => {
-    const page = Math.max(1, Number(req.query.page) || 1);
-    const pageSize = Math.min(120, Math.max(12, Number(req.query.pageSize) || 48));
-    const { rows, total, hasMore } = folderImageRows(Number(req.params.id), { page, pageSize });
-    res.json({ items: rows.map(lib.toDTO), total, hasMore });
+  /** 设置文件夹封面（body.imageId 省略 / 0 = 恢复自动封面） */
+  app.put(
+    '/api/folders/:id/cover',
+    asyncRoute(async (req, res) => {
+      const coverId = setFolderCover(Number(req.params.id), req.body?.imageId ?? null);
+      sseBroadcast('folders', { path: req.path });
+      res.json({ ok: true, coverImageId: coverId, folders: listFolderTree() });
+    })
+  );
+
+  /**
+   * 文件夹标签（Eagle：夹上打标签，夹内素材自动带上）。
+   * 只存 folders.tags，查询期沿 path 继承 —— 删标签立刻生效，不用逐张回滚。
+   */
+  app.put(
+    '/api/folders/:id/tags',
+    asyncRoute(async (req, res) => {
+      const r = setFolderTags(Number(req.params.id), req.body?.tags ?? []);
+      sseBroadcast('folders', { path: req.path });
+      res.json({ ok: true, tags: r.tags, folders: listFolderTree() });
+    })
+  );
+
+  /** 文件夹内手动排序：body.imageIds 是拖拽后的完整顺序（只取被拖动的区间也可以） */
+  app.put(
+    '/api/folders/:id/order',
+    asyncRoute(async (req, res) => {
+      const r = reorderFolderImages(Number(req.params.id), req.body?.imageIds);
+      res.json({ ok: true, ...r });
+    })
+  );
+
+  app.get(
+    '/api/folders/:id/images',
+    asyncRoute(async (req, res) => {
+      const page = Math.max(1, Number(req.query.page) || 1);
+      const pageSize = Math.min(120, Math.max(12, Number(req.query.pageSize) || 48));
+      try {
+        const { rows, total, hasMore } = folderImageRows(Number(req.params.id), { page, pageSize });
+        res.json({ items: attachInheritedTags(rows.map(lib.toDTO)), total, hasMore });
+      } catch (err) {
+        // 加锁夹未解锁：403 而不是 500，前端据此弹密码框
+        res.status(err.statusCode || 400).json({ error: err.message });
+      }
+    })
+  );
+
+  /* ---------------- 隐私空间：文件夹密码锁 ---------------- */
+
+  app.get('/api/privacy/folders', (_req, res) => {
+    res.json({ folders: lockedFolders() });
   });
+
+  app.put(
+    '/api/folders/:id/password',
+    asyncRoute(async (req, res) => {
+      try {
+        const r = setFolderPassword(Number(req.params.id), req.body?.password, req.body?.oldPassword);
+        sseBroadcast('folders', { path: req.path });
+        res.json({ ok: true, ...r, folders: listFolderTree() });
+      } catch (err) {
+        res.status(400).json({ error: err.message });
+      }
+    })
+  );
+
+  app.delete(
+    '/api/folders/:id/password',
+    asyncRoute(async (req, res) => {
+      try {
+        const r = clearFolderPassword(Number(req.params.id), req.body?.password ?? req.query?.password);
+        sseBroadcast('folders', { path: req.path });
+        res.json({ ok: true, ...r, folders: listFolderTree() });
+      } catch (err) {
+        res.status(400).json({ error: err.message });
+      }
+    })
+  );
+
+  /** 本次会话解锁（重启应用自动回到锁定态） */
+  app.post(
+    '/api/folders/:id/unlock',
+    asyncRoute(async (req, res) => {
+      try {
+        const r = unlockFolder(Number(req.params.id), req.body?.password);
+        sseBroadcast('folders', { path: req.path });
+        res.json({ ok: true, ...r, folders: listFolderTree() });
+      } catch (err) {
+        res.status(400).json({ error: err.message });
+      }
+    })
+  );
+
+  /** 手动上锁（不删密码）：离开隐私文件夹时用 */
+  app.post(
+    '/api/folders/:id/seal',
+    asyncRoute(async (req, res) => {
+      try {
+        const r = sealFolder(Number(req.params.id));
+        sseBroadcast('folders', { path: req.path });
+        res.json({ ok: true, ...r, folders: listFolderTree() });
+      } catch (err) {
+        res.status(400).json({ error: err.message });
+      }
+    })
+  );
 
   app.post(
     '/api/folders/:id/images',
     asyncRoute(async (req, res) => {
-      const added = addImagesToFolder(Number(req.params.id), req.body?.imageIds || []);
+      const folderId = Number(req.params.id);
+      const imageIds = (req.body?.imageIds || []).map(Number).filter(Boolean);
+      const added = addImagesToFolder(folderId, imageIds);
+      // 整理动作也要可撤销：以前「加入文件夹」只有进没有出，拖错文件夹只能手动找回来
+      if (added) logOp({ op: 'folder-add', summary: `加入文件夹 ${added} 张`, payload: { folderId, imageIds } });
       res.json({ ok: true, added, folders: listFolderTree() });
     })
   );
@@ -173,20 +295,71 @@ export function register(app, ctx) {
   app.delete(
     '/api/folders/:id/images/:imageId',
     asyncRoute(async (req, res) => {
-      const removed = removeImagesFromFolder(Number(req.params.id), [Number(req.params.imageId)]);
+      const folderId = Number(req.params.id);
+      const imageIds = [Number(req.params.imageId)];
+      const removed = removeImagesFromFolder(folderId, imageIds);
+      if (removed) logOp({ op: 'folder-remove', summary: '从文件夹移出 1 张', payload: { folderId, imageIds } });
       res.json({ ok: true, removed });
     })
   );
 
+  /** 批量移出（多选工具栏用）：一次请求解除整批关联，避免 N 次往返 */
+  app.delete(
+    '/api/folders/:id/images',
+    asyncRoute(async (req, res) => {
+      const folderId = Number(req.params.id);
+      const list = (req.body?.imageIds || []).map(Number).filter(Boolean);
+      const removed = removeImagesFromFolder(folderId, list);
+      if (removed) logOp({ op: 'folder-remove', summary: `从文件夹移出 ${removed} 张`, payload: { folderId, imageIds: list } });
+      res.json({ ok: true, removed, folders: listFolderTree() });
+    })
+  );
+
+  /** 某张图归属的文件夹（大图详情里展示 + 逐条移出，补上「只进不出」的缺口） */
+  app.get(
+    '/api/images/:id/folders',
+    asyncRoute(async (req, res) => {
+      const id = Number(req.params.id);
+      const rows = db
+        .prepare(
+          `SELECT f.id, f.name, f.parent_id, f.path
+             FROM image_folders i JOIN folders f ON f.id = i.folder_id
+            WHERE i.image_id = ?
+            ORDER BY f.path ASC`
+        )
+        .all(id);
+      res.json({ folders: rows });
+    })
+  );
+
+  /**
+   * 采集源 + 采集参数的唯一事实来源。
+   * 以前这里只回 key/label/enabled，前端另有一份硬编码的源列表和页面级并发常量，
+   * 于是「后端支持调并发/画质阈值」在界面上根本摸不到；改一处忘一处还会对不上。
+   */
   app.get('/api/sources', (_req, res) => {
     const settings = getSettings();
-    res.json(
-      Object.values(SOURCES).map((s) => ({
-        key: s.key,
-        label: s.label,
-        enabled: !!settings.sources?.[s.key],
-      }))
-    );
+    const sources = Object.values(SOURCES).map((s) => ({
+      key: s.key,
+      label: s.label,
+      hint: s.hint || '',
+      needsCookie: !!s.needsCookie,
+      kind: 'crawl',
+      enabled: !!settings.sources?.[s.key],
+    }));
+    // 本地导入不是「采集源」，但筛选器/统计里是一等公民，一起下发省得前端再写死一份
+    sources.push({ key: 'local', label: '本地导入', hint: '', needsCookie: false, kind: 'import', enabled: true });
+    res.json({
+      sources,
+      limits: { maxPages: CRAWL_LIMITS.MAX_PAGES, maxConcurrency: CRAWL_LIMITS.MAX_CONCURRENCY },
+      crawl: {
+        pagesPerKeyword: Number(settings.pagesPerKeyword) || 3,
+        concurrency: Number(settings.concurrency) || 5,
+        minResolution: Number(settings.minResolution) || 0,
+        minFileSize: Number(settings.minFileSize) || 0,
+        maxFileSize: Number(settings.maxFileSize) || 0,
+      },
+    });
   });
 
   /* --------------------------------- 采集 ---------------------------------- */
@@ -204,10 +377,11 @@ export function register(app, ctx) {
           .filter((k) => k.enabled)
           .map((k) => k.text);
       }
-      const sources =
-        Array.isArray(body.sources) && body.sources.length
-          ? body.sources
-          : Object.keys(settings.sources || {}).filter((k) => settings.sources[k]);
+      // 只有「没传 sources」才回落到设置里的开关；显式传空数组 = 用户把源全关了，
+      // 再回落等于偷偷帮他打开，界面上勾掉的东西没生效
+      const sources = Array.isArray(body.sources)
+        ? body.sources
+        : Object.keys(settings.sources || {}).filter((k) => settings.sources[k]);
       const result = startCrawl({ keywords, sources, pages: body.pages ?? settings.pagesPerKeyword });
       res.json(result);
     })
@@ -228,14 +402,6 @@ export function register(app, ctx) {
     asyncRoute(async (_req, res) => {
       if (!startLocalImport()) return res.json({ ok: false, message: '导入任务正在运行' });
       res.json({ ok: true });
-    })
-  );
-
-  app.post(
-    '/api/seed',
-    asyncRoute(async (_req, res) => {
-      const results = await ingestUrls(SEED_URLS);
-      res.json({ ok: true, results });
     })
   );
 

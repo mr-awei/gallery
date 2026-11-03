@@ -69,7 +69,7 @@ function aiConfig() {
 
 /** 把接口的报错翻译成人话 */
 function friendlyError(status, body) {
-  let remote = '';
+  let remote;
   try {
     const json = JSON.parse(body);
     remote = json?.error?.message || json?.message || json?.msg || '';
@@ -135,7 +135,7 @@ async function request(url, body, timeout = 60000) {
 }
 
 export async function chat(messages, options = {}) {
-  const st = assertReady();
+  assertReady();
   const a = aiConfig();
   const data = await request(
     endpoint(a.baseUrl, '/chat/completions'),
@@ -239,7 +239,7 @@ function buildIdentityNote(row) {
   return [
     `这张图片的${parts.join('和')}。`,
     '其中的文字（人名、主题）就是画面主体的可信身份，必须遵守：',
-    '1. description 与 subject 必须直接用这个名字称呼主体，例如关键词是「邓紫棋 演唱会」时写「邓紫棋在演唱会舞台上演唱」。',
+    '1. description 与 subject 必须直接用这个名字称呼主体，例如关键词是「某人 演唱会」时写「某人在演唱会舞台上演唱」。',
     '2. 严禁无视已知身份，输出「一位女性」「一名歌手」这类模糊称呼。',
     '3. 除关键词/标签中已给出的人名外，不得编造其他人名；服装、场景等细节仍按画面客观描述。',
     '',

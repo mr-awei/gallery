@@ -153,7 +153,8 @@ export async function restoreFromTrash(id) {
     );
   const newId = Number(info.lastInsertRowid);
   if (row.phash) indexPhash(newId, row.phash);
-  const thumb = await ensureThumb(newId, target);
+  // 还原拿到的是新的 id，同 id 的旧缓存（旧库/旧行残留）必须先清掉再生成
+  const thumb = await ensureThumb(newId, target, { force: true });
   if (thumb) db.prepare('UPDATE images SET thumb = ? WHERE id = ?').run(thumb, newId);
   db.prepare('DELETE FROM trash WHERE id = ?').run(id);
   return toDTO(getImage(newId));

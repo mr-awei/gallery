@@ -1,11 +1,23 @@
-import React, { useEffect, useMemo, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { api, downloadFile, quiet } from '../api';
+import { UPLOAD_HINT, importFiles } from '../lib/importer';
 import type { Filters, ImageItem, FolderNode, Playlist } from '../types';
 import FilterBar from '../components/FilterBar';
 import ImageCard from '../components/ImageCard';
 import { promptDialog } from '../components/Dialogs';
+import BulkEditDialog from '../components/BulkEditDialog';
+import BatchCropStudio, { type CropItem } from '../components/BatchCropStudio';
+import ExportDialog from '../components/ExportDialog';
+import RenameBatchDialog from '../components/RenameBatchDialog';
 import MasonryGrid from '../components/MasonryGrid';
+import StitchDialog from '../components/StitchDialog';
+import CompareView from '../components/CompareView';
+import ActionsPanel from '../components/ActionsPanel';
 import { IconDownload, IconFolder, IconHeart, IconRefresh, IconTrash } from '../components/Icons';
+import Select from '../components/Select';
+import ToolbarCustomizer from '../components/ToolbarCustomizer';
+import WatermarkStudio from '../components/WatermarkStudio';
+import { usePinnedActions } from '../lib/pinned';
 
 interface Props {
   title: string;
@@ -20,16 +32,31 @@ interface Props {
   selected: Set<number>;
   onToggleSelect: (id: number) => void;
   onClearSelection: () => void;
+  /** 全选「当前筛选下的全部图片」（不止已加载的一页） */
+  onSelectAll?: () => void;
   onBulk: (action: string, tag?: string) => void;
   onOpen: (item: ImageItem) => void;
   onToggleFavorite: (item: ImageItem) => void;
   onDownload: (item: ImageItem) => void;
-  viewMode: 'masonry' | 'grid';
-  onViewMode: (mode: 'masonry' | 'grid') => void;
+  /** 右键菜单：旋转 / 编辑标签后更新该卡片数据 */
+  onUpdateItem?: (item: ImageItem) => void;
+  /** 右键菜单：移入回收站后从列表移除 */
+  onDeleteItem?: (item: ImageItem) => void;
+  viewMode: 'masonry' | 'grid' | 'list';
+  onViewMode: (mode: 'masonry' | 'grid' | 'list') => void;
+  /** 缩略图尺寸滑块（列宽 px） */
+  colWidth?: number;
+  onColWidth?: (w: number) => void;
+  /** 各图片的标注数量（Eagle 式角标） */
+  annotationCounts?: Record<string, number>;
+  /** 完全重复（MD5）分组张数：imageId → 同组总数 */
+  dupeCounts?: Record<string, number>;
   tags: { tag: string; count: number }[];
   hideFavorite?: boolean;
   onStartCrawl: () => void;
   onRefresh: () => void;
+  /** 撤销最近一次覆盖写回（裁切/旋转/调色/增强） */
+  onUndo?: () => void;
   onToast?: (msg: string) => void;
   importing?: boolean;
   /** 导入进度：progress 0-100，saved 为已入库张数，message 为服务端任务名（边导边显示时用） */
@@ -49,17 +76,113 @@ interface Props {
   onPurgeMissing?: () => void;
   onAddToPlaylist?: (playlistId: number | string) => void;
   onAddToFolder?: (folderId: number | string) => void;
+  /** 当前所在文件夹（非空时多选工具栏提供「移出文件夹」） */
+  folderId?: number | null;
   /** 把当前筛选结果整体标记为已看 */
   onMarkAllSeen?: () => void;
+  /** 手动排序模式：拖到某张卡片上 = 插到它后面（仅文件夹视图 + sort=manual） */
+  manualSort?: boolean;
+  onReorder?: (dragIds: number[], targetId: number) => void;
 }
+
+/** 「重置筛选」的完整目标态：新增筛选字段必须同步，否则重置后条件仍残留 */
+const RESET_FILTERS: Partial<Filters> = {
+  favorite: 'all',
+  q: '',
+  source: [],
+  bucket: [],
+  tag: '',
+  seen: 'all',
+  orientation: 'all',
+  minRating: 0,
+  hue: '',
+  colorHex: '',
+  colorTol: 48,
+  kind: 'all',
+  pending: '',
+};
+
+/** 批量条默认露出的动作（其余收在「更多」里，用户可在面板里自由调整） */
+const BULK_PINNED_DEFAULT = ['download', 'export', 'stitch', 'favorite', 'delete'];
+
+/** 批量条上的一个可选动作；pinned 里命中 key 的露在条上，其余进「更多」菜单 */
+type BulkAct = {
+  key: string;
+  label: string;
+  /** 悬停提示 */
+  title: string;
+  /** 「更多」菜单里的小字说明 */
+  hint?: string;
+  icon?: React.ReactNode;
+  danger?: boolean;
+  /** 只在特定选择状态下可用（如「对比」要求正好 2 张） */
+  show?: boolean;
+  run: () => void;
+};
+
+/* 列表视图的固定行高（与 grid.css 的 .list-row / .list-head 保持一致） */
+const LIST_ROW_H = 58;
+const LIST_HEAD_H = 36;
+const LIST_OVERSCAN = 10;
+
+/* 入库扩展名 / 上传逻辑统一放在 lib/importer，图库与全局入口共用一份 */
+
+function fmtBytes(n: number) {
+  if (!n) return '—';
+  const u = ['B', 'KB', 'MB', 'GB'];
+  let v = n;
+  let i = 0;
+  while (v >= 1024 && i < u.length - 1) {
+    v /= 1024;
+    i++;
+  }
+  return `${v >= 10 || i === 0 ? Math.round(v) : v.toFixed(1)} ${u[i]}`;
+}
+
+const KIND_TEXT: Record<string, string> = {
+  image: '图片',
+  gif: 'GIF',
+  video: '视频',
+  audio: '音频',
+  font: '字体',
+  pdf: 'PDF',
+  office: 'Office',
+  model: '3D',
+  other: '文件',
+};
 
 export default function Gallery(props: Props) {
   const sentinel = useRef<HTMLDivElement | null>(null);
+  /**
+   * 可见区预览预热：把屏幕上这几张的预览图挪到服务端预取队首。
+   * 列表是整页顺序预取，用户滚到页尾点开时那张往往还没轮到 —— 那 1~2 秒模糊
+   * 就是这么来的。滚动停顿后上报一次，看哪儿哪儿就绪。
+   */
+  const warmVisible = useCallback((ids: number[]) => {
+    if (!ids.length) return;
+    api.warmPreviews(ids).catch(quiet);
+  }, []);
   const [missingDismissed, setMissingDismissed] = useState(false);
   const [playlists, setPlaylists] = useState<Playlist[]>([]);
   const [showPlaylistPick, setShowPlaylistPick] = useState(false);
   const [folders, setFolders] = useState<FolderNode[]>([]);
   const [showFolderPick, setShowFolderPick] = useState(false);
+  const [bulkEdit, setBulkEdit] = useState<null | 'crop' | 'color'>(null);
+  const [renaming, setRenaming] = useState(false);
+  /* 批量导出（Eagle 的导出面板：格式 / 质量 / 最长边，可原样打包） */
+  const [exportIds, setExportIds] = useState<number[] | null>(null);
+  /* 拼接 / 对比 / 动作：都只对「当前页里选中的那几张」操作 */
+  const [stitchOpen, setStitchOpen] = useState(false);
+  const [cmpIds, setCmpIds] = useState<[number, number] | null>(null);
+  const [actionsOpen, setActionsOpen] = useState(false);
+  const [removing, setRemoving] = useState(false);
+  /** 批量条的「更多」：低频批量操作收进菜单，别把 15 个按钮挤成一条 */
+  const [bulkMore, setBulkMore] = useState(false);
+  /* 拖拽 / 粘贴入库（Eagle 三件套） */
+  const [dragDepth, setDragDepth] = useState(0);
+  const [uploading, setUploading] = useState<{ done: number; total: number; saved: number; failed: number } | null>(
+    null
+  );
   const {
     items,
     hasMore,
@@ -77,6 +200,12 @@ export default function Gallery(props: Props) {
   useEffect(() => {
     if (selected.size > 0) api.playlists().then(setPlaylists).catch(quiet);
   }, [selected.size]);
+
+  // 取消全选后菜单别留着，下次多选时也不该自动弹开
+  const nothingSelected = selected.size === 0;
+  useEffect(() => {
+    if (nothingSelected) setBulkMore(false);
+  }, [nothingSelected]);
 
   // 多选时同步拉取文件夹树，供「加入文件夹」选择
   useEffect(() => {
@@ -119,13 +248,268 @@ export default function Gallery(props: Props) {
     return () => io.disconnect();
   }, [hasMore, loading, onLoadMore]);
 
+  /* 列表视图窗口化：.list-row 行高固定 58px（grid.css），可以按固定行高切片渲染，
+     上万张时只建视口附近几十个 DOM 节点，而不是一次性几万个。 */
+  const listRef = useRef<HTMLDivElement | null>(null);
+  const [listWin, setListWin] = useState({ start: 0, end: 60 });
+
+  useEffect(() => {
+    if (props.viewMode !== 'list') return;
+    const el = listRef.current;
+    if (!el) return;
+    // 滚动容器：向上找第一个可滚祖先（App 的 contentRef 区域）
+    let scroller: HTMLElement | null = el.parentElement;
+    while (scroller) {
+      const oy = getComputedStyle(scroller).overflowY;
+      if (oy === 'auto' || oy === 'scroll') break;
+      scroller = scroller.parentElement;
+    }
+    let raf = 0;
+    const recompute = () => {
+      const rows = props.items.length;
+      if (!rows) {
+        setListWin({ start: 0, end: 0 });
+        return;
+      }
+      // 纯视口坐标计算，不依赖滚动容器内部偏移，window 滚动也适用
+      const listTop = el.getBoundingClientRect().top + LIST_HEAD_H;
+      const viewTop = scroller ? scroller.getBoundingClientRect().top : 0;
+      const viewH = scroller ? scroller.clientHeight : window.innerHeight;
+      const passed = viewTop - listTop; // >0：列表顶部已经滚出视口
+      const start = Math.max(0, Math.floor(passed / LIST_ROW_H) - LIST_OVERSCAN);
+      const count = Math.ceil(viewH / LIST_ROW_H) + LIST_OVERSCAN * 2 + 2;
+      setListWin({ start, end: Math.min(rows, start + count) });
+    };
+    const schedule = () => {
+      if (raf) return;
+      raf = requestAnimationFrame(() => {
+        raf = 0;
+        recompute();
+      });
+    };
+    recompute();
+    // 用 document 捕获所有滚动：绑定目标不再取决于「这一刻能不能探测到滚动容器」——
+    // 灯箱打开时 .content 被改成 overflow:hidden，探测会失败，绑到 window 就再也收不到
+    // 列表容器的滚动事件（列表滑不动/白屏）
+    document.addEventListener('scroll', schedule, { capture: true, passive: true });
+    window.addEventListener('scroll', schedule, { passive: true });
+    window.addEventListener('resize', schedule);
+    return () => {
+      if (raf) cancelAnimationFrame(raf);
+      document.removeEventListener('scroll', schedule, { capture: true });
+      window.removeEventListener('scroll', schedule);
+      window.removeEventListener('resize', schedule);
+    };
+  }, [props.viewMode, props.items.length]);
+
+
+
+  // 选中集合不变时保持同一数组引用：每次渲染新建数组会让 ImageCard 的 memo 全部失效
+  const dragIds = useMemo(() => (selected.size > 1 ? Array.from(selected) : null), [selected]);
+  const listStart = Math.max(0, Math.min(listWin.start, Math.max(0, items.length - 1)));
+  const listSlice = items.slice(listStart, Math.max(listStart, listWin.end));
+
+  // 列表视图同样做可见区预热：列表一屏能看 30+ 张，点开前先让这几张的预览就绪
+  const listIdsSig = props.viewMode === 'list' ? listSlice.map((it) => it.id).join(',') : '';
+  useEffect(() => {
+    if (!listIdsSig) return;
+    const ids = listIdsSig.split(',').map(Number);
+    const t = window.setTimeout(() => warmVisible(ids), 700);
+    return () => window.clearTimeout(t);
+  }, [listIdsSig, warmVisible]);
+
   const downloadZip = () => {
     const ids = [...selected].join(',');
     if (ids) downloadFile(`/api/download/zip?ids=${ids}`);
   };
 
+  /** 把选中的图从当前文件夹移出（只解除归类，不删文件） */
+  const removeFromCurrentFolder = async () => {
+    const fid = props.folderId;
+    if (!fid || !selected.size || removing) return;
+    setRemoving(true);
+    try {
+      const r = await api.removeFromFolder(fid, [...selected]);
+      props.onToast?.(`已从当前文件夹移出 ${r.removed} 张`);
+      onClearSelection();
+      props.onRefresh();
+    } catch (err) {
+      props.onToast?.(`移出失败：${(err as Error).message}`);
+    } finally {
+      setRemoving(false);
+    }
+  };
+
+  /** 拖拽入库：和全局粘贴共用 lib/importer，这里额外显示逐张进度 */
+  const uploadFiles = useCallback(
+    async (files: File[]) => {
+      setUploading({ done: 0, total: files.length, saved: 0, failed: 0 });
+      const r = await importFiles(files, setUploading);
+      setUploading(null);
+      if (!r.saved) {
+        props.onToast?.(
+          r.skipped
+            ? `没有可入库的文件（${UPLOAD_HINT}）`
+            : `入库失败：${r.failed} 个文件未通过${r.firstError ? `（${r.firstError}）` : ''}`
+        );
+        return;
+      }
+      props.onToast?.(
+        r.failed
+          ? `入库完成：${r.saved} 个成功，${r.failed} 个失败${r.firstError ? `（${r.firstError}）` : ''}`
+          : `已入库 ${r.saved} 个文件`
+      );
+      props.onRefresh();
+    },
+    [props.onToast, props.onRefresh]
+  );
+
+  /* Ctrl+V 交给 App 层的 GlobalImport 统一处理（图库页卸载后也能粘），这里只保留拖拽进度条 */
+
+  /* 批量条自定义：acts 是全集，pinned 决定哪些直接露在条上，其余收进「更多」 */
+  const [bulkPinned, setBulkPinned] = usePinnedActions('bulk', BULK_PINNED_DEFAULT);
+  const [tczOpen, setTczOpen] = useState(false);
+  const [watermarkIds, setWatermarkIds] = useState<number[]>([]);
+
+  const bulkActs: BulkAct[] = [
+    {
+      key: 'download',
+      label: '打包下载',
+      title: '原样打包下载（不改格式，最快）',
+      hint: '原样打包，最快',
+      icon: <IconDownload />,
+      run: downloadZip,
+    },
+    {
+      key: 'export',
+      label: '导出…',
+      title: '批量导出：转成 JPEG / PNG / WebP / AVIF，可改质量与最长边，打包成 zip',
+      hint: '转格式 / 质量 / 最长边',
+      run: () => setExportIds([...selected]),
+    },
+    {
+      key: 'stitch',
+      label: '拼接…',
+      title: '把选中的图按网格拼成一张联系表（可调列数 / 间距 / 底色 / 格式）',
+      hint: '多张拼成一张联系表',
+      run: () => setStitchOpen(true),
+    },
+    {
+      key: 'watermark',
+      label: '水印 / 相框…',
+      title: '读取 EXIF 加相机信息水印或加相框，可批量套用同一套参数',
+      hint: '23 款水印 · 20 款相框',
+      run: () => setWatermarkIds([...selected]),
+    },
+    {
+      key: 'favorite',
+      label: '收藏',
+      title: '给选中的图全部打上收藏',
+      hint: '全部打上收藏',
+      icon: <IconHeart filled />,
+      run: () => onBulk('favorite'),
+    },
+    {
+      key: 'unfavorite',
+      label: '取消收藏',
+      title: '把选中的图全部取消收藏',
+      hint: '全部取消收藏',
+      run: () => onBulk('unfavorite'),
+    },
+    {
+      key: 'compare',
+      label: '对比',
+      title: '并排 / 分割 / 重叠三种方式对比选中的两张',
+      hint: '并排 / 分割 / 重叠',
+      show: selected.size === 2,
+      run: () => {
+        const two = [...selected];
+        setCmpIds([two[0], two[1]]);
+      },
+    },
+    {
+      key: 'actions',
+      label: '动作…',
+      title: '批量打标签 / 评分 / 备注',
+      hint: '批量打标签 / 评分 / 备注',
+      run: () => setActionsOpen(true),
+    },
+    {
+      key: 'crop',
+      label: '批量裁切…',
+      title: '统一比例 / 横竖 / 自动对焦',
+      hint: '统一比例 / 横竖 / 自动对焦',
+      run: () => setBulkEdit('crop'),
+    },
+    {
+      key: 'color',
+      label: '批量调色…',
+      title: '白平衡 / 影调 / 曲线',
+      hint: '白平衡 / 影调 / 曲线',
+      run: () => setBulkEdit('color'),
+    },
+    {
+      key: 'rename',
+      label: '批量重命名…',
+      title: '按模板改名',
+      hint: '按模板改名',
+      run: () => setRenaming(true),
+    },
+    {
+      key: 'ocr',
+      label: 'OCR 识别文字',
+      title: '识别选中图里的文字，识别完可按内容搜索',
+      hint: '识别完可按内容搜索',
+      run: () => {
+        const ids = [...selected];
+        props.onToast?.(`正在识别 ${ids.length} 张图里的文字…`);
+        void api
+          .ocrBatch(ids)
+          .then((r) => {
+            props.onToast?.(`识别完成：${r.okCount} / ${r.total} 张有结果`);
+            props.onRefresh();
+          })
+          .catch((err) => props.onToast?.((err as Error).message));
+      },
+    },
+    {
+      key: 'delete',
+      label: '删除',
+      title: '移入回收站（可恢复）',
+      hint: '移入回收站，可恢复',
+      icon: <IconTrash />,
+      danger: true,
+      run: () => onBulk('delete'),
+    },
+  ];
+
+  const bulkShown = bulkActs.filter((a) => a.show !== false);
+  const bulkOnBar = bulkPinned
+    .map((k) => bulkShown.find((a) => a.key === k))
+    .filter((a): a is BulkAct => Boolean(a));
+  const bulkInMenu = bulkShown.filter((a) => !bulkPinned.includes(a.key));
+
   return (
-    <div>
+    <div
+      onDragEnter={(e) => {
+        if (!Array.from(e.dataTransfer.types).includes('Files')) return;
+        e.preventDefault();
+        setDragDepth((d) => d + 1);
+      }}
+      onDragOver={(e) => {
+        if (!Array.from(e.dataTransfer.types).includes('Files')) return;
+        e.preventDefault();
+        e.dataTransfer.dropEffect = 'copy';
+      }}
+      onDragLeave={() => setDragDepth((d) => Math.max(0, d - 1))}
+      onDrop={(e) => {
+        if (!Array.from(e.dataTransfer.types).includes('Files')) return;
+        e.preventDefault();
+        setDragDepth(0);
+        const files = Array.from(e.dataTransfer.files || []);
+        if (files.length) void uploadFiles(files);
+      }}
+    >
       <div className="sticky-head">
         <div className="page-head">
         <div>
@@ -133,6 +517,13 @@ export default function Gallery(props: Props) {
           <div className="page-sub">{props.subtitle}</div>
         </div>
         <div style={{ display: 'flex', gap: 8 }}>
+          <button
+            className="btn"
+            onClick={() => props.onUndo?.()}
+            title="撤销最近一次编辑（覆盖写回可用它还原，Ctrl+Z）"
+          >
+            撤销编辑
+          </button>
           <button
             className="btn"
             onClick={props.onRefresh}
@@ -157,21 +548,7 @@ export default function Gallery(props: Props) {
           </button>
           <button
             className="btn primary"
-            onClick={() => {
-              props.onFiltersChange({
-                favorite: 'all',
-                q: '',
-                source: [],
-                bucket: [],
-                tag: '',
-                seen: 'all',
-                orientation: 'all',
-                minRating: 0,
-                hue: '',
-                colorHex: '',
-                colorTol: 48,
-              });
-            }}
+            onClick={() => props.onFiltersChange(RESET_FILTERS)}
           >
             重置筛选
           </button>
@@ -236,8 +613,11 @@ export default function Gallery(props: Props) {
           tags={tags}
           viewMode={viewMode}
           onViewMode={props.onViewMode}
+          colWidth={props.colWidth}
+          onColWidth={props.onColWidth}
           total={total}
           hideFavorite={props.hideFavorite}
+          canManualSort={!!props.folderId}
           onMarkAllSeen={props.onMarkAllSeen}
         />
       </div>
@@ -256,7 +636,7 @@ export default function Gallery(props: Props) {
             <p>图片会边扫描边显示，无需等待全部完成。</p>
           ) : (
             <p>
-              前往「采集」页面，选择关键词与来源开始自动采集全网邓紫棋高清图，
+              前往「采集」页面，选择关键词与来源开始自动采集全网高清图，
               <br />
               采集结果会自动去重并按分辨率筛选后进入图库。
             </p>
@@ -269,22 +649,127 @@ export default function Gallery(props: Props) {
         </div>
       )}
 
-      {/* 绝对定位瀑布流 + 虚拟滚动：大图库只渲染视口附近卡片，滚动不整列重排 */}
-      <MasonryGrid
-        items={items}
-        mode={viewMode === 'grid' ? 'grid' : 'masonry'}
-        renderItem={(item) => (
-          <ImageCard
-            item={item}
-            selected={selected.has(item.id)}
-            onOpen={props.onOpen}
-            onToggleSelect={props.onToggleSelect}
-            onToggleFavorite={props.onToggleFavorite}
-            onDownload={props.onDownload}
-            resetKey={props.refreshSeq}
-          />
-        )}
-      />
+      {viewMode === 'list' ? (
+        /* 列表视图（Eagle List View）：一屏看更多，靠标签/日期/大小做整理 */
+        <div className="list-view" ref={listRef}>
+          <div className="list-head">
+            <span />
+            {/* 表头即排序开关：再点一次换方向，省得回到筛选栏去找 */}
+            <button
+              className={`list-sort${props.filters.sort === 'name' ? ' on' : ''}`}
+              onClick={() => props.onFiltersChange({ sort: 'name' })}
+              title="按文件名排序"
+            >
+              名称{props.filters.sort === 'name' ? ' ↑' : ''}
+            </button>
+            <span>类型</span>
+            <span>尺寸 / 时长</span>
+            <button
+              className={`list-sort${props.filters.sort === 'size' ? ' on' : ''}`}
+              onClick={() => props.onFiltersChange({ sort: 'size' })}
+              title="按文件大小排序（大的在前）"
+            >
+              大小{props.filters.sort === 'size' ? ' ↓' : ''}
+            </button>
+            <span>标签</span>
+            <button
+              className={`list-sort${props.filters.sort === 'new' || props.filters.sort === 'old' ? ' on' : ''}`}
+              onClick={() => props.onFiltersChange({ sort: props.filters.sort === 'new' ? 'old' : 'new' })}
+              title="按入库时间排序，点击切换新旧"
+            >
+              采集时间{props.filters.sort === 'new' ? ' ↓' : props.filters.sort === 'old' ? ' ↑' : ''}
+            </button>
+          </div>
+          {/* 外层撑出总高度保持滚动条长度，内层平移后只渲染切片 */}
+          <div style={{ position: 'relative', height: items.length * LIST_ROW_H }}>
+            <div style={{ transform: `translateY(${listStart * LIST_ROW_H}px)`, willChange: 'transform' }}>
+          {listSlice.map((it) => (
+            <div
+              key={it.id}
+              className={`list-row${selected.has(it.id) ? ' selected' : ''}`}
+              onClick={() => props.onOpen(it)}
+              title={it.title}
+              draggable
+              onDragStart={(e) => {
+                const ids = selected.has(it.id) && selected.size > 1 ? Array.from(selected) : [it.id];
+                e.dataTransfer.setData('application/x-gem-image-id', ids.join(','));
+                e.dataTransfer.effectAllowed = 'copy';
+              }}
+            >
+              <span
+                className={`list-check${selected.has(it.id) ? ' on' : ''}`}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  props.onToggleSelect(it.id);
+                }}
+              >
+                {selected.has(it.id) ? '✓' : ''}
+              </span>
+              <span className="list-name">
+                <img src={it.thumbUrl} alt="" loading="lazy" />
+                <span className="list-title">{it.title}</span>
+                {it.favorite && <span className="list-star">★</span>}
+                {!!props.annotationCounts?.[String(it.id)] && (
+                  <span className="list-badge" title={`${props.annotationCounts[String(it.id)]} 处标注`}>
+                    ✏ {props.annotationCounts[String(it.id)]}
+                  </span>
+                )}
+                {!!props.dupeCounts?.[String(it.id)] && props.dupeCounts[String(it.id)] > 1 && (
+                  <span className="list-badge dupe" title={`${props.dupeCounts[String(it.id)]} 个完全相同的文件`}>
+                    ×{props.dupeCounts[String(it.id)]}
+                  </span>
+                )}
+              </span>
+              <span className="list-kind">{KIND_TEXT[it.mediaKind || 'image'] || '文件'}</span>
+              <span className="list-dim">
+                {it.width > 0 && it.height > 0
+                  ? `${it.width}×${it.height}`
+                  : it.duration > 0
+                    ? `${Math.round(it.duration)}s`
+                    : '—'}
+              </span>
+              <span className="list-size">{fmtBytes(it.sizeBytes)}</span>
+              <span className="list-tags">
+                {it.tags.slice(0, 3).map((t) => (
+                  <span key={t} className="tag-pill">
+                    {t}
+                  </span>
+                ))}
+                {it.tags.length > 3 && <span className="tag-pill">+{it.tags.length - 3}</span>}
+              </span>
+              <span className="list-date">{it.createdAt ? it.createdAt.slice(0, 10) : '—'}</span>
+            </div>
+          ))}
+            </div>
+          </div>
+        </div>
+      ) : (
+        /* 绝对定位瀑布流 + 虚拟滚动：大图库只渲染视口附近卡片，滚动不整列重排 */
+        <MasonryGrid
+          items={items}
+          mode={viewMode === 'grid' ? 'grid' : 'masonry'}
+          colWidth={props.colWidth}
+          onVisibleIds={warmVisible}
+          renderItem={(item) => (
+            <ImageCard
+              item={item}
+              selected={selected.has(item.id)}
+              onOpen={props.onOpen}
+              onToggleSelect={props.onToggleSelect}
+              onToggleFavorite={props.onToggleFavorite}
+              onDownload={props.onDownload}
+              onUpdateItem={props.onUpdateItem}
+              onDeleteItem={props.onDeleteItem}
+              resetKey={props.refreshSeq}
+              annotationCount={props.annotationCounts?.[String(item.id)]}
+              dupeCount={props.dupeCounts?.[String(item.id)]}
+              dragIds={dragIds && selected.has(item.id) ? dragIds : undefined}
+              manualSort={props.manualSort}
+              onReorderDrop={props.onReorder}
+            />
+          )}
+        />
+      )}
 
       <div className="load-more" ref={sentinel}>
         {loading ? (
@@ -300,85 +785,292 @@ export default function Gallery(props: Props) {
 
       {selected.size > 0 && (
         <div className="bulk-bar">
-          <b>已选中 {selected.size} 张</b>
-          <button className="btn sm" onClick={downloadZip}>
-            <IconDownload /> 打包下载 ZIP
-          </button>
-          <button className="btn sm" onClick={() => onBulk('favorite')}>
-            <IconHeart filled /> 收藏
-          </button>
-          <button className="btn sm" onClick={() => onBulk('unfavorite')}>
-            取消收藏
-          </button>
-          {props.onAddToPlaylist && (
-            <button className="btn sm" onClick={() => setShowPlaylistPick((v) => !v)}>
-              <IconFolder /> 加入清单
-            </button>
-          )}
-          {props.onAddToPlaylist && showPlaylistPick && (
-            <select
-              className="input"
-              style={{ width: 170, padding: '5px 9px', fontSize: 12.5 }}
-              autoFocus
-              defaultValue=""
-              onChange={(e) => {
-                const v = e.target.value;
-                if (!v) return;
-                void (async () => {
-                  const name = v === '__new__' ? await promptDialog('新清单名称') : '';
-                  props.onAddToPlaylist!(v === '__new__' ? `__new__:${name || ''}` : Number(v));
-                  setShowPlaylistPick(false);
-                })();
-              }}
-            >
-              <option value="">选择清单…</option>
-              {playlists.map((p) => (
-                <option key={p.id} value={p.id}>
-                  {p.name}（{p.count ?? 0}）
-                </option>
-              ))}
-              <option value="__new__">＋ 新建清单…</option>
-            </select>
-          )}
-          {props.onAddToFolder && (
-            <button className="btn sm" onClick={() => setShowFolderPick((v) => !v)}>
-              <IconFolder /> 加入文件夹
-            </button>
-          )}
-          {props.onAddToFolder && showFolderPick && (
-            <select
-              className="input"
-              style={{ width: 190, padding: '5px 9px', fontSize: 12.5 }}
-              autoFocus
-              defaultValue=""
-              onChange={(e) => {
-                const v = e.target.value;
-                if (!v) return;
-                void (async () => {
-                  const name = v === '__new__' ? await promptDialog('新文件夹名称') : '';
-                  props.onAddToFolder!(v === '__new__' ? `__new__:${name || ''}` : Number(v));
-                  setShowFolderPick(false);
-                })();
-              }}
-            >
-              <option value="">选择文件夹…</option>
-              {sortedFolders.map((f) => (
-                <option key={f.id} value={f.id}>
-                  {'　'.repeat(folderDepth.get(f.id) || 0)}
-                  {f.name}（{f.count ?? 0}）
-                </option>
-              ))}
-              <option value="__new__">＋ 新建文件夹…</option>
-            </select>
-          )}
-          <button className="btn sm danger" onClick={() => onBulk('delete')}>
-            <IconTrash /> 删除
-          </button>
-          <div style={{ marginLeft: 'auto' }}>
-            <button className="btn sm ghost" onClick={onClearSelection}>
+          <div className="bulk-info">
+            <b className="bulk-count">已选中 {selected.size} 张</b>
+            {total > selected.size && <span className="bulk-sub">筛选结果共 {total} 张</span>}
+            {props.onSelectAll && selected.size < total && (
+              <button
+                className="bulk-link"
+                title="选中当前筛选条件下的全部图片（不只是已加载的这几屏）"
+                onClick={props.onSelectAll}
+              >
+                全选全部
+              </button>
+            )}
+          </div>
+          <div className="bulk-acts">
+            {bulkOnBar.map((a) => (
+              <button
+                key={a.key}
+                className={`btn sm${a.danger ? ' danger' : ''}`}
+                title={a.title}
+                onClick={a.run}
+              >
+                {a.icon}
+                {a.label}
+              </button>
+            ))}
+            <div className="bulk-more-wrap">
+              <button
+                className={`btn sm${bulkMore ? ' on' : ''}`}
+                title="低频批量处理与归类；可在菜单底部自定义条上显示哪些动作"
+                onClick={() => setBulkMore((v) => !v)}
+              >
+                更多 ▾
+              </button>
+              {bulkMore && (
+                <>
+                  <div className="bulk-more-mask" onMouseDown={() => setBulkMore(false)} />
+                  <div className="bulk-more" role="menu">
+                    {bulkInMenu.map((a) => (
+                      <button
+                        key={a.key}
+                        className="bulk-more-item"
+                        title={a.title}
+                        onClick={() => {
+                          setBulkMore(false);
+                          a.run();
+                        }}
+                      >
+                        {a.label}
+                        {a.hint && <em>{a.hint}</em>}
+                      </button>
+                    ))}
+                    {bulkInMenu.length > 0 && <div className="bulk-more-sep" />}
+                    {props.onAddToPlaylist && (
+                      <button
+                        className="bulk-more-item"
+                        onClick={() => {
+                          // 展开时重新拉一次，避免多选期间新建的清单不在列表里
+                          api.playlists().then(setPlaylists).catch(quiet);
+                          setShowPlaylistPick((v) => !v);
+                        }}
+                      >
+                        加入清单…<em>选一个清单，或直接新建</em>
+                      </button>
+                    )}
+                    {props.onAddToPlaylist && showPlaylistPick && (
+                      <div className="bulk-more-pick">
+                        <Select
+                          className="bulk-more-select"
+                          value=""
+                          title="选一个清单，或直接新建"
+                          placeholder="选择清单…"
+                          onChange={(v) => {
+                            if (!v) return;
+                            void (async () => {
+                              const name = v === '__new__' ? await promptDialog('新清单名称') : '';
+                              props.onAddToPlaylist!(v === '__new__' ? `__new__:${name || ''}` : Number(v));
+                              setShowPlaylistPick(false);
+                              setBulkMore(false);
+                            })();
+                          }}
+                          options={[
+                            { value: '', label: '选择清单…', disabled: true },
+                            ...playlists.map((p) => ({
+                              value: String(p.id),
+                              label: `${p.name}（${p.count ?? 0}）`,
+                            })),
+                            { value: '__new__', label: '＋ 新建清单…' },
+                          ]}
+                        />
+                      </div>
+                    )}
+                    {props.onAddToFolder && (
+                      <button
+                        className="bulk-more-item"
+                        onClick={() => {
+                          // 展开时重新拉一次：侧栏刚新建/改名的文件夹要立刻可选（原来只在选中数变化时拉，会缺项）
+                          api.folders().then((r) => setFolders(r.folders)).catch(quiet);
+                          setShowFolderPick((v) => !v);
+                        }}
+                      >
+                        加入文件夹…<em>归到某个文件夹下</em>
+                      </button>
+                    )}
+                    {props.onAddToFolder && showFolderPick && (
+                      <div className="bulk-more-pick">
+                        <Select
+                          className="bulk-more-select"
+                          value=""
+                          title="归到某个文件夹下"
+                          placeholder="选择文件夹…"
+                          onChange={(v) => {
+                            if (!v) return;
+                            void (async () => {
+                              const name = v === '__new__' ? await promptDialog('新文件夹名称') : '';
+                              props.onAddToFolder!(v === '__new__' ? `__new__:${name || ''}` : Number(v));
+                              setShowFolderPick(false);
+                              setBulkMore(false);
+                            })();
+                          }}
+                          options={[
+                            { value: '', label: '选择文件夹…', disabled: true },
+                            ...sortedFolders.map((f) => ({
+                              value: String(f.id),
+                              label: `${'　'.repeat(folderDepth.get(f.id) || 0)}${f.name}（${f.count ?? 0}）`,
+                            })),
+                            { value: '__new__', label: '＋ 新建文件夹…' },
+                          ]}
+                        />
+                      </div>
+                    )}
+                    {props.folderId != null && (
+                      <button
+                        className="bulk-more-item"
+                        disabled={removing}
+                        title="把选中的图从当前文件夹移出（只解除归类，不删除文件）"
+                        onClick={() => {
+                          setBulkMore(false);
+                          void removeFromCurrentFolder();
+                        }}
+                      >
+                        {removing ? '移出中…' : '从当前文件夹移出'}
+                      </button>
+                    )}
+                    <div className="bulk-more-sep" />
+                    <button
+                      className="bulk-more-item"
+                      title="选择哪些动作直接显示在批量条上"
+                      onClick={() => {
+                        setBulkMore(false);
+                        setTczOpen(true);
+                      }}
+                    >
+                      ⚙ 自定义工具栏…<em>把常用动作挪到条上</em>
+                    </button>
+                  </div>
+                </>
+              )}
+            </div>
+            <button className="btn sm ghost bulk-clear" onClick={onClearSelection}>
               取消选择
             </button>
           </div>
+        </div>
+      )}
+
+      {/* 批量裁切：独立的全屏裁切台（每张一个框，可选比例/横竖/尺寸/自动焦点） */}
+      {bulkEdit === 'crop' && (
+        <BatchCropStudio
+          items={items
+            .filter((x) => selected.has(x.id) && (x.mediaKind === 'image' || x.mediaKind === 'gif'))
+            .map<CropItem>((x) => ({
+              id: x.id,
+              title: x.title,
+              thumb: x.thumbUrl,
+              url: x.url,
+              width: x.width,
+              height: x.height,
+            }))}
+          onClose={() => setBulkEdit(null)}
+          onToast={props.onToast}
+          onDone={props.onRefresh}
+        />
+      )}
+
+      {bulkEdit === 'color' && (
+        <BulkEditDialog
+          ids={[...selected]}
+          preview={(() => {
+            // 取当前页里第一张选中项做预览（跨页选中时可能取不到，调色台会提示）
+            const it = items.find((x) => selected.has(x.id));
+            return it ? { src: it.url, title: it.title, meta: `${it.width} × ${it.height}` } : undefined;
+          })()}
+          films={items
+            .filter((x) => selected.has(x.id))
+            .slice(0, 240)
+            .map((x) => ({
+              id: x.id,
+              src: x.url,
+              thumb: x.thumbUrl,
+              title: x.title,
+              meta: `${x.width} × ${x.height}`,
+            }))}
+          onClose={() => setBulkEdit(null)}
+          onToast={props.onToast}
+          onDone={props.onRefresh}
+        />
+      )}
+
+      {renaming && (
+        <RenameBatchDialog
+          ids={[...selected]}
+          items={items.filter((x) => selected.has(x.id))}
+          onClose={() => setRenaming(false)}
+          onToast={props.onToast ?? (() => undefined)}
+          onDone={props.onRefresh}
+        />
+      )}
+
+      {exportIds && (
+        <ExportDialog ids={exportIds} onClose={() => setExportIds(null)} onToast={props.onToast} />
+      )}
+
+      {stitchOpen && (
+        <StitchDialog
+          items={items.filter((x) => selected.has(x.id)).slice(0, 60)}
+          onClose={() => setStitchOpen(false)}
+          onToast={props.onToast}
+        />
+      )}
+
+      {cmpIds && (
+        <CompareView
+          items={items.filter((x) => cmpIds.includes(x.id))}
+          leftId={cmpIds[0]}
+          rightId={cmpIds[1]}
+          onClose={() => setCmpIds(null)}
+          readOnly
+        />
+      )}
+
+      <ActionsPanel
+        open={actionsOpen}
+        ids={[...selected]}
+        onClose={() => setActionsOpen(false)}
+        onToast={props.onToast}
+        onRefresh={props.onRefresh}
+      />
+
+      {/* 水印 / 相框：单张与批量共用一个工作台 */}
+      <WatermarkStudio
+        open={watermarkIds.length > 0}
+        ids={watermarkIds}
+        onClose={() => setWatermarkIds([])}
+        onToast={props.onToast}
+        onDone={props.onRefresh}
+      />
+
+      {/* 批量条自定义：决定哪些动作直接露在条上，其余收进「更多」 */}
+      <ToolbarCustomizer
+        open={tczOpen}
+        title="自定义批量操作条"
+        barName="操作条"
+        hint="左边是直接显示在批量条上的动作（按顺序排列），右边收在「更多 ▾」里。加入清单 / 加入文件夹等归类动作固定在「更多」中。"
+        all={bulkShown.map((a) => ({ key: a.key, label: a.label }))}
+        pinned={bulkPinned}
+        defaults={BULK_PINNED_DEFAULT}
+        onChange={setBulkPinned}
+        onClose={() => setTczOpen(false)}
+      />
+
+
+      {/* 拖拽入库：整页接收文件，松手即入库（Eagle 同款体验） */}
+      {dragDepth > 0 && (
+        <div className="drop-zone">
+          <div className="drop-zone-inner">
+            <div className="big">⬇</div>
+            <b>松开鼠标即可入库</b>
+            <p>支持图片 / 视频 / GIF / 音频 / 字体 / PDF / Office / 3D 模型</p>
+          </div>
+        </div>
+      )}
+      {uploading && (
+        <div className="upload-toast">
+          <span className="spinner" /> 正在入库 {uploading.done}/{uploading.total}
+          {uploading.saved ? ` · 成功 ${uploading.saved}` : ''}
+          {uploading.failed ? ` · 失败 ${uploading.failed}` : ''}
         </div>
       )}
     </div>

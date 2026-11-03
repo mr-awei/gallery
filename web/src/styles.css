@@ -18,5 +18,7 @@
 @import './styles/bulkbar.css';
 @import './styles/modal.css';
 @import './styles/tidy.css';
+@import './styles/batchcrop.css';
 @import './styles/theme-light.css';
 @import './styles/smart.css';
+@import './styles/toolkit.css';

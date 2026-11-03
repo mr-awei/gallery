@@ -2,6 +2,7 @@ import React, { useCallback, useEffect, useState } from 'react';
 import { api, quiet } from '../api';
 import type { ImageItem, Playlist } from '../types';
 import { IconFolder, IconTrash, IconWallpaper } from '../components/Icons';
+import { promptDialog } from '../components/Dialogs';
 import { formatDate } from '../api';
 
 export default function Playlists({
@@ -17,12 +18,21 @@ export default function Playlists({
   const [activeId, setActiveId] = useState<number | null>(null);
   const [items, setItems] = useState<ImageItem[]>([]);
   const [newName, setNewName] = useState('');
+  const [newDesc, setNewDesc] = useState('');
+  /** 描述草稿：后端 PUT 一直支持 description，界面上原来没有入口，字段永远是空串 */
+  const [descDraft, setDescDraft] = useState('');
+  const activeList = lists.find((p) => p.id === activeId) || null;
 
   const refresh = useCallback(() => {
     api.playlists().then(setLists).catch(quiet);
   }, []);
 
   useEffect(refresh, [refresh]);
+
+  // 切换清单时把草稿同步成该清单的已保存描述（否则会把上一个清单的描述带过去）
+  useEffect(() => {
+    setDescDraft(activeList?.description || '');
+  }, [activeId, activeList?.description]);
 
   useEffect(() => {
     if (!activeId) {
@@ -35,12 +45,40 @@ export default function Playlists({
   const create = async () => {
     const name = newName.trim();
     if (!name) return;
-    const res = await api.createPlaylist(name);
+    // 描述一起提交：建完再补填的话，用户通常就直接忘了，字段永远空着
+    const res = await api.createPlaylist(name, newDesc.trim());
     setLists(res.playlists);
     setNewName('');
+    setNewDesc('');
     const created = res.playlists.find((p) => p.name === name);
     if (created) setActiveId(created.id);
     onToast(`已创建清单「${name}」`);
+  };
+
+  /** 清单改名：API 早就支持 PUT，界面上一直没有入口 */
+  const renameList = async (p: Playlist) => {
+    const nn = (await promptDialog('清单名称：', p.name))?.trim();
+    if (!nn || nn === p.name) return;
+    try {
+      const res = await api.updatePlaylist(p.id, { name: nn });
+      setLists(res.playlists);
+      onToast(`已重命名为「${nn}」`);
+    } catch (err) {
+      onToast((err as Error).message);
+    }
+  };
+
+  /** 保存描述（空串表示清空） */
+  const saveDescription = async (p: Playlist) => {
+    const text = descDraft.trim();
+    if (text === (p.description || '')) return;
+    try {
+      const res = await api.updatePlaylist(p.id, { description: text });
+      setLists(res.playlists);
+      onToast(text ? '描述已保存' : '描述已清空');
+    } catch (err) {
+      onToast((err as Error).message);
+    }
   };
 
   const removeList = async (p: Playlist) => {
@@ -87,10 +125,39 @@ export default function Playlists({
                 onClick={() => setActiveId(p.id)}
               >
                 <IconFolder />
-                <span>{p.name}</span>
+                <span style={{ display: 'flex', flexDirection: 'column', minWidth: 0, flex: 1 }}>
+                  <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                    {p.name}
+                  </span>
+                  {p.description && (
+                    <span
+                      style={{
+                        color: 'var(--muted)',
+                        fontSize: 11,
+                        overflow: 'hidden',
+                        textOverflow: 'ellipsis',
+                        whiteSpace: 'nowrap',
+                      }}
+                      title={p.description}
+                    >
+                      {p.description}
+                    </span>
+                  )}
+                </span>
                 <span style={{ color: 'var(--muted)', fontSize: 11.5 }}>{p.count}</span>
                 <button
+                  className="mini"
+                  title="重命名"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    void renameList(p);
+                  }}
+                >
+                  改
+                </button>
+                <button
                   className="del"
+                  title="删除清单"
                   onClick={(e) => {
                     e.stopPropagation();
                     removeList(p);
@@ -119,6 +186,15 @@ export default function Playlists({
               新建
             </button>
           </div>
+          <input
+            className="input"
+            style={{ width: '100%', marginTop: 8 }}
+            placeholder="描述（可选，如「竖版手机壁纸」）"
+            value={newDesc}
+            maxLength={500}
+            onChange={(e) => setNewDesc(e.target.value)}
+            onKeyDown={(e) => e.key === 'Enter' && create()}
+          />
         </div>
 
         <div className="card">
@@ -136,6 +212,33 @@ export default function Playlists({
               <button className="btn sm" onClick={() => lists.find((p) => p.id === activeId) && useForAuto(lists.find((p) => p.id === activeId)!)}>
                 <IconWallpaper /> 设为自动换壁纸的范围
               </button>
+              <button
+                className="btn sm"
+                onClick={() => {
+                  const p = lists.find((x) => x.id === activeId);
+                  if (p) void renameList(p);
+                }}
+              >
+                重命名清单
+              </button>
+            </div>
+          )}
+
+          {/* 描述：后端 PUT 支持了很久，之前界面没有入口，导致 description 永远是空串 */}
+          {activeList && (
+            <div style={{ marginBottom: 12 }}>
+              <textarea
+                className="input"
+                style={{ width: '100%', minHeight: 54, resize: 'vertical', lineHeight: 1.6 }}
+                placeholder="给这个清单写点说明，比如「演唱会现场竖版，用于手机壁纸」"
+                value={descDraft}
+                maxLength={500}
+                onChange={(e) => setDescDraft(e.target.value)}
+                onBlur={() => void saveDescription(activeList)}
+              />
+              <div className="hint" style={{ margin: '4px 0 0' }}>
+                描述会在清单列表里显示，切换清单或失焦时自动保存（{descDraft.length}/500）
+              </div>
             </div>
           )}
 

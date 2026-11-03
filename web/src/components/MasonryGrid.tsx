@@ -28,9 +28,14 @@ interface Props {
   renderItem: (item: ImageItem) => React.ReactNode;
   /** 'masonry' = 原比例瀑布流；'grid' = 3:4 统一裁切网格 */
   mode?: 'masonry' | 'grid';
+  /** 缩略图尺寸（列宽 px，Eagle 的缩略图滑块），缺省用各模式的默认密度 */
+  colWidth?: number;
   /** 变化时重测布局。注意：卡片不再因此重挂载（key 只用图片 id）——
    * 清除加载失败态的需求由卡片层通过 resetKey 实现，避免整页图片重新请求与闪烁 */
   layoutKey?: string | number;
+  /** 视口内卡片变化时回调（已 debounce）：用来把这几张的灯箱预览图插队预热。
+   *  服务端整页按顺序预取，用户滚到页尾时那张往往还没轮到，点开就要现做。 */
+  onVisibleIds?: (ids: number[]) => void;
 }
 
 interface Pos {
@@ -40,7 +45,11 @@ interface Pos {
   h: number;
 }
 
-function columnCount(width: number, mode: 'masonry' | 'grid') {
+function columnCount(width: number, mode: 'masonry' | 'grid', colWidth?: number) {
+  if (colWidth && colWidth > 0) {
+    // 尺寸滑块：按目标列宽算列数，最少 1 列、最多 12 列
+    return Math.max(1, Math.min(12, Math.floor((width + GAP) / (colWidth + GAP))));
+  }
   if (mode === 'grid') {
     return Math.max(2, Math.floor((width + GAP) / (GRID_COL_MIN + GAP)));
   }
@@ -49,7 +58,14 @@ function columnCount(width: number, mode: 'masonry' | 'grid') {
   return 2;
 }
 
-export default function MasonryGrid({ items, renderItem, mode = 'masonry', layoutKey }: Props) {
+export default function MasonryGrid({
+  items,
+  renderItem,
+  mode = 'masonry',
+  colWidth,
+  layoutKey,
+  onVisibleIds,
+}: Props) {
   const wrapRef = useRef<HTMLDivElement | null>(null);
   const [width, setWidth] = useState(0);
   const [scrollTop, setScrollTop] = useState(0);
@@ -75,6 +91,14 @@ export default function MasonryGrid({ items, renderItem, mode = 'masonry', layou
       }
       node = node.parentElement;
     }
+    /**
+     * 探测不到时必须沿用已知容器，绝不能退回「整页滚动」：
+     * 灯箱把 .content 临时改成 overflow:hidden，这一刻 overflowY = hidden → 探测失败，
+     * 若把 scroller 置空，之后所有 scrollTop 都读成 window.scrollY（恒 0），
+     * 虚拟窗口就永远算在文档顶部 —— 用户看到的就是「退出预览后整页空白，
+     * 非要再滑一下才恢复」。
+     */
+    if (!scroller && scrollElRef.current?.isConnected) scroller = scrollElRef.current;
     scrollElRef.current = scroller;
     if (scroller) {
       docTopRef.current = rect.top - scroller.getBoundingClientRect().top + scroller.scrollTop;
@@ -97,10 +121,23 @@ export default function MasonryGrid({ items, renderItem, mode = 'masonry', layou
     return () => ro.disconnect();
   }, [measure]);
 
+  /**
+   * 布局签名：位置只与「顺序 + 宽高」有关。
+   * 点收藏 / 改标题 / 重新选中都会让 items 换身份但几何完全没变，
+   * 以前会白算一遍几万个坐标再排一次序（万级图库一次 10~20ms）。
+   * itemsRef 保证签名不变时拿到的是最新数组（同几何 = 同布局，索引照样对得上）。
+   */
+  const layoutSig = useMemo(
+    () => items.map((it) => `${it.id}:${it.width}x${it.height}`).join('|'),
+    [items]
+  );
+  const itemsRef = useRef(items);
+  itemsRef.current = items;
+
   // items / 布局键变化后总高度改变，重测文档偏移
   useLayoutEffect(() => {
     measure();
-  }, [items, layoutKey, measure]);
+  }, [layoutSig, layoutKey, measure]);
 
   // 数据到位后延迟重测一次：切页/窗口刚恢复时首帧尺寸可能尚未稳定，
   // 会让虚拟窗口算出空区间（数据在、界面空白）
@@ -112,7 +149,7 @@ export default function MasonryGrid({ items, renderItem, mode = 'masonry', layou
       setScrollTop(scroller ? scroller.scrollTop : window.scrollY);
     }, 120);
     return () => window.clearTimeout(t);
-  }, [items, layoutKey, measure]);
+  }, [layoutSig, layoutKey, measure]);
 
   useEffect(() => {
     const onScroll = () => {
@@ -128,17 +165,39 @@ export default function MasonryGrid({ items, renderItem, mode = 'masonry', layou
         }
       });
     };
-    const scroller = scrollElRef.current;
-    const target: HTMLElement | Window = scroller || window;
-    target.addEventListener('scroll', onScroll, { passive: true });
+    /**
+     * 用 capture 监听 document：scroll 不冒泡，但捕获阶段能拿到任意滚动容器的滚动，
+     * 包括「容器被遮罩临时改成 overflow:hidden、重绑时探测不到」的时段。
+     * 只绑一次，不随容器变化失效。
+     */
+    document.addEventListener('scroll', onScroll, { capture: true, passive: true });
     window.addEventListener('resize', onScroll);
+    window.addEventListener('scroll', onScroll, { passive: true });
     onScroll();
     return () => {
-      target.removeEventListener('scroll', onScroll);
+      document.removeEventListener('scroll', onScroll, { capture: true });
       window.removeEventListener('resize', onScroll);
+      window.removeEventListener('scroll', onScroll);
       cancelAnimationFrame(rafRef.current);
     };
-  }, [items, layoutKey]);
+  }, []);
+
+  /**
+   * 每次渲染后跟真实滚动位置对一次账。
+   * 遮罩关闭、虚拟列表重算、浏览器夹住滚动位置这些时刻 scroll 事件可能丢，
+   * 事件一旦丢，state 与真实位置就会长期不一致（空白页），而修好读取路径后
+   * 这里能在一帧内自愈，不需要用户再滑一下。
+   */
+  useLayoutEffect(() => {
+    const scroller = scrollElRef.current;
+    // 灯箱锁滚动期间（overflow:hidden）浏览器可能把 scrollTop 夹到 0，
+    // 这时的值不是用户真实意图，跳过校正，等关闭后由 Lightbox 写回并派发 scroll
+    if (scroller && getComputedStyle(scroller).overflowY === 'hidden') return;
+    const top = scroller ? scroller.scrollTop : window.scrollY;
+    const vh = scroller ? scroller.clientHeight : window.innerHeight;
+    if (Math.abs(top - scrollTop) > 2) setScrollTop(top);
+    if (Math.abs(vh - viewH) > 2) setViewH(vh);
+  });
 
   /**
    * 布局：每张卡片的绝对坐标 + 容器总高。
@@ -147,12 +206,19 @@ export default function MasonryGrid({ items, renderItem, mode = 'masonry', layou
    * 数据到位后 width 恒为 0、虚拟窗口永远算不出卡片，图库整页空白（P0）。
    */
   const effWidth = width || (typeof window === 'undefined' ? 0 : Math.max(320, window.innerWidth - 280));
+
+  /**
+   * 布局签名：位置只与「顺序 + 宽高」有关。
+   * 点收藏 / 改标题 / 重新选中都会让 items 换身份但几何完全没变，
+   * 以前会白算一遍几万个坐标再排一次序（万级图库一次 10~20ms，且每帧重排）。
+   * itemsRef 保证签名不变时拿到的是最新数组（同几何 = 同布局，索引照样对得上）。
+   */
   const { positions, totalHeight, sortedByBottom } = useMemo(() => {
     if (!effWidth) return { positions: [] as Pos[], totalHeight: 0, sortedByBottom: [] as number[] };
-    const cols = columnCount(effWidth, mode);
+    const cols = columnCount(effWidth, mode, colWidth);
     const colW = Math.floor((effWidth - GAP * (cols - 1)) / cols);
     const colHeights = new Array(cols).fill(0);
-    const pos: Pos[] = items.map((it) => {
+    const pos: Pos[] = itemsRef.current.map((it) => {
       const w0 = it.width > 0 ? it.width : 3;
       const h0 = it.height > 0 ? it.height : 4;
       const h = mode === 'grid' ? Math.round(colW * (4 / 3)) : Math.round(colW * (h0 / w0));
@@ -166,7 +232,7 @@ export default function MasonryGrid({ items, renderItem, mode = 'masonry', layou
     // 供虚拟窗口二分：按卡片底边排序的索引
     const byBottom = pos.map((p, i) => i).sort((a, b) => pos[a].y + pos[a].h - (pos[b].y + pos[b].h));
     return { positions: pos, totalHeight: total, sortedByBottom: byBottom };
-  }, [items, effWidth, mode]);
+  }, [layoutSig, effWidth, mode, colWidth]);
 
   /** 可见区间（含 OVERSCAN）：按卡片底边在排序数组上二分 */
   const visible = useMemo(() => {
@@ -190,19 +256,44 @@ export default function MasonryGrid({ items, renderItem, mode = 'masonry', layou
       if (positions[idx].y > bottom) break;
       out.push(idx);
     }
-    // 偏移测量失效（二分把所有卡片排除）时兜底渲染首屏，保证图库永远能看到内容
-    return out.length ? out : positions.map((_, i) => i).slice(0, 24);
+    // 偏移测量失效（二分把所有卡片排除）时兜底：按滚动量就近取一批，
+    // 不再无条件回到文档顶部（那会让已滚到下方的用户看到一片空白）
+    if (out.length) return out;
+    const nearTop = scrollTop - OVERSCAN;
+    const nearBottom = scrollTop + (viewH || 800) + OVERSCAN;
+    const near: number[] = [];
+    for (let i = 0; i < positions.length && near.length < 40; i++) {
+      if (positions[i].y >= nearTop && positions[i].y <= nearBottom) near.push(i);
+    }
+    return near.length ? near : positions.map((_, i) => i).slice(0, 24);
   }, [positions, sortedByBottom, scrollTop, viewH]);
+
+  // 可见区变化（滚动停止 700ms）后上报一次，让服务端优先预取这几张的预览图
+  const visibleIds = visible.map((i) => items[i]?.id).filter((id): id is number => typeof id === 'number');
+  const visibleSig = visibleIds.join(',');
+  useEffect(() => {
+    if (!onVisibleIds || !visibleSig) return;
+    const ids = visibleSig.split(',').map(Number);
+    const t = window.setTimeout(() => onVisibleIds(ids), 700);
+    return () => window.clearTimeout(t);
+  }, [visibleSig, onVisibleIds]);
 
   // 注意：items 为空时也必须渲染容器 —— 此前在这里 return null 会让 ref 缺失，
   // 挂载期唯一一次宽度测量被跳过且永不重试，是「数据到位后整页空白」的根因（P0）
   return (
-    <div className="masonry-js" style={{ position: 'relative', height: totalHeight || undefined }} ref={wrapRef}>
+    <div
+      className="masonry-js"
+      data-tour="gallery-grid"
+      style={{ position: 'relative', height: totalHeight || undefined }}
+      ref={wrapRef}
+    >
       {visible.map((i) => {
         const p = positions[i];
         return (
           <div
-            key={items[i].path || items[i].id}
+            /* key 必须用主键 id：库中可能存在同 path 的多条记录（文件被重复导入），
+             * 用 path 当 key 会冲突，React DOM 复用错乱 → 多张卡叠在同一坐标 */
+            key={items[i].id ?? items[i].path}
             className="m-cell"
             style={{ position: 'absolute', left: p.x, top: p.y, width: p.w, height: p.h }}
           >

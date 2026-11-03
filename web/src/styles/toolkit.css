@@ -1,0 +1,648 @@
+/* 素材工具箱 / 动作 / 拼接 / 命令面板 / 书签浏览器 / PDF 阅读器 —— 第九轮新增界面的样式 */
+
+/* ------------------------------ 素材工具箱 ------------------------------ */
+.tk-backdrop { z-index: 120; }
+.tk-card {
+  width: min(calc(960px * var(--ui-scale, 1)), 94vw);
+  max-height: 92vh;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+.tk-title {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--muted);
+  font-size: 12.5px;
+  margin-left: 10px;
+}
+.tk-tabs {
+  display: flex;
+  gap: 4px;
+  padding: 0 16px;
+  border-bottom: 1px solid var(--border);
+  flex-wrap: wrap;
+}
+.tk-tab {
+  background: none;
+  border: none;
+  border-bottom: 2px solid transparent;
+  color: var(--muted);
+  padding: 9px 12px;
+  font-size: 13px;
+  cursor: pointer;
+}
+.tk-tab:hover { color: var(--text); }
+.tk-tab.on { color: var(--text); border-bottom-color: var(--accent); }
+/* flex:1 + min-height:0：矮窗口下内容区自己滚，而不是把卡片挤成一条缝 */
+.tk-body { flex: 1 1 auto; min-height: 0; overflow-y: auto; padding-top: 12px; }
+.tk-row { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.tk-hint { color: var(--muted); font-size: 12.5px; margin-top: 6px; line-height: 1.6; }
+.tk-warn { color: var(--warn); font-size: 12.5px; margin-top: 8px; }
+.tk-empty {
+  color: var(--muted);
+  font-size: 12.5px;
+  line-height: 1.7;
+  padding: 22px 14px;
+  border: 1px dashed var(--border);
+  border-radius: 10px;
+  text-align: center;
+}
+.tk-path { color: var(--muted); font-size: 12px; word-break: break-all; }
+.tk-kv {
+  display: grid;
+  grid-template-columns: 76px 1fr;
+  gap: 7px 12px;
+  font-size: 13px;
+  margin-bottom: 12px;
+}
+.tk-kv > span { color: var(--muted); }
+.tk-kv > b { font-weight: 500; word-break: break-word; }
+.tk-exif { width: 100%; border-collapse: collapse; font-size: 12.5px; }
+.tk-exif th {
+  color: var(--muted);
+  font-weight: 500;
+  text-align: left;
+  padding: 6px 10px 6px 0;
+  width: 76px;
+  vertical-align: top;
+}
+.tk-exif td { padding: 6px 0; word-break: break-word; }
+.tk-exif tr + tr th, .tk-exif tr + tr td { border-top: 1px solid var(--border); }
+
+.tk-textarea {
+  width: 100%;
+  min-height: 220px;
+  margin-top: 10px;
+  padding: 10px 12px;
+  border-radius: 10px;
+  border: 1px solid var(--border);
+  background: var(--panel);
+  color: var(--text);
+  font-size: 13px;
+  line-height: 1.7;
+  resize: vertical;
+  font-family: inherit;
+}
+
+.tk-providers { display: flex; flex-direction: column; gap: 8px; margin-bottom: 8px; }
+.tk-provider {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 10px 12px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--panel);
+}
+.tk-provider.off { opacity: 0.62; }
+.tk-results { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 8px; margin-top: 10px; }
+.tk-result {
+  display: flex;
+  gap: 8px;
+  padding: 8px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  color: var(--text);
+  text-decoration: none;
+  background: var(--panel);
+  min-width: 0;
+}
+.tk-result:hover { border-color: var(--border-strong); }
+.tk-result img { width: 56px; height: 56px; object-fit: cover; border-radius: 6px; flex: none; }
+.tk-noimg {
+  width: 56px;
+  height: 56px;
+  display: grid;
+  place-items: center;
+  border-radius: 6px;
+  background: var(--panel-strong);
+  color: var(--muted);
+  font-size: 11px;
+  flex: none;
+}
+.tk-result > div { min-width: 0; }
+.tk-result b { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 12.5px; }
+
+.tk-vcurrent, .tk-vitem {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--panel);
+  margin-bottom: 8px;
+}
+.tk-vcurrent img, .tk-vitem img {
+  width: 62px;
+  height: 62px;
+  object-fit: cover;
+  border-radius: 6px;
+  flex: none;
+  background: var(--panel-strong);
+}
+.tk-vmeta { flex: 1; min-width: 0; }
+.tk-vcurrent > div { flex: 1; min-width: 0; }
+.tk-badge {
+  font-size: 11px;
+  color: var(--ok);
+  border: 1px solid currentColor;
+  border-radius: 999px;
+  padding: 1px 8px;
+}
+.tk-vlist { max-height: 42vh; overflow-y: auto; }
+
+/* 抽屉式两栏：左边画布、右边操作，竖图不会再缩在中间配一大片空白 */
+.tk-body > * { width: 100%; min-width: 0; }
+.tk-regions {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 240px;
+  gap: 16px;
+  align-items: start;
+}
+.tk-regions-canvas { min-width: 0; display: grid; place-items: center; }
+.tk-regions-side { display: flex; flex-direction: column; gap: 8px; }
+.tk-regions-actions { display: flex; gap: 8px; }
+.tk-regions-actions .btn { flex: 1 1 auto; justify-content: center; }
+@media (max-width: 780px) {
+  .tk-regions { grid-template-columns: 1fr; }
+}
+
+/* 固定高度的舞台：图还没解码完也量得出坐标，不会把框画飞。
+   宽度跟着图片比例收窄（不让竖图坐在一大片空棋盘格里） */
+.tk-cropbox {
+  --stage-h: min(64vh, 560px);
+  position: relative;
+  width: min(100%, calc(var(--stage-h) * var(--r, 1) + 24px));
+  height: calc(var(--stage-h) + 24px);
+  margin: 0 auto;
+  padding: 12px;
+  display: grid;
+  place-items: center;
+  overflow: hidden;
+  border-radius: 10px;
+  background: repeating-conic-gradient(#1c1c22 0% 25%, #15151a 0% 50%) 50% / 24px 24px;
+}
+/* 内层严格等于图片显示区域：宽度取「舞台内容宽」与「舞台高 × 比例」的较小值，
+   高度由 aspect-ratio 推出，保证百分比坐标和实际像素一一对应 */
+.tk-cropframe {
+  position: relative;
+  width: min(100%, calc(var(--stage-h) * var(--r, 1)));
+  aspect-ratio: var(--r, 1);
+  max-height: 100%;
+  overflow: hidden;
+  border-radius: 6px;
+  box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.3);
+  cursor: crosshair;
+  touch-action: none;
+}
+.tk-cropframe > img { display: block; width: 100%; height: 100%; user-select: none; }
+.tk-rect {
+  position: absolute;
+  border: 2px solid var(--accent);
+  background: rgba(255, 77, 141, 0.14);
+  pointer-events: none;
+}
+.tk-rect.draft { border-style: dashed; }
+.tk-rect span {
+  position: absolute;
+  left: -1px;
+  top: -20px;
+  font-size: 11px;
+  background: var(--accent);
+  color: #fff;
+  padding: 0 6px;
+  border-radius: 6px;
+}
+.tk-check { display: inline-flex; align-items: center; gap: 5px; font-size: 12.5px; color: var(--muted); }
+
+/* --------------------------------- 动作 --------------------------------- */
+.tk-actions { display: flex; flex-direction: column; gap: 8px; }
+.tk-action {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 10px 12px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--panel);
+}
+.tk-step {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 0;
+  border-bottom: 1px dashed var(--border);
+  flex-wrap: wrap;
+}
+.tk-step .input { padding: 5px 8px; font-size: 12.5px; }
+.tk-step > .input:not([style]) { flex: 1; min-width: 120px; }
+
+/* -------------------------------- 拼接台 --------------------------------
+   左边是一整块「画布」，右边按 文件 / 版面 / 外观 / 顺序 分组，
+   底部一条只放提示与下载 —— 旧版把 7 个控件竖着堆在一条窄栏里，
+   预览还固定 320px 高，窄长图会被切成一条竖条，看着像坏掉了 */
+.st-card {
+  width: min(calc(1180px * var(--ui-scale, 1)), 95vw);
+  height: min(calc(760px * var(--ui-scale, 1)), 90vh);
+  display: flex;
+  flex-direction: column;
+}
+.st-modal-body {
+  flex: 1;
+  min-height: 0;
+  overflow: hidden;
+  padding: 0 18px;
+}
+.st-body {
+  display: grid;
+  /* modal-body 是 flex 容器，网格必须自己撑满，否则按内容缩成一条 */
+  flex: 1;
+  width: 100%;
+  grid-template-columns: minmax(0, 1fr) 314px;
+  gap: 16px;
+  height: 100%;
+  min-height: 0;
+  padding-bottom: 4px;
+}
+.st-stage {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  min-width: 0;
+  min-height: 0;
+}
+.st-preview {
+  position: relative;
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 18px;
+  overflow: hidden;
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  background: radial-gradient(circle at 50% 30%, rgba(255, 255, 255, 0.045), transparent 70%), var(--bg-soft);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.04);
+}
+/* contain：整张成品永远完整可见，不再被竖着切掉 */
+.st-preview .st-img {
+  /* modal.css 给缩略图写了 .modal-body img{width:150px}，这里必须显式覆盖 */
+  width: auto;
+  height: auto;
+  align-self: center;
+  max-width: 100%;
+  max-height: 100%;
+  object-fit: contain;
+  display: block;
+  border-radius: 4px;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.45), 0 0 0 1px rgba(255, 255, 255, 0.06);
+  transition: opacity 0.15s ease;
+}
+.st-spin {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  margin: -9px 0 0 -9px;
+}
+.st-meta {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 4px 12px;
+  font-size: 11.5px;
+  color: var(--muted);
+}
+.st-meta-out {
+  color: var(--text);
+  font-weight: 600;
+}
+.st-meta-tip {
+  margin-left: auto;
+}
+.st-side {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  min-height: 0;
+  overflow-y: auto;
+  padding-right: 2px;
+  font-size: 12.5px;
+}
+.st-group {
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+  padding: 9px 12px 10px;
+  border-radius: 12px;
+  border: 1px solid var(--border);
+  background: var(--panel);
+}
+.st-group-grow {
+  flex: 1;
+  min-height: 0;
+}
+.st-group h5 {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
+  margin: 0;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.6px;
+  color: var(--muted);
+  text-transform: uppercase;
+}
+.st-group h5 em {
+  font-style: normal;
+  text-transform: none;
+  letter-spacing: 0;
+  font-weight: 400;
+  font-size: 10.5px;
+  opacity: 0.8;
+}
+.st-field {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.st-field > span {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  color: var(--muted);
+  font-size: 11.5px;
+}
+.st-field > span b {
+  color: var(--text);
+  font-weight: 600;
+}
+.st-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+.st-row-label {
+  color: var(--muted);
+  font-size: 11.5px;
+  white-space: nowrap;
+}
+.st-range {
+  width: 100%;
+  accent-color: var(--accent);
+  margin: 0;
+}
+/* 分段按钮：列数 / 格式 / 质量 —— 比滑杆更容易对准 */
+.st-seg {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  padding: 2px;
+  border-radius: 8px;
+  background: rgba(0, 0, 0, 0.22);
+  border: 1px solid var(--border);
+}
+.st-seg button {
+  min-width: 26px;
+  padding: 4px 8px;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.3;
+  cursor: pointer;
+  transition: background 0.12s ease, color 0.12s ease;
+}
+.st-seg button:hover {
+  color: var(--text);
+}
+.st-seg button.on {
+  background: var(--panel-strong);
+  color: var(--text);
+  box-shadow: inset 0 0 0 1px var(--border-strong);
+}
+.st-swatches {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.st-swatch {
+  width: 22px;
+  height: 22px;
+  padding: 0;
+  border-radius: 7px;
+  border: 1px solid var(--border-strong);
+  cursor: pointer;
+  position: relative;
+  overflow: hidden;
+}
+.st-swatch.on {
+  box-shadow: 0 0 0 2px var(--accent);
+}
+/* 自定义色：彩虹底 + 藏掉原生色块，一眼看出「这里能选任意颜色」 */
+.st-swatch-custom {
+  background: conic-gradient(from 210deg, #f66, #fd6, #6f6, #6cf, #c6f, #f66);
+}
+.st-swatch-custom input[type='color'] {
+  position: absolute;
+  inset: -6px;
+  width: 40px;
+  height: 40px;
+  padding: 0;
+  border: 0;
+  opacity: 0;
+  cursor: pointer;
+}
+.st-order {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+}
+.st-order-label {
+  flex: 0 0 auto;
+  color: var(--muted);
+  font-size: 11.5px;
+}
+.st-picked {
+  display: flex;
+  flex-wrap: nowrap;
+  gap: 6px;
+  min-width: 0;
+  overflow-x: auto;
+  overflow-y: hidden;
+  padding: 4px 4px 6px 2px;
+}
+.st-pick {
+  position: relative;
+  display: block;
+  width: 46px;
+  height: 46px;
+}
+.st-pick img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  border-radius: 7px;
+  border: 1px solid var(--border);
+}
+.st-pick i {
+  position: absolute;
+  right: -3px;
+  bottom: -3px;
+  min-width: 15px;
+  height: 15px;
+  padding: 0 3px;
+  border-radius: 8px;
+  background: var(--accent);
+  color: #fff;
+  font-style: normal;
+  font-size: 9.5px;
+  line-height: 15px;
+  text-align: center;
+}
+.st-foot {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 10px 18px 14px;
+  border-top: 1px solid var(--border);
+}
+.st-foot .tk-hint {
+  flex: 1;
+  min-width: 0;
+}
+.st-foot .btn {
+  flex: 0 0 auto;
+}
+@media (max-width: 900px) {
+  .st-card {
+    height: 92vh;
+  }
+  .st-body {
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-rows: minmax(180px, 34vh) minmax(0, 1fr);
+  }
+}
+
+/* ------------------------------- 命令面板 ------------------------------- */
+.cmd-backdrop { z-index: 130; }
+.cmd-card {
+  width: min(calc(680px * var(--ui-scale, 1)), 92vw);
+  margin-top: 12vh;
+  align-self: flex-start;
+  max-height: 68vh;
+  display: flex;
+  flex-direction: column;
+}
+.cmd-input {
+  width: 100%;
+  padding: 12px 14px;
+  font-size: 14px;
+  border: none;
+  border-bottom: 1px solid var(--border);
+  background: transparent;
+  color: var(--text);
+  outline: none;
+}
+.cmd-list { overflow-y: auto; padding: 6px; }
+.cmd-group { font-size: 11px; color: var(--muted); padding: 8px 10px 4px; }
+.cmd-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  padding: 8px 10px;
+  border: none;
+  border-radius: 8px;
+  background: none;
+  color: var(--text);
+  font-size: 13px;
+  text-align: left;
+  cursor: pointer;
+}
+.cmd-item.on { background: var(--panel-strong); }
+.cmd-item small { margin-left: auto; color: var(--muted); font-size: 11.5px; flex: none; }
+.cmd-empty { padding: 24px; text-align: center; color: var(--muted); font-size: 12.5px; }
+
+/* ------------------------------ 书签浏览器 ------------------------------ */
+.bm-wrap { display: flex; flex-direction: column; height: 100%; min-height: 0; }
+.bm-head { display: flex; align-items: center; gap: 8px; padding: 10px 14px; border-bottom: 1px solid var(--border); flex-wrap: wrap; }
+.bm-body { flex: 1; display: grid; grid-template-columns: 300px 1fr; min-height: 0; }
+.bm-list { overflow-y: auto; border-right: 1px solid var(--border); padding: 8px; display: flex; flex-direction: column; gap: 6px; }
+.bm-item {
+  display: flex;
+  gap: 8px;
+  padding: 8px;
+  border-radius: 9px;
+  border: 1px solid var(--border);
+  background: var(--panel);
+  cursor: pointer;
+  color: var(--text);
+  text-align: left;
+  align-items: center;
+  width: 100%;
+}
+.bm-item:hover { border-color: var(--border-strong); }
+.bm-item.on { border-color: var(--accent); background: var(--panel-strong); }
+.bm-item img { width: 52px; height: 40px; object-fit: cover; border-radius: 5px; flex: none; background: var(--panel-strong); }
+.bm-item .bm-meta { min-width: 0; flex: 1; }
+.bm-item b { display: block; font-size: 12.5px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.bm-item small { color: var(--muted); font-size: 11px; display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.bm-frame { position: relative; display: flex; flex-direction: column; min-height: 0; background: #fff; }
+.bm-iframe-wrap { flex: 1; display: flex; flex-direction: column; min-height: 0; }
+.bm-iframe { flex: 1; width: 100%; border: none; background: #fff; }
+.bm-snap-note { flex: none; padding: 6px 10px; font-size: 11.5px; color: var(--muted); background: var(--surface-status); }
+.bm-empty { display: grid; place-items: center; height: 100%; color: var(--muted); font-size: 13px; padding: 30px; text-align: center; }
+.bm-thumb-empty {
+  width: 52px;
+  height: 40px;
+  display: grid;
+  place-items: center;
+  border-radius: 5px;
+  background: var(--panel-strong);
+  color: var(--muted);
+  flex: none;
+}
+.bm-cur-title { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.bm-wrap { flex: 1; min-height: 0; }
+.bm-body { height: calc(100vh - 190px); }
+
+/* --------------------------------- PDF --------------------------------- */
+.pdf-bar {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 10px;
+  border-bottom: 1px solid var(--border);
+  background: var(--surface-head);
+  font-size: 12.5px;
+  flex: none;
+}
+.pdf-bar .pdf-pages { color: var(--muted); }
+.pdf-bar .pdf-thumbs { display: flex; gap: 4px; overflow-x: auto; max-width: 50%; }
+.pdf-thumb {
+  width: 34px;
+  height: 44px;
+  border-radius: 4px;
+  border: 1px solid var(--border);
+  background: var(--panel);
+  color: var(--muted);
+  font-size: 11px;
+  cursor: pointer;
+  flex: none;
+}
+.pdf-thumb.on { border-color: var(--accent); color: var(--text); }
+.pdf-stage { flex: 1; min-height: 0; display: flex; }
+.pdf-stage iframe { flex: 1; border: none; background: #fff; }
+.pdf-page-input { width: 58px; padding: 2px 6px; font-size: 12.5px; text-align: center; }

@@ -22,6 +22,9 @@ export default function Search({ onToast, onOpenItem }: Props) {
   const [total, setTotal] = useState(0);
   const [loading, setLoading] = useState(false);
   const [queryPreview, setQueryPreview] = useState(''); // 以图搜图的查询图预览
+  /** 本次结果到底走的哪条通道（LLM 抽词 / 纯关键词 / CLIP / pHash）——
+   *  以前四种情况在界面上没有任何区别，用户会以为「AI 语义搜索」在理解画面。 */
+  const [engineNote, setEngineNote] = useState('');
 
   const runSearch = useCallback(
     async (fn: () => Promise<void>) => {
@@ -43,6 +46,7 @@ export default function Search({ onToast, onOpenItem }: Props) {
   const colorSeq = useRef(0);
   useEffect(() => {
     if (mode !== 'color') return;
+    setEngineNote(''); // 颜色搜索没有 AI 参与，别留着上一次的引擎说明
     const my = ++colorSeq.current;
     const timer = setTimeout(async () => {
       try {
@@ -62,11 +66,30 @@ export default function Search({ onToast, onOpenItem }: Props) {
 
   const byAi = () =>
     runSearch(async () => {
-      if (!query.trim()) return onToast('请输入想找的图，例如「邓紫棋演唱会」「有山的写真」');
-      const r = await api.aiSearch(query.trim(), 60);
+      const q = query.trim();
+      if (!q) return onToast('请输入想找的图，例如「白底人像」「暖色调的日落海边」');
+      let r = await api.semanticSearch(q, 60);
+      // 文本塔首次加载要下载 ~85MB：后端会先回 loading，这里等它，最多等约 25 秒
+      let tries = 0;
+      while (r.engine === 'loading' && tries < 10) {
+        tries++;
+        setEngineNote(`正在加载本地语义模型（首次约 85MB）… ${tries}/10`);
+        await new Promise((res) => setTimeout(res, 2500));
+        r = await api.semanticSearch(q, 60);
+      }
       setItems(r.items);
       setTotal(r.total);
-      if (!r.items.length) onToast('没有匹配结果（可换种说法，或先在「整理」里 AI 打标）');
+      const cov = r.covered?.total ? `，已建模 ${r.covered.indexed}/${r.covered.total} 张` : '';
+      setEngineNote(
+        r.engine === 'clip'
+          ? `匹配方式：本地 CLIP 语义检索（理解画面内容，不靠标题/标签）${cov}`
+          : r.engine === 'loading'
+            ? '语义模型仍在加载，稍等几秒再点一次「搜索」'
+            : r.degraded
+              ? `语义检索不可用，已退回关键词/抽词（${r.reason || '原因未知'}）`
+              : `按关键词「${q}」匹配标题 / 标签 / 采集词 / AI 描述（不是语义理解）`
+      );
+      if (!r.items.length && r.engine === 'clip') onToast('没有足够相似的图（换个说法，或等向量索引建完）');
     });
 
   const byImage = (file: File) =>
@@ -81,6 +104,11 @@ export default function Search({ onToast, onOpenItem }: Props) {
       const r = await api.searchByImage(dataUrl, 10, 24);
       setItems(r.items);
       setTotal(r.total);
+      setEngineNote(
+        r.engine === 'clip'
+          ? '匹配方式：CLIP 深度特征（跨裁剪/滤镜的语义相似）'
+          : '匹配方式：感知哈希 pHash（构图/像素级相似，不理解画面内容）'
+      );
       if (!r.items.length) onToast('没有找到足够相似的图（可检查图片是否模糊/裁剪过度）');
     });
 
@@ -103,32 +131,58 @@ export default function Search({ onToast, onOpenItem }: Props) {
     return '构图相近';
   };
 
+  /* 结果网格的选择态：以前勾选框是空函数，点了没反应；现在支持多选后批量收藏/打包下载 */
+  const [selected, setSelected] = useState<Set<number>>(new Set());
+
+  const bulkFavorite = async () => {
+    const targets = items.filter((it) => selected.has(it.id) && !it.favorite);
+    if (!targets.length) return onToast('选中的图片都已在收藏里');
+    try {
+      for (const it of targets) {
+        const updated = await api.patch(it.id, { favorite: true });
+        setItems((prev) => prev.map((x) => (x.id === updated.id ? updated : x)));
+      }
+      onToast(`已收藏 ${targets.length} 张`);
+    } catch (err) {
+      onToast((err as Error).message);
+    }
+  };
+
   const grid = useMemo(
     () => (it: ImageItem) => (
       <ImageCard
         item={it}
         note={simLabel((it as ImageItem & { hamming?: number }).hamming)}
-        selected={false}
+        selected={selected.has(it.id)}
         onOpen={(i) => onOpenItem?.(i, items)}
-        onToggleSelect={() => {}}
+        onToggleSelect={() =>
+          setSelected((prev) => {
+            const next = new Set(prev);
+            if (next.has(it.id)) next.delete(it.id);
+            else next.add(it.id);
+            return next;
+          })
+        }
         onToggleFavorite={toggleFavorite}
-        onDownload={(it) => downloadFile(it.downloadUrl || it.url)}
+        onDownload={(x) => downloadFile(x.downloadUrl || x.url)}
       />
     ),
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [items]
+    [items, selected]
   );
 
   return (
     <div className="page">
       <div className="page-head">
         <h2>智能检索</h2>
-        <p className="page-sub">颜色搜图 · AI 语义搜索 · 以图搜图（视觉搜索）</p>
+        <p className="page-sub">
+          自然语言搜图（本地 CLIP 跨模态召回）· 颜色搜图 · 以图搜图（CLIP 特征 / 感知哈希）
+        </p>
       </div>
 
       <div className="seg">
         <button className={mode === 'ai' ? 'on' : ''} onClick={() => setMode('ai')}>
-          AI 语义
+          语义检索
         </button>
         <button className={mode === 'color' ? 'on' : ''} onClick={() => setMode('color')}>
           颜色
@@ -143,7 +197,7 @@ export default function Search({ onToast, onOpenItem }: Props) {
           <>
             <input
               className="inp"
-              placeholder='自然语言，如「邓紫棋演唱会舞台」「有山景的红色礼服写真」'
+              placeholder='自然语言，如「演唱会舞台」「有山景的红色写真」'
               value={query}
               onChange={(e) => setQuery(e.target.value)}
               onKeyDown={(e) => e.key === 'Enter' && byAi()}
@@ -198,7 +252,7 @@ export default function Search({ onToast, onOpenItem }: Props) {
               />
             )}
             {queryPreview && (
-              <button className="btn ghost sm" onClick={() => { setQueryPreview(''); setItems([]); setTotal(0); }}>
+              <button className="btn ghost sm" onClick={() => { setQueryPreview(''); setItems([]); setTotal(0); setEngineNote(''); }}>
                 清除
               </button>
             )}
@@ -208,6 +262,28 @@ export default function Search({ onToast, onOpenItem }: Props) {
 
       <div className="result-meta">
         {total > 0 ? `命中 ${total} 张` : loading ? '加载中…' : '暂无结果'}
+        {engineNote && (
+          <span className="hint" style={{ marginLeft: 10 }}>
+            {engineNote}
+          </span>
+        )}
+        {selected.size > 0 && (
+          <span className="sel-actions">
+            <b>已选 {selected.size} 张</b>
+            <button className="btn sm" onClick={() => void bulkFavorite()}>
+              加入收藏
+            </button>
+            <button
+              className="btn sm"
+              onClick={() => downloadFile(`/api/download/zip?ids=${[...selected].join(',')}`)}
+            >
+              打包下载 ZIP
+            </button>
+            <button className="btn sm ghost" onClick={() => setSelected(new Set())}>
+              取消选择
+            </button>
+          </span>
+        )}
       </div>
 
       <MasonryGrid items={items} renderItem={grid} />

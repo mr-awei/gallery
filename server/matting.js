@@ -8,7 +8,8 @@ import fsp from 'node:fs/promises';
 import path from 'node:path';
 import sharp from 'sharp';
 import { DATA_DIR } from './config.js';
-import { downloadModelFile, verifyModelFile, KNOWN_SHA256 } from './model-fetch.js';
+import { downloadModelFile, verifyModelFileDetailed, KNOWN_SHA256, isPinned } from './model-fetch.js';
+import { createJob, finishJob, jobProgress } from './jobs.js';
 
 const AI_DIR = path.join(DATA_DIR, 'ai');
 const DIR = path.join(AI_DIR, 'matting');
@@ -20,7 +21,9 @@ const fileUrls = (p) => MIRRORS.map((m) => `${m}${REPO}/resolve/main/${p}`);
 const MODEL_KEY = `${REPO}/onnx/model.onnx`;
 
 let sessionPromise = null;
-const state = { downloading: false, progress: 0, message: '', error: '' };
+/** 下载中止信号：以前模型装到一半只能干等，没法取消 */
+let installAbort = null;
+const state = { downloading: false, progress: 0, message: '', error: '', cancelled: false };
 
 export function mattingStatus() {
   return {
@@ -29,9 +32,40 @@ export function mattingStatus() {
     progress: state.progress,
     message: state.message,
     error: state.error,
+    cancelled: state.cancelled,
     model: REPO,
     size: fs.existsSync(MODEL_FILE) ? fs.statSync(MODEL_FILE).size : 0,
+    /**
+     * true = 与 KNOWN_SHA256 里的固定哈希对上（可信）；
+     * false = 只是和本机上次下载记录的 sidecar 一致，不能对外宣称「校验通过」。
+     */
+    verified: isPinned(MODEL_KEY),
   };
+}
+
+/** 取消正在进行的模型下载（任务中心/设置页的「取消」都走这里） */
+export function cancelMattingInstall() {
+  if (!state.downloading || !installAbort) return false;
+  state.message = '正在取消…';
+  try {
+    installAbort.abort(new Error('用户取消下载'));
+  } catch {
+    /* ignore */
+  }
+  return true;
+}
+
+/**
+ * 后台安装模型：立刻返回，进度走 mattingStatus() 轮询。
+ * 以前这个 HTTP 请求要等整包下完才返回，浏览器里点一下能转圈几分钟，
+ * 中途想取消只能去关应用。
+ */
+export function startMattingInstall() {
+  if (state.downloading) return { ok: true, started: false, ...mattingStatus() };
+  installMatting().catch((err) => {
+    console.warn('[matting] 模型安装失败：', err?.message || err);
+  });
+  return { ok: true, started: true, ...mattingStatus() };
 }
 
 export async function installMatting() {
@@ -39,7 +73,11 @@ export async function installMatting() {
   state.downloading = true;
   state.progress = 0;
   state.error = '';
+  state.cancelled = false;
   state.message = '准备下载…';
+  installAbort = new AbortController();
+  const signal = installAbort.signal;
+  const jobId = createJob({ kind: 'model-install', title: '去背景模型（U-2-Net）', payload: { model: 'matting' } });
   try {
     await downloadModelFile({
       mirrors: fileUrls('preprocessor_config.json'),
@@ -47,9 +85,11 @@ export async function installMatting() {
       dest: CONFIG_FILE,
       minBytes: 16,
       maxBytes: 1024 * 1024,
+      signal,
       onProgress: (p) => {
         state.progress = Math.round(p * 8);
         state.message = `下载配置 ${Math.round(p * 100)}%`;
+        jobProgress(jobId, { progress: state.progress, message: state.message });
       },
     });
     state.message = '下载模型（约 4.5MB）…';
@@ -60,25 +100,36 @@ export async function installMatting() {
       minBytes: 1024 * 1024,
       maxBytes: 64 * 1024 * 1024,
       sha256: KNOWN_SHA256[MODEL_KEY] || '',
+      signal,
       onProgress: (p) => {
         state.progress = 8 + Math.round(p * 90);
         state.message = `下载模型 ${Math.round(p * 100)}%（约 4.5MB）`;
+        jobProgress(jobId, { progress: state.progress, message: state.message });
       },
     });
-    if (!(await verifyModelFile(MODEL_FILE, { minBytes: 1024 * 1024 }))) {
-      throw new Error('模型文件校验未通过，请重试安装');
-    }
+    const check = await verifyModelFileDetailed(MODEL_FILE, {
+      minBytes: 1024 * 1024,
+      sha256: KNOWN_SHA256[MODEL_KEY] || '',
+    });
+    if (!check.ok) throw new Error(`模型文件校验未通过（${check.reason || '哈希不匹配'}），请重试安装`);
     state.progress = 100;
-    state.message = '下载完成';
+    // 没有可信清单时如实说明，别让用户以为「校验通过」了
+    state.message = check.verified ? '下载完成（已比对可信哈希）' : '下载完成（已记录哈希，未与清单比对）';
     sessionPromise = null; // 让下次调用重新加载
+    finishJob(jobId, { status: 'done', result: { verified: check.verified } });
     return mattingStatus();
   } catch (err) {
-    state.error = String(err?.message || err).slice(0, 200);
+    const cancelled = /已取消/.test(String(err?.message || ''));
+    state.cancelled = cancelled;
+    state.error = cancelled ? '' : String(err?.message || err).slice(0, 200);
+    state.message = cancelled ? '已取消下载' : state.message;
     // 清掉坏文件，避免「已下载」假状态卡住 UI
     await fsp.rm(MODEL_FILE, { force: true }).catch(() => {});
+    finishJob(jobId, { status: cancelled ? 'canceled' : 'failed', error: state.error });
     throw err;
   } finally {
     state.downloading = false;
+    installAbort = null;
   }
 }
 
@@ -174,11 +225,16 @@ export async function removeBackgroundBuffer(inputPath) {
 
   // mask → 灰度图 → 放大到原尺寸 → 作为 alpha 通道
   const maskBuf = Buffer.alloc(mask.w * mask.h);
+  let covered = 0;
   for (let i = 0; i < mask.m.length; i++) {
     const v = Math.max(0, Math.min(1, mask.m[i]));
     maskBuf[i] = Math.round(v * 255);
+    if (v > 0.5) covered++;
   }
+  // alpha 在低分辨率上先羽化再放大：边缘会有 2~3px 的柔和过渡带。
+  // 直接最近邻/硬边放大后，抠出来的图贴到别的背景上会有一圈锯齿（尤其头发与肩线）。
   const alphaPng = await sharp(maskBuf, { raw: { width: mask.w, height: mask.h, channels: 1 } })
+    .blur(1)
     .resize(W, H, { kernel: 'lanczos3' })
     .png()
     .toBuffer();
@@ -195,5 +251,14 @@ export async function removeBackgroundBuffer(inputPath) {
     rgba[i * 4 + 3] = alpha[i];
   }
   const buffer = await sharp(rgba, { raw: { width: W, height: H, channels: 4 } }).png().toBuffer();
-  return { buffer, width: W, height: H };
+  // 前景区占比：模型是**人像分割**，纯风景/物体常常抠出整片或一片空白。
+  // 与其静默给出一张废图，不如把可疑度带回去让界面提示重试。
+  const coverage = mask.w * mask.h ? covered / (mask.w * mask.h) : 0;
+  const warning =
+    coverage < 0.015
+      ? '几乎没抠出主体（这张图可能不是人像，或主体与背景接近）'
+      : coverage > 0.97
+        ? '整张图都被当成主体（该模型是人像分割，对纯风景/物体基本无效）'
+        : '';
+  return { buffer, width: W, height: H, coverage: +coverage.toFixed(4), warning };
 }

@@ -4,7 +4,7 @@ import sharp from 'sharp';
 import { APP_ROOT } from '../server/config.js';
 
 /**
- * 生成应用图标：玫红→紫渐变圆角方块 + 白色心形 + G.E.M. 字样
+ * 生成应用图标：玫红→紫渐变圆角方块 + 白色心形
  * 输出 icon.png（多尺寸）与 Windows 用的 icon.ico
  */
 
@@ -20,7 +20,6 @@ const svg = (size) => {
     C ${size * 0.52} ${size * 0.3}, ${size * 0.56} ${size * 0.26}, ${size * 0.62} ${size * 0.22}
     C ${size * 0.7} ${size * 0.16}, ${size * 0.82} ${size * 0.2}, ${size * 0.82} ${size * 0.32}
     C ${size * 0.82} ${size * 0.42}, ${size * 0.72} ${size * 0.52}, ${size * 0.5} ${size * 0.68} Z`;
-  const textSize = Math.round(size * 0.13);
   return `<svg xmlns="http://www.w3.org/2000/svg" width="${size}" height="${size}" viewBox="0 0 ${size} ${size}">
   <defs>
     <linearGradient id="g" x1="0" y1="0" x2="1" y2="1">
@@ -30,12 +29,6 @@ const svg = (size) => {
   </defs>
   <rect x="0" y="0" width="${size}" height="${size}" rx="${r}" fill="url(#g)"/>
   <path d="${heart}" fill="#ffffff" fill-opacity="0.96"/>
-  ${
-    size >= 64
-      ? `<text x="${size / 2}" y="${size * 0.88}" font-family="Arial, Helvetica, sans-serif"
-        font-size="${textSize}" font-weight="bold" fill="#ffffff" text-anchor="middle">G.E.M.</text>`
-      : ''
-  }
 </svg>`;
 };
 

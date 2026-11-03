@@ -2,6 +2,34 @@ import path from 'node:path';
 import { DatabaseSync } from 'node:sqlite';
 import { DB_FILE, GLOBAL_DB_FILE, DATA_DIR, THUMB_DIR, DEFAULT_STORAGE_DIR } from './config.js';
 import { encryptSecret, decryptSecret } from './secret.js';
+import { settingsBus } from './lib/settings-bus.js';
+
+/**
+ * 跨库共享的设置键：永远存 global.db，所有库共用一份。
+ * - theme / onboarded / updateRepo / autoLaunch：应用级偏好
+ * - weiboCookie / weiboUserAgent：微博登录凭据（登录态与 UA 绑定），一处配置全部库可用
+ * - network：网络代理，对采集、下载、AI 生效
+ * 其余键（采集源 / 并发 / AI 开关 / 壁纸 / 删除策略 / 画质增强 / 存储位置…）
+ * 都按资源库独立存储——切库即切配置，互不串扰。
+ * 注意：ai 是拆分键——接入配置（密钥/模型/baseUrl）共享，enabled 开关按库，见 getSettings/saveSettings。
+ *
+ * 必须声明在模块最前面：migrate() / ensureDefaultLibrary() 在模块求值时就会调用
+ * seedLibrarySettings()，草稿位置放在 migrate 之后会触发 TDZ（Cannot access before initialization），
+ * 表现为每个新库的初始设置都播种失败、静默退回默认值。
+ */
+const GLOBAL_SETTING_KEYS = new Set([
+  'theme',
+  'onboarded',
+  'tourDone',
+  'updateRepo',
+  'autoLaunch',
+  'weiboCookie',
+  'weiboUserAgent',
+  'network',
+  'closeToTray',
+  // 水印预设是「排版方案」，用户不想每个库重新配一遍，跟着人走
+  'watermarkPresets',
+]);
 
 /* ------------------------------------------------------------------ *
  *  多资源库数据分层
@@ -74,6 +102,12 @@ CREATE TABLE IF NOT EXISTS libraries (
 /** 库内建表 + 触发器 + 结构迁移。对每个打开的库连接执行一遍。 */
 function initLibrarySchema(conn) {
   conn.exec(`
+-- 库内设置表：除应用级键（主题/首次引导/自启/更新源，见 GLOBAL_SETTING_KEYS）外的
+-- 所有设置都存在这里——每个资源库一套独立的采集源、AI、壁纸、网络配置
+CREATE TABLE IF NOT EXISTS settings (
+  key TEXT PRIMARY KEY,
+  value TEXT NOT NULL
+);
 CREATE TABLE IF NOT EXISTS images (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
   title TEXT NOT NULL DEFAULT '',
@@ -235,6 +269,8 @@ CREATE TABLE IF NOT EXISTS folders (
   path TEXT NOT NULL DEFAULT '',       -- 祖先路径 + 自身 id，如 '/1/5/9/'
   sort_order INTEGER NOT NULL DEFAULT 0,
   anchor_path TEXT NOT NULL DEFAULT '', -- 对应磁盘目录相对路径；纯虚拟夹为空
+  lock_hash TEXT NOT NULL DEFAULT '',    -- 隐私空间：密码哈希（scrypt），空串 = 未加锁
+  lock_salt TEXT NOT NULL DEFAULT '',    -- 哈希用盐；明文密码永不落库
   created_at TEXT NOT NULL,
   updated_at TEXT NOT NULL
 );
@@ -248,6 +284,122 @@ CREATE TABLE IF NOT EXISTS image_folders (
   PRIMARY KEY (image_id, folder_id)
 );
 CREATE INDEX IF NOT EXISTS idx_image_folders_folder ON image_folders(folder_id);
+
+-- 标签元数据：分组 / 颜色 / 父标签（层级）/ 手动排序。
+-- 标签本体仍是 images.tags 逗号串 + item_tags 倒排，这里只存「展示属性」，
+-- 标签被改名/删除/合并时由 lib/tags.js 同步维护，避免出现孤儿元数据。
+CREATE TABLE IF NOT EXISTS tag_meta (
+  tag TEXT PRIMARY KEY,
+  tag_group TEXT NOT NULL DEFAULT '',   -- 分组名（Eagle 的「标签群组」）
+  color TEXT NOT NULL DEFAULT '',       -- #rrggbb，空 = 跟随主题
+  parent TEXT NOT NULL DEFAULT '',      -- 父标签名，空 = 顶层（Eagle 的「标签层级」）
+  sort_order INTEGER NOT NULL DEFAULT 0,
+  updated_at TEXT NOT NULL DEFAULT ''
+);
+
+-- 图片标注：整层存一份 JSON 数组（Eagle 的标注是一张图上的一个可编辑图层，
+-- 拆成行反而要处理 z-order / 增删改的批处理，这里按整层读写最简单可靠）。
+-- 标签别名 / 同义词：搜「界面」也能命中「ui」。别名不写进 images.tags（单一事实来源不变），
+-- 只在查询期展开成正式标签，所以合并/改名时要跟着迁移，否则会留下悬空别名。
+CREATE TABLE IF NOT EXISTS tag_alias (
+  alias TEXT PRIMARY KEY,
+  tag TEXT NOT NULL,
+  created_at TEXT NOT NULL DEFAULT ''
+);
+
+CREATE TABLE IF NOT EXISTS image_annotations (
+  image_id INTEGER PRIMARY KEY,
+  data TEXT NOT NULL DEFAULT '[]',
+  updated_at TEXT NOT NULL DEFAULT ''
+);
+
+-- 图片评论：Eagle 4 的图注评论，按时间正序展示
+CREATE TABLE IF NOT EXISTS image_comments (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  image_id INTEGER NOT NULL,
+  body TEXT NOT NULL,
+  author TEXT NOT NULL DEFAULT '',
+  created_at TEXT NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_image_comments_image ON image_comments(image_id);
+
+-- 完全重复检测用的内容指纹按 (size_bytes, md5) 分组，先按大小粗筛再比对哈希
+CREATE INDEX IF NOT EXISTS idx_images_size ON images(size_bytes);
+
+-- 编辑历史（覆盖写回前的原文件备份）：
+-- 裁切/调色/增强/旋转默认直接覆盖原图且不可逆，这里留一份原始副本支持「撤销」。
+-- 只保留最近若干条，避免长期占盘。
+CREATE TABLE IF NOT EXISTS edit_history (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  image_id INTEGER NOT NULL,
+  backup_path TEXT NOT NULL,
+  kind TEXT NOT NULL DEFAULT 'edit',
+  prev_width INTEGER NOT NULL DEFAULT 0,
+  prev_height INTEGER NOT NULL DEFAULT 0,
+  prev_size INTEGER NOT NULL DEFAULT 0,
+  prev_phash TEXT NOT NULL DEFAULT '',
+  prev_obj_phash TEXT NOT NULL DEFAULT '',
+  created_at TEXT NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_edit_history_image ON edit_history(image_id, id);
+
+-- 后台任务（采集 / 批量编辑 / 增强 / 模型下载）：
+-- 以前这些任务全是内存里的单例，进程一退就没了 —— 既没有历史，也没法重试，
+-- 崩了以后连「上次跑到哪」都查不到。这里落表，做历史 + 中断标记 + 重试依据。
+CREATE TABLE IF NOT EXISTS jobs (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  kind TEXT NOT NULL,
+  title TEXT NOT NULL DEFAULT '',
+  status TEXT NOT NULL DEFAULT 'queued',
+  payload TEXT NOT NULL DEFAULT '{}',
+  progress REAL NOT NULL DEFAULT 0,
+  message TEXT NOT NULL DEFAULT '',
+  done INTEGER NOT NULL DEFAULT 0,
+  total INTEGER NOT NULL DEFAULT 0,
+  failed INTEGER NOT NULL DEFAULT 0,
+  result TEXT NOT NULL DEFAULT '',
+  error TEXT NOT NULL DEFAULT '',
+  created_at TEXT NOT NULL,
+  started_at TEXT NOT NULL DEFAULT '',
+  finished_at TEXT NOT NULL DEFAULT ''
+);
+CREATE INDEX IF NOT EXISTS idx_jobs_kind ON jobs(kind, id DESC);
+
+-- 统一操作日志：撤销原先只覆盖「编辑类」（edit_history 的原图备份）。
+-- 打标、移动文件夹、删除、回收站恢复、批量导入都不可回滚，误操作只能靠人肉复原。
+-- 这里记录每次批量操作的逆操作描述，支持逐条撤销。
+CREATE TABLE IF NOT EXISTS op_log (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  op TEXT NOT NULL,
+  summary TEXT NOT NULL DEFAULT '',
+  payload TEXT NOT NULL DEFAULT '{}',
+  undone INTEGER NOT NULL DEFAULT 0,
+  created_at TEXT NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_op_log_id ON op_log(id DESC);
+
+-- 图片文字识别结果（OCR）：单独成表而不是给 images 加列，
+-- 因为一张图的识别文本可能很长，且绝大多数图没有；放主表会拖慢列表扫描。
+-- 关键词搜索时用 image_id IN (SELECT ... LIKE) 挂进主查询。
+CREATE TABLE IF NOT EXISTS image_ocr (
+  image_id INTEGER PRIMARY KEY,
+  text TEXT NOT NULL DEFAULT '',
+  lang TEXT NOT NULL DEFAULT '',
+  engine TEXT NOT NULL DEFAULT '',
+  created_at TEXT NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_image_ocr_created ON image_ocr(created_at);
+
+-- 动作（Actions）：把「打标签 + 归类 + 改名 + AI 描述」这类固定流程存成可复用宏，
+-- 对齐 Eagle 4 的「动作」与 Build 22 的 AI Action。steps 是 JSON 数组。
+CREATE TABLE IF NOT EXISTS actions (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  name TEXT NOT NULL,
+  icon TEXT NOT NULL DEFAULT '',
+  steps TEXT NOT NULL DEFAULT '[]',
+  created_at TEXT NOT NULL,
+  last_run_at TEXT NOT NULL DEFAULT ''
+);
 `);
 
   // 触发器依赖的拆分/清理函数（必须在任何写入前注册）。
@@ -294,14 +446,46 @@ END;
   ensureColumn('images', 'note', "note TEXT NOT NULL DEFAULT ''");
   // 文件指纹（mtime 秒）：导入时据此跳过内容未变的文件，让二次扫描接近零成本
   ensureColumn('images', 'fs_mtime', 'fs_mtime INTEGER NOT NULL DEFAULT 0');
+  // 封面版本号：换/恢复自定义封面只重写缩略图文件、不动原文件，fs_mtime 不会变，
+  // 单独用它让缩略图 URL 变化，避免浏览器 7 天强缓存里一直是旧封面
+  ensureColumn('images', 'cover_ver', 'cover_ver INTEGER NOT NULL DEFAULT 0');
+  // 文件夹封面：NULL = 自动用夹内最新一张；有值 = 用户手动指定的那一张
+  ensureColumn('folders', 'cover_image_id', 'cover_image_id INTEGER');
+  // 文件夹标签（Eagle：给文件夹打标签，里面素材自动带上）：只存逗号串，查询期沿路径继承，
+  // 不物化进 images.tags —— 物化后「删文件夹标签」得逐张回滚，得不偿失
+  ensureColumn('folders', 'tags', "tags TEXT NOT NULL DEFAULT ''");
+  // 文件夹内手动排序（拖动定序）：同一张图在不同文件夹可以有不同顺序，所以落在这里而不是 images
+  ensureColumn('image_folders', 'sort_order', 'sort_order INTEGER NOT NULL DEFAULT 0');
+  // 隐私空间：文件夹密码锁（哈希 + 盐，明文不落库）
+  ensureColumn('folders', 'lock_hash', "lock_hash TEXT NOT NULL DEFAULT ''");
+  ensureColumn('folders', 'lock_salt', "lock_salt TEXT NOT NULL DEFAULT ''");
   ensureColumn('images', 'dominant', "dominant TEXT NOT NULL DEFAULT ''");
   ensureColumn('images', 'hue', "hue TEXT NOT NULL DEFAULT ''");
   ensureColumn('images', 'palette', "palette TEXT NOT NULL DEFAULT ''");
+  // 主体哈希（白底抠图+主体包围盒归一化后的 pHash）：全图哈希被白底背景主导导致
+  // 不同商品误判相似，主体化后彻底解决；'' = 尚未补算（相似分组退回全图 phash）
+  ensureColumn('images', 'obj_phash', "obj_phash TEXT NOT NULL DEFAULT ''");
   conn.exec('CREATE INDEX IF NOT EXISTS idx_images_rating ON images(rating)');
   ensureColumn('images', 'pref', 'pref INTEGER NOT NULL DEFAULT 50');
   conn.exec('CREATE INDEX IF NOT EXISTS idx_images_pref ON images(pref)');
   conn.exec('CREATE INDEX IF NOT EXISTS idx_images_hue ON images(hue)');
   conn.exec('CREATE INDEX IF NOT EXISTS idx_images_palette ON images(palette)');
+
+  // —— 素材类型扩展（Eagle 式多格式）——
+  // media_kind: image / video / gif / audio / font / pdf / office / model / other
+  // 图片以外的素材不走 sharp，缩略图由前端用对应元素渲染，故 thumb 留空。
+  ensureColumn('images', 'media_kind', "media_kind TEXT NOT NULL DEFAULT 'image'");
+  conn.exec("UPDATE images SET media_kind = 'image' WHERE media_kind = ''");
+  ensureColumn('images', 'duration', 'duration REAL NOT NULL DEFAULT 0');   // 音视频时长（秒），前端读元数据后回写
+  ensureColumn('images', 'cover_ts', 'cover_ts REAL NOT NULL DEFAULT 0');    // 自定义封面帧（秒），视频/GIF 用
+  // 内容指纹：完全重复检测（pHash 只能找「看起来像」的，MD5 找「字节完全相同」的）
+  ensureColumn('images', 'md5', "md5 TEXT NOT NULL DEFAULT ''");
+  conn.exec('CREATE INDEX IF NOT EXISTS idx_images_md5 ON images(md5)');
+  conn.exec('CREATE INDEX IF NOT EXISTS idx_images_kind ON images(media_kind)');
+  // Eagle 素材 id：从 .library 迁移时记下来，重复导入同一个库直接跳过（幂等），
+  // 而不是每点一次「开始迁移」就多出一份副本
+  ensureColumn('images', 'eagle_id', "eagle_id TEXT NOT NULL DEFAULT ''");
+  conn.exec('CREATE INDEX IF NOT EXISTS idx_images_eagle ON images(eagle_id)');
 
   // hue 由单列整数改为多值文本（逗号分隔，最多 3 个色系；空串 = 黑白灰）。
   {
@@ -321,9 +505,10 @@ END;
     }
   }
 
-  // 倒排表空但 images 有标签时（老库首次升级）一次性重建
-  const need = conn.prepare("SELECT count(*) c FROM images WHERE tags <> ''").get().c;
-  const have = conn.prepare('SELECT count(DISTINCT image_id) c FROM item_tags').get().c;
+  // 倒排表空但 images 有标签时（老库首次升级）一次性重建。
+  // 只探「有没有」，不要 count(*)：每次切库都全表扫一遍上万行，大库上是白花的几百毫秒
+  const need = conn.prepare("SELECT 1 AS x FROM images WHERE tags <> '' LIMIT 1").get() ? 1 : 0;
+  const have = conn.prepare('SELECT 1 AS x FROM item_tags LIMIT 1').get() ? 1 : 0;
   if (need > 0 && have === 0) {
     conn.prepare('DELETE FROM item_tags').run();
     const rows = conn.prepare("SELECT id, tags FROM images WHERE tags <> ''").all();
@@ -375,10 +560,12 @@ CREATE TRIGGER trg_fts_update AFTER UPDATE OF title, tags, keyword, note ON imag
   INSERT INTO images_fts(rowid, title, tags, keyword, note) VALUES (NEW.id, NEW.title, NEW.tags, NEW.keyword, NEW.note);
 END;`);
     }
-    // 回填：FTS 空但 images 有数据时（老库首次升级）一次性构建
-    const ftsCount = conn.prepare('SELECT COUNT(*) AS c FROM images_fts').get().c;
-    const imgCount = conn.prepare('SELECT COUNT(*) AS c FROM images').get().c;
-    if (ftsCount === 0 && imgCount > 0) {
+    // 回填：FTS 空但 images 有数据时（老库首次升级）一次性构建。
+    // 同样只探测存在性 —— COUNT(*) 在 FTS5 上要遍历整个索引，1.8 万文档就是秒级，
+    // 而这段代码每次切库都会跑到
+    const ftsEmpty = !conn.prepare('SELECT rowid FROM images_fts LIMIT 1').get();
+    const hasImg = Boolean(conn.prepare('SELECT id FROM images LIMIT 1').get());
+    if (ftsEmpty && hasImg) {
       conn.exec(
         'INSERT INTO images_fts(rowid, title, tags, keyword, note) SELECT id, title, tags, keyword, note FROM images'
       );
@@ -393,6 +580,7 @@ export function openLibrary(dbFile) {
   const conn = new DatabaseSync(dbFile);
   applyPragmas(conn);
   initLibrarySchema(conn);
+  seedLibrarySettings(conn);
   return conn;
 }
 
@@ -440,24 +628,31 @@ export function getThumbDir() {
 
 /* ------------------------------- 迁移 ------------------------------- */
 
-/** 可嵌套事务：已在事务内则直接执行（由外层提交），否则自行 BEGIN/COMMIT */
+let savepointSeq = 0;
+
+/**
+ * 可嵌套事务（SAVEPOINT 实现）。
+ *
+ * 旧实现靠「BEGIN 抛异常」推断是否已在事务内 —— SQLITE_BUSY 同样会抛错，
+ * 繁忙时被误判成嵌套 → 既不 COMMIT 也不 ROLLBACK，最需要保护的场景反而没有事务。
+ * 而 node:sqlite 不暴露 autocommit 状态，无法可靠探测。
+ *
+ * SAVEPOINT 在事务内外都合法：最外层 RELEASE 即提交，内层 ROLLBACK TO 只回滚自己，
+ * 所以既能正确嵌套，也不会因为「判断嵌套」失败而静默丢事务。
+ */
 export function withTransaction(fn) {
-  let own = false;
-  try {
-    db.exec('BEGIN');
-    own = true;
-  } catch {
-    /* 已在事务内 */
-  }
+  const name = `gem_sp_${(savepointSeq = (savepointSeq + 1) % 1e9)}`;
+  db.exec(`SAVEPOINT ${name}`);
   try {
     const result = fn();
-    if (own) db.exec('COMMIT');
+    db.exec(`RELEASE ${name}`);
     return result;
   } catch (err) {
-    if (own) {
-      try {
-        db.exec('ROLLBACK');
-      } catch {}
+    try {
+      db.exec(`ROLLBACK TO ${name}`);
+      db.exec(`RELEASE ${name}`);
+    } catch {
+      /* 连接失效或 SQLite 已自动回滚：忽略，保留原始错误 */
     }
     throw err;
   }
@@ -484,11 +679,39 @@ export function rebuildItemTags() {
 
 /* ------------------------------- settings ------------------------------- */
 
+/**
+ * 库的 settings 表为空时，从 global.db 复制一份非全局键作为起点。
+ * 设置分库是一次结构迁移：老用户的现有配置都攒在 global.db 里，
+ * 每个存量库首次打开时播种一份，之后各自独立演进；新建库同样以这份快照起步。
+ * 幂等：只在空表时执行（用户主动改过的库不会被覆盖）。
+ */
+function seedLibrarySettings(conn) {
+  try {
+    const count = conn.prepare('SELECT COUNT(*) AS c FROM settings').get().c;
+    if (count > 0) return;
+    const rows = globalDb
+      .prepare('SELECT key, value FROM settings')
+      .all()
+      .filter((r) => !GLOBAL_SETTING_KEYS.has(r.key));
+    if (!rows.length) return;
+    const ins = conn.prepare('INSERT OR IGNORE INTO settings(key, value) VALUES (?, ?)');
+    for (const r of rows) ins.run(r.key, r.value);
+  } catch (err) {
+    console.warn('[settings] 库设置初始化失败（以默认值继续）:', err?.message || err);
+  }
+}
+
 export const DEFAULT_SETTINGS = {
   minResolution: 800, // 长边最小像素
   minFileSize: 30, // 最小 KB
   phashThreshold: 8, // 汉明距离阈值
   pagesPerKeyword: 3, // 每个关键词采集页数
+  importMaxDepth: 4, // 导入时目录遍历深度上限（层），超过的目录会跳过并在导入结束时提示
+  // 调色台历史记录保留步数：调色是「反复试」的过程，默认留 100 步够回退一整轮试色
+  historySteps: 100,
+  // 水印预设（跨库共享）：用户存下来的整套排版方案 —— 样式/相框/信息项/品牌型号/字号…
+  // 结构：[{ id, name, params, at }]，导入导出的 JSON 见 web/src/lib/watermark-preset.ts
+  watermarkPresets: [],
   maxFileSize: 25, // 单张最大 MB
   concurrency: 5,
   sources: {
@@ -505,14 +728,20 @@ export const DEFAULT_SETTINGS = {
   updateRepo: '',
   // 开机自启（桌面端）：应用启动时写入系统登录项
   autoLaunch: false,
+  // 关窗行为（桌面端）：true = 收到托盘继续后台跑；false = 关窗即退出
+  closeToTray: true,
   // 微博登录 Cookie（微博接口已关闭游客访问，填了才能用微博源）
   weiboCookie: '',
   // 微博登录会话的 User-Agent：微博风控把登录态与 UA 绑定，采集请求必须复用同一 UA
   weiboUserAgent: '',
   // 桌面端壁纸库文件夹（软件可直接管理其中的图片）；当前激活库的素材根目录
   storageDir: DEFAULT_STORAGE_DIR,
+  // 文件夹监控：往素材文件夹里丢文件即自动入库（fs.watch 递归监听，2s 防抖）
+  watchEnabled: true,
   // 是否已完成首次引导（首次启动让用户选择图片文件夹）；完成后置 true 不再弹出
   onboarded: false,
+  // 是否已看过新手教程（分步导览）；跳过也算看过，可在设置里重新播放
+  tourDone: false,
   // 删除策略：trash 回收站 / permanent 彻底删除 / unlink 仅移出图库
   deletePolicy: 'trash',
   // 智能评分：低于该分数的图片在采集时自动丢弃
@@ -601,16 +830,43 @@ export function getSettings() {
   // 热路径缓存：getSettings 在服务端被高频调用（请求、调度、AI 流程内部都有），
   // 每次全表 SELECT + JSON.parse + 解密纯属浪费。写路径统一走 saveSettings，会同步失效缓存。
   if (settingsCache) return structuredClone(settingsCache);
-  const rows = globalDb.prepare('SELECT key, value FROM settings').all();
   const stored = {};
-  for (const row of rows) {
-    try {
-      stored[row.key] = JSON.parse(row.value);
-    } catch {
-      stored[row.key] = row.value;
+  const readRows = (rows) => {
+    for (const row of rows) {
+      try {
+        stored[row.key] = JSON.parse(row.value);
+      } catch {
+        stored[row.key] = row.value;
+      }
     }
-  }
+  };
+  // 当前库的设置（采集 / AI 开关 / 壁纸 / 存储位置…按库独立）
+  readRows(db.prepare('SELECT key, value FROM settings').all());
+  // 共享键以 global.db 为准（主题 / 引导 / 自启 / 更新源 / 微博凭据 / 网络代理）
+  readRows(
+    globalDb
+      .prepare('SELECT key, value FROM settings')
+      .all()
+      .filter((r) => GLOBAL_SETTING_KEYS.has(r.key))
+  );
   const merged = { ...DEFAULT_SETTINGS, ...stored };
+  // ai 拆分键：接入配置（provider/baseUrl/apiKey/model/visionModel）跨库共享存 global.db；
+  // enabled（智能评分开关）按库独立存各库。两侧行都可能是旧的全量格式，显式合并。
+  const libAi = stored.ai && typeof stored.ai === 'object' ? stored.ai : {};
+  delete stored.ai;
+  let sharedAi = {};
+  try {
+    sharedAi = JSON.parse(globalDb.prepare("SELECT value FROM settings WHERE key='ai'").get()?.value || '{}');
+  } catch {
+    /* 忽略坏行，走默认值 */
+  }
+  if (typeof sharedAi !== 'object' || !sharedAi) sharedAi = {};
+  merged.ai = {
+    ...DEFAULT_SETTINGS.ai,
+    ...sharedAi,
+    // enabled 权威在库行；库行没有（新库/旧数据）时退回共享行的快照，最后到默认值
+    enabled: libAi.enabled ?? sharedAi.enabled ?? DEFAULT_SETTINGS.ai.enabled,
+  };
   // 采集源是「键值开关」，老版本存下的对象里没有新加的源，这里补齐默认值
   merged.sources = { ...DEFAULT_SETTINGS.sources, ...(stored.sources || {}) };
   // 微博 Cookie 入库为密文（见 saveSettings），这里解密成明文供服务端内部使用；
@@ -627,7 +883,10 @@ export function saveSettings(patch) {
     if (v === undefined) continue;
     // 脱敏辅助字段（服务端生成，不入库）
     if (k === 'hasWeiboCookie' || k === 'hasAiApiKey') continue;
-    if (typeof DEFAULT_SETTINGS[k] === 'object' && v && typeof v === 'object') {
+    // 数组（水印预设、壁纸排除名单…）整体替换，别按对象合并——展开数组会变成 {"0":…} 的怪东西
+    if (Array.isArray(v)) {
+      next[k] = v;
+    } else if (typeof DEFAULT_SETTINGS[k] === 'object' && v && typeof v === 'object') {
       next[k] = { ...DEFAULT_SETTINGS[k], ...current[k], ...v };
     } else {
       next[k] = v;
@@ -645,16 +904,36 @@ export function saveSettings(patch) {
   } else if (next.ai && !String(next.ai.apiKey || '').trim()) {
     next.ai = { ...next.ai, apiKey: current.ai?.apiKey || '' };
   }
-  const upsert = globalDb.prepare(
+  const upsertLib = db.prepare(
+    'INSERT INTO settings(key, value) VALUES (?, ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value'
+  );
+  const upsertGlobal = globalDb.prepare(
     'INSERT INTO settings(key, value) VALUES (?, ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value'
   );
   for (const [k, v] of Object.entries(next)) {
     // 指令键只用于本次保存，不落库
     if (k === 'weiboCookieClear' || k === 'aiApiKeyClear') continue;
+    // ai 拆分写入：接入配置（密钥/模型/baseUrl）写 global.db 供所有库共享，
+    // enabled（智能评分开关）写当前库——每库自己决定开不开 AI 评分。
+    // global 行附带 enabled 快照，供新库播种时继承「最近一次的开关状态」。
+    if (k === 'ai') {
+      const { enabled, ...sharedAi } = v && typeof v === 'object' ? v : {};
+      upsertGlobal.run('ai', JSON.stringify({ ...sharedAi, enabled: !!enabled }));
+      upsertLib.run('ai', JSON.stringify({ enabled: !!enabled }));
+      continue;
+    }
     const value = k === 'weiboCookie' ? encryptSecret(String(v || '')) : v;
-    upsert.run(k, JSON.stringify(value));
+    // 共享键写回 global.db（跨库共用一份），其余写入当前库的 settings 表
+    if (GLOBAL_SETTING_KEYS.has(k)) upsertGlobal.run(k, JSON.stringify(value));
+    else upsertLib.run(k, JSON.stringify(value));
   }
   settingsCache = null; // 下次读取重建缓存
+  // 通知订阅方（Electron 主进程：storageDir / 代理 / 开机自启这些本地能力要跟着改）
+  try {
+    settingsBus.emit('changed', getSettings());
+  } catch (err) {
+    console.error('[settings] 广播设置变更失败', err.message);
+  }
   return next;
 }
 
@@ -677,12 +956,16 @@ function ensureDefaultLibrary() {
         .prepare('INSERT INTO settings(key, value) VALUES (?, ?) ON CONFLICT(key) DO NOTHING')
         .run(r.key, r.value);
     }
-    // 迁移完成，库内 settings 表不再使用，删除避免双份来源
+    // 迁移完成，清空库内 settings 行避免双份来源。
+    // 注意保留空表：连接还开着，且设置已改为按库存储（getSettings 会查这张表）
     try {
-      db.exec('DROP TABLE settings');
+      db.exec('DELETE FROM settings');
     } catch {
       /* 忽略 */
     }
+    // 再把迁移到 global.db 的非全局键播种回默认库——设置分库后，
+    // 默认库的第一份配置就来自这次迁移的结果（其他库在各自首次打开时播种）
+    seedLibrarySettings(db);
   }
 
   // 2) 登记默认库（沿用历史 DATA_DIR/gallery.db + storage/thumbs）

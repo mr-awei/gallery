@@ -4,13 +4,36 @@ on:
   push:
     branches: [main]
     tags: ['v*']
+  # PR 只跑校验，不打包（打包慢且没有产物价值）
+  pull_request:
+    branches: [main]
   workflow_dispatch:
 
 permissions:
   contents: write # 打 tag 时创建 Release；失败时推送 ci-logs 分支
 
 jobs:
+  # 先验证再打包：以前 CI 只会 npm run dist，lint/类型/单测/冒烟全靠本地自觉，
+  # 红了的提交照样能出安装包。
+  verify:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Verify (lint + typecheck + unit + smoke)
+        run: npm run verify
+
   build:
+    needs: verify
+    if: github.event_name != 'pull_request'
     runs-on: windows-latest
     steps:
       - uses: actions/checkout@v4

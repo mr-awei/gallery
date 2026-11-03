@@ -1,10 +1,10 @@
 // 画质增强路由：内置标准档位、AI 超分、Swin2SR、cugan、matting、线上服务测试（从 app.js 拆出）
-import * as ai from '../ai.js';
 import * as aiUpscale from '../ai-upscale.js';
 import * as enhanceJob from '../enhance-job.js';
 import * as lib from '../library.js';
 import * as srDeep from '../sr-deep.js';
-import { db, getSettings } from '../db.js';
+import { getSettings } from '../db.js';
+import { logOp } from '../oplog.js';
 
 export function register(app, ctx) {
   const { asyncRoute } = ctx;
@@ -38,6 +38,9 @@ let upscaleChecking = false;
       const cfg = getSettings().enhance || {};
       const ai = aiUpscale.aiStatus();
       const aiUsable = ai.installed && ai.usable !== false;
+      // 第二档（transformers/Swin2SR）走的是另一套运行库，是否可点要单独判
+      const deep = srDeep.srStatus();
+      const deepRuntime = srDeep.srRuntimeStatus();
       res.json({
         builtin: lib.ENHANCE_MODELS,
         remote: cfg.remoteServices || [],
@@ -54,17 +57,19 @@ let upscaleChecking = false;
             available: aiUsable && ai.cugan.installed,
           })),
           // 第二档：Transformer 系（高画质·慢），首次使用自动下载模型
-          ...srDeep.srStatus().models.map((m) => ({
+          ...deep.models.map((m) => ({
             id: m.id,
             name: m.repo,
             label: m.label,
             desc: `${m.desc}（高画质·慢${m.downloaded ? '' : '，首次使用需下载'}）`,
             maxScale: m.scale,
-            available: true,
+            available: m.available,
+            unavailableReason: m.unavailableReason,
           })),
         ],
         aiInstalled: ai.installed,
         cugan: ai.cugan,
+        deepRuntime,
       });
     }
   );
@@ -167,7 +172,10 @@ let upscaleChecking = false;
             standard: req.body?.standard,
           });
         }
-        res.json({ ok: true, item });
+        // 已达标时底层什么都不做：如实回 noop，别让前端弹「已增强至 W×H」却没变化
+        const noop = Boolean(item && item.noop);
+        if (noop) delete item.noop; // 标记只在本层用，不混进 ImageItem
+        res.json({ ok: true, noop, message: noop ? '已是目标分辨率，无需增强' : '', item });
       } catch (err) {
         res.status(500).json({ error: err.message || '增强失败' });
       }
@@ -182,6 +190,7 @@ let upscaleChecking = false;
       const standard = req.body?.standard;
       const results = [];
       let success = 0;
+      let skipped = 0; // 已达标、未改动：以前会和真正增强的一起算进 success
       for (const id of ids) {
         try {
           const settings = getSettings().enhance || {};
@@ -193,13 +202,16 @@ let upscaleChecking = false;
           } else {
             item = await lib.enhanceImage(id, model, { standard });
           }
-          results.push({ id, ok: true, item });
-          success++;
+          const noop = Boolean(item && item.noop);
+          if (noop) delete item.noop;
+          results.push({ id, ok: true, noop, item });
+          if (noop) skipped++;
+          else success++;
         } catch (err) {
           results.push({ id, ok: false, error: String((err && err.message) || err) });
         }
       }
-      res.json({ ok: true, success, total: ids.length, results });
+      res.json({ ok: true, success, skipped, total: ids.length, results });
     })
   );
 
@@ -209,18 +221,44 @@ let upscaleChecking = false;
       const ids = (req.body.ids || []).map(Number).filter(Boolean);
       const action = req.body.action;
       let affected = 0;
+      // 批量操作全部记进撤销栈：删除/打标/收藏以前都不可回滚，误点一次几百张就废了
+      const tagChanges = [];
+      const favChanges = [];
+      const trashed = [];
       for (const id of ids) {
-        if (!lib.getImage(id)) continue;
-        if (action === 'favorite') lib.setFavorite(id, true);
-        else if (action === 'unfavorite') lib.setFavorite(id, false);
-        else if (action === 'delete') await lib.removeImage(id);
-        else if (action === 'addTag' && req.body.tag) {
-          const row = lib.getImage(id);
+        const row = lib.getImage(id);
+        if (!row) continue;
+        if (action === 'favorite') {
+          favChanges.push({ id, before: !!row.favorite });
+          lib.setFavorite(id, true);
+        } else if (action === 'unfavorite') {
+          favChanges.push({ id, before: !!row.favorite });
+          lib.setFavorite(id, false);
+        } else if (action === 'delete') {
+          const r = await lib.removeImage(id);
+          if (r.ok) trashed.push(id);
+        } else if (action === 'addTag' && req.body.tag) {
           const tags = row.tags ? row.tags.split(',').filter(Boolean) : [];
           const tag = String(req.body.tag).trim();
-          if (tag && !tags.includes(tag)) lib.setTags(id, [...tags, tag]);
+          if (tag && !tags.includes(tag)) {
+            tagChanges.push({ id, before: row.tags || '' });
+            lib.setTags(id, [...tags, tag]);
+          }
         }
         affected++;
+      }
+      if (tagChanges.length) {
+        logOp({ op: 'tags', summary: `批量打标「${req.body.tag}」${tagChanges.length} 张`, payload: { items: tagChanges } });
+      }
+      if (favChanges.length) {
+        logOp({
+          op: 'favorite',
+          summary: `${action === 'favorite' ? '收藏' : '取消收藏'} ${favChanges.length} 张`,
+          payload: { items: favChanges },
+        });
+      }
+      if (trashed.length) {
+        logOp({ op: 'trash', summary: `批量删除 ${trashed.length} 张`, payload: { imageIds: trashed } });
       }
       res.json({ ok: true, affected });
     })

@@ -1,16 +1,42 @@
 {
   "manifest_version": 3,
   "name": "图库采集助手",
-  "version": "1.0.0",
-  "description": "右键采集网页图片 / 批量抓取 / 截图，直接存入本地图库（GemVault）",
-  "permissions": ["contextMenus", "activeTab", "scripting", "downloads", "storage", "tabs"],
-  "host_permissions": ["http://127.0.0.1:3001/*", "http://localhost:3001/*"],
+  "version": "1.3.2",
+  "description": "右键采集 / 拖拽采集网页图片、批量抓取、截图，直接存入本地图库（GemVault）",
+  "permissions": ["contextMenus", "activeTab", "scripting", "downloads", "storage", "tabs", "notifications"],
+  "host_permissions": ["<all_urls>", "http://127.0.0.1/*", "http://localhost/*"],
   "action": {
     "default_title": "图库采集助手",
-    "default_popup": "popup.html"
+    "default_popup": "popup.html",
+    "default_icon": {
+      "16": "icon16.png",
+      "32": "icon32.png",
+      "48": "icon48.png",
+      "128": "icon128.png"
+    }
   },
   "background": {
     "service_worker": "background.js"
   },
-  "icons": {}
+  "content_scripts": [
+    {
+      "matches": ["http://*/*", "https://*/*"],
+      "js": ["content.js"],
+      "run_at": "document_idle",
+      "all_frames": false
+    }
+  ],
+  "web_accessible_resources": [
+    {
+      "resources": ["icon48.png"],
+      "matches": ["http://*/*", "https://*/*"]
+    }
+  ],
+  "key": "MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAneRgsu9b+4Ru1OwPBL3Gi4E+Rz0AIJ+n67LbXtfL7r7m08Pdr+YyYfUqJFxpnZTL0FjbhWfzvE3zNzlBd1t7N7+Wns2aynhuMt7vJsbFjmBKxZZOFBteRSeAwtNT0iwHuuS+3HybmM26eOasty52rtDhnCe2+Jc6+ZuEBeUoxfGhl3p18dWdQz3G+XqdVVPkFtLDVv+wxPNaWlPm2HsFLkop/IrIcvXKaoTFN5vlVtEjepuWAWVaipOufab9x6KgK64k2zslip0gRHKTDNOVl/ASYCMH++iCwbWJMM4vNAGx9lOQxZjgr/QMn01yCae/mUY1/Ht1O3jpGZYGaHz6wQIDAQAB",
+  "icons": {
+    "16": "icon16.png",
+    "32": "icon32.png",
+    "48": "icon48.png",
+    "128": "icon128.png"
+  }
 }

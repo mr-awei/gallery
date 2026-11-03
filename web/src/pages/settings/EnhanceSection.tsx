@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { api, quiet } from '../../api';
 import { subscribeEvents } from '../../events';
 import type {
@@ -9,6 +9,7 @@ import type {
   Settings as SettingsType,
 } from '../../types';
 import { IconTrash } from '../../components/Icons';
+import Select from '../../components/Select';
 import Card from './Card';
 
 interface Props {
@@ -139,9 +140,33 @@ export default function EnhanceSection({ settings, patch, onToast }: Props) {
   const [remoteTest, setRemoteTest] = useState<Record<string, { ok: boolean; message: string }>>({});
   const [remoteTesting, setRemoteTesting] = useState<string>('');
 
+  // 模型列表读不到时，下拉框会变成空的，用户只会觉得「增强功能没了」——得说清原因
+  const [modelsErr, setModelsErr] = useState('');
+
+  /** 装完模型/运行库后刷新列表：失败要提示，否则新模型不会出现在下拉里 */
+  const reloadModels = useCallback(() => {
+    api
+      .enhanceModels()
+      .then((m) => {
+        setEnhanceModels(m);
+        setModelsErr('');
+      })
+      .catch((err) => {
+        const msg = (err as Error).message;
+        setModelsErr(msg);
+        onToast(`增强模型列表刷新失败：${msg}`);
+      });
+  }, [onToast]);
+
   // 初始加载（原样迁自父组件）
   useEffect(() => {
-    api.enhanceModels().then(setEnhanceModels).catch(quiet);
+    api
+      .enhanceModels()
+      .then((m) => {
+        setEnhanceModels(m);
+        setModelsErr('');
+      })
+      .catch((err) => setModelsErr((err as Error).message));
     api.aiUpscaleStatus().then(setAiUp).catch(quiet);
     api.aiSrStatus().then(setSr).catch(quiet);
     api.prefStatus().then(setPref).catch(quiet);
@@ -154,6 +179,15 @@ export default function EnhanceSection({ settings, patch, onToast }: Props) {
   const aiUpDownloadingRef = useRef(false);
   aiUpDownloadingRef.current = !!aiUp?.downloading;
 
+  // 去背景模型不在 job 事件里推送状态：后台下载期间自己轮询，否则「下载中 0%」一直不动
+  useEffect(() => {
+    if (!matting?.downloading) return;
+    const timer = window.setInterval(() => {
+      api.mattingStatus().then(setMatting).catch(quiet);
+    }, 1000);
+    return () => window.clearInterval(timer);
+  }, [matting?.downloading]);
+
   useEffect(() => {
     const off = subscribeEvents('job', (d) => {
       try {
@@ -162,7 +196,7 @@ export default function EnhanceSection({ settings, patch, onToast }: Props) {
           setSr(st);
           if (srLoadingRef.current && !st.loading) {
             onToast(st.error ? `模型下载失败：${st.error}` : '超分模型已就绪');
-            api.enhanceModels().then(setEnhanceModels).catch(quiet);
+            reloadModels();
           }
           srLoadingRef.current = !!st.loading;
         }
@@ -171,7 +205,7 @@ export default function EnhanceSection({ settings, patch, onToast }: Props) {
           setAiUp(st);
           if (aiUpDownloadingRef.current && !st.downloading) {
             onToast(st.installed ? 'AI 超分运行库安装完成' : '安装未完成');
-            api.enhanceModels().then(setEnhanceModels).catch(quiet);
+            reloadModels();
           }
           aiUpDownloadingRef.current = !!st.downloading;
         }
@@ -182,7 +216,7 @@ export default function EnhanceSection({ settings, patch, onToast }: Props) {
     return () => {
       off();
     };
-  }, [onToast]);
+  }, [onToast, reloadModels]);
 
   return (
   <Card
@@ -191,11 +225,11 @@ export default function EnhanceSection({ settings, patch, onToast }: Props) {
   >
     <div className="field">
       <label>目标标准（低于该分辨率的图片视为待增强）</label>
-      <select
+      <Select
         className="select"
         style={{ width: '100%' }}
         value={settings.enhance?.standard || '1080p'}
-        onChange={(e) => patch({ enhance: { ...settings.enhance, standard: e.target.value } })}
+        onChange={(v) => patch({ enhance: { ...settings.enhance, standard: v } })}
       >
         <option value="480p">480P（854×480）</option>
         <option value="720p">720P（1280×720）</option>
@@ -203,7 +237,7 @@ export default function EnhanceSection({ settings, patch, onToast }: Props) {
         <option value="2k">2K（2560×1440）</option>
         <option value="4k">4K（3840×2160）</option>
         <option value="custom">自定义…</option>
-      </select>
+      </Select>
     </div>
     {settings.enhance?.standard === 'custom' && (
       <div style={{ display: 'flex', gap: 8, marginTop: -4 }}>
@@ -229,13 +263,13 @@ export default function EnhanceSection({ settings, patch, onToast }: Props) {
     )}
     <div className="field">
       <label>默认增强模型</label>
-      <select
+      <Select
         className="select"
         style={{ width: '100%' }}
         value={settings.enhance?.model || 'sharp-standard'}
-        onChange={(e) => patch({ enhance: { ...settings.enhance, model: e.target.value } })}
+        onChange={(v) => patch({ enhance: { ...settings.enhance, model: v } })}
       >
-        <optgroup label="内置模型（离线）">
+        <optgroup label="内置插值放大（离线，不生成新细节）">
           {(enhanceModels.builtin || []).map((m: EnhanceModel) => (
             <option key={m.id} value={m.id}>
               {m.label} · {m.desc}
@@ -261,10 +295,18 @@ export default function EnhanceSection({ settings, patch, onToast }: Props) {
             ))}
           </optgroup>
         )}
-      </select>
+      </Select>
       <div className="hint">
         内置模型基于 sharp 插值放大，离线可用、无额外依赖；也可在下方配置线上免费增强服务
       </div>
+      {modelsErr && (
+        <div className="hint" style={{ color: 'var(--err, #e5484d)' }}>
+          模型列表读取失败：{modelsErr}
+          <button className="btn sm ghost" style={{ marginLeft: 8 }} onClick={reloadModels}>
+            重试
+          </button>
+        </div>
+      )}
     </div>
 
     <div className="settings-subtitle">AI 超分模型（Real-ESRGAN）</div>
@@ -413,15 +455,20 @@ export default function EnhanceSection({ settings, patch, onToast }: Props) {
       <div className="settings-subtitle" style={{ marginTop: 14 }}>
         AI 去背景（U-2-Net 人像分割）
       </div>
+      <div className="hint" style={{ marginBottom: 6 }}>
+        这个模型是<strong>人像分割</strong>：人物、宠物效果最好；纯风景、商品、文字图往往抠不干净（工具会提示「几乎没抠出主体」）。
+        需要通用抠图请用外部工具，这里不做承诺。
+      </div>
       <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
         <button
           className={`btn sm${matting?.downloaded ? '' : ' primary'}`}
           disabled={!!matting?.downloading}
           onClick={async () => {
             try {
+              // 后台下载：接口立刻返回，进度靠下面的轮询/SSE 显示（以前这个请求要等整包下完）
               await api.mattingInstall();
               setMatting(await api.mattingStatus());
-              onToast('去背景模型下载完成，可在大图预览里点「✂ 去背景」');
+              onToast('已开始后台下载去背景模型');
             } catch (err) {
               onToast((err as Error).message);
             }
@@ -433,6 +480,22 @@ export default function EnhanceSection({ settings, patch, onToast }: Props) {
               ? '重新下载模型'
               : '↓ 下载模型（约 4.5MB）'}
         </button>
+        {matting?.downloading && (
+          <button
+            className="btn sm"
+            onClick={async () => {
+              try {
+                await api.mattingCancel();
+                onToast('已取消下载');
+                setMatting(await api.mattingStatus());
+              } catch (err) {
+                onToast((err as Error).message);
+              }
+            }}
+          >
+            取消下载
+          </button>
+        )}
         <span style={{ fontSize: 12.5, color: 'var(--muted)' }}>
           {matting?.downloaded
             ? '已就绪：大图预览 → 「✂ 去背景」，生成透明 PNG 存为新图，原图不动'
@@ -644,16 +707,16 @@ export default function EnhanceSection({ settings, patch, onToast }: Props) {
           </div>
           <div className="field" style={{ flex: 1 }}>
             <label>返回类型</label>
-            <select
+            <Select
               className="select"
               style={{ width: '100%' }}
               value={svc.resultType || 'json'}
-              onChange={(e) =>
+              onChange={(v) =>
                 patch({
                   enhance: {
                     ...settings.enhance,
                     remoteServices: settings.enhance.remoteServices.map((s) =>
-                      s.id === svc.id ? { ...s, resultType: e.target.value as 'direct' | 'json' } : s
+                      s.id === svc.id ? { ...s, resultType: v as 'direct' | 'json' } : s
                     ),
                   },
                 })
@@ -661,20 +724,20 @@ export default function EnhanceSection({ settings, patch, onToast }: Props) {
             >
               <option value="json">JSON（含结果地址）</option>
               <option value="direct">直接返回图片</option>
-            </select>
+            </Select>
           </div>
           <div className="field" style={{ flex: 1 }}>
             <label>请求体方式</label>
-            <select
+            <Select
               className="select"
               style={{ width: '100%' }}
               value={svc.bodyMode || 'multipart'}
-              onChange={(e) =>
+              onChange={(v) =>
                 patch({
                   enhance: {
                     ...settings.enhance,
                     remoteServices: settings.enhance.remoteServices.map((s) =>
-                      s.id === svc.id ? { ...s, bodyMode: e.target.value as 'multipart' | 'binary' } : s
+                      s.id === svc.id ? { ...s, bodyMode: v as 'multipart' | 'binary' } : s
                     ),
                   },
                 })
@@ -682,7 +745,7 @@ export default function EnhanceSection({ settings, patch, onToast }: Props) {
             >
               <option value="multipart">表单上传（多数服务）</option>
               <option value="binary">二进制直传（Hugging Face 等）</option>
-            </select>
+            </Select>
           </div>
         </div>
         {svc.resultType !== 'direct' && (

@@ -1,6 +1,8 @@
 // 统一列表查询：结构化筛选 + FTS5 全文搜索 + 排序分页的唯一权威实现（从 library.js 拆出）
 import { db, withTransaction } from '../db.js';
 import { toDTO } from '../library.js';
+import { expandTagName, tagsMatchingKeyword } from './tags.js';
+import { hiddenImagesClause } from './privacy.js';
 
 export function markAllViewedByFilter(query = {}) {
   const colorIds = query.colorIds || null;
@@ -38,9 +40,14 @@ export function markAllViewed(ids) {
 
 /* ------------------------------ 统一列表查询 ------------------------------ */
 
+/** 全选（Ctrl+A）返回的 id 上限：防止一次把整库 id 灌进前端 */
+const MAX_IDS = 20000;
+
 const SORTS = {
   newest: 'created_at DESC, id DESC',
   oldest: 'created_at ASC, id ASC',
+  name: 'title ASC, id ASC',
+  nameDesc: 'title DESC, id DESC',
   largest: 'size_bytes DESC',
   resolution: '(width * height) DESC',
   smart: 'score DESC, created_at DESC',
@@ -49,6 +56,91 @@ const SORTS = {
   recommend: 'pref DESC, score DESC, created_at DESC',
   random: 'RANDOM()',
 };
+
+/* ------------------------------ 搜索框前缀语法 ------------------------------ */
+/* Eagle / Lightroom 老用户的手速：tag:logo color:blue rating:>=4 folder:客户 kind:video is:favorite。
+ * 只认白名单前缀，其它带冒号的串（尤其 http:// 网址）原样当关键词，绝不拆坏。 */
+const COLOR_HUE_MAP = new Map([
+  ['red', '0'], ['红', '0'], ['红色', '0'],
+  ['orange', '1'], ['橙', '1'], ['橙色', '1'],
+  ['yellow', '2'], ['黄', '2'], ['黄色', '2'],
+  ['lime', '3'], ['黄绿', '3'],
+  ['green', '4'], ['绿', '4'], ['绿色', '4'],
+  ['teal', '5'], ['青绿', '5'],
+  ['cyan', '6'], ['青', '6'], ['青色', '6'],
+  ['blue', '7'], ['蓝', '7'], ['蓝色', '7'],
+  ['indigo', '8'], ['靛', '8'], ['靛蓝', '8'],
+  ['purple', '9'], ['紫', '9'], ['紫色', '9'],
+  ['magenta', '10'], ['品红', '10'],
+  ['pink', '11'], ['玫粉', '11'], ['粉', '11'], ['粉色', '11'],
+  ['gray', 'gray'], ['grey', 'gray'], ['灰', 'gray'], ['灰色', 'gray'], ['黑白', 'gray'],
+]);
+
+/** 解析搜索框里的 key:value 前缀；没有可识别前缀时返回 null（保持原有纯关键词行为） */
+export function parseSearchSyntax(raw) {
+  const src = String(raw || '').trim();
+  if (!src || !src.includes(':')) return null;
+  const out = {
+    matched: false, text: '', tags: [], hues: [], minRating: 0, maxRating: 0,
+    folderPath: '', kind: [], favorite: '', seen: '', noTags: false,
+  };
+  const re = /(?:^|\s)(tag|color|rating|folder|kind|is):("([^"]*)"|[^\s]+)/gi;
+  let rest = src;
+  let m;
+  while ((m = re.exec(src)) !== null) {
+    const key = m[1].toLowerCase();
+    const val = String(m[3] !== undefined ? m[3] : m[2]).trim();
+    rest = rest.replace(m[0], ' ');
+    if (!val) continue;
+    out.matched = true;
+    if (key === 'tag') out.tags.push(val);
+    else if (key === 'color') {
+      for (const part of val.split(/[,，]/)) {
+        const h = COLOR_HUE_MAP.get(part.trim().toLowerCase());
+        if (h) out.hues.push(h);
+      }
+    } else if (key === 'rating') {
+      const mm = val.match(/^(>=|<=|>|<|=)?\s*([0-5])$/);
+      if (mm) {
+        const n = Number(mm[2]);
+        if (mm[1] === '<=' || mm[1] === '<') out.maxRating = mm[1] === '<' ? Math.max(0, n - 1) : n;
+        else out.minRating = n;
+      }
+    } else if (key === 'folder') {
+      const f = db.prepare('SELECT path FROM folders WHERE name = ? ORDER BY id LIMIT 1').get(val);
+      if (f) out.folderPath = String(f.path);
+    } else if (key === 'kind') {
+      out.kind.push(...val.split(/[,，]/).map((s) => s.trim()).filter(Boolean));
+    } else if (key === 'is') {
+      const v = val.toLowerCase();
+      if (v === 'favorite' || v === 'star' || v === '收藏') out.favorite = 'yes';
+      else if (v === 'unseen' || v === '未看') out.seen = 'unseen';
+      else if (v === 'seen' || v === '已看') out.seen = 'seen';
+      else if (v === 'notag' || v === '无标签') out.noTags = true;
+    }
+  }
+  if (!out.matched) return null;
+  out.text = rest.replace(/\s+/g, ' ').trim();
+  return out;
+}
+
+/** 打了某个标签的文件夹 + 它的全部子孙夹（文件夹标签继承用） */
+function folderIdsByTag(names) {
+  if (!names.length) return [];
+  const rows = db.prepare('SELECT id, path, tags FROM folders').all();
+  const prefixes = [];
+  for (const r of rows) {
+    const own = String(r.tags || '').split(',').map((s) => s.trim()).filter(Boolean);
+    if (own.some((t) => names.includes(t))) prefixes.push(String(r.path || '/'));
+  }
+  if (!prefixes.length) return [];
+  return rows
+    .filter((r) => {
+      const p = String(r.path || '/');
+      return prefixes.some((pre) => p === pre || p.startsWith(pre.endsWith('/') ? pre : pre + '/'));
+    })
+    .map((r) => r.id);
+}
 
 /**
  * 统一列表入口：结构化筛选 + 全文搜索（FTS5 优先，短词回退 LIKE）+ 排序 + 分页。
@@ -89,6 +181,21 @@ function dropColorScope(table) {
  * 导致「全部标记已看」入口 100% 抛 ReferenceError（P0）。现在两处共用这一份。
  */
 export function buildImageFilter(query = {}, { colorTable = '' } = {}) {
+  // 先拆搜索框前缀，剩余文本继续走全文检索 —— 不改数据库、不改调用方
+  const syntax = parseSearchSyntax(query.q);
+  if (syntax) {
+    const merged = { ...query, q: syntax.text };
+    if (syntax.tags.length && !merged.tag) merged.tag = syntax.tags.join(',');
+    if (syntax.hues.length && (!merged.hue || merged.hue === 'all')) merged.hue = syntax.hues.join(',');
+    if (syntax.minRating) merged.minRating = Math.max(Number(merged.minRating) || 0, syntax.minRating);
+    if (syntax.maxRating) merged.maxRating = Math.min(Number(merged.maxRating) || 5, syntax.maxRating);
+    if (syntax.folderPath && !merged.folderId) merged.folderPath = syntax.folderPath;
+    if (syntax.kind.length && (!merged.kind || merged.kind === 'all')) merged.kind = syntax.kind.join(',');
+    if (syntax.favorite) merged.favorite = 'yes';
+    if (syntax.seen) merged.seen = syntax.seen;
+    if (syntax.noTags) merged.noTags = '1';
+    query = merged;
+  }
   const colorIds = query.colorIds || null;
   const where = [];
   const params = [];
@@ -98,20 +205,32 @@ export function buildImageFilter(query = {}, { colorTable = '' } = {}) {
     const kw = String(query.q).trim();
     const like = `%${kw}%`;
     const aiDescWhere = `id IN (SELECT image_id FROM ai_desc WHERE description LIKE ? OR issues LIKE ?)`;
+    // 图内文字（OCR）也要能被关键词搜到：设计稿/截图里真正有用的信息常常只存在于画面文字里
+    const ocrWhere = 'id IN (SELECT image_id FROM image_ocr WHERE text LIKE ?)';
+    // 别名 / 同义词命中：搜「界面」也要搜到只打了 ui 的图（正式标签不在关键词里出现）
+    const aliasTags = tagsMatchingKeyword(kw);
+    const aliasSql = aliasTags.map(() => 'tags LIKE ?');
+    const aliasParams = aliasTags.map((t) => `%${t}%`);
+    let clause;
     if ([...kw].length >= 3) {
       // 过滤 FTS5 查询语法特殊字符，整体作为 phrase 查询，避免用户输入被当作 AND/NOT/前缀
       const clean = kw.replace(/["()*^:+-]/g, ' ').replace(/\s+/g, ' ').trim();
       if (clean) {
-        where.push(`(id IN (SELECT rowid FROM images_fts WHERE images_fts MATCH ?) OR ${aiDescWhere})`);
-        params.push(`"${clean}"`, like, like);
+        clause = `(id IN (SELECT rowid FROM images_fts WHERE images_fts MATCH ?) OR ${aiDescWhere} OR ${ocrWhere}`;
+        params.push(`"${clean}"`, like, like, like);
       } else {
-        where.push(aiDescWhere);
-        params.push(like, like);
+        clause = `(${aiDescWhere} OR ${ocrWhere}`;
+        params.push(like, like, like);
       }
     } else {
-      where.push(`(title LIKE ? OR tags LIKE ? OR keyword LIKE ? OR note LIKE ? OR ${aiDescWhere})`);
-      params.push(like, like, like, like, like, like);
+      clause = `(title LIKE ? OR tags LIKE ? OR keyword LIKE ? OR note LIKE ? OR ${aiDescWhere} OR ${ocrWhere}`;
+      params.push(like, like, like, like, like, like, like);
     }
+    if (aliasSql.length) {
+      clause += ` OR ${aliasSql.join(' OR ')}`;
+      params.push(...aliasParams);
+    }
+    where.push(clause + ')');
   }
 
   const source = String(query.source || '').trim();
@@ -146,8 +265,54 @@ export function buildImageFilter(query = {}, { colorTable = '' } = {}) {
 
   const tag = String(query.tag || '').trim();
   if (tag) {
-    where.push('id IN (SELECT image_id FROM item_tags WHERE tag = ?)');
-    params.push(tag);
+    // 逗号分隔 = 多标签 AND（与标签面板多选语义一致）
+    for (const one of tag.split(',').map((s) => s.trim()).filter(Boolean)) {
+      const names = expandTagName(one);
+      const parts = [
+        `id IN (SELECT image_id FROM item_tags WHERE tag IN (${names.map(() => '?').join(',')}))`,
+      ];
+      params.push(...names);
+      // 文件夹标签继承：夹上打了这个标签，夹内（含子孙夹）的素材也算带着它
+      const inherited = folderIdsByTag(names);
+      if (inherited.length) {
+        parts.push(
+          `id IN (SELECT image_id FROM image_folders WHERE folder_id IN (${inherited.map(() => '?').join(',')}))`
+        );
+        params.push(...inherited);
+      }
+      where.push(`(${parts.join(' OR ')})`);
+    }
+  }
+
+  // 「待整理」三个固定入口（Eagle 的未分类 / 无标签 / 未评分）
+  if (String(query.noFolder || '') === '1') where.push('id NOT IN (SELECT image_id FROM image_folders)');
+  if (String(query.noTags || '') === '1') where.push("tags = ''");
+  if (String(query.noRating || '') === '1') where.push('rating = 0');
+
+  // 文件夹范围（含全部子夹）：Ctrl+A 全选必须与列表视图同范围，
+  // 否则在子文件夹里全选会选中全库，批量删/移动直接波及范围外的图。
+  // 也支持直接按路径范围（搜索语法 folder:名称 解析出来的结果是路径，不是 id）
+  const folderPath = String(query.folderPath || '').trim();
+  if (query.folderId || folderPath) {
+    const folder = folderPath
+      ? { path: folderPath.endsWith('/') ? folderPath : folderPath + '/' }
+      : db.prepare('SELECT path FROM folders WHERE id = ?').get(Number(query.folderId));
+    if (folder) {
+      where.push(
+        'id IN (SELECT f.image_id FROM image_folders f JOIN folders d ON d.id = f.folder_id WHERE d.path LIKE ?)'
+      );
+      params.push(folder.path + '%');
+    } else {
+      where.push('0 = 1');
+    }
+  }
+
+  // 素材类型筛选：image / gif / video / audio / font / pdf / office / model
+  const kind = String(query.kind || '').trim();
+  if (kind && kind !== 'all') {
+    const list = kind.split(',').filter(Boolean);
+    where.push(`media_kind IN (${list.map(() => '?').join(',')})`);
+    params.push(...list);
   }
 
   const seen = String(query.seen || 'all');
@@ -158,6 +323,13 @@ export function buildImageFilter(query = {}, { colorTable = '' } = {}) {
   if (minRating > 0) {
     where.push('rating >= ?');
     params.push(minRating);
+  }
+
+  // 上界：rating:<=2 这类「找差图来重做」的用法
+  const maxRating = Number(query.maxRating) || 0;
+  if (maxRating > 0) {
+    where.push('rating <= ?');
+    params.push(maxRating);
   }
 
   const hue = String(query.hue || '').trim();
@@ -189,8 +361,76 @@ export function buildImageFilter(query = {}, { colorTable = '' } = {}) {
     }
   }
 
+  // 隐私空间：密码锁住且本次会话未解锁的文件夹，其素材从所有列表/搜索里消失（服务端事实，不是前端遮罩）
+  const hidden = hiddenImagesClause();
+  if (hidden) {
+    where.push(hidden.sql);
+    params.push(...hidden.params);
+  }
+
   const sql = where.length ? 'WHERE ' + where.join(' AND ') : '';
   return { sql, params, colorIds };
+}
+
+/**
+ * 给一页素材补上「来自文件夹的继承标签」（只读，不写库）。
+ * 信息面板要区分直接标签与继承标签，否则用户会以为自己打过却删不掉。
+ */
+export function attachInheritedTags(items) {
+  if (!items || !items.length) return items;
+  try {
+    const ids = items.map((i) => i.id);
+    // 祖先文件夹的标签也算继承（Eagle 的语义是整条路径生效），所以按 path 前缀把
+    // 每一级祖先都 join 进来；只取直接父夹会漏掉「父夹打标签、子夹里看图」的常见情况
+    const rows = db
+      .prepare(
+        `SELECT f.image_id AS id, d2.tags AS tags
+           FROM image_folders f
+           JOIN folders d ON d.id = f.folder_id
+           JOIN folders d2 ON d2.path <> '' AND d.path LIKE d2.path || '%'
+          WHERE f.image_id IN (${ids.map(() => '?').join(',')}) AND d2.tags <> ''`
+      )
+      .all(...ids);
+    if (!rows.length) {
+      for (const it of items) it.inheritedTags = [];
+      return items;
+    }
+    const map = new Map();
+    for (const r of rows) {
+      const set = map.get(r.id) || new Set();
+      for (const t of String(r.tags).split(',')) if (t.trim()) set.add(t.trim());
+      map.set(r.id, set);
+    }
+    for (const it of items) {
+      const own = new Set(Array.isArray(it.tags) ? it.tags : []);
+      it.inheritedTags = [...(map.get(it.id) || [])].filter((t) => !own.has(t));
+    }
+  } catch {
+    for (const it of items) it.inheritedTags = [];
+  }
+  return items;
+}
+
+/**
+ * 只返回命中的 id 列表（配合「全选」）。
+ * 前端原本 Ctrl+A 只能选中已加载的那一页，就是因为只能从分页结果里拿 id；
+ * 这里直接按同一套筛选条件出 id，避免为了全选去翻几百页。
+ */
+export function listImageIds(query = {}) {
+  const colorIds = query.colorIds || null;
+  const colorTable = colorIds && colorIds.length ? createColorScope(colorIds) : '';
+  const { sql, params } = buildImageFilter(query, { colorTable });
+  // 全选也要有上限：十万级库一次返回 10 万个 id = 1MB+ JSON + 前端 10 万项 Set，
+  // 而且用户根本没法真对 10 万张做批量操作。多取一行用来判断「是否被截断」。
+  const rows = db
+    .prepare(`SELECT id FROM images ${sql} ORDER BY id DESC LIMIT ?`)
+    .all(...params, MAX_IDS + 1);
+  const truncated = rows.length > MAX_IDS;
+  const ids = (truncated ? rows.slice(0, MAX_IDS) : rows).map((r) => r.id);
+  const total = truncated
+    ? db.prepare(`SELECT COUNT(*) AS c FROM images ${sql}`).get(...params).c
+    : ids.length;
+  return { ids, total, truncated };
 }
 
 export function listImages(query = {}) {
@@ -218,16 +458,30 @@ export function listImages(query = {}) {
             .all(...pageIds)
         : [];
       const byId = new Map(rows.map((r) => [r.id, r]));
-      const items = pageIds.map((id) => byId.get(id)).filter(Boolean).map(toDTO);
+      const items = attachInheritedTags(pageIds.map((id) => byId.get(id)).filter(Boolean).map(toDTO));
       return { items, total, page, pageSize, hasMore: page * pageSize < total };
     }
 
-    const order = SORTS[query.sort] || SORTS.newest;
+    // 手动排序：只在文件夹视图里有意义（同一张图在不同夹可以有不同顺序）。
+    // 没进过手动序的新图 sort_order = 0，排在后面，不会打乱用户已经拖好的顺序。
+    let order = SORTS[query.sort] || SORTS.newest;
+    const orderParams = [];
+    if (query.sort === 'manual') {
+      const fid = Number(query.folderId) || 0;
+      if (fid) {
+        order =
+          '(SELECT f.sort_order FROM image_folders f WHERE f.image_id = images.id AND f.folder_id = ?) IS NULL, ' +
+          '(SELECT f.sort_order FROM image_folders f WHERE f.image_id = images.id AND f.folder_id = ?) ASC, id DESC';
+        orderParams.push(fid, fid);
+      } else {
+        order = SORTS.newest;
+      }
+    }
     const total = db.prepare(`SELECT COUNT(*) AS c FROM images ${sql}`).get(...params).c;
     const rows = db
       .prepare(`SELECT * FROM images ${sql} ORDER BY ${order} LIMIT ? OFFSET ?`)
-      .all(...params, pageSize, (page - 1) * pageSize);
-    return { items: rows.map(toDTO), total, page, pageSize, hasMore: page * pageSize < total };
+      .all(...params, ...orderParams, pageSize, (page - 1) * pageSize);
+    return { items: attachInheritedTags(rows.map(toDTO)), total, page, pageSize, hasMore: page * pageSize < total };
   } finally {
     dropColorScope(colorTable);
   }

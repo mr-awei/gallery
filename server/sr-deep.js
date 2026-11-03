@@ -5,6 +5,7 @@
  */
 import path from 'node:path';
 import fs from 'node:fs';
+import { createRequire } from 'node:module';
 import { pipeline, env } from '@huggingface/transformers';
 import sharp from 'sharp';
 import { MODEL_CACHE_DIR } from './config.js';
@@ -77,16 +78,42 @@ function modelCached(repo) {
   }
 }
 
+/**
+ * 运行库可用性：包本体由顶层 import 保证存在，真正会挂的是 onnxruntime-node
+ * 的原生绑定（asar 没解包 / 平台包缺失时会抛）。
+ * 以前这个档位在界面上无条件标成「可用」，用户点了才在 pipeline() 里报错。
+ */
+let runtimeStatus = null;
+export function srRuntimeStatus() {
+  if (runtimeStatus) return runtimeStatus;
+  try {
+    const req = createRequire(import.meta.url);
+    const ort = req('onnxruntime-node');
+    runtimeStatus = {
+      ok: true,
+      version: String(ort?.env?.versions?.onnx || ort?.version || 'ok'),
+    };
+  } catch (err) {
+    runtimeStatus = { ok: false, error: err?.message || String(err) };
+  }
+  return runtimeStatus;
+}
+
 export function srStatus() {
+  const runtime = srRuntimeStatus();
   return {
     loading: state.loading,
     progress: state.progress,
     message: state.message,
     error: state.error,
+    runtime,
     models: SR_MODELS.map((m) => ({
       ...m,
       downloaded: modelCached(m.repo),
       loaded: pipes.has(m.repo),
+      // 运行库不可用时不能标成可用，否则用户点下去才看到一串原生模块报错
+      available: runtime.ok,
+      unavailableReason: runtime.ok ? '' : runtime.error,
     })),
   };
 }
@@ -124,6 +151,11 @@ export async function loadSrModel(modelId) {
 /**
  * 用 Transformer 模型超分一张图，输出 PNG 到 outputPath。
  * 返回输出尺寸；超大图先等比缩小再放大（结果分辨率仍会贴合目标标准）。
+ *
+ * onProgress(p, info)：transformers.js 的 image-to-image pipeline **不给推理中间进度**，
+ * 过去这里硬报 0.3 / 0.85，界面上「30%」能卡十几秒，纯属编的。
+ * 现在：准备阶段报 0，推理阶段报 `{ indeterminate: true }` 让界面显示「推理中」，
+ * 结束才报 1。宁可说「不知道」，也不要给假百分比。
  */
 export async function runSr({ repo, inputPath, outputPath, onProgress }) {
   let pipe = pipes.get(repo);
@@ -147,10 +179,11 @@ export async function runSr({ repo, inputPath, outputPath, onProgress }) {
     src = tmpDown;
   }
   try {
+    onProgress?.(0, { phase: 'prepare' });
     const data = await sharp(src).removeAlpha().png().toBuffer();
-    onProgress?.(0.3);
+    onProgress?.(0, { phase: 'inference', indeterminate: true });
     const out = await pipe(new Blob([data]));
-    onProgress?.(0.85);
+    onProgress?.(0.99, { phase: 'encode' });
     const buf = await sharp(out.data, {
       raw: { width: out.width, height: out.height, channels: out.channels },
     })

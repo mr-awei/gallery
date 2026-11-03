@@ -1,4 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react';
+import { buildASE, buildPngSheet, downloadBlob } from '../lib/palette';
 
 /* ---------------------------- HSV <-> HEX 工具 ---------------------------- */
 
@@ -47,25 +48,33 @@ function hsvToHex(h: number, s: number, v: number): string {
 
 const clamp01 = (n: number) => Math.min(1, Math.max(0, n));
 
+/* 调色板导出（ASE / PNG 色卡）复用 lib/palette，图片真实主色导出也走同一套编码 */
+
 /* 快捷色块：第一行黑白灰，第二行常用彩色（对标 Eagle 调色板） */
 const NEUTRALS = ['#000000', '#4d4d4d', '#808080', '#b3b3b3', '#e6e6e6', '#ffffff'];
 const COLORS = [
   '#e60000', '#ff8c00', '#ffd600', '#7cb342',
   '#00b8d4', '#2962ff', '#9c27b0', '#ff4081',
 ];
+/** 可导出的完整调色板（黑白灰 + 常用彩） */
+const PALETTE = [...NEUTRALS, ...COLORS];
 
 interface Props {
   /** 当前颜色 #rrggbb */
   value: string;
   /** 颜色变化回调（拖动中会高频触发，由父级做停下即搜） */
   onChange: (hex: string) => void;
+  /** 外部真实色板（图片主色）；不传则导出内置的通用色板 */
+  palette?: string[];
+  /** 导出文件名前缀，便于区分是哪张图的色板 */
+  title?: string;
 }
 
 /**
  * Eagle 式取色盘：SV 渐变方盘 + 色相条 + 快捷色块。
  * 无确定键——拖动过程实时回调 onChange，父组件在鼠标停下后再触发搜索。
  */
-export default function ColorPad({ value, onChange }: Props) {
+export default function ColorPad({ value, onChange, palette, title }: Props) {
   const [hsv, setHsv] = useState<Hsv>(() => hexToHsv(value));
   const [drag, setDrag] = useState<null | 'sv' | 'hue'>(null);
   const svRef = useRef<HTMLDivElement>(null);
@@ -73,6 +82,12 @@ export default function ColorPad({ value, onChange }: Props) {
   const hsvRef = useRef(hsv);
   hsvRef.current = hsv;
   const emittedRef = useRef(value);
+  /* 有真实图片主色就导出真实色板，否则退回内置通用色板 */
+  const swatches = palette && palette.length ? palette : PALETTE;
+  const slug = (title || 'gemvault-palette')
+    .replace(/[\\/:*?"<>|]+/g, '-')
+    .replace(/\.[a-z0-9]{2,5}$/i, '')
+    .slice(0, 60);
 
   // 外部 value 变化（非自己发出的）时同步内部 HSV
   useEffect(() => {
@@ -182,6 +197,32 @@ export default function ColorPad({ value, onChange }: Props) {
             onClick={() => pick(c)}
           />
         ))}
+      </div>
+      {/* 导出：ASE 给设计软件，PNG 色卡给文档/沟通 */}
+      <div className="cpad-export">
+        <button
+          type="button"
+          className="btn sm"
+          title="导出 Adobe 色板（.ase），Photoshop / Illustrator / Affinity 可直接导入"
+          onClick={() => downloadBlob(buildASE(swatches, title || 'GemVault'), `${slug}.ase`)}
+        >
+          导出 ASE
+        </button>
+        <button
+          type="button"
+          className="btn sm"
+          title="导出色块 + 色值的长图 PNG"
+          onClick={async () => {
+            try {
+              downloadBlob(await buildPngSheet(swatches), `${slug}.png`);
+            } catch {
+              /* 画布不可用时静默 */
+            }
+          }}
+        >
+          导出 PNG 色卡
+        </button>
+        <span className="hint">{swatches.length} 色</span>
       </div>
     </div>
   );

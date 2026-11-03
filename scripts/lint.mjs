@@ -44,7 +44,7 @@ for (const f of files) {
   const lines = fs.readFileSync(f, 'utf8').split('\n');
   const debug = lines.filter((l) => /^\s*console\.log\(/.test(l)).length;
   // verify-* 是 npm run verify 的报告输出脚本，console.log 是本职，不按调试残留告警
-  const isReportScript = /^scripts[\\/]verify-[^\\/]*\.mjs$/.test(rel);
+  const isReportScript = /^scripts[\\/](manual[\\/])?verify-[^\\/]*\.mjs$/.test(rel);
   if (debug > 8 && !isReportScript) {
     warned++;
     console.warn(`[lint] ${rel}: ${debug} 处 console.log（调试残留？）`);

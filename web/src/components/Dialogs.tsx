@@ -13,6 +13,10 @@ interface DialogReq {
   title: string;
   value: string;
   placeholder: string;
+  /** 密码输入：遮字符，避免肩窥 */
+  password?: boolean;
+  /** 补充说明（如「密码忘了就只能从磁盘上解锁」） */
+  hint?: string;
   // 两种对话框的返回类型不同（string|null / boolean），由调用方各自的 Promise 决定
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   resolve: (v: any) => void;
@@ -21,9 +25,14 @@ interface DialogReq {
 let pushDialog: ((r: DialogReq) => void) | null = null;
 
 /** 输入对话框：确认返回输入值（trim 后，可为空串），取消/Esc 返回 null */
-export function promptDialog(title: string, value = '', placeholder = ''): Promise<string | null> {
+export function promptDialog(
+  title: string,
+  value = '',
+  placeholder = '',
+  opts: { password?: boolean; hint?: string } = {}
+): Promise<string | null> {
   return new Promise((resolve) => {
-    if (pushDialog) pushDialog({ kind: 'prompt', title, value, placeholder, resolve });
+    if (pushDialog) pushDialog({ kind: 'prompt', title, value, placeholder, ...opts, resolve });
     else resolve(null);
   });
 }
@@ -84,6 +93,8 @@ export default function DialogHost() {
             <input
               ref={inputRef}
               className="input"
+              type={req.password ? 'password' : 'text'}
+              autoComplete={req.password ? 'new-password' : 'off'}
               style={{ width: '100%', marginTop: 12 }}
               value={val}
               placeholder={req.placeholder}
@@ -91,6 +102,7 @@ export default function DialogHost() {
               onChange={(e) => setVal(e.target.value)}
             />
           )}
+          {req.hint && <div className="hint" style={{ marginTop: 8 }}>{req.hint}</div>}
         </div>
         <div className="modal-foot">
           <div />

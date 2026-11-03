@@ -8,7 +8,7 @@
  * 索引：全量暴力余弦（778 张 ≈ 每次查询几十毫秒），万张以内无需 ANN。
  */
 import fs from 'node:fs';
-import { pipeline, env } from '@huggingface/transformers';
+import { pipeline, env, AutoTokenizer, CLIPTextModelWithProjection } from '@huggingface/transformers';
 import { db, getLibraryGeneration } from './db.js';
 import { MODEL_CACHE_DIR } from './config.js';
 
@@ -23,23 +23,32 @@ const DIM = 512;
 export const CLIP_DIM = DIM; // 供聚类等模块预加载缓存
 
 let extractorPromise = null;
+let extractorReady = false; // 真正加载完成（extractorPromise 非空 ≠ 可用）
 let loadError = '';
 
 /** 懒加载特征提取器（首次调用触发模型下载） */
 function getExtractor() {
   if (!extractorPromise) {
-    extractorPromise = pipeline('image-feature-extraction', MODEL_ID, { dtype: 'q8' }).catch((err) => {
-      loadError = err?.message || String(err);
-      extractorPromise = null;
-      throw err;
-    });
+    extractorReady = false;
+    extractorPromise = pipeline('image-feature-extraction', MODEL_ID, { dtype: 'q8' })
+      .then((p) => {
+        extractorReady = true;
+        return p;
+      })
+      .catch((err) => {
+        loadError = err?.message || String(err);
+        extractorReady = false;
+        extractorPromise = null;
+        throw err;
+      });
   }
   return extractorPromise;
 }
 
-/** 模型是否可用（已成功加载过） */
+/** 模型是否可用：只有真正加载完成才算 ready（旧实现只看 promise 是否存在，
+ *  首次下载几百 MB 期间也返回 true，调用方据此认为可用，结果必然超时/失败） */
 export function clipReady() {
-  return extractorPromise !== null;
+  return extractorReady;
 }
 
 /** 加载状态：ready / loading / error */
@@ -68,6 +77,86 @@ export async function embedImage(input) {
   const out = await extractor(blob, { pooling: 'cls', normalize: true });
   const data = out.data instanceof Float32Array ? out.data : new Float32Array(out.data);
   return normalizeInPlace(data);
+}
+
+/* ------------------------- 文本塔（自然语言搜图） ------------------------- */
+/**
+ * 图像塔只做「图 → 512 维」，要让一句话也能查图，必须有文本塔，而且两者要落在
+ * 同一个投影空间（CLIP 的 text_projection 与 visual_projection 是对齐训练出来的），
+ * 否则余弦相似度就是随机数。
+ *
+ * 权重和图像塔是同一个仓库，首次使用会额外下 ~85MB（之后离线可用）。
+ * 单独懒加载：只用以图搜图的人不必付这份内存。
+ */
+let textPromise = null;
+let textReady = false;
+let textError = '';
+
+function getTextEncoder() {
+  if (!textPromise) {
+    textReady = false;
+    textPromise = (async () => {
+      const tokenizer = await AutoTokenizer.from_pretrained(MODEL_ID);
+      const model = await CLIPTextModelWithProjection.from_pretrained(MODEL_ID, { dtype: 'q8' });
+      textReady = true;
+      return { tokenizer, model };
+    })().catch((err) => {
+      textError = err?.message || String(err);
+      textReady = false;
+      textPromise = null; // 允许重试，别把一次失败钉死成永久不可用
+      throw err;
+    });
+  }
+  return textPromise;
+}
+
+/** 文本塔是否已加载完成（与 clipReady 同一套语义：只有真加载完才算） */
+export function textEncoderReady() {
+  return textReady;
+}
+
+export function textEncoderError() {
+  return textError;
+}
+
+export async function textEncoderLoad() {
+  try {
+    await getTextEncoder();
+    return { ok: true };
+  } catch (err) {
+    return { ok: false, error: textError || err?.message || String(err) };
+  }
+}
+
+/** 一句话 → 512 维归一化向量（调用方须与 embedImage 的结果同空间比较） */
+export async function embedText(text) {
+  const list = await embedTexts([text]);
+  return list[0];
+}
+
+/** 批量编码（多条查询做平均融合时用，省一次 tokenizer 往返） */
+export async function embedTexts(texts = []) {
+  const arr = (Array.isArray(texts) ? texts : [texts]).map((t) => String(t || '').trim()).filter(Boolean);
+  if (!arr.length) throw new Error('查询文本不能为空');
+  const { tokenizer, model } = await getTextEncoder();
+  const inputs = tokenizer(arr, { padding: true, truncation: true });
+  const out = await model(inputs);
+  const data = out.text_embeds.data instanceof Float32Array ? out.text_embeds.data : new Float32Array(out.text_embeds.data);
+  const dim = out.text_embeds.dims?.[1] || DIM;
+  const vecs = [];
+  for (let i = 0; i < arr.length; i++) {
+    vecs.push(normalizeInPlace(data.slice(i * dim, (i + 1) * dim)));
+  }
+  return vecs;
+}
+
+/** 多条向量平均后再归一化：一句长查询拆成几个短语时，比单句召回更稳 */
+export async function embedTextMean(texts) {
+  const vecs = await embedTexts(texts);
+  if (vecs.length === 1) return vecs[0];
+  const acc = new Float32Array(vecs[0].length);
+  for (const v of vecs) for (let i = 0; i < v.length; i++) acc[i] += v[i] / vecs.length;
+  return normalizeInPlace(acc);
 }
 
 export function getEmbedding(imageId) {
@@ -128,9 +217,12 @@ function newShard(dim) {
 }
 
 function loadStore(dim) {
-  const rows = db.prepare('SELECT image_id, vec FROM clip_vec WHERE dim = ?').all(dim);
+  const stmt = db.prepare('SELECT image_id, vec FROM clip_vec WHERE dim = ?');
   const store = { dim, shards: [], idIndex: new Map(), total: 0 };
   let shard = null;
+  // 用迭代器逐行读：.all() 会先把整表（百万行 × 2KB ≈ 2GB）物化成数组，
+  // 再复制进分片，峰值内存直接翻倍。iterate 只保留游标。
+  const rows = typeof stmt.iterate === 'function' ? stmt.iterate(dim) : stmt.all(dim);
   for (const r of rows) {
     if (!shard || shard.count >= SHARD_CAP) {
       shard = newShard(dim);
@@ -143,7 +235,7 @@ function loadStore(dim) {
     shard.tail[slot] = tailNormOf(shard.data, slot * dim, dim >> 1, dim);
     store.idIndex.set(r.image_id, { s: store.shards.length - 1, i: slot });
   }
-  store.total = rows.length;
+  store.total = store.idIndex.size;
   vecStores.set(dim, store);
   return store;
 }
@@ -254,7 +346,7 @@ export function cachedVector(imageId) {
 }
 
 /** 全库中与 vec 余弦最高的前 k 个（排除自身），返回 [{ id, cos }] */
-export function topSimilar(vec, { k = 24, minCos = 0.8, excludeId = 0 } = {}) {
+export async function topSimilar(vec, { k = 24, minCos = 0.8, excludeId = 0 } = {}) {
   const dim = vec.length;
   const head = dim >> 1;
   const store = getStore(dim);
@@ -264,6 +356,7 @@ export function topSimilar(vec, { k = 24, minCos = 0.8, excludeId = 0 } = {}) {
   const qTail = qTailSq > 0 ? Math.sqrt(qTailSq) : 0;
   let guard = 0;
   const LIMIT = Math.max(k * 8, 4096);
+  let si = 0;
   for (const shard of store.shards) {
     const { ids, data, tail, count } = shard;
     for (let i = 0; i < count; i++) {
@@ -286,6 +379,9 @@ export function topSimilar(vec, { k = 24, minCos = 0.8, excludeId = 0 } = {}) {
         }
       }
     }
+    // 每两个分片让出一次事件循环：百万级库一趟扫描是上亿次乘加，
+    // 同步跑会把整个 HTTP 服务卡住（期间所有请求都超时）
+    if (++si % 2 === 0) await new Promise((resolve) => setImmediate(resolve));
   }
   scored.sort((a, b) => b.cos - a.cos);
   return scored.slice(0, k);

@@ -91,7 +91,11 @@ export default function Enhance({ onToast, onLibraryChanged }: Props) {
           tick += 1;
           if (tick % 5 === 0) loadCandidates();
           if (!st.running) {
-            onToast(`增强完成：成功 ${st.done} 张${st.failed ? `，失败 ${st.failed} 张` : ''}`);
+            onToast(
+              `增强完成：成功 ${st.done} 张${st.skipped ? `，跳过 ${st.skipped} 张（已达标）` : ''}${
+                st.failed ? `，失败 ${st.failed} 张` : ''
+              }`
+            );
             loadCandidates();
             onLibraryChanged();
           }
@@ -121,7 +125,20 @@ export default function Enhance({ onToast, onLibraryChanged }: Props) {
   const doEnhance = async (id: number) => {
     setProcessing((p) => new Set(p).add(id));
     try {
-      const { item } = await api.enhanceImage(id, model, candidates.standard);
+      const { item, noop } = await api.enhanceImage(id, model, candidates.standard);
+      if (noop) {
+        // 库记录与磁盘不同步时会出现「列表里有、实际已达标」：底层什么都没做，
+        // 不能报「已增强至 W×H」，重新拉一次列表让服务端按真实尺寸重新判定
+        onToast(`该图已是 ${item.width}×${item.height}，无需增强`);
+        candReqRef.current += 1;
+        setCandidates((prev) => ({
+          ...prev,
+          count: Math.max(0, prev.count - 1),
+          items: prev.items.filter((it) => it.id !== id),
+        }));
+        refresh();
+        return;
+      }
       onToast(`已增强至 ${item.width}×${item.height}`);
       // 立即从本页列表移除（该图已达标），不等网络往返，界面马上可见变化
       candReqRef.current += 1; // 作废所有在途请求，避免旧列表把它又加回来
@@ -174,13 +191,17 @@ export default function Enhance({ onToast, onLibraryChanged }: Props) {
   };
 
   const standardLabel = standards.find((s) => s.key === candidates.standard)?.label || candidates.standard;
+  // 内置四档只是插值 + 锐化，必须自己把话说清楚：像素变多但在「细节」上没有增益
+  const builtinModel = models.builtin.find((m) => m.id === model);
   const modelDesc =
-    models.builtin.find((m) => m.id === model)?.desc ||
+    builtinModel?.desc ||
     models.ai.find((m) => m.id === model)?.desc ||
     models.remote.find((r) => `remote:${r.id}` === model)?.name ||
     '—';
 
-  const progressPct = job ? Math.round(((job.done + job.failed) / Math.max(1, job.total)) * 100) : 0;
+  // 跳过的（已达标）也算已处理，否则进度条会停在半路
+  const jobHandled = job ? job.done + (job.skipped || 0) + job.failed : 0;
+  const progressPct = job ? Math.round((jobHandled / Math.max(1, job.total)) * 100) : 0;
 
   return (
     <div>
@@ -193,10 +214,10 @@ export default function Enhance({ onToast, onLibraryChanged }: Props) {
         </div>
         <div style={{ display: 'flex', gap: 8 }}>
           <select className="select" value={model} onChange={(e) => setModel(e.target.value)} disabled={!!job?.running}>
-            <optgroup label="内置模型（离线·快速）">
+            <optgroup label="内置插值放大（离线·快速，不生成新细节）">
               {models.builtin.map((m) => (
                 <option key={m.id} value={m.id}>
-                  {m.label}
+                  {m.label}（插值）
                 </option>
               ))}
             </optgroup>
@@ -262,7 +283,8 @@ export default function Enhance({ onToast, onLibraryChanged }: Props) {
       {job?.running && (
         <div className="card" style={{ marginBottom: 14 }}>
           <div className="label">
-            增强进行中：{job.done + job.failed} / {job.total}（{progressPct}%）
+            增强进行中：{jobHandled} / {job.total}（{progressPct}%）
+            {job.skipped ? ` · 跳过 ${job.skipped}` : ''}
             {job.failed ? ` · 失败 ${job.failed}` : ''}
           </div>
           <div className="enh-progress" style={{ marginTop: 8 }}>
@@ -270,7 +292,11 @@ export default function Enhance({ onToast, onLibraryChanged }: Props) {
           </div>
           <div className="hint" style={{ marginTop: 6 }}>
             正在处理：{job.currentTitle || `图片 ${job.currentId}`}
-            {job.currentProgress > 0 ? ` · 当前 ${Math.round(job.currentProgress * 100)}%` : ''}
+            {job.currentIndeterminate
+              ? ' · 模型推理中（这一档拿不到中间进度）'
+              : job.currentProgress > 0
+                ? ` · 当前 ${Math.round(job.currentProgress * 100)}%`
+                : ''}
           </div>
         </div>
       )}
@@ -278,7 +304,8 @@ export default function Enhance({ onToast, onLibraryChanged }: Props) {
       {job && !job.running && job.total > 0 && (
         <div className="card" style={{ marginBottom: 14 }}>
           <div className="label">
-            上次任务：成功 {job.done} 张{job.failed ? `，失败 ${job.failed} 张` : ''}
+            上次任务：成功 {job.done} 张{job.skipped ? `，跳过 ${job.skipped} 张（已达标）` : ''}
+            {job.failed ? `，失败 ${job.failed} 张` : ''}
           </div>
           {job.failures.length > 0 && (
             <div className="hint" style={{ marginTop: 6 }}>
@@ -306,7 +333,14 @@ export default function Enhance({ onToast, onLibraryChanged }: Props) {
         )}
         <div style={{ flex: 1, minWidth: 220 }}>
           <div className="label">当前模型</div>
-          <div className="hint">{modelDesc}</div>
+          <div className="hint">
+            {builtinModel ? `${builtinModel.engineLabel || '插值放大（非 AI 超分）'} · ${modelDesc}` : modelDesc}
+          </div>
+          {builtinModel && (
+            <div className="hint" style={{ marginTop: 2, color: 'var(--warn)' }}>
+              插值只是把像素撑大、再锐化，不会补出原本没有的细节；想真正补细节请选「AI 超分模型」
+            </div>
+          )}
         </div>
         {models.aiInstalled && (
           <div>

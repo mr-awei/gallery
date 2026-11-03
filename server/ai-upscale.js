@@ -2,7 +2,9 @@ import fs from 'node:fs';
 import fsp from 'node:fs/promises';
 import path from 'node:path';
 import crypto from 'node:crypto';
-import { spawn, execFile } from 'node:child_process';
+// execFileSync：后面直连下载失败时用 PowerShell Invoke-WebRequest 兜底，
+// 以前这里漏了导入，走到兜底分支必抛 ReferenceError（下载永远失败且看不出原因）
+import { spawn, execFile, execFileSync } from 'node:child_process';
 import sharp from 'sharp';
 import { DATA_DIR } from './config.js';
 
@@ -261,8 +263,28 @@ export async function cuganSelfTest() {
 
 /* ------------------------------- 下载 / 解压 ------------------------------- */
 
-/** 包体约 43.4MB，仅用于 PowerShell 回退下载时的进度估算 */
-const EXPECTED_ZIP_BYTES = 45_500_000;
+/**
+ * 包体大小的兜底估算（仅用于 PowerShell 回退下载时的进度条）。
+ * 以前两个包共用一个 45.5MB 的常量：Real-CUGAN 只有 10MB 左右，
+ * 进度条会一直停在 20% 直到装完，看起来像卡死。
+ * 现在优先用远端 Content-Length（真实值），这里只作为离线/未知时的兜底。
+ */
+const ZIP_SIZE_HINT = {
+  [RELEASE_URL]: 45_500_000,
+  [CUGAN_RELEASE_URL]: 12_000_000,
+};
+
+/** 通过 HEAD 请求拿真实体积；拿不到就回落到内置估算 */
+async function remoteSize(url) {
+  try {
+    const res = await fetch(url, { method: 'HEAD', redirect: 'follow', signal: AbortSignal.timeout(15000) });
+    const len = Number(res.headers.get('content-length') || 0);
+    if (res.ok && len > 1_000_000) return len;
+  } catch {
+    /* 离线 / 镜像不支持 HEAD：用兜底值 */
+  }
+  return ZIP_SIZE_HINT[url] || 0;
+}
 
 /**
  * 下载完整性校验（sha256）：
@@ -350,7 +372,7 @@ async function downloadDirect(url, dest, onProgress) {
  * 回退下载：走 PowerShell 的 Invoke-WebRequest（继承系统代理，国内环境通常更通）。
  * 无法拿到实时进度，改为轮询已写入文件的体积来估算。
  */
-function downloadViaPowerShell(url, dest, onProgress) {
+function downloadViaPowerShell(url, dest, onProgress, expectedBytes = 0) {
   return new Promise((resolve, reject) => {
     const child = spawn(
       'powershell',
@@ -368,7 +390,10 @@ function downloadViaPowerShell(url, dest, onProgress) {
     });
     const tick = setInterval(() => {
       try {
-        onProgress(Math.min(0.95, fs.statSync(dest).size / EXPECTED_ZIP_BYTES));
+        const size = fs.statSync(dest).size;
+        // 不知道总体积时只给「已下载 MB」，而不是编一个假百分比
+        if (expectedBytes > 0) onProgress(Math.min(0.95, size / expectedBytes));
+        else onProgress(Math.min(0.95, size / (45 * 1024 * 1024)));
       } catch {
         /* 还没开始写 */
       }
@@ -380,8 +405,10 @@ function downloadViaPowerShell(url, dest, onProgress) {
     child.on('close', (code) => {
       clearInterval(tick);
       const size = fs.existsSync(dest) ? fs.statSync(dest).size : 0;
-      if (code === 0 && size > 10_000_000) resolve();
-      else reject(new Error(`系统代理下载失败（退出码 ${code}）${err.slice(0, 200)}`));
+      // 门槛按真实体积推算：写死 10MB 会把约 9MB 的 Real-CUGAN 包判成失败
+      const minSize = expectedBytes > 0 ? Math.floor(expectedBytes * 0.8) : 1_000_000;
+      if (code === 0 && size >= minSize) resolve();
+      else reject(new Error(`系统代理下载失败（退出码 ${code}，${size} 字节）${err.slice(0, 200)}`));
     });
   });
 }
@@ -389,6 +416,8 @@ function downloadViaPowerShell(url, dest, onProgress) {
 async function download(url, dest, onProgress) {
   await fsp.rm(dest, { force: true });
   const errors = [];
+  // 真实体积（HEAD）优先：PowerShell 回退路径只能靠它算百分比
+  const expectedBytes = await remoteSize(url);
   // 1) GitHub 镜像（国内可直接访问）
   for (const mirror of GH_MIRRORS) {
     try {
@@ -409,7 +438,7 @@ async function download(url, dest, onProgress) {
   }
   // 3) PowerShell 继承系统代理
   try {
-    await downloadViaPowerShell(url, dest, onProgress);
+    await downloadViaPowerShell(url, dest, onProgress, expectedBytes);
     await verifyDownloaded(dest, url);
     return;
   } catch (e) {

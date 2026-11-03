@@ -29,6 +29,8 @@ export default function Knowledge({
   const [presets, setPresets] = useState<Record<string, AiPreset>>({});
   const [suggestion, setSuggestion] = useState('');
   const [busy, setBusy] = useState('');
+  /** 「AI 描述词」规则靠 ai_desc 匹配，库里没有 AI 看图数据时永远是死规则，默认折叠 */
+  const [showDormant, setShowDormant] = useState(false);
 
   const refresh = useCallback(() => {
     api.kbRules().then(setRules).catch(quiet);
@@ -102,6 +104,9 @@ export default function Knowledge({
     onLibraryChanged();
   };
 
+  const dormantRules = rules.filter((r) => r.dormant);
+  const visibleRules = showDormant ? rules : rules.filter((r) => !r.dormant);
+
   return (
     <div>
       <div className="page-head">
@@ -166,14 +171,14 @@ export default function Knowledge({
             </span>
           )}
         </h4>
-        {!rules.length && (
+        {!visibleRules.length && (
           <div style={{ color: 'var(--muted)', fontSize: 13 }}>
             还没有规则。去图库删除几张不满意的图片，或点右上角「AI 归纳规则」。
           </div>
         )}
-        {rules.length > 0 && (
+        {visibleRules.length > 0 && (
           <div className="rule-list">
-            {rules.map((rule) => {
+            {visibleRules.map((rule) => {
               const main = rule.label || rule.value;
               return (
                 <div className={`rule-row${rule.enabled ? '' : ' off'}`} key={rule.id}>
@@ -183,6 +188,7 @@ export default function Knowledge({
                     <span className="rule-meta">
                       {rule.value !== main && <span className="rule-value">{rule.value} · </span>}
                       命中 {rule.hits} 次 · {rule.origin === 'ai' ? 'AI 归纳' : '来自反馈'}
+                      {rule.dormant && <span style={{ color: 'var(--warn)' }}> · 未生效（库里无 AI 描述数据）</span>}
                     </span>
                   </div>
                   <span className="rule-weight" title="权重（命中一次扣的分值）">
@@ -205,6 +211,15 @@ export default function Knowledge({
                 </div>
               );
             })}
+          </div>
+        )}
+        {dormantRules.length > 0 && (
+          <div className="hint" style={{ marginTop: 10, lineHeight: 1.9 }}>
+            另有 <b>{dormantRules.length}</b> 条「AI 描述词」规则<strong>未生效</strong>，已默认隐藏：
+            这类规则靠 AI 看图描述（ai_desc）匹配，而当前库里还没有 AI 描述数据，命中数永远是 0。
+            <button className="btn ghost sm" style={{ marginLeft: 6 }} onClick={() => setShowDormant((v) => !v)}>
+              {showDormant ? '隐藏它们' : '显示它们'}
+            </button>
           </div>
         )}
       </div>

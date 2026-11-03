@@ -26,6 +26,9 @@
   --solid-panel: rgba(20, 20, 32, 0.97);
   --solid-toast: rgba(22, 22, 36, 0.95);
   --overlay: rgba(6, 6, 12, 0.78);
+  /* 弹窗 / 对话框的尺寸系数：1 = 1440×900 基准屏，屏越大越放大（4K 约 1.5）。
+     由 web/src/lib/screen-scale.ts 在启动与窗口变化时写入，CSS 侧只负责乘上去 */
+  --ui-scale: 1;
   color-scheme: dark;
 }
 

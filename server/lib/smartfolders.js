@@ -62,7 +62,73 @@ export function deleteSmartFolder(id) {
   return listSmartFolders();
 }
 
-/** 判断一张图是否命中智能文件夹的规则 */
+/** LIKE 里的通配符转义（标签/关键词里出现 % _ 时不能当通配符用） */
+function likeArg(s) {
+  return `%${String(s).replace(/[\\%_]/g, (m) => `\\${m}`)}%`;
+}
+
+/**
+ * 把规则编译成 SQL 条件。
+ *
+ * 为什么不用「SELECT * FROM images 全取回来再 JS 过滤」：
+ * 百万级库这么做等于把整库读进内存、逐行跑 JS（原来还会对每行再查一次 ai_desc），
+ * 点一下智能夹就是几秒到几十秒的主进程卡死。规则本身都是可直接下推的条件。
+ * matchSmartFolder（单行判断）保留给「导入后即时判断」这类小批量场景。
+ */
+export function buildSmartFolderWhere(rules = {}) {
+  const where = [];
+  const params = [];
+  if (rules.favorite === 'yes') where.push('favorite = 1');
+  if (rules.favorite === 'no') where.push('favorite = 0');
+  if (Number(rules.minRating) > 0) {
+    where.push('COALESCE(rating, 0) >= ?');
+    params.push(Number(rules.minRating));
+  }
+  if (Number(rules.minScore) > 0) {
+    where.push('COALESCE(score, 100) >= ?');
+    params.push(Number(rules.minScore));
+  }
+  if (Number(rules.minWidth) > 0) {
+    where.push('MAX(COALESCE(width, 0), COALESCE(height, 0)) >= ?');
+    params.push(Number(rules.minWidth));
+  }
+  if (rules.orientation === 'landscape') where.push('width > height * 1.15');
+  if (rules.orientation === 'portrait') where.push('width > 0 AND height > width * 1.15');
+  if (rules.orientation === 'square') where.push('width > 0 AND ABS(width - height) <= width * 0.15');
+  for (const t of Array.isArray(rules.tagsInclude) ? rules.tagsInclude : []) {
+    const tag = String(t).trim();
+    if (!tag) continue;
+    where.push("(',' || COALESCE(tags, '') || ',') LIKE ? ESCAPE '\\'");
+    params.push(likeArg(`,${tag},`));
+  }
+  for (const t of Array.isArray(rules.tagsExclude) ? rules.tagsExclude : []) {
+    const tag = String(t).trim();
+    if (!tag) continue;
+    where.push("(',' || COALESCE(tags, '') || ',') NOT LIKE ? ESCAPE '\\'");
+    params.push(likeArg(`,${tag},`));
+  }
+  for (const k of Array.isArray(rules.keywords) ? rules.keywords : []) {
+    const kw = String(k).trim().toLowerCase();
+    if (!kw) continue;
+    where.push(
+      "(lower(COALESCE(title,'')) LIKE ? ESCAPE '\\' OR lower(COALESCE(tags,'')) LIKE ? ESCAPE '\\' " +
+        "OR lower(COALESCE(keyword,'')) LIKE ? ESCAPE '\\' OR lower(COALESCE(note,'')) LIKE ? ESCAPE '\\')"
+    );
+    params.push(likeArg(kw), likeArg(kw), likeArg(kw), likeArg(kw));
+  }
+  // AI 描述：一次子查询搞定，不再逐行 aiDescText（原来是 N+1 查询）
+  for (const k of Array.isArray(rules.aiKeywords) ? rules.aiKeywords : []) {
+    const kw = String(k).trim().toLowerCase();
+    if (!kw) continue;
+    where.push(
+      "id IN (SELECT image_id FROM ai_desc WHERE lower(COALESCE(description,'')) LIKE ? ESCAPE '\\')"
+    );
+    params.push(likeArg(kw));
+  }
+  return { sql: where.length ? `WHERE ${where.join(' AND ')}` : '', params };
+}
+
+/** 判断一张图是否命中智能文件夹的规则（单行判断，语义与 buildSmartFolderWhere 保持一致） */
 export function matchSmartFolder(row, rules = {}) {
   if (rules.favorite === 'yes' && row.favorite !== 1) return false;
   if (rules.favorite === 'no' && row.favorite === 1) return false;
@@ -92,16 +158,20 @@ export function matchSmartFolder(row, rules = {}) {
   return true;
 }
 
-/** 预览智能文件夹命中的图片（按评分/时间排序） */
-export function previewSmartFolder(id, limit = 200) {
+/** 预览智能文件夹命中的图片（按评分倒序，分页） */
+export function previewSmartFolder(id, limit = 200, offset = 0) {
   const f = getSmartFolder(id);
   if (!f) throw new Error('智能文件夹不存在');
-  const rows = db.prepare('SELECT * FROM images').all();
-  const matched = rows.filter((r) => matchSmartFolder(r, f.rules));
-  const sorted = matched
-    .sort((a, b) => (b.score ?? 100) - (a.score ?? 100) || b.id - a.id)
-    .slice(0, limit);
-  return { folder: f, total: matched.length, items: sorted.map(toDTO) };
+  const { sql, params } = buildSmartFolderWhere(f.rules);
+  const total = db.prepare(`SELECT COUNT(*) AS c FROM images ${sql}`).get(...params).c;
+  const lim = Math.min(2000, Math.max(1, Math.floor(Number(limit) || 200)));
+  const off = Math.max(0, Math.floor(Number(offset) || 0));
+  const rows = db
+    .prepare(
+      `SELECT * FROM images ${sql} ORDER BY COALESCE(score, 100) DESC, id DESC LIMIT ? OFFSET ?`
+    )
+    .all(...params, lim, off);
+  return { folder: f, total, items: rows.map(toDTO), limit: lim, offset: off };
 }
 
 /** 文件夹标签继承：把该智能文件夹的 autoTags 应用到所有命中图片（一次性同步） */
@@ -110,13 +180,14 @@ export function applySmartFolderTags(id) {
   if (!f) throw new Error('智能文件夹不存在');
   const autoTags = f.autoTags;
   if (!autoTags.length) return 0;
-  const rows = db.prepare('SELECT * FROM images').all();
+  // 只取命中行的 id+tags：不再把整库读进内存
+  const { sql, params } = buildSmartFolderWhere(f.rules);
+  const rows = db.prepare(`SELECT id, tags FROM images ${sql}`).all(...params);
   let changed = 0;
   const stmt = db.prepare('UPDATE images SET tags = ? WHERE id = ?');
   db.exec('BEGIN');
   try {
     for (const r of rows) {
-      if (!matchSmartFolder(r, f.rules)) continue;
       const set = new Set(splitTags(r.tags));
       autoTags.forEach((t) => set.add(String(t).trim()));
       stmt.run([...set].join(','), r.id);

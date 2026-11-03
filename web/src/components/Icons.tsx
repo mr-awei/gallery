@@ -23,6 +23,13 @@ export const IconDownload = () => (
   </svg>
 );
 
+export const IconCopy = () => (
+  <svg {...base}>
+    <rect x="9" y="9" width="11" height="11" rx="2" />
+    <path d="M5 15V5a2 2 0 0 1 2-2h10" />
+  </svg>
+);
+
 export const IconExpand = () => (
   <svg {...base}>
     <path d="M9 3H3v6M15 3h6v6M9 21H3v-6M15 21h6v-6" />
@@ -56,6 +63,13 @@ export const IconColumns = () => (
     <rect x="3" y="3" width="6" height="18" rx="1.5" />
     <rect x="11" y="3" width="6" height="12" rx="1.5" />
     <rect x="19" y="3" width="2" height="8" rx="1" />
+  </svg>
+);
+
+/** 列表视图（Eagle 的 List View） */
+export const IconList = () => (
+  <svg {...base}>
+    <path d="M4 6h16M4 12h16M4 18h16" />
   </svg>
 );
 
@@ -119,6 +133,13 @@ export const IconWallpaper = () => (
 export const IconFolder = () => (
   <svg {...base}>
     <path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z" />
+  </svg>
+);
+
+export const IconLink = () => (
+  <svg {...base}>
+    <path d="M10 13a5 5 0 0 0 7.07 0l2.12-2.12a5 5 0 0 0-7.07-7.07L11 4.93" />
+    <path d="M14 11a5 5 0 0 0-7.07 0L4.81 13.12a5 5 0 0 0 7.07 7.07L13 19.07" />
   </svg>
 );
 

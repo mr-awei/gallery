@@ -31,6 +31,8 @@ export default function DuelView({ group, onEliminate, onFinished, onClose }: Pr
   const [queue, setQueue] = useState(group.items.filter((i) => i.id !== initial.id));
   const [eliminated, setEliminated] = useState<ImageItem[]>([]);
   const [eliminating, setEliminating] = useState(false);
+  // 父级既可能「返回 false」也可能「抛异常」：抛的时候以前界面完全没反馈
+  const [error, setError] = useState('');
   const [view, setView] = useState<View>(RESET);
   const dragRef = useRef<{ px: number; py: number; x: number; y: number } | null>(null);
 
@@ -43,14 +45,21 @@ export default function DuelView({ group, onEliminate, onFinished, onClose }: Pr
     const keepItem = winner === 'kept' ? kept : challenger;
     const loseItem = winner === 'kept' ? challenger : kept;
     setEliminating(true);
+    setError('');
     try {
       const ok = await onEliminate(keepItem.id, loseItem.id);
-      if (!ok) return; // 删除失败：停在当前轮，让用户重试或退出
+      if (!ok) {
+        // 删除失败：停在当前轮，让用户重试或退出
+        setError('淘汰失败，可重试或先退出');
+        return;
+      }
       setEliminated((prev) => [...prev, loseItem]);
       if (winner === 'challenger') setKept(challenger);
       setQueue((prev) => prev.slice(1));
       setView(RESET);
       if (queue.length <= 1) onFinished(); // 这是最后一轮
+    } catch (err) {
+      setError(`淘汰失败：${(err as Error)?.message || '未知错误'}`);
     } finally {
       setEliminating(false);
     }
@@ -160,6 +169,19 @@ export default function DuelView({ group, onEliminate, onFinished, onClose }: Pr
           </div>
         )}
       </div>
+      {!!error && (
+        <div
+          role="alert"
+          style={{
+            padding: '8px 12px',
+            fontSize: 12.5,
+            color: '#f87171',
+            borderTop: '1px solid var(--border)',
+          }}
+        >
+          {error}
+        </div>
+      )}
       {(eliminated.length > 0 || queue.length > 0) && (
         <div className="cmp-head" style={{ borderTop: '1px solid var(--border)' }}>
           <div className="cmp-thumbs">

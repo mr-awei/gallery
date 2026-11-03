@@ -7,25 +7,39 @@ import { db, getSettings } from '../db.js';
 import { httpFetch } from '../http.js';
 import { invalidateQuality } from '../quality.js';
 import { removeThumbFiles } from '../thumbs.js';
+import { pushEditBackup } from './undo.js';
 import { aiModelOf, communityModelOf, cuganInstalled, isAiModel, isCommunityModel, listCuganModels, runUpscale } from '../ai-upscale.js';
 import { runSr, srModelOf } from '../sr-deep.js';
 import { computePHash } from '../phash.js';
 import * as clip from '../clip.js';
-import { getImage, indexPhash, removeFileRetry, rotateImage, toDTO, translateError, writeFileAtomic } from '../library.js';
+import { getImage, indexPhash, removeFileRetry, toDTO, translateError, writeFileAtomic } from '../library.js';
 
 
 /** 内置增强模型：全部基于 sharp 的插值 + 锐化，离线可用、无外部依赖。
  *  放大倍数按「目标标准」动态计算，保证增强后达到标准以上；
- *  模型只决定插值核与锐化风格，maxScale 为安全上限（防极端小图爆内存）。 */
+ *  模型只决定插值核与锐化风格，maxScale 为安全上限（防极端小图爆内存）。
+ *
+ *  必须标明这是**插值放大**：像素变多但不会合成新细节，和 AI 超分是两件事。
+ *  以前四档都叫「标准增强 / 细节强化」，用户以为是 AI 模型，放大后觉得「糊还是糊」。 */
 export const ENHANCE_MODELS = [
-  { id: 'sharp-standard', label: '标准增强', desc: '通用清晰放大，保留细节，适合大多数照片', kernel: 'lanczos3', sharpen: 0.6, blur: 0, maxScale: 16 },
-  { id: 'sharp-anime', label: '二次元增强', desc: '保边去糊，线条更利落，适合插画/写真', kernel: 'lanczos3', sharpen: 1.0, blur: 0, maxScale: 16 },
-  { id: 'sharp-soft', label: '柔和增强', desc: '照片风，抑制噪点与锯齿，过渡更平滑', kernel: 'cubic', sharpen: 0.2, blur: 0.5, maxScale: 16 },
-  { id: 'sharp-detail', label: '细节强化', desc: '锐度更强，观感更锐利（可能略显生硬）', kernel: 'lanczos3', sharpen: 1.4, blur: 0, maxScale: 16 },
+  { id: 'sharp-standard', label: '标准增强', desc: '通用清晰放大，保留细节，适合大多数照片', engine: 'resample', engineLabel: '插值放大（非 AI 超分）', kernel: 'lanczos3', sharpen: 0.6, blur: 0, maxScale: 16 },
+  { id: 'sharp-anime', label: '二次元增强', desc: '保边去糊，线条更利落，适合插画/写真', engine: 'resample', engineLabel: '插值放大（非 AI 超分）', kernel: 'lanczos3', sharpen: 1.0, blur: 0, maxScale: 16 },
+  { id: 'sharp-soft', label: '柔和增强', desc: '照片风，抑制噪点与锯齿，过渡更平滑', engine: 'resample', engineLabel: '插值放大（非 AI 超分）', kernel: 'cubic', sharpen: 0.2, blur: 0.5, maxScale: 16 },
+  { id: 'sharp-detail', label: '细节强化', desc: '锐度更强，观感更锐利（可能略显生硬）', engine: 'resample', engineLabel: '插值放大（非 AI 超分）', kernel: 'lanczos3', sharpen: 1.4, blur: 0, maxScale: 16 },
 ];
 
 /** 增强后输出的像素上限，避免极端小图放大到几十亿像素导致内存爆掉 */
 const MAX_OUTPUT_PIXELS = 50_000_000;
+
+/**
+ * 「已达标、未做任何改动」的统一返回：带上 noop 标记。
+ * 以前这里直接返回 toDTO(row)，调用方分不清「真的放大了」和「什么都没做」，
+ * 前端就会弹「已增强至 1920×1080」而画面毫无变化；批量任务还把它算成成功。
+ * 标记只用于调用方判断，路由会剥掉，不进 ImageItem。
+ */
+function unchangedResult(row) {
+  return { ...toDTO(row), noop: true };
+}
 
 /** 标准预设：键 -> 目标分辨率（宽 × 高）。低于该尺寸的图片视为「待增强」 */
 export const ENHANCE_STANDARDS = {
@@ -92,13 +106,11 @@ export async function resyncImageMeta(id) {
     meta.width === row.width && meta.height === row.height && stat.size === row.size_bytes;
   if (unchanged) return false;
   const phash = await computePHash(row.abs_path).catch(() => '');
-  db.prepare('UPDATE images SET width = ?, height = ?, size_bytes = ?, phash = ? WHERE id = ?').run(
-    meta.width || 0,
-    meta.height || 0,
-    stat.size,
-    phash,
-    id
-  );
+  // fs_mtime 同步更新：列表 API 拿它当缩略图/原图 URL 的缓存版本号，
+  // 不更新的话文件被替换后浏览器会一直用旧缓存
+  db.prepare(
+    'UPDATE images SET width = ?, height = ?, size_bytes = ?, phash = ?, fs_mtime = ? WHERE id = ?'
+  ).run(meta.width || 0, meta.height || 0, stat.size, phash, Math.round(stat.mtimeMs / 1000), id);
   if (phash) indexPhash(id, phash);
   if (clip.clipReady()) clip.reembed(id, row.abs_path);
   invalidateQuality(id);
@@ -140,7 +152,7 @@ async function enhanceImageInner(id, modelId, opts = {}) {
   const needed = Math.max(target.width / (curW || 1), target.height / (curH || 1));
   const maxByPixels = Math.sqrt(MAX_OUTPUT_PIXELS / Math.max(1, curW * curH));
   const scale = Math.min(needed, maxByPixels, model.maxScale || 8);
-  if (scale <= 1.001) return toDTO(row); // 已达标，无需增强
+  if (scale <= 1.001) return unchangedResult(row); // 已达标，无需增强（noop 让前端如实提示）
 
   const newW = Math.round(curW * scale);
   const newH = Math.round(curH * scale);
@@ -152,23 +164,7 @@ async function enhanceImageInner(id, modelId, opts = {}) {
   else pipeline = pipeline.jpeg({ quality: 92, mozjpeg: true });
 
   const { data, info } = await pipeline.toBuffer({ resolveWithObject: true });
-  await writeFileAtomic(row.abs_path, data);
-
-  const newHash = await computePHash(data).catch(() => '');
-  db.prepare('UPDATE images SET width = ?, height = ?, size_bytes = ?, phash = ? WHERE id = ?').run(
-    info.width,
-    info.height,
-    data.length,
-    newHash,
-    id
-  );
-  if (newHash) indexPhash(id, newHash);
-  if (clip.clipReady()) clip.reembed(id, row.abs_path); // 内容已改变，重建深度特征
-  invalidateQuality(id); // 清晰度缓存同步失效，下次分组时重算
-
-  await removeThumbFiles(id, row.thumb);
-
-  return toDTO(getImage(id));
+  return await writeEnhancedBuffer(id, row, data, info);
 }
 
 /**
@@ -184,7 +180,7 @@ async function enhanceImageTransformer(id, row, target, modelId, onProgress) {
   const curH = meta.height || row.height;
 
   const needed = Math.max(target.width / (curW || 1), target.height / (curH || 1));
-  if (needed <= 1.001) return toDTO(row);
+  if (needed <= 1.001) return unchangedResult(row);
 
   const tmpOut = `${row.abs_path}.sr-out.png`;
   try {
@@ -202,7 +198,12 @@ async function enhanceImageTransformer(id, row, target, modelId, onProgress) {
     const { data, info } = await pipeline.toBuffer({ resolveWithObject: true });
     return await writeEnhancedBuffer(id, row, data, info);
   } finally {
-    await removeFileRetry(tmpOut);
+    // 清理失败只记日志：掩盖掉真正的超分错误会让问题完全没法排查
+    try {
+      await removeFileRetry(tmpOut);
+    } catch (err) {
+      console.warn('[enhance] 清理临时文件失败：', err?.message || err);
+    }
   }
 }
 
@@ -250,7 +251,7 @@ async function enhanceImageAi(id, row, target, modelId, onProgress) {
   const curH = meta.height || row.height;
 
   const needed = Math.max(target.width / (curW || 1), target.height / (curH || 1));
-  if (needed <= 1.001) return toDTO(row);
+  if (needed <= 1.001) return unchangedResult(row);
 
   // 两级：先降噪再放大（Real-CUGAN 可用 + 判定为噪点重的图）
   const cuganModels = cuganInstalled() ? listCuganModels() : [];
@@ -323,21 +324,39 @@ async function enhanceImageAi(id, row, target, modelId, onProgress) {
     const { data, info } = await pipeline.toBuffer({ resolveWithObject: true });
     return await writeEnhancedBuffer(id, row, data, info);
   } finally {
-    for (const t of tmps) await removeFileRetry(t);
+    for (const t of tmps) {
+      try {
+        await removeFileRetry(t);
+      } catch (err) {
+        console.warn('[enhance] 清理临时文件失败：', err?.message || err);
+      }
+    }
   }
+}
+
+/**
+ * 覆盖写回后的缓存版本号：与 edit.js 的 persistEdit 同一理由——
+ * 原图/缩略图是 7 天强缓存，DTO 的 ?v= 取自 fs_mtime，不刷新就永远看不到新图
+ */
+function bumpFsMtime(row) {
+  let v = Number(row.fs_mtime || 0) + 1;
+  try {
+    v = Math.max(Math.round(fs.statSync(row.abs_path).mtimeMs / 1000), v);
+  } catch {
+    /* 用递增兜底 */
+  }
+  return v;
 }
 
 /** 把 Buffer 写回原文件，复用增强后的元数据更新逻辑 */
 async function writeEnhancedBuffer(id, row, data, info) {
+  // 覆盖前留原件，支持撤销（增强同样不可逆）
+  pushEditBackup(row, 'enhance');
   await writeFileAtomic(row.abs_path, data);
   const newHash = await computePHash(data).catch(() => '');
-  db.prepare('UPDATE images SET width = ?, height = ?, size_bytes = ?, phash = ? WHERE id = ?').run(
-    info.width,
-    info.height,
-    data.length,
-    newHash,
-    id
-  );
+  db.prepare(
+    'UPDATE images SET width = ?, height = ?, size_bytes = ?, phash = ?, fs_mtime = ? WHERE id = ?'
+  ).run(info.width, info.height, data.length, newHash, bumpFsMtime(row), id);
   if (newHash) indexPhash(id, newHash);
   if (clip.clipReady()) clip.reembed(id, row.abs_path); // 内容已改变，重建深度特征
   invalidateQuality(id); // 清晰度缓存同步失效，下次分组时重算
@@ -419,7 +438,7 @@ async function callRemoteService(service, buf, mime) {
     resultBuf = Buffer.from(await up.arrayBuffer());
   } else {
     const text = await up.text().catch(() => '');
-    let json = null;
+    let json;
     try {
       json = JSON.parse(text);
     } catch {

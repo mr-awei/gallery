@@ -31,10 +31,11 @@ export function Donut({ data, total }: { data: { name: string; count: number }[]
           offset += len;
           return el;
         })}
-        <text x="70" y="66" textAnchor="middle" fill="#ececf6" fontSize="21" fontWeight="700">
+        {/* 主题感知变量：环形图中心数字曾硬编码暗色主题的近白色，浅色主题下隐形 */}
+        <text x="70" y="66" textAnchor="middle" fill="var(--text)" fontSize="21" fontWeight="700">
           {total}
         </text>
-        <text x="70" y="84" textAnchor="middle" fill="#8f8fab" fontSize="11">
+        <text x="70" y="84" textAnchor="middle" fill="var(--muted)" fontSize="11">
           张图片
         </text>
       </svg>
@@ -48,7 +49,7 @@ export function Donut({ data, total }: { data: { name: string; count: number }[]
             </span>
           </div>
         ))}
-        {!data.length && <span style={{ color: '#6f6f8c' }}>暂无数据</span>}
+        {!data.length && <span style={{ color: 'var(--muted)' }}>暂无数据</span>}
       </div>
     </div>
   );
@@ -67,7 +68,7 @@ export function Bars({ data }: { data: { name: string; count: number }[] }) {
           <span className="val">{d.count}</span>
         </div>
       ))}
-      {!data.length && <span style={{ color: '#6f6f8c' }}>暂无数据</span>}
+      {!data.length && <span style={{ color: 'var(--muted)' }}>暂无数据</span>}
     </div>
   );
 }
@@ -78,7 +79,7 @@ export function TrendLine({ data }: { data: { date: string; count: number }[] })
   const pad = 6;
   if (data.length < 2) {
     return (
-      <div style={{ color: '#6f6f8c', fontSize: 12, paddingTop: 30 }}>
+      <div style={{ color: 'var(--muted)', fontSize: 12, paddingTop: 30 }}>
         {data.length === 1 ? `第一天已采集 ${data[0].count} 张` : '暂无数据'}
       </div>
     );
@@ -110,7 +111,7 @@ export function TrendLine({ data }: { data: { date: string; count: number }[] })
           <circle key={i} cx={p.x} cy={p.y} r={2.6} fill="#ff4d8d" />
         ))}
       </svg>
-      <div style={{ display: 'flex', justifyContent: 'space-between', color: '#6f6f8c', fontSize: 11 }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', color: 'var(--muted)', fontSize: 11 }}>
         <span>{data[0].date.slice(5)}</span>
         <span>峰值 {max} 张</span>
         <span>{data[data.length - 1].date.slice(5)}</span>

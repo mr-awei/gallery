@@ -1,11 +1,11 @@
 // 壁纸路由：手动/定时切换、动态壁纸、偏好训练与反馈、历史记录（从 app.js 拆出）
 import fs from 'node:fs';
 import path from 'node:path';
-import * as ai from '../ai.js';
 import * as auto from '../auto.js';
 import * as fit from '../wallpaper-fit.js';
 import * as lib from '../library.js';
 import * as matting from '../matting.js';
+import * as flatcut from '../lib/flatcut.js';
 import * as pref from '../preference.js';
 import * as wallpaper from '../wallpaper.js';
 import { httpFetch } from '../http.js';
@@ -68,6 +68,9 @@ export function register(app, ctx) {
       const results = [];
       const urls = Array.isArray(req.body?.urls) ? req.body.urls.slice(0, 30) : [];
       const dataUrls = Array.isArray(req.body?.dataUrls) ? req.body.dataUrls.slice(0, 10) : [];
+      // 用户主动拖/点采集：不过 minFileSize / minResolution 门槛（爬虫才需要那两道闸）。
+      // 批量采集（右键「采集本页所有图片」）不带这个标记，继续按质量过滤，免得收一屏图标。
+      const skipQuality = req.body?.skipQuality === true;
 
       for (const u of urls) {
         try {
@@ -79,7 +82,7 @@ export function register(app, ctx) {
           });
           const buffer = Buffer.from(await res.arrayBuffer());
           const r = await lib.ingest(
-            { buffer, source: 'browser', keyword, tags, sourceUrl: String(u), copyToStorage: true },
+            { buffer, source: 'browser', keyword, tags, sourceUrl: String(u), copyToStorage: true, skipQuality },
             settings
           );
           results.push({ ...r, url: String(u) });
@@ -93,7 +96,7 @@ export function register(app, ctx) {
           if (!m) throw new Error('不是图片 data URL');
           const buf = Buffer.from(m[1], 'base64');
           const r = await lib.ingest(
-            { buffer: buf, source: 'browser', keyword, tags, sourceUrl: pageUrl, copyToStorage: true },
+            { buffer: buf, source: 'browser', keyword, tags, sourceUrl: pageUrl, copyToStorage: true, skipQuality },
             settings
           );
           results.push(r);
@@ -110,21 +113,29 @@ export function register(app, ctx) {
     })
   );
 
-  // AI 去背景（U-2-Net ONNX）
+  // 去背景：两种模式
+  //   ai   —— U-2-Net ONNX 抠人像/宠物（需要模型）
+  //   flat —— 纯底图抠图：任意纯色背景（白底/灰底/蓝底/绿幕），纯像素、零模型、秒出
   app.get('/api/ai/matting/status', (_req, res) => res.json(matting.mattingStatus()));
-  app.post(
-    '/api/ai/matting/install',
-    asyncRoute(async (_req, res) => {
-      res.json({ ok: true, ...(await matting.installMatting()) });
-    })
-  );
+  // 后台下载：立刻返回，进度由上面的 status 轮询（或任务中心）提供
+  app.post('/api/ai/matting/install', (_req, res) => res.json(matting.startMattingInstall()));
+  app.post('/api/ai/matting/cancel', (_req, res) => res.json({ ok: matting.cancelMattingInstall() }));
   app.post(
     '/api/images/:id/remove-bg',
     asyncRoute(async (req, res) => {
       const id = Number(req.params.id);
       const row = lib.getImage(id);
       if (!row) return res.status(404).json({ error: '图片不存在' });
-      const { buffer } = await matting.removeBackgroundBuffer(row.abs_path);
+      const mode = req.body?.mode === 'flat' ? 'flat' : 'ai';
+      // 缺模型是「还没准备」不是服务故障：409 + 可读原因，前端据此引导下载或改用纯底图
+      if (mode === 'ai' && !matting.mattingStatus().downloaded) {
+        return res.status(409).json({
+          error: 'AI 抠图模型还没下载（设置 → AI 里可下载，约 4.5MB）；白底/灰底这类图直接用「纯底图抠图」即可',
+          code: 'MODEL_MISSING',
+        });
+      }
+      const { buffer, coverage, warning } =
+        mode === 'flat' ? await flatcut.removeFlatBackground(row.abs_path) : await matting.removeBackgroundBuffer(row.abs_path);
       // 存为新文件（原图不动），走标准入库流程
       const settings = getSettings();
       const dir = lib.resolveStorageDir(settings);
@@ -134,18 +145,20 @@ export function register(app, ctx) {
       let n = 1;
       while (fs.existsSync(out)) out = path.join(dir, `${stem}.nobg-${++n}.png`);
       await fs.promises.writeFile(out, buffer);
+      const tag = mode === 'flat' ? '纯底抠图' : '去背景';
       const res2 = await lib.ingest(
         {
           absPath: out,
           source: 'local',
-          keyword: row.keyword || '去背景',
-          title: `${row.title || stem}（去背景）`,
-          tags: row.tags ? `${row.tags},去背景` : '去背景',
+          keyword: row.keyword || tag,
+          title: `${row.title || stem}（${tag}）`,
+          tags: row.tags ? `${row.tags},${tag}` : tag,
           skipPhashDupe: true, // 内容与原图同源，仍需能登记（后续由去重工具处理）
         },
         settings
       );
-      res.json({ ok: true, ...res2 });
+      // warning 不为空说明这次抠图很可能不可用（模型遇到风景/物体、背景不是纯色），别让用户以为成了
+      res.json({ ok: true, mode, ...res2, coverage, warning });
     })
   );
 
@@ -237,11 +250,18 @@ export function register(app, ctx) {
           )
           .all(...(minScore ? [minScore] : []));
       }
+      // 清单本身是随机的（ORDER BY RANDOM）且随收藏/清单变化，绝不能被缓存
+      res.set('Cache-Control', 'no-store');
+      // url 必须走 toDTO 拿到的 ?v=fs_mtime 版本号：原图响应是 max-age=7天 的强缓存，
+      // 不带版本号的固定 URL 会让增强/旋转/调色后的新图永远显示成旧图（壁纸窗口开好几天不关）
       res.json({
         interval: Math.max(5, Number(cfg.intervalSec) || 15),
         kenBurns: cfg.kenBurns !== false,
         total: rows.length,
-        items: rows.map((r) => ({ id: r.id, url: `/api/images/${r.id}/file`, title: r.title })),
+        items: rows.map((r) => {
+          const dto = lib.toDTO(r);
+          return { id: dto.id, url: dto.url, title: dto.title };
+        }),
       });
     })
   );
@@ -252,6 +272,9 @@ export function register(app, ctx) {
     asyncRoute(async (_req, res) => {
       const p = String(getSettings().liveWallpaper?.videoPath || '');
       if (!p || !fs.existsSync(p)) return res.status(404).json({ error: '视频文件不存在' });
+      // 同一个 URL 换了文件内容（设置里改视频路径 / 覆盖同名文件）时，
+      // 强缓存会让窗口一直播旧的；本地文件重读代价可忽略，直接不缓存
+      res.set('Cache-Control', 'no-store');
       res.sendFile(p);
     })
   );

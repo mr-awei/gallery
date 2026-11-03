@@ -1,8 +1,10 @@
 import { db, getSettings, getLibraryGeneration } from './db.js';
 import { KEEP_REASONS } from './library.js';
 import { bulkIngestBuffers } from './bulk-import.js';
+import { liveBus } from './live-bus.js';
 import { httpFetch } from './http.js';
 import { sanitizeResults } from './sanitize.js';
+import { createJob, finishJob, jobProgress } from './jobs.js';
 
 const UA_POOL = [
   'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36',
@@ -17,8 +19,49 @@ function pickUA() {
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
+/**
+ * 采集相关的时限/上限集中在这里（以前散落在 20 多处字面量，改一个忘一个）。
+ * 都可以用环境变量覆盖，方便弱网调大、被风控调小。
+ */
+export const CRAWL_LIMITS = {
+  /** 单次搜索请求超时（ms） */
+  SEARCH_TIMEOUT: Number(process.env.GEM_CRAWL_TIMEOUT) || 15000,
+  /** 单图下载超时（ms） */
+  DOWNLOAD_TIMEOUT: Number(process.env.GEM_CRAWL_DL_TIMEOUT) || 25000,
+  /** 搜索请求重试次数 */
+  SEARCH_RETRIES: Number(process.env.GEM_CRAWL_RETRIES) || 2,
+  /** 下载并发上限（用户设置里的 concurrency 会被夹到这个范围内） */
+  MAX_CONCURRENCY: 12,
+  /** 每个关键词最多翻多少页 */
+  MAX_PAGES: 20,
+  /** 每页结果的请求条数 */
+  PAGE_SIZE: 24,
+  /** 入库流水线一个批次的大小 */
+  INGEST_BATCH: 24,
+  /** 下载之间的节流（ms） */
+  DOWNLOAD_GAP: 500,
+};
+
+/**
+ * 当前采集任务的取消信号。stopCrawl 时 abort，把在途的搜索/下载请求立刻掐掉；
+ * 以前只置 stopRequested，已发出的请求要等自己超时（15s × 重试）才结束，
+ * 用户点了「停止」还得盯着一堆进度条继续动半分钟。
+ */
+let jobAbort = null;
+
 async function httpGet(url, opts = {}) {
-  const { timeout = 15000, retries = 2, headers = {}, maxBytes = null } = opts;
+  const {
+    timeout = CRAWL_LIMITS.SEARCH_TIMEOUT,
+    retries = CRAWL_LIMITS.SEARCH_RETRIES,
+    headers = {},
+    maxBytes = null,
+  } = opts;
+  // 单请求超时 + 调用方信号 + 任务级取消信号，三者任一触发都终止
+  const signals = [AbortSignal.timeout(timeout)];
+  if (opts.signal) signals.push(opts.signal);
+  if (jobAbort) signals.push(jobAbort.signal);
+  const signal =
+    signals.length === 1 ? signals[0] : AbortSignal.any ? AbortSignal.any(signals) : signals[signals.length - 1];
   let lastErr;
   for (let attempt = 0; attempt <= retries; attempt++) {
     try {
@@ -29,7 +72,7 @@ async function httpGet(url, opts = {}) {
           'Accept-Language': 'zh-CN,zh;q=0.9,en;q=0.8',
           ...headers,
         },
-        signal: AbortSignal.timeout(timeout),
+        signal,
         redirect: 'follow',
       });
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
@@ -50,6 +93,8 @@ async function httpGet(url, opts = {}) {
       return Buffer.concat(chunks);
     } catch (err) {
       lastErr = err;
+      // 用户已停止：不要再重试，否则「停止」还要等好几轮退避
+      if (jobAbort?.signal.aborted) throw err;
       if (attempt < retries) await sleep(400 * (attempt + 1) + Math.random() * 400);
     }
   }
@@ -84,7 +129,7 @@ function upscaleBaiduUrl(url) {
 async function searchBing(keyword, page) {
   const first = page * 35 + 1;
   const url = `https://www.bing.com/images/search?q=${encodeURIComponent(keyword)}&first=${first}&count=35&mkt=zh-CN&setlang=zh-CN`;
-  const buf = await httpGet(url, { headers: { Referer: 'https://www.bing.com/' }, timeout: 15000 });
+  const buf = await httpGet(url, { headers: { Referer: 'https://www.bing.com/' }, timeout: CRAWL_LIMITS.DOWNLOAD_TIMEOUT });
   const html = buf
     .toString('utf8')
     .replace(/&quot;/g, '"')
@@ -113,7 +158,7 @@ async function searchBaidu(keyword, page) {
   const url =
     'https://image.baidu.com/search/acjson?tn=resultjson_com&ipn=rj&ct=201326592&is=&fp=result&fr=&' +
     `word=${encodeURIComponent(keyword)}&pn=${page * 30}&rn=30&gsm=1e&ie=utf-8&oe=utf-8`;
-  const buf = await httpGet(url, { headers: { Referer: 'https://image.baidu.com/' }, timeout: 15000 });
+  const buf = await httpGet(url, { headers: { Referer: 'https://image.baidu.com/' }, timeout: CRAWL_LIMITS.DOWNLOAD_TIMEOUT });
   const json = parseJsonSafe(buf.toString('utf8'), '百度图片');
   const list = Array.isArray(json?.data) ? json.data : [];
   const out = [];
@@ -135,7 +180,7 @@ async function searchSogou(keyword, page) {
   const url = `https://pic.sogou.com/pics?query=${encodeURIComponent(keyword)}&mode=1&start=${
     page * 48
   }&len=48`;
-  const buf = await httpGet(url, { headers: { Referer: 'https://pic.sogou.com/' }, timeout: 15000 });
+  const buf = await httpGet(url, { headers: { Referer: 'https://pic.sogou.com/' }, timeout: CRAWL_LIMITS.DOWNLOAD_TIMEOUT });
   // 页面内 JSON 使用 \u002F 转义斜杠，先还原
   const html = buf
     .toString('utf8')
@@ -171,7 +216,7 @@ async function searchWallhaven(keyword, page, opts = {}) {
   });
   if (opts.wallhavenApiKey) qs.set('apikey', opts.wallhavenApiKey);
   const url = `https://wallhaven.cc/api/v1/search?${qs.toString()}`;
-  const buf = await httpGet(url, { headers: { Referer: 'https://wallhaven.cc/' }, timeout: 15000 });
+  const buf = await httpGet(url, { headers: { Referer: 'https://wallhaven.cc/' }, timeout: CRAWL_LIMITS.DOWNLOAD_TIMEOUT });
   const json = parseJsonSafe(buf.toString('utf8'), 'Wallhaven');
   const list = Array.isArray(json?.data) ? json.data : [];
   return sanitizeResults(
@@ -189,7 +234,7 @@ function tooSmall(width, height, minLongSide) {
 /** 360 图片：公开 JSON 接口。分页用的是 sn（起始条数），pn 无效 */
 async function searchImage360(keyword, page, opts = {}) {
   const url = `https://image.so.com/j?q=${encodeURIComponent(keyword)}&src=srp&sn=${page * 30}&rn=30`;
-  const buf = await httpGet(url, { headers: { Referer: 'https://image.so.com/' }, timeout: 15000 });
+  const buf = await httpGet(url, { headers: { Referer: 'https://image.so.com/' }, timeout: CRAWL_LIMITS.DOWNLOAD_TIMEOUT });
   const json = parseJsonSafe(buf.toString('utf8'), '360 图片');
   const list = Array.isArray(json?.list) ? json.list : [];
   const out = [];
@@ -221,7 +266,7 @@ async function searchDuitang(keyword, page, opts = {}) {
   const url = `https://www.duitang.com/napi/blog/list/by_search/?kw=${encodeURIComponent(keyword)}&start=${
     page * 24
   }&limit=24`;
-  const buf = await httpGet(url, { headers: { Referer: 'https://www.duitang.com/' }, timeout: 15000 });
+  const buf = await httpGet(url, { headers: { Referer: 'https://www.duitang.com/' }, timeout: CRAWL_LIMITS.DOWNLOAD_TIMEOUT });
   const json = parseJsonSafe(buf.toString('utf8'), '堆糖');
   const list = Array.isArray(json?.data?.object_list) ? json.data.object_list : [];
   const out = [];
@@ -261,8 +306,8 @@ async function searchWeibo(keyword, page, opts = {}) {
       Accept: 'application/json, text/plain, */*',
       Cookie: cookie,
     },
-    timeout: 15000,
-    retries: 2, // 超时/网络抖动值得重试；Cookie 失效（-100）会快速返回，重试成本可忽略
+    timeout: CRAWL_LIMITS.SEARCH_TIMEOUT,
+    retries: CRAWL_LIMITS.SEARCH_RETRIES, // 超时/网络抖动值得重试；Cookie 失效（-100）会快速返回，重试成本可忽略
   });
   const json = parseJsonSafe(buf.toString('utf8'), '微博图片');
   if (json?.ok !== 1) {
@@ -292,7 +337,13 @@ export const SOURCES = {
   sogou: { key: 'sogou', label: '搜狗图片', search: searchSogou },
   image360: { key: 'image360', label: '360 图片', search: searchImage360 },
   duitang: { key: 'duitang', label: '堆糖', search: searchDuitang },
-  weibo: { key: 'weibo', label: '微博图片', search: searchWeibo },
+  weibo: {
+    key: 'weibo',
+    label: '微博图片',
+    hint: '需先在设置里填写微博 Cookie（微博已关闭游客访问）',
+    needsCookie: true,
+    search: searchWeibo,
+  },
   wallhaven: { key: 'wallhaven', label: 'Wallhaven', search: searchWallhaven },
 };
 
@@ -300,9 +351,10 @@ export const SOURCES = {
 
 let job = null;
 
-function makeJob(config) {
+function makeJob(config, dbJobId = 0) {
   return {
     id: Date.now(),
+    dbJobId,
     running: true,
     stopRequested: false,
     startedAt: new Date().toISOString(),
@@ -333,6 +385,18 @@ function makeJob(config) {
 function log(jobRef, level, message) {
   jobRef.logs.push({ id: ++jobRef.logSeq, t: Date.now(), level, message });
   if (jobRef.logs.length > 600) jobRef.logs.splice(0, jobRef.logs.length - 600);
+  // 顺带把进度刷进任务表（内部节流 400ms，不会因为每条日志都写盘）
+  if (jobRef.dbJobId) {
+    const total = Math.max(1, jobRef.search.total);
+    const pct = Math.min(99, Math.round((jobRef.search.done / total) * 100));
+    jobProgress(jobRef.dbJobId, {
+      progress: pct,
+      message: String(message).slice(0, 300),
+      done: jobRef.search.done,
+      total: jobRef.search.total,
+      failed: jobRef.failureCount,
+    });
+  }
 }
 
 function addFailure(jobRef, entry) {
@@ -384,7 +448,12 @@ export function getJobStatus() {
 export function stopCrawl() {
   if (job && job.running) {
     job.stopRequested = true;
-    log(job, 'warn', '收到停止指令：停止搜索与排队，已开始的下载会完成…');
+    try {
+      jobAbort?.abort(new Error('用户停止采集'));
+    } catch (err) {
+      console.warn('[crawl] 中止在途请求失败：', err?.message || err);
+    }
+    log(job, 'warn', '收到停止指令：已中止在途请求，停止搜索与排队');
   }
   return !!job;
 }
@@ -396,10 +465,20 @@ export function startCrawl(config) {
   if (!keywords.length) return { ok: false, message: '请至少选择一个关键词' };
   const sources = (config.sources || []).filter((s) => SOURCES[s]);
   if (!sources.length) return { ok: false, message: '请至少选择一个采集源' };
-  const pages = Math.max(1, Math.min(20, Number(config.pages || settings.pagesPerKeyword)));
+  const pages = Math.max(1, Math.min(CRAWL_LIMITS.MAX_PAGES, Number(config.pages || settings.pagesPerKeyword)));
 
-  job = makeJob({ keywords, sources, pages });
+  // 落表：采集是最长的任务（可达几十分钟），以前进程一退就什么线索都没有，
+  // 现在历史里能看到参数与进度，中断后可以「重试」用同样的参数继续（增量查重保证不重复下载）
+  const dbJobId = createJob({
+    kind: 'crawl',
+    title: `采集 ${keywords.length} 词 × ${sources.length} 源 × ${pages} 页`,
+    payload: { keywords, sources, pages },
+    total: keywords.length * sources.length * pages,
+  });
+
+  job = makeJob({ keywords, sources, pages }, dbJobId);
   const jobRef = job;
+  jobAbort = new AbortController(); // 新任务新的取消信号（上一个已被 abort 的不能复用）
   log(
     jobRef,
     'info',
@@ -410,6 +489,7 @@ export function startCrawl(config) {
     log(jobRef, 'error', `任务异常：${err.message}`);
     jobRef.running = false;
     jobRef.endedAt = new Date().toISOString();
+    finishJob(dbJobId, { status: 'failed', error: String(err?.message || err) });
   });
 
   return { ok: true, jobId: job.id };
@@ -432,7 +512,7 @@ async function runJob(jobRef, settings) {
   const seen = new Set();
   let searchDone = false;
   let cursor = 0;
-  const concurrency = Math.max(1, Math.min(12, Number(settings.concurrency) || 5));
+  const concurrency = Math.max(1, Math.min(CRAWL_LIMITS.MAX_CONCURRENCY, Number(settings.concurrency) || 5));
   // 下载与入库解耦：下载协程把 buffer 投进 ingestQueue，ingestLoop 攒批入库
   const ingestQueue = [];
   let ingestClosed = false;
@@ -583,6 +663,8 @@ function applyIngestResult(jobRef, item, result) {
   if (result.ok) {
     jobRef.download.saved++;
     jobRef.stats.saved++;
+    // 采集入库发生在后台协程里，没有 HTTP 写操作可依赖，得主动通知前端刷新列表
+    liveBus.emit('library-changed', { added: 1 });
     if (jobRef.stats.saved % 10 === 1 || jobRef.stats.saved <= 3) {
       log(
         jobRef,
@@ -601,7 +683,7 @@ function applyIngestResult(jobRef, item, result) {
  * 入库消费协程：攒批（BATCH 条）交给 bulkIngestBuffers。
  * 下载协程与消费协程共享队列；下载侧结束（closed）且队列清空后退出。
  */
-const INGEST_BATCH = 24;
+const INGEST_BATCH = CRAWL_LIMITS.INGEST_BATCH;
 
 async function ingestLoop(jobRef, settings, generation, ingestQueue, isClosed) {
   for (;;) {
@@ -657,22 +739,29 @@ function finish(jobRef, message) {
       s.dropped.lowres + s.dropped.small + s.dropped.format
     } · 知识库过滤 ${s.dropped.aiFilter}`
   );
+  finishJob(jobRef.dbJobId, {
+    status: jobRef.stopRequested ? 'canceled' : s.failed > 0 && s.saved === 0 ? 'failed' : 'done',
+    error: jobRef.stopRequested ? '用户停止' : '',
+    result: { saved: s.saved, failed: s.failed, duplicate: s.dropped.duplicate, candidates: s.candidates },
+  });
 }
 
 /**
- * 下载并入库一组直链（用于初始素材）。批量走流水线（worker 派生 + 批量事务），
- * 下载间隔保留节流避免对源站过快。
+ * 下载并入库一组直链（通用工具：任意 URL 列表 → 图库）。
+ * 批量走流水线（worker 派生 + 批量事务），下载间隔保留节流避免对源站过快。
+ * 注意：原先给「初始素材」功能用，该功能连同 SEED_URLS 一起删了，现在没有路由调用它。
  */
-export async function ingestUrls(urls, { source = 'seed', keyword = '初始素材' } = {}) {
+export async function ingestUrls(urls, { source = 'direct', keyword = '直链导入' } = {}) {
   const buffers = [];
   const okUrls = [];
   for (const url of urls) {
     try {
       const buffer = await httpGet(url, {
-        timeout: 25000,
+        timeout: CRAWL_LIMITS.DOWNLOAD_TIMEOUT,
         retries: 3,
         maxBytes: 40 * 1024 * 1024,
-        headers: { Referer: 'https://www.doubao.com/' },
+        // 这里是任意直链（用户粘贴 / 初始素材），不挂任何站点的 Referer：
+        // 以前写死 https://www.doubao.com/ 属于从别处复制残留，等于给源站递了个假来源
       });
       buffers.push(buffer);
       okUrls.push(url);
@@ -680,7 +769,7 @@ export async function ingestUrls(urls, { source = 'seed', keyword = '初始素�
       buffers.push(null);
       okUrls.push(url);
     }
-    await sleep(500);
+    await sleep(CRAWL_LIMITS.DOWNLOAD_GAP);
   }
   const results = new Array(okUrls.length);
   const slots = [];

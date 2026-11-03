@@ -34,7 +34,13 @@ async function runPowerShell(body) {
       tmp,
     ], { windowsHide: true });
   } finally {
-    fs.rmSync(tmp, { force: true });
+    // 清理临时脚本失败（被 PowerShell/杀软短暂占用会抛 EBUSY）不能覆盖真正的错误：
+    // 以前 finally 里直接 rmSync，一旦删不掉，用户看到的永远是 EBUSY 而不是脚本的真实报错
+    try {
+      fs.rmSync(tmp, { force: true });
+    } catch {
+      /* 临时文件留着就留着，系统会清 */
+    }
   }
 }
 
@@ -50,7 +56,13 @@ async function runPowerShellCapture(body) {
     );
     return String(stdout || '').trim();
   } finally {
-    fs.rmSync(tmp, { force: true });
+    // 清理临时脚本失败（被 PowerShell/杀软短暂占用会抛 EBUSY）不能覆盖真正的错误：
+    // 以前 finally 里直接 rmSync，一旦删不掉，用户看到的永远是 EBUSY 而不是脚本的真实报错
+    try {
+      fs.rmSync(tmp, { force: true });
+    } catch {
+      /* 临时文件留着就留着，系统会清 */
+    }
   }
 }
 
@@ -208,7 +220,11 @@ export async function setWallpapersCom(assignments, position = 3) {
         `foreach ($it in $o.items) { [GemDesktop]::Set([string]$it.monitorId, [string]$it.path, [int]$o.position) }\n`
     );
   } finally {
-    fs.rmSync(job, { force: true });
+    try {
+      fs.rmSync(job, { force: true });
+    } catch {
+      /* 同上：清理失败别盖掉设置壁纸的真实错误 */
+    }
   }
 }
 

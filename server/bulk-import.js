@@ -18,6 +18,8 @@ import {
   ALLOWED_FORMATS,
 } from './library.js';
 import { ensureFolderByRelDir, linkImageByPath } from './folders.js';
+import { ingestMedia, isMediaPath, MEDIA_EXTS } from './lib/media.js';
+import { shouldSkipDir } from './lib/skip-dirs.js';
 import { thumbPathFor } from './thumbs.js';
 import * as clip from './clip.js';
 
@@ -43,12 +45,20 @@ import * as clip from './clip.js';
  * 缩略图文件名是 `${id}.jpg`，所以必须先有 id —— 这也是必须分两阶段的原因。
  */
 
-const EXTS = new Set(['.jpg', '.jpeg', '.png', '.webp']);
-const SKIP_DIRS = new Set([
-  'node_modules', '.git', 'app', 'dist', 'storage', 'trash', 'data', 'thumbs',
-  '.codebuddy', 'system volume information', '$recycle.bin',
-]);
-const MAX_DEPTH = 4;
+const EXTS = new Set(['.jpg', '.jpeg', '.png', '.webp', ...[...MEDIA_EXTS].map((e) => `.${e}`)]);
+// 排除表（thumbs / .gemvault / .library …）统一在 lib/skip-dirs.js，别再本地复制一份：
+// 之前这里和 importer.js 各有一份，加 .gemvault 时漏掉了真正干活的那一份
+const DEFAULT_MAX_DEPTH = 4;
+
+/**
+ * 目录遍历深度上限：设置项 importMaxDepth 可调（默认 4 层，保持老行为）。
+ * 以前写死 4：素材放得深一点就整批没人扫，而且界面上什么提示都没有——
+ * 用户只知道"导入完少了一半图"。
+ */
+function resolveMaxDepth() {
+  const v = Number(getSettings().importMaxDepth);
+  return Number.isFinite(v) && v > 0 ? Math.min(16, Math.floor(v)) : DEFAULT_MAX_DEPTH;
+}
 
 const CHUNK = 400;       // 每批发现 / 查询 / 提交的文件数
 const QUERY_CHUNK = 400; // 单条 IN 查询的路径数
@@ -199,9 +209,14 @@ class MediaPool {
 
 /* --------------------------- 文件发现（流式） --------------------------- */
 
-async function* walkChunks(dirs, chunkSize = CHUNK) {
+async function* walkChunks(dirs, chunkSize = CHUNK, onDepthSkip = null) {
+  const maxDepth = resolveMaxDepth();
   const walk = async function* (list, depth) {
-    if (depth > MAX_DEPTH) return;
+    if (depth > maxDepth) {
+      // 不再静默丢弃：把被深度截断的目录报给调用方
+      if (onDepthSkip) for (const d of list) onDepthSkip(d);
+      return;
+    }
     for (const dir of list) {
       let entries;
       try {
@@ -213,7 +228,9 @@ async function* walkChunks(dirs, chunkSize = CHUNK) {
       for (const e of entries) {
         const full = path.join(dir, e.name);
         if (e.isDirectory()) {
-          if (!SKIP_DIRS.has(e.name.toLowerCase())) subDirs.push(full);
+          // 排除表里除 thumbs / 回收站外，还包括 .gemvault（库数据目录，默认就在素材
+          // 文件夹里）和 .library（资产目录，*.info 是库内图片的副本，由导入到库自己登记）
+          if (!shouldSkipDir(e.name)) subDirs.push(full);
           continue;
         }
         if (EXTS.has(path.extname(e.name).toLowerCase())) yield full;
@@ -248,6 +265,8 @@ export async function bulkImportLocal({
 
   const result = {
     total: 0, saved: 0, duplicate: 0, dropped: 0, errors: 0, cancelled: 0, unchanged: 0,
+    /** 因为超过深度上限而没扫的目录（非空时前端要提示用户，不能假装导入完整） */
+    depthSkippedDirs: [],
   };
   const pool = new MediaPool(mediaPoolSize());
 
@@ -343,19 +362,41 @@ export async function bulkImportLocal({
     result.dropped += deletes.length;
   };
 
-  for await (const chunk of walkChunks(dirs)) {
+  for await (const chunk of walkChunks(dirs, CHUNK, (dir) => {
+    if (result.depthSkippedDirs.length < 20) result.depthSkippedDirs.push(dir);
+  })) {
     if (isCancelled() || generation !== getLibraryGeneration()) {
       result.cancelled += chunk.length;
       break;
     }
 
+    // 0) 非图片素材（视频/音频/字体/PDF/Office/3D）不进 sharp 管线：
+    //    直接登记，缩略图交给前端用 <video>/<audio>/@font-face 渲染
+    const mediaFiles = chunk.filter((f) => isMediaPath(f));
+    for (const f of mediaFiles) {
+      result.total++;
+      try {
+        if (db.prepare('SELECT id FROM images WHERE abs_path = ?').get(f)) {
+          result.unchanged++;
+        } else {
+          const r = await ingestMedia({ absPath: f, keyword: keyword || '壁纸库' });
+          if (r.ok) result.saved++;
+          else result.dropped++;
+        }
+      } catch {
+        result.errors++;
+      }
+    }
+    const images = mediaFiles.length ? chunk.filter((f) => !isMediaPath(f)) : chunk;
+    if (!images.length) continue;
+
     // 1) 文件指纹（size + mtime）：内容没变的文件直接跳过，增量扫描几乎零成本
-    const stats = await Promise.all(chunk.map((f) => fsp.stat(f).catch(() => null)));
+    const stats = await Promise.all(images.map((f) => fsp.stat(f).catch(() => null)));
     const meta = [];
-    for (let i = 0; i < chunk.length; i++) {
+    for (let i = 0; i < images.length; i++) {
       const st = stats[i];
       if (!st || !st.isFile()) continue;
-      meta.push({ file: chunk[i], size: st.size, mtime: Math.round(st.mtimeMs / 1000) });
+      meta.push({ file: images[i], size: st.size, mtime: Math.round(st.mtimeMs / 1000) });
     }
 
     // 2) 分片查已登记的行（不再 SELECT abs_path 全表）
@@ -486,6 +527,12 @@ export async function bulkImportLocal({
 
   await pool.terminate();
   flush();
+  if (result.depthSkippedDirs.length) {
+    console.warn(
+      `[import] ${result.depthSkippedDirs.length} 个目录超过深度上限（${resolveMaxDepth()} 层）已跳过：`,
+      result.depthSkippedDirs.slice(0, 5).join(' | ')
+    );
+  }
   if (onProgress) onProgress(100, '', result);
   return result;
 }
@@ -695,7 +742,7 @@ export async function bulkIngestBuffers(items, { onEach = null, libGeneration = 
     if (clip.clipReady()) {
       try {
         const vec = await clip.embedImage(a.finalPath);
-        const dup = clip.topSimilar(vec, { k: 1, minCos: 0.965, excludeId: a.id });
+        const dup = await clip.topSimilar(vec, { k: 1, minCos: 0.965, excludeId: a.id });
         if (dup.length) {
           a.dupId = dup[0].id;
           a.clipCos = dup[0].cos;
@@ -773,7 +820,6 @@ export async function bulkIngestBuffers(items, { onEach = null, libGeneration = 
     }
   }
   for (const a of keeps) {
-    const res = a.derived;
     try {
       linkImageByPath(a.id, a.finalPath, settings.storageDir);
     } catch {

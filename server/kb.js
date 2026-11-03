@@ -21,7 +21,7 @@ const REASON_LABELS = {
   blur: '模糊 / 低清',
   lowres: '分辨率太低',
   watermark: '有水印或平台 Logo',
-  notHer: '不是邓紫棋本人',
+  notHer: '不是目标人物',
   duplicate: '重复画面',
   tinyPerson: '人物画面占比过小',
   faceCovered: '脸被遮挡 / 看不清',
@@ -45,8 +45,15 @@ export function reasonLabel(key) {
   return REASON_LABELS[key] || key;
 }
 
+/**
+ * 规则列表。`dormant` = 这条规则当前**打不中任何图**：
+ * ai_term 靠 AI 看图描述做匹配，库里一条 ai_desc 都没有时它永远是死规则。
+ * 界面上默认隐藏（并说明原因），否则用户会以为自己配的「水印」规则在生效。
+ */
 export function listRules() {
-  return db.prepare('SELECT * FROM kb_rules ORDER BY enabled DESC, weight DESC, id DESC').all();
+  const rows = db.prepare('SELECT * FROM kb_rules ORDER BY enabled DESC, weight DESC, id DESC').all();
+  const noAiDesc = !db.prepare('SELECT 1 FROM ai_desc LIMIT 1').get();
+  return rows.map((r) => ({ ...r, dormant: r.type === 'ai_term' && noAiDesc }));
 }
 
 export function upsertRule({ type, value, label, weight = 12, origin = 'user' }) {
@@ -124,8 +131,8 @@ export function addFeedback({ imageId, reasons = [], note = '', aiAnalysis = '',
       }
     : {};
 
-  // 写反馈 + 规则沉淀 + 全库重打分放进一个事务：
-  // 否则十几次独立小写入各自 fsync，删除会拖慢数秒
+  // 写反馈 + 规则沉淀放进一个事务：否则十几次独立小写入各自 fsync，删除会拖慢数秒。
+  // 全库重打分不再塞在事务里（百万级要十几秒，把写入锁持那么久），改为提交后合并触发。
   const feedbackId = withTransaction(() => {
     const info = db
       .prepare(
@@ -141,9 +148,9 @@ export function addFeedback({ imageId, reasons = [], note = '', aiAnalysis = '',
       );
     if (row) deriveRules(row, reasons || []);
     if (!skipStatsRules) reinforceByStats(); // 跳过「来源/关键词」连坐规则
-    rescoreAll();
     return Number(info.lastInsertRowid);
   });
+  requestRescore();
   return feedbackId;
 }
 
@@ -166,7 +173,7 @@ function deriveRules(row, reasons) {
         upsertRule({ type: 'ai_term', value: 'Logo', label: '含水印或平台 Logo', weight: 18 });
         break;
       case 'notHer':
-        upsertRule({ type: 'ai_term', value: '非本人', label: '疑似不是邓紫棋本人', weight: 30 });
+        upsertRule({ type: 'ai_term', value: '非本人', label: '疑似不是目标人物', weight: 30 });
         break;
       case 'duplicate':
         if (row.phash) {
@@ -323,6 +330,43 @@ export function scoreImage(image, rules = listRules(), aiText = '') {
   return { score: Math.max(0, Math.min(100, score)), reasons: hits };
 }
 
+let rescoreTimer = null;
+let rescoreRunning = false;
+let rescorePending = false;
+
+/**
+ * 合并触发全库重打分。
+ *
+ * 旧实现每次反馈/规则增删都同步跑一遍全表读 + 逐行 UPDATE（百万级要十几秒），
+ * 连写 10 条反馈就是 10 遍全表写。这里合并成一次，且同一时刻只跑一遍
+ * （跑的过程中又有请求 → 标记 pending，结束后补跑一次）。
+ */
+export function requestRescore(delay = 2000) {
+  if (rescoreTimer) clearTimeout(rescoreTimer);
+  rescoreTimer = setTimeout(() => {
+    rescoreTimer = null;
+    if (rescoreRunning) {
+      rescorePending = true;
+      return;
+    }
+    rescoreRunning = true;
+    try {
+      rescoreAll();
+    } catch (err) {
+      console.error('[kb] 重打分失败：', err?.message || err);
+    } finally {
+      rescoreRunning = false;
+      if (rescorePending) {
+        rescorePending = false;
+        requestRescore(200);
+      }
+    }
+  }, delay);
+  // 别让定时器把进程吊住（Node 22+ 支持 unref）
+  rescoreTimer.unref?.();
+  return rescoreTimer;
+}
+
 export function rescoreAll() {
   const rules = listRules().filter((r) => r.enabled);
   const descs = new Map(
@@ -352,7 +396,7 @@ const SUMMARIZE_PROMPT = `你是一个图片库的知识库分析师。给你两
 2) 当前知识库里的全部规则。
 
 你的任务是输出一份【整理后的完整规则集】，要求：
-- 合并重复与冗余：同一关键词/来源的多个相近规则（如「邓紫棋 演唱会」被差评 25 次和 21 次两条）合并为一条，label 概括总差评次数，weight 取较高值；
+- 合并重复与冗余：同一关键词/来源的多个相近规则（如「人物 演唱会」被差评 25 次和 21 次两条）合并为一条，label 概括总差评次数，weight 取较高值；
 - 删除无效规则：乱码（如 value 为 "????"）、无意义或互相矛盾的条目；
 - 去掉被更通用规则覆盖的条目（如多条细分关键词可归并为少数几条核心关键词）；
 - 再结合反馈归纳确实需要的新规则；
@@ -459,7 +503,7 @@ export async function suggestions() {
       {
         role: 'system',
         content:
-          '你是邓紫棋壁纸库的采集顾问。根据知识库规则与统计，给出下一步采集建议：推荐关键词、应避开的来源/参数、以及筛选阈值。用中文分条列出，控制在 200 字内。',
+          '你是本图库的采集顾问。根据知识库规则与统计，给出下一步采集建议：推荐关键词、应避开的来源/参数、以及筛选阈值。用中文分条列出，控制在 200 字内。',
       },
       {
         role: 'user',

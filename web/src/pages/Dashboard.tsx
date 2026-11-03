@@ -39,7 +39,7 @@ export default function Dashboard({ stats, onOpen, onNavigate }: Props) {
       <div className="page-head">
         <div>
           <h1 className="page-title">仪表盘</h1>
-          <div className="page-sub">邓紫棋高清图库总览 · 实时统计</div>
+          <div className="page-sub">图库总览 · 实时统计</div>
         </div>
         <button className="btn primary" onClick={() => onNavigate('crawl')}>
           开始采集
@@ -119,7 +119,7 @@ export default function Dashboard({ stats, onOpen, onNavigate }: Props) {
           </div>
         ) : (
           <div style={{ color: 'var(--muted)', fontSize: 13 }}>
-            还没有图片，去「采集」页面抓一批邓紫棋高清图吧。
+            还没有图片，去「采集」页面抓一批高清图吧。
           </div>
         )}
       </div>

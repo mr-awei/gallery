@@ -137,6 +137,7 @@
 }
 
 .sidebar {
+  position: relative; /* 锚定右缘拖拽把手 */
   width: var(--sidebar-w);
   flex: 0 0 var(--sidebar-w);
   display: flex;
@@ -149,6 +150,40 @@
   /* 文件夹树加入后内容可能超出视口：整体滚动（Eagle 同款），大窗口时 footer 仍贴底 */
   overflow-y: auto;
   overflow-x: hidden;
+}
+
+/* 侧栏右缘拖拽把手：按住横向拖动调宽（200–440px），双击恢复默认 */
+.sidebar-resizer {
+  position: absolute;
+  top: 0;
+  right: -4px;
+  width: 9px;
+  height: 100%;
+  cursor: col-resize;
+  z-index: 40;
+  touch-action: none;
+}
+.sidebar-resizer::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 4px;
+  width: 1px;
+  background: transparent;
+  transition: background 0.15s;
+}
+.sidebar-resizer:hover::after,
+body.sidebar-resizing .sidebar-resizer::after {
+  background: #ff4d8d;
+}
+/* 拖拽中禁用文本选中，光标全程保持 col-resize（滑出把手也不闪） */
+body.sidebar-resizing {
+  cursor: col-resize;
+  user-select: none;
+}
+body.sidebar-resizing iframe {
+  pointer-events: none;
 }
 
 .logo-mark {
@@ -213,6 +248,219 @@
   border-radius: 20px;
   background: var(--panel-strong);
   color: var(--muted);
+}
+
+/* ------------------ 待整理（Eagle 智能视图） ------------------ */
+.nav-item.pending {
+  padding-left: 14px;
+  font-size: 13px;
+}
+.nav-item.pending .pending-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  flex: none;
+  background: var(--muted);
+  opacity: 0.55;
+}
+.nav-item.pending.active .pending-dot {
+  background: var(--accent);
+  opacity: 1;
+  box-shadow: 0 0 0 3px rgba(255, 77, 141, 0.18);
+}
+
+/* ------------------ 标签面板（分组 / 颜色 / 层级） ------------------ */
+.tag-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  /* 侧栏是 flex 列，标签多时会被压成几像素：固定不参与收缩，超出就在面板内滚动 */
+  flex: 0 0 auto;
+  max-height: 38vh;
+  overflow-y: auto;
+  padding: 0 2px 4px;
+}
+.tag-group {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+.tag-group + .tag-group {
+  margin-top: 4px;
+}
+.tag-group-name {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  padding: 4px 8px 2px;
+  border-radius: 6px;
+  font-size: 10.5px;
+  letter-spacing: 0.05em;
+  color: var(--muted);
+  opacity: 0.75;
+  text-transform: uppercase;
+  cursor: pointer;
+  user-select: none;
+  transition: background 0.14s ease, opacity 0.14s ease;
+}
+.tag-group-name:hover {
+  opacity: 1;
+  background: var(--panel);
+}
+.tag-group-name.drop-target {
+  opacity: 1;
+  color: var(--text);
+  background: rgba(255, 77, 141, 0.16);
+  box-shadow: inset 0 0 0 1px rgba(255, 77, 141, 0.5);
+}
+.tag-caret {
+  width: 9px;
+  flex: none;
+  font-size: 9px;
+  line-height: 1;
+  opacity: 0.8;
+}
+.tag-group-title {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.tag-group-count {
+  font-size: 10px;
+  opacity: 0.6;
+  font-variant-numeric: tabular-nums;
+}
+.tag-node {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+.tag-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  padding: 5px 10px;
+  border: none;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--muted);
+  font-size: 12.5px;
+  text-align: left;
+  cursor: pointer;
+  transition: background 0.14s ease, color 0.14s ease, box-shadow 0.12s ease;
+}
+.tag-row.drop-before {
+  box-shadow: inset 0 2px 0 var(--accent);
+}
+.tag-row.drop-after {
+  box-shadow: inset 0 -2px 0 var(--accent);
+}
+.tag-row.drop-child {
+  background: rgba(255, 77, 141, 0.18);
+  box-shadow: inset 0 0 0 1px rgba(255, 77, 141, 0.55);
+}
+.tag-group-menu {
+  position: fixed;
+  z-index: 3000;
+  min-width: 168px;
+  padding: 5px;
+  border-radius: 10px;
+  border: 1px solid var(--border-strong, rgba(255, 255, 255, 0.16));
+  background: var(--solid-panel, #141420);
+  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.45);
+}
+.tag-group-menu button {
+  display: block;
+  width: 100%;
+  padding: 7px 10px;
+  border: none;
+  border-radius: 7px;
+  background: transparent;
+  color: var(--text);
+  font-size: 12.5px;
+  text-align: left;
+  cursor: pointer;
+}
+.tag-group-menu button:hover {
+  background: rgba(255, 255, 255, 0.08);
+}
+.tag-group-menu button.danger {
+  color: #ff6b81;
+}
+.tag-group-menu button.danger:hover {
+  background: rgba(255, 77, 109, 0.16);
+}
+.tag-group-menu-note {
+  padding: 5px 10px 3px;
+  font-size: 10.5px;
+  line-height: 1.5;
+  color: var(--muted);
+  opacity: 0.75;
+}
+.tag-row:hover {
+  background: var(--panel);
+  color: var(--text);
+}
+.tag-row.active {
+  background: rgba(255, 77, 141, 0.14);
+  color: #fff;
+}
+.tag-row.child {
+  padding-left: 24px;
+  font-size: 12px;
+}
+.tag-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  flex: none;
+  background: rgba(255, 255, 255, 0.28);
+}
+.tag-name {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.tag-count {
+  font-size: 10.5px;
+  opacity: 0.6;
+  font-variant-numeric: tabular-nums;
+}
+.tag-empty {
+  font-size: 11.5px;
+  color: var(--muted);
+  opacity: 0.7;
+  padding: 4px 10px;
+  line-height: 1.6;
+}
+.tag-color-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+.tag-color-chip {
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  border: 2px solid transparent;
+  background: rgba(255, 255, 255, 0.1);
+  color: var(--muted);
+  font-size: 11px;
+  cursor: pointer;
+  transition: transform 0.12s ease, border-color 0.12s ease;
+}
+.tag-color-chip:hover {
+  transform: scale(1.1);
+}
+.tag-color-chip.active {
+  border-color: #fff;
+  box-shadow: 0 0 0 2px rgba(255, 255, 255, 0.18);
 }
 
 /* --------------------- Eagle 式资源库切换器 --------------------- */
@@ -474,6 +722,12 @@
 .folder-row:hover .folder-actions {
   display: flex;
 }
+/* 拖素材卡到文件夹上：整行高亮，提示松手即归类 */
+.folder-row.drop-target {
+  border-radius: 7px;
+  background: rgba(255, 77, 141, 0.16);
+  box-shadow: inset 0 0 0 1px rgba(255, 77, 141, 0.55);
+}
 .folder-actions button {
   display: grid;
   place-items: center;
@@ -507,21 +761,29 @@
 .folder-item.folder-root {
   font-weight: 600;
 }
-.folder-item.folder-root .folder-name::before {
-  content: '▼ ';
-  font-size: 9px;
-  color: var(--accent);
-  vertical-align: 1px;
-}
 .folder-chevron {
-  width: 14px;
-  flex: 0 0 14px;
+  width: 18px;
+  flex: 0 0 18px;
   text-align: center;
   color: var(--muted);
-  font-size: 10px;
+  font-size: 13px;
+  line-height: 1;
+}
+/* 折叠箭头可点击区域要够大（18px），hover 提示可交互 */
+.folder-chevron:not(.placeholder):hover {
+  color: var(--text);
 }
 .folder-chevron.placeholder {
   visibility: hidden;
+}
+/* 文件夹封面缩略图：只占 16px，不挤压名字；没有封面时不占位 */
+.folder-cover {
+  width: 16px;
+  height: 16px;
+  flex: 0 0 16px;
+  border-radius: 4px;
+  object-fit: cover;
+  background: var(--panel-strong);
 }
 .folder-name {
   flex: 1 1 auto;
@@ -533,6 +795,15 @@
   font-size: 11px;
   color: var(--muted);
   padding: 0 4px;
+}
+/* 隐私空间：锁形标记（解锁后降透明度，提示「现在能看见」） */
+.folder-lock {
+  font-size: 11px;
+  padding: 0 2px;
+  opacity: 0.9;
+}
+.folder-lock + .folder-count {
+  display: none;
 }
 
 /* 侧栏底部留白（原 footer 已移除：主题/设置入口收进顶栏） */

@@ -4,7 +4,7 @@ import { db, getSettings } from '../db.js';
 import { getSharpness } from '../quality.js';
 import { hammingHex } from '../phash.js';
 import * as clip from '../clip.js';
-import { ingest, removeImage, toDTO } from '../library.js';
+import { removeImage, toDTO } from '../library.js';
 
 
 /**
@@ -30,16 +30,46 @@ const CLIP_GROUP_MAX_CLUSTERS = 2000;
 const CLIP_GROUP_WINDOW = 2000; // 只与最近 WINDOW 个 id 内形成的簇比较
 const CLIP_GROUP_TOP_CLUSTERS = 64; // 无论窗口，始终比较的最新簇数（抓跨批次重复）
 
-export async function listClipSimilarGroups(minCos = 0.92, maxGroups = 80) {
+/**
+ * 扫描范围：默认全库，传 ids 时只在白名单内比较（当前筛选结果 / 手动选区）。
+ * 为什么要有：十万张库里用户只想在两三百张里找重复，全库扫描既慢又会带出无关的组。
+ */
+function idScope(opts) {
+  const raw = Array.isArray(opts?.ids) ? opts.ids : null;
+  if (!raw) return null;
+  const ids = [...new Set(raw.map(Number).filter((n) => Number.isFinite(n) && n > 0))];
+  return ids.length ? ids : null;
+}
+
+/** 分片取行，避免 IN (...) 占位符过多触发 SQLite 变量上限 */
+function rowsByIds(ids, sqlTail = '') {
+  const out = [];
+  for (let i = 0; i < ids.length; i += 500) {
+    const chunk = ids.slice(i, i + 500);
+    out.push(
+      ...db
+        .prepare(`SELECT * FROM images WHERE id IN (${chunk.map(() => '?').join(',')}) ${sqlTail}`)
+        .all(...chunk)
+    );
+  }
+  return out;
+}
+
+export async function listClipSimilarGroups(minCos = 0.92, maxGroups = 80, opts = {}) {
   const EXACT_COS = 0.98;
   const dim = clip.CLIP_DIM;
   const head = dim >> 1;
   clip.ensureVecCache(dim);
-  const rows = db
-    .prepare(
-      `SELECT i.id, i.width, i.height, i.abs_path FROM images i JOIN clip_vec c ON c.image_id = i.id ORDER BY i.id DESC`
-    )
-    .all();
+  const scopeIds = idScope(opts);
+  const rows = scopeIds
+    ? rowsByIds(scopeIds, 'AND id IN (SELECT image_id FROM clip_vec)')
+        .map((r) => ({ id: r.id, width: r.width, height: r.height, abs_path: r.abs_path }))
+        .sort((a, b) => b.id - a.id)
+    : db
+        .prepare(
+          `SELECT i.id, i.width, i.height, i.abs_path FROM images i JOIN clip_vec c ON c.image_id = i.id ORDER BY i.id DESC`
+        )
+        .all();
 
   const tailOf = (v) => {
     let s = 1;
@@ -161,13 +191,54 @@ export async function listClipSimilarGroups(minCos = 0.92, maxGroups = 80) {
 }
 
 /**
- * 按感知哈希把「看起来是同一张」的图聚成组，供人工审查合并。
- * 组内按分辨率×评分排序，并给出推荐保留的那张。
+ * pHash 命中后的 CLIP 语义复核。
+ * 为什么：pHash 只看低频结构，白底商品图是它的经典盲区——大面积均匀背景下，
+ * 「四角白 + 中间一坨主体」的低频轮廓几乎一样，不同产品的汉明距离也能 ≤ 10，
+ * 保温桶和钻夹头、水泵和化油器就这样被误判成相似（实际反馈案例）。
+ *
+ * 单一余弦阈值分不开真假：实测（4k 张全对统计）本库真重复的 cos 几乎都是 ≈1.0
+ * （转存/重命名的逐位副本），而白底异物的 cos 从 0.85 平滑拖尾到 0.97，与
+ * 重压缩真变体犬牙交错。所以按「两个弱信号互补」设梯度——pHash 越近 cos 放得越松：
+ * - pHash ≤ 3：逐位几乎相同，无条件过（防 CLIP 对极端个案抽风误杀）
+ * - pHash 4–6：cos ≥ 0.92（接近 exact 档）
+ * - pHash 7–10：cos ≥ 0.95（异物重灾区，只有近乎逐位一致的才信）
+ * 错拆的代价只是少聚一组（CLIP 深度相似分组和两两对比还能兜住），
+ * 错留的代价是「一键保留最佳」删掉好图——所以宁可从严。
+ * 任一方缺 CLIP 特征则维持 pHash 判定，不丢召回。
  */
-export function listSimilarGroups(threshold = 10, maxGroups = 60, scanLimit = 4000) {
-  const rows = db
-    .prepare("SELECT * FROM images WHERE phash != '' ORDER BY id DESC LIMIT ?")
-    .all(Math.max(50, Math.min(20000, scanLimit)));
+const CLIP_VERIFY_COS_TIGHT = 0.92; // pHash 4–6 档
+const CLIP_VERIFY_COS_STRICT = 0.95; // pHash 7–10 档（白底异物重灾区）
+
+export function listSimilarGroups(threshold = 10, maxGroups = 60, scanLimit = 4000, opts = {}) {
+  const scopeIds = idScope(opts);
+  const rows = scopeIds
+    ? rowsByIds(scopeIds, "AND phash != ''").sort((a, b) => b.id - a.id)
+    : db
+        .prepare("SELECT * FROM images WHERE phash != '' ORDER BY id DESC LIMIT ?")
+        .all(Math.max(50, Math.min(20000, scanLimit)));
+  clip.ensureVecCache(clip.CLIP_DIM); // 复核要按 id 取向量，先建全量缓存
+  const vecOf = (id) => clip.cachedVector(id);
+  // 候选哈希：优先主体哈希（白底抠图归一化，背景零贡献——误判根治，见 lib/subject.js）。
+  // 首选双方的 obj_phash，任一方缺（SKIP/未补算）则退回全图 phash，保证补算完成前功能可用。
+  const hashOf = (row) => row.obj_phash && row.obj_phash !== 'SKIP' ? row.obj_phash : row.phash;
+  const sameSubject = (a, b, dist) => {
+    if (dist <= 3) return true;
+    const va = vecOf(a.id);
+    const vb = vecOf(b.id);
+    if (!va || !vb) return true;
+    // cachedVector 不保证向量已归一化（旧数据兜底在 getEmbedding，缓存读回没有），
+    // 这里显式除以范数保证是真余弦，否则旧向量点积偏小会误杀真重复
+    let dot = 0;
+    let na = 0;
+    let nb = 0;
+    for (let j = 0; j < va.length; j++) {
+      dot += va[j] * vb[j];
+      na += va[j] * va[j];
+      nb += vb[j] * vb[j];
+    }
+    const norm = Math.sqrt(na * nb) || 1;
+    return dot / norm >= (dist <= 6 ? CLIP_VERIFY_COS_TIGHT : CLIP_VERIFY_COS_STRICT);
+  };
   const used = new Set();
   const groups = [];
   for (let i = 0; i < rows.length; i++) {
@@ -175,7 +246,8 @@ export function listSimilarGroups(threshold = 10, maxGroups = 60, scanLimit = 40
     const group = [rows[i]];
     for (let j = i + 1; j < rows.length; j++) {
       if (used.has(rows[j].id)) continue;
-      if (hammingHex(rows[i].phash, rows[j].phash) <= threshold) {
+      const dist = hammingHex(hashOf(rows[i]), hashOf(rows[j]));
+      if (dist <= threshold && sameSubject(rows[i], rows[j], dist)) {
         used.add(rows[j].id);
         group.push(rows[j]);
       }
@@ -202,7 +274,7 @@ export function listSimilarGroups(threshold = 10, maxGroups = 60, scanLimit = 40
  * 同名跨格式去重：同一目录下主文件名相同、扩展名不同（如 5.jpg 与 5.png）视为同一张照片。
  * 推荐保留更清晰的 PNG（用户策略）；都没有 PNG 时保留分辨率更大的那张。
  */
-export function listFormatDupes() {
+export function listFormatDupes(opts = {}) {
   const FORMAT_RANK = { '.png': 3, '.webp': 2, '.jpeg': 1, '.jpg': 1, '.bmp': 1 };
   // 内容一致性阈值：同名不等于同图（旧版采集器曾因「秒级时间戳 + 相同尺寸」撞名，
   // 把两张不同的图存成同名 png/jpg）。同一张照片换格式后 pHash 距离通常 ≤ 6，
@@ -213,7 +285,8 @@ export function listFormatDupes() {
     // 缺 pHash 时退化为尺寸比对（比纯文件名可靠）
     return (a.width || 0) === (b.width || 0) && (a.height || 0) === (b.height || 0);
   };
-  const rows = db.prepare('SELECT * FROM images').all();
+  const scopeIds = idScope(opts);
+  const rows = scopeIds ? rowsByIds(scopeIds) : db.prepare('SELECT * FROM images').all();
   const buckets = new Map();
   for (const r of rows) {
     const p = r.abs_path || '';

@@ -4,6 +4,7 @@ import type { ImageItem } from '../types';
 import ImageCard from '../components/ImageCard';
 import { promptDialog } from '../components/Dialogs';
 import MasonryGrid from '../components/MasonryGrid';
+import SmartFolderEditor from '../components/SmartFolderEditor';
 
 interface Props {
   onToast: (msg: string) => void;
@@ -16,18 +17,20 @@ export default function Smart({ onToast, onOpenItem }: Props) {
   const [folders, setFolders] = useState<SmartFolder[]>([]);
   const [previewItems, setPreviewItems] = useState<ImageItem[] | null>(null);
   const [previewName, setPreviewName] = useState('');
+  /* 预览网格的选择态与收藏：以前传的是空函数，勾选框点了没反应 */
+  const [previewSel, setPreviewSel] = useState<Set<number>>(new Set());
+  /* 预览分页：大库下不再一次全拉回来 */
+  const [previewFolder, setPreviewFolder] = useState<SmartFolder | null>(null);
+  const [previewTotal, setPreviewTotal] = useState(0);
+  const [previewLoading, setPreviewLoading] = useState(false);
 
-  // 新建智能文件夹表单
-  const [name, setName] = useState('');
-  const [autoTags, setAutoTags] = useState('');
-  const [rulesText, setRulesText] = useState(
-    JSON.stringify({ favorite: null, minRating: 0, orientation: null, tagsInclude: [], aiKeywords: [] }, null, 2)
-  );
+  /** 编辑器：undefined = 关闭，null = 新建，对象 = 编辑 */
+  const [editing, setEditing] = useState<SmartFolder | null | undefined>(undefined);
 
   const load = useCallback(async () => {
     try {
       const [t, f] = await Promise.all([api.tags(), api.smartFolders()]);
-      setTags(t);
+      setTags(t.tags);
       setFolders(f);
     } catch (err) {
       onToast((err as Error).message);
@@ -70,27 +73,18 @@ export default function Smart({ onToast, onOpenItem }: Props) {
     }
   };
 
-  const createFolder = async () => {
-    if (!name.trim()) return onToast('请输入名称');
-    let rules: Record<string, unknown> = {};
-    try {
-      rules = JSON.parse(rulesText || '{}');
-    } catch {
-      return onToast('规则 JSON 格式错误');
-    }
-    try {
-      const r = await api.createSmartFolder({
-        name: name.trim(),
-        autoTags: autoTags.split(/[,，]/).map((s) => s.trim()).filter(Boolean),
-        rules,
-      });
+  /** 新建 / 编辑共用：以前只有新建，建完规则就再也改不了 */
+  const saveFolder = async (payload: { name: string; rules: Record<string, unknown>; autoTags: string[] }) => {
+    if (editing) {
+      const r = await api.updateSmartFolder(editing.id, payload);
       setFolders(r.folders);
-      setName('');
-      setAutoTags('');
+      onToast(`已更新「${payload.name}」`);
+    } else {
+      const r = await api.createSmartFolder(payload);
+      setFolders(r.folders);
       onToast('已创建智能文件夹');
-    } catch (err) {
-      onToast((err as Error).message);
     }
+    setEditing(undefined);
   };
 
   const applyTags = async (id: number, fname: string) => {
@@ -105,10 +99,47 @@ export default function Smart({ onToast, onOpenItem }: Props) {
   };
 
   const preview = async (f: SmartFolder) => {
+    setPreviewLoading(true);
     try {
-      const r = await api.previewSmartFolder(f.id);
+      const r = await api.previewSmartFolder(f.id, { limit: 200 });
       setPreviewItems(r.items);
-      setPreviewName(`${f.name}（${r.total} 张）`);
+      setPreviewSel(new Set());
+      setPreviewFolder(f);
+      setPreviewTotal(r.total);
+      setPreviewName(f.name);
+    } catch (err) {
+      onToast((err as Error).message);
+    } finally {
+      setPreviewLoading(false);
+    }
+  };
+
+  const loadMorePreview = async () => {
+    if (!previewFolder || previewLoading) return;
+    setPreviewLoading(true);
+    try {
+      const r = await api.previewSmartFolder(previewFolder.id, {
+        limit: 200,
+        offset: previewItems?.length || 0,
+      });
+      setPreviewItems((prev) => {
+        const seen = new Set((prev || []).map((x) => x.id));
+        return [...(prev || []), ...r.items.filter((x) => !seen.has(x.id))];
+      });
+      setPreviewTotal(r.total);
+    } catch (err) {
+      onToast((err as Error).message);
+    } finally {
+      setPreviewLoading(false);
+    }
+  };
+
+  /** 预览网格里直接收藏/取消收藏（原来按钮点了没有任何反应） */
+  const togglePreviewFav = async (it: ImageItem) => {
+    try {
+      const updated = await api.patch(it.id, { favorite: !it.favorite });
+      setPreviewItems((prev) => (prev ? prev.map((x) => (x.id === updated.id ? updated : x)) : prev));
+      onToast(updated.favorite ? '已加入收藏' : '已取消收藏');
     } catch (err) {
       onToast((err as Error).message);
     }
@@ -155,26 +186,10 @@ export default function Smart({ onToast, onOpenItem }: Props) {
 
       <h3>智能文件夹</h3>
       <div className="sf-form">
-        <div className="row">
-          <input className="inp" placeholder="名称，如「高清演唱会」" value={name} onChange={(e) => setName(e.target.value)} />
-          <input
-            className="inp"
-            placeholder="自动标签（逗号分隔，命中即继承），如：演唱会,live"
-            value={autoTags}
-            onChange={(e) => setAutoTags(e.target.value)}
-          />
-        </div>
-        <label className="muted small">规则（JSON，可留 {} 仅用自动标签）：</label>
-        <textarea
-          className="ta"
-          rows={4}
-          value={rulesText}
-          onChange={(e) => setRulesText(e.target.value)}
-          spellCheck={false}
-        />
-        <button className="btn primary" onClick={createFolder}>
+        <button className="btn primary" onClick={() => setEditing(null)}>
           新建智能文件夹
         </button>
+        <span className="muted small">按条件自动归类；建好后可随时改条件</span>
       </div>
 
       <div className="sf-list">
@@ -192,6 +207,9 @@ export default function Smart({ onToast, onOpenItem }: Props) {
               <button className="btn sm" onClick={() => preview(f)}>
                 查看
               </button>
+              <button className="btn sm" onClick={() => setEditing(f)}>
+                编辑
+              </button>
               <button className="btn sm" onClick={() => applyTags(f.id, f.name)}>
                 应用标签(继承)
               </button>
@@ -207,7 +225,9 @@ export default function Smart({ onToast, onOpenItem }: Props) {
         <div className="lb-overlay" onClick={() => setPreviewItems(null)}>
           <div className="lb-box wide" onClick={(e) => e.stopPropagation()}>
             <div className="lb-head">
-              <b>{previewName}</b>
+              <b>
+                {previewName}（{previewTotal} 张）
+              </b>
               <button className="btn sm ghost" onClick={() => setPreviewItems(null)}>
                 关闭
               </button>
@@ -219,17 +239,42 @@ export default function Smart({ onToast, onOpenItem }: Props) {
                 renderItem={(it) => (
                   <ImageCard
                     item={it}
-                    selected={false}
+                    selected={previewSel.has(it.id)}
                     onOpen={(i) => onOpenItem?.(i, previewItems ?? undefined)}
-                    onToggleSelect={() => {}}
-                    onToggleFavorite={() => {}}
-                    onDownload={(it) => downloadFile(it.downloadUrl || it.url)}
+                    onToggleSelect={() =>
+                      setPreviewSel((prev) => {
+                        const next = new Set(prev);
+                        if (next.has(it.id)) next.delete(it.id);
+                        else next.add(it.id);
+                        return next;
+                      })
+                    }
+                    onToggleFavorite={() => void togglePreviewFav(it)}
+                    onDownload={(x) => downloadFile(x.downloadUrl || x.url)}
                   />
                 )}
               />
+              <div className="sf-preview-foot">
+                <span className="muted small">
+                  已显示 {previewItems.length} / {previewTotal} 张
+                </span>
+                {previewItems.length < previewTotal && (
+                  <button className="btn sm" disabled={previewLoading} onClick={loadMorePreview}>
+                    {previewLoading ? '加载中…' : '加载更多'}
+                  </button>
+                )}
+              </div>
             </div>
           </div>
         </div>
+      )}
+
+      {editing !== undefined && (
+        <SmartFolderEditor
+          initial={editing}
+          onClose={() => setEditing(undefined)}
+          onSubmit={saveFolder}
+        />
       )}
     </div>
   );

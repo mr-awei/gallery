@@ -44,8 +44,6 @@ export async function buildWallpaper(imageId, style = 'blur', opts = {}) {
       /* ignore */
     }
   }
-  const imgAspect = iw && ih ? iw / ih : screen.width / screen.height;
-
   const cacheName = `wp_${row.id}_${style}_${tag}${screen.width}x${screen.height}.jpg`;
   const outPath = path.join(WALLPAPER_DIR, cacheName);
   if (fs.existsSync(outPath)) {
