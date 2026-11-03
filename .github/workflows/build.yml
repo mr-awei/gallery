@@ -33,6 +33,11 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
+      # dist/ 不入库，不构建的话冒烟只能测到「前端尚未构建」兜底页，
+      # 首页与 CSP 这些就变成对着占位页断言了
+      - name: Build web
+        run: npm run build
+
       - name: Verify (lint + typecheck + unit + smoke)
         run: npm run verify
 

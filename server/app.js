@@ -582,10 +582,13 @@ export function buildApp({ desktop = false } = {}) {
 
   /* -------------------------------- 前端托管 -------------------------------- */
 
+  // 静态直出也要带 CSP（生产前端无内联脚本、无 eval，可收紧到 self）。
+  // 未构建时的兜底页同样要带——「HTML 响应必带 CSP」是冒烟定期断言的安全基线，
+  // 只在 dist 存在时才设头，会让「没构建」这种常态把安全回归掩盖掉。
+  const htmlCsp =
+    "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; media-src 'self' data: blob:; font-src 'self' data:; connect-src 'self' data: blob:; object-src 'none'; base-uri 'self'; form-action 'self'";
+
   if (fs.existsSync(WEB_DIST)) {
-    // 静态直出也要带 CSP（生产前端无内联脚本、无 eval，可收紧到 self）
-    const htmlCsp =
-      "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; media-src 'self' data: blob:; font-src 'self' data:; connect-src 'self' data: blob:; object-src 'none'; base-uri 'self'; form-action 'self'";
     app.use(
       express.static(WEB_DIST, {
         maxAge: '1h',
@@ -602,6 +605,7 @@ export function buildApp({ desktop = false } = {}) {
     });
   } else {
     app.get('/', (_req, res) => {
+      res.setHeader('Content-Security-Policy', htmlCsp);
       res
         .type('html')
         .send(
