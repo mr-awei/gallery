@@ -91,28 +91,22 @@ jobs:
           if-no-files-found: error
 
       # 每次构建都更新 Release：tag 推送 → v1.0.1 正式版（占据 latest）；
-      # main / 手动触发 → 固定 tag "rolling" 的预发布，资产原地覆盖。
+      # main / 手动触发 → 固定 tag "rolling" 的预发布，每次都重建。
       # 预发布不会被 /releases/latest 选中，所以客户端自动更新不会把开发版推给用户。
-      - name: Prune stale rolling assets
+      - name: Reset rolling release
         if: ${{ !startsWith(github.ref, 'refs/tags/v') }}
+        # 清理失败最多是旧资产残留，别让它连累后面的发布
+        continue-on-error: true
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          # 版本号一升，exe 文件名就变（Gallery-Setup-1.0.2.exe），不清理的话 rolling 里会越堆越多
-          $keep = @{}
-          Get-ChildItem release-build -File |
-            Where-Object { $_.Name -match '\.(exe|blockmap)$' -or $_.Name -eq 'latest.yml' } |
-            ForEach-Object { $keep[$_.Name] = $true }
-          $assets = gh release view rolling --json assets --jq '.assets[].name' 2>$null
-          if ($LASTEXITCODE -eq 0 -and $assets) {
-            foreach ($name in $assets) {
-              if (-not ($name -match '\.(exe|blockmap)$' -or $name -eq 'latest.yml')) { continue }
-              if (-not $keep.ContainsKey($name)) {
-                Write-Host "prune $name"
-                gh release delete-asset rolling $name -y
-              }
-            }
-          }
+          # 删掉整个滚动 Release 再让它重建：产物名带版本号（Gallery-Setup-1.0.2.exe），
+          # 逐个删旧资产既啰嗦又容易漏；顺带让 tag 指向本次提交（action-gh-release 不会挪已存在的 tag）。
+          # 首次构建时 rolling 还不存在，gh 会返回非零 —— 别让它把这一步判成失败。
+          $PSNativeCommandUseErrorActionPreference = $false
+          $ErrorActionPreference = 'Continue'
+          gh release delete rolling --cleanup-tag --yes
+          Write-Host "previous rolling release cleaned (exit=$LASTEXITCODE)"
 
       - name: Publish release
         uses: softprops/action-gh-release@v2
@@ -131,10 +125,3 @@ jobs:
             release-build/latest.yml
           # 产物没生成就别装作成功
           fail_on_unmatched_files: true
-
-      # action-gh-release 遇到已存在的 tag 不会挪它，不挪的话 Release 页永远指向第一次构建的提交
-      - name: Move rolling tag to this commit
-        if: ${{ !startsWith(github.ref, 'refs/tags/v') }}
-        run: |
-          git tag -f rolling ${{ github.sha }}
-          git push -f origin refs/tags/rolling

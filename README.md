@@ -186,6 +186,6 @@ Get-AuthenticodeSignature "release-build\Gallery-Setup-<版本号>.exe" | Format
 几点约定：
 
 - rolling 是**预发布**，不会被 `/releases/latest` 选中——开发版不会通过自动更新推到用户手里；想要新版请推 tag。
-- 打包产物名带版本号（`Gallery-Setup-<version>.exe`），版本号一升文件名就变，所以构建前会先删掉 rolling 里不属于本次的旧 exe / blockmap / latest.yml，避免越堆越多。
+- 打包产物名带版本号（`Gallery-Setup-<version>.exe`），版本号一升文件名就变，所以每次构建先把整个 rolling Release（含 tag）删掉重建，资产不累积，tag 也始终指向最新提交；清理失败不阻断发布。
 - 同一 ref 的多次构建串行排队（`concurrency`，不取消），防止两个运行同时往一个 Release 传产物互相覆盖。
 - 产物同时留一份 Actions Artifact（14 天），构建失败时日志推到 `ci-logs` 分支。
