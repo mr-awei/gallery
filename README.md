@@ -172,3 +172,20 @@ EV 证书（USB 硬件钥匙）不需要 `CSC_LINK`，装好厂商驱动后 elec
 ```powershell
 Get-AuthenticodeSignature "release-build\Gallery-Setup-<版本号>.exe" | Format-List
 ```
+
+## 持续构建与 Releases
+
+`.github/workflows/build.yml` 每次云端构建都会更新 Release（`contents: write`）：
+
+| 触发 | verify | 打包 | Release |
+| --- | --- | --- | --- |
+| push `main` / 手动触发 | 跑 | 通过后打包 | 更新预发布 **rolling**（固定 tag，exe / blockmap / latest.yml 原地覆盖，tag 跟随最新提交） |
+| push tag `v*` | 跑 | 通过后打包 | 建正式 Release（`make_latest: true`，客户端自动更新只认它） |
+| PR | 跑 | 不打包 | 不更新 |
+
+几点约定：
+
+- rolling 是**预发布**，不会被 `/releases/latest` 选中——开发版不会通过自动更新推到用户手里；想要新版请推 tag。
+- 打包产物名带版本号（`Gallery-Setup-<version>.exe`），版本号一升文件名就变，所以构建前会先删掉 rolling 里不属于本次的旧 exe / blockmap / latest.yml，避免越堆越多。
+- 同一 ref 的多次构建串行排队（`concurrency`，不取消），防止两个运行同时往一个 Release 传产物互相覆盖。
+- 产物同时留一份 Actions Artifact（14 天），构建失败时日志推到 `ci-logs` 分支。

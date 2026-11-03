@@ -45,6 +45,11 @@ jobs:
     needs: verify
     if: github.event_name != 'pull_request'
     runs-on: windows-latest
+    # 两次 push 挨得近时，两个运行会同时往同一个滚动 Release 传 exe：
+    # 后传的覆盖先传的，删旧资产那步还会互相踩。串行排队，不取消（取消等于白构建）。
+    concurrency:
+      group: release-${{ github.ref_name }}
+      cancel-in-progress: false
     steps:
       - uses: actions/checkout@v4
 
@@ -85,11 +90,51 @@ jobs:
           retention-days: 14
           if-no-files-found: error
 
-      - name: Create release (tags only)
-        if: startsWith(github.ref, 'refs/tags/v')
+      # 每次构建都更新 Release：tag 推送 → v1.0.1 正式版（占据 latest）；
+      # main / 手动触发 → 固定 tag "rolling" 的预发布，资产原地覆盖。
+      # 预发布不会被 /releases/latest 选中，所以客户端自动更新不会把开发版推给用户。
+      - name: Prune stale rolling assets
+        if: ${{ !startsWith(github.ref, 'refs/tags/v') }}
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          # 版本号一升，exe 文件名就变（Gallery-Setup-1.0.2.exe），不清理的话 rolling 里会越堆越多
+          $keep = @{}
+          Get-ChildItem release-build -File |
+            Where-Object { $_.Name -match '\.(exe|blockmap)$' -or $_.Name -eq 'latest.yml' } |
+            ForEach-Object { $keep[$_.Name] = $true }
+          $assets = gh release view rolling --json assets --jq '.assets[].name' 2>$null
+          if ($LASTEXITCODE -eq 0 -and $assets) {
+            foreach ($name in $assets) {
+              if (-not ($name -match '\.(exe|blockmap)$' -or $name -eq 'latest.yml')) { continue }
+              if (-not $keep.ContainsKey($name)) {
+                Write-Host "prune $name"
+                gh release delete-asset rolling $name -y
+              }
+            }
+          }
+
+      - name: Publish release
         uses: softprops/action-gh-release@v2
         with:
+          tag_name: ${{ startsWith(github.ref, 'refs/tags/v') && github.ref_name || 'rolling' }}
+          name: ${{ startsWith(github.ref, 'refs/tags/v') && github.ref_name || '滚动构建（main 最新）' }}
+          prerelease: ${{ !startsWith(github.ref, 'refs/tags/v') }}
+          make_latest: ${{ startsWith(github.ref, 'refs/tags/v') && 'true' || 'false' }}
+          body: |
+            提交：${{ github.sha }}
+            触发：${{ github.event_name }} / ${{ github.ref_name }}
+            ${{ github.event.head_commit.message || '（手动触发）' }}
           files: |
             release-build/*.exe
             release-build/*.blockmap
             release-build/latest.yml
+          # 产物没生成就别装作成功
+          fail_on_unmatched_files: true
+
+      # action-gh-release 遇到已存在的 tag 不会挪它，不挪的话 Release 页永远指向第一次构建的提交
+      - name: Move rolling tag to this commit
+        if: ${{ !startsWith(github.ref, 'refs/tags/v') }}
+        run: |
+          git tag -f rolling ${{ github.sha }}
+          git push -f origin refs/tags/rolling
