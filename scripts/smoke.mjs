@@ -24,6 +24,31 @@ const check = (name, ok, detail = '') => {
   console.log(`${ok ? '  ✓' : '  ✗'} ${name}${detail ? ` — ${detail}` : ''}`);
 };
 
+/**
+ * 冒烟用的测试图：一条高斯亮带（位置由 seed 决定，seed % 3 决定竖/横）+ 满幅噪点兜体积。
+ * 别用纯噪点：缩到 640 缩略图后噪点会被平均成一片灰，pHash 只剩抖动的低位比特，
+ * 场景一多就会撞进查重阈值（阈值是 8/64）—— 上传直接 400「图库里已有相同内容」。
+ * 亮带位置不同 → 32×32 的低频结构明显不同，实测 12 张两两最小距离 22，稳稳超过阈值。
+ */
+function testPixels(w, h, seed = 0) {
+  const buf = randomBytes(w * h * 3);
+  const band = 0.1 + ((seed * 0.137) % 1) * 0.8;
+  const horiz = seed % 3 === 0;
+  for (let y = 0; y < h; y++) {
+    for (let x = 0; x < w; x++) {
+      const i = (y * w + x) * 3;
+      const t = horiz ? y / h : x / w;
+      const d = t - band;
+      const k = Math.max(0, 1 - (d * d) / 0.02);
+      const base = 15 + 240 * k;
+      buf[i] = Math.min(255, (buf[i] * 0.35 + base * 0.75) | 0);
+      buf[i + 1] = Math.min(255, (buf[i + 1] * 0.35 + base * 0.6) | 0);
+      buf[i + 2] = Math.min(255, (buf[i + 2] * 0.35 + base * 0.5) | 0);
+    }
+  }
+  return buf;
+}
+
 const server = spawn(process.execPath, ['server/index.js'], {
   cwd: ROOT,
   env: {
@@ -32,6 +57,9 @@ const server = spawn(process.execPath, ['server/index.js'], {
     GEM_USER_DATA: tmpUser,
     GEM_DATA_DIR: path.join(tmpUser, 'data'),
     GEM_DEFAULT_STORAGE_DIR: path.join(tmpUser, 'storage'),
+    // 关掉 CLIP：不然入库查重要看「模型加载完没」——CI 上模型就绪了会把噪点图判成重复，
+    // 本地没加载又通过，同一份代码两种结论。这里只测接口行为，不需要深度特征。
+    GEM_CLIP: 'off',
     NO_COLOR: '1',
   },
   stdio: ['ignore', 'pipe', 'pipe'],
@@ -138,13 +166,13 @@ try {
   // 而 Eagle 拖什么存什么 —— 门槛只该拦爬虫，不该拦用户自己挑的图。
   {
     const sharp = (await import('sharp')).default;
-    // 随机噪点：尺寸/内容都不同，既压不小（能过最小体积门槛）又不会撞 pHash 判定成重复
-    const noise = (w, h) => sharp(randomBytes(w * h * 3), { raw: { width: w, height: h, channels: 3 } });
-    const pngA = await noise(900, 900).png().toBuffer();
-    const avif = await noise(900, 900).avif({ quality: 60 }).toBuffer();
-    const gif = await noise(900, 900).gif().toBuffer();
-    const tif = await noise(900, 900).tiff().toBuffer();
-    const tiny = await noise(320, 320).png().toBuffer();
+    // 结构化噪点：尺寸/低频形状都不同，既压不小（能过最小体积门槛）又不会撞 pHash 被当成重复
+    const noise = (w, h, seed) => sharp(testPixels(w, h, seed), { raw: { width: w, height: h, channels: 3 } });
+    const pngA = await noise(900, 900, 0).png().toBuffer();
+    const avif = await noise(900, 900, 1).avif({ quality: 60 }).toBuffer();
+    const gif = await noise(900, 900, 2).gif().toBuffer();
+    const tif = await noise(900, 900, 3).tiff().toBuffer();
+    const tiny = await noise(320, 320, 4).png().toBuffer();
     const asUrl = (b, mime) => `data:${mime};base64,${b.toString('base64')}`;
     const headers = { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' };
     const post = (dataUrls, extra = {}) =>
@@ -280,11 +308,9 @@ try {
   // 这三条是「统一操作日志」的核心承诺，出错时是静默的数据不一致（标签没回滚、文件名没改回），
   // 只测接口形状是发现不了的，必须在真实库里跑一遍逆操作。
   const sharp = (await import('sharp')).default;
-  const { randomFillSync } = await import('node:crypto');
   const W = 900;
   const H = 700;
-  const noise = Buffer.alloc(W * H * 3);
-  randomFillSync(noise);
+  const noise = testPixels(W, H, 5);
   const png = await sharp(noise, { raw: { width: W, height: H, channels: 3 } }).png().toBuffer();
   const upload = await fetch(`${BASE}/api/import/upload?filename=smoke-undo.png`, {
     method: 'POST',
@@ -361,9 +387,8 @@ try {
         },
       ],
     ];
-    for (const [label, params] of cases) {
-      const srcPixels = Buffer.alloc(aw * ah * 3);
-      randomFillSync(srcPixels);
+    for (const [caseNo, [label, params]] of cases.entries()) {
+      const srcPixels = testPixels(aw, ah, 6 + caseNo);
       const srcPng = await sharp(srcPixels, { raw: { width: aw, height: ah, channels: 3 } }).png().toBuffer();
       const name = `smoke-adjust-${label.replace(/[^\w\u4e00-\u9fa5]/g, '')}.png`;
       const upAdjust = await fetch(`${BASE}/api/import/upload?filename=${encodeURIComponent(name)}`, {
@@ -417,8 +442,7 @@ try {
   {
     const cw = 800;
     const ch = 600;
-    const px = Buffer.alloc(cw * ch * 3);
-    randomFillSync(px);
+    const px = testPixels(cw, ch, 9);
     const png = await sharp(px, { raw: { width: cw, height: ch, channels: 3 } }).png().toBuffer();
     const up = await fetch(`${BASE}/api/import/upload?filename=smoke-crop.png`, {
       method: 'POST',
@@ -475,8 +499,7 @@ try {
       `${optRes.status} ${optJson.watermarks?.length}/${optJson.frames?.length}`
     );
 
-    const px = Buffer.alloc(900 * 600 * 3);
-    randomFillSync(px);
+    const px = testPixels(900, 600, 10);
     const png = await sharp(px, { raw: { width: 900, height: 600, channels: 3 } }).png().toBuffer();
     const up = await fetch(`${BASE}/api/import/upload?filename=smoke-wm.png`, {
       method: 'POST',
@@ -728,8 +751,7 @@ try {
   // 不复用前面的 imageId——它可能已经被回收站/撤销那几条测试改过状态。
   {
     // 长边要过 800px 的入库门槛，否则会被判 lowres
-    const px = Buffer.alloc(1000 * 800 * 3);
-    randomFillSync(px);
+    const px = testPixels(1000, 800, 11);
     const png = await sharp(px, { raw: { width: 1000, height: 800, channels: 3 } }).png().toBuffer();
     const up = await fetch(`${BASE}/api/import/upload?filename=smoke-gallery.png`, {
       method: 'POST',
@@ -921,7 +943,16 @@ console.log(`\n[smoke] ${results.length - failed.length}/${results.length} 项�
 if (failed.length) {
   console.error('\n----- 服务端日志（末 2000 字符）-----');
   console.error(serverLog.slice(-2000));
-  try { try { fs.rmSync(tmpUser, { recursive: true, force: true }); } catch { /* 句柄延迟释放 */ } } catch { /* Windows 下句柄释放可能有延迟 */ }
+  try {
+    fs.rmSync(tmpUser, { recursive: true, force: true, maxRetries: 10, retryDelay: 200 });
+  } catch {
+    /* Windows 下服务端刚被 kill，句柄释放有延迟；删不掉不影响结论 */
+  }
   process.exit(1);
 }
-try { fs.rmSync(tmpUser, { recursive: true, force: true }); } catch { /* 句柄延迟释放 */ }
+// Windows：句柄还会挂一会儿，EBUSY/EPERM 交给 rmSync 自己重试
+try {
+  fs.rmSync(tmpUser, { recursive: true, force: true, maxRetries: 10, retryDelay: 200 });
+} catch {
+  /* 临时目录在 %TEMP% 下，删不干净也不影响校验结论 */
+}

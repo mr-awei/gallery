@@ -40,6 +40,8 @@ export function proxyRules(net) {
 
 let sessionPromise = null;
 function electronSession() {
+  // 纯 Node 环境没有 electron 运行时：import 会触发 node_modules/electron 的二进制下载
+  if (!process.versions.electron) return Promise.resolve(null);
   if (!sessionPromise) {
     sessionPromise = import('electron')
       .then((m) => (m && m.session ? m.session : null))
@@ -74,6 +76,7 @@ export async function applyProxyNet(net) {
 
 /** 代理需要账号密码时由 Chromium 触发 login 事件；getNet 每次现取，改了设置立刻生效 */
 export function registerProxyAuthFor(getNet) {
+  if (!process.versions.electron) return;
   import('electron')
     .then((m) => {
       if (!m?.app) return;

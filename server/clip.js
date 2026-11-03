@@ -26,8 +26,14 @@ let extractorPromise = null;
 let extractorReady = false; // 真正加载完成（extractorPromise 非空 ≠ 可用）
 let loadError = '';
 
+/** GEM_CLIP=off：彻底关掉深度特征（冒烟 / CI 用）。
+ *  一是别为了跑接口测试去下 150MB 模型；二是让「入库查重」只走 pHash ——
+ *  否则冒烟结果取决于模型此刻有没有加载完，同一份代码在本地和 CI 上结论不同。 */
+const CLIP_DISABLED = String(process.env.GEM_CLIP || '').toLowerCase() === 'off';
+
 /** 懒加载特征提取器（首次调用触发模型下载） */
 function getExtractor() {
+  if (CLIP_DISABLED) return Promise.reject(new Error('CLIP 已通过 GEM_CLIP=off 关闭'));
   if (!extractorPromise) {
     extractorReady = false;
     extractorPromise = pipeline('image-feature-extraction', MODEL_ID, { dtype: 'q8' })
@@ -168,6 +174,7 @@ export function getEmbedding(imageId) {
 
 /** 重新建模（图片内容被旋转/增强覆盖后调用），失败静默（补算任务会兜底） */
 export async function reembed(imageId, input) {
+  if (CLIP_DISABLED) return; // 明确关掉了就别每张图刷一条「建模失败」
   try {
     saveEmbedding(imageId, await embedImage(input));
   } catch (err) {

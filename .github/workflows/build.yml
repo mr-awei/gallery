@@ -17,6 +17,11 @@ jobs:
   # 红了的提交照样能出安装包。
   verify:
     runs-on: windows-latest
+    env:
+      # 校验不需要 Electron 二进制（150MB+）：服务端在纯 Node 下不会去碰它
+      ELECTRON_SKIP_BINARY_DOWNLOAD: '1'
+      # 冒烟只测接口行为，别为了入库查重去下 CLIP 模型（加载与否会让结论随机变）
+      GEM_CLIP: 'off'
     steps:
       - uses: actions/checkout@v4
 

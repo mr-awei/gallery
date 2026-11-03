@@ -12,6 +12,8 @@ export const platform = os.platform();
 /** 桌面端（Electron）下可用原生能力 */
 let shellPromise = null;
 async function electronShell() {
+  // 纯 Node 环境（网页模式 / 冒烟 / CI）没有 electron 运行时，import 会去下载 100MB+ 的二进制
+  if (!process.versions.electron) return null;
   if (!shellPromise) {
     shellPromise = import('electron')
       .then((m) => (m && m.shell && typeof m.shell.trashItem === 'function' ? m.shell : null))
@@ -78,12 +80,14 @@ function csCacheDir() {
   if (!csCacheDirReady) {
     csCacheDirReady = (async () => {
       let dir = '';
-      try {
-        // 服务通常内嵌在 Electron 主进程里：缓存放 userData，随应用数据一起管理
-        const { app } = await import('electron');
-        if (app?.getPath) dir = path.join(app.getPath('userData'), 'cache', 'cs');
-      } catch {
-        /* 纯 node 运行（standalone server）时退回系统临时目录 */
+      if (process.versions.electron) {
+        try {
+          // 服务通常内嵌在 Electron 主进程里：缓存放 userData，随应用数据一起管理
+          const { app } = await import('electron');
+          if (app?.getPath) dir = path.join(app.getPath('userData'), 'cache', 'cs');
+        } catch {
+          /* 取不到 app 时退回系统临时目录 */
+        }
       }
       if (!dir) dir = path.join(os.tmpdir(), 'gem-cache', 'cs');
       fs.mkdirSync(dir, { recursive: true });

@@ -11,6 +11,9 @@
 let netPromise = null;
 
 async function electronNet() {
+  // 纯 Node（网页模式 / 冒烟 / CI）里没有 electron 运行时：此时 import('electron') 会落到
+  // node_modules/electron/index.js，二进制不存在就去下载 100MB+，CI 上白等几分钟还可能报错。
+  if (!process.versions.electron) return null;
   if (!netPromise) {
     netPromise = import('electron')
       .then((m) => (m && m.net && typeof m.net.fetch === 'function' ? m.net : null))
