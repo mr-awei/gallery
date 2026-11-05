@@ -32,7 +32,7 @@ interface Props {
 }
 
 /** 卡片拖拽约定的自定义 MIME（与 ImageCard 一致） */
-const IMAGE_MIME = 'application/x-gem-image-id';
+const IMAGE_MIME = 'application/x-tuku-image-id';
 
 export default function FolderTree({
   folders,

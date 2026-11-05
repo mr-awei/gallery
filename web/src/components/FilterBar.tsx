@@ -358,7 +358,7 @@ export default function FilterBar({
               title="截图入库：框选屏幕区域存进图库（全局快捷键 Ctrl+Shift+S）"
               onClick={() => {
                 // 统一入口：桌面端由主进程抓底图，浏览器端给提示
-                if (desktop?.grabScreen) window.dispatchEvent(new Event('gem:screenshot'));
+                if (desktop?.grabScreen) window.dispatchEvent(new Event('tuku:screenshot'));
                 else void desktop?.captureScreenshot?.();
               }}
             >

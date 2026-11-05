@@ -14,7 +14,7 @@ export function downloadBlob(blob: Blob, filename: string) {
   setTimeout(() => URL.revokeObjectURL(url), 2000);
 }
 
-export function buildASE(colors: string[], title = 'GemVault'): Blob {
+export function buildASE(colors: string[], title = '图库'): Blob {
   const enc = new TextEncoder();
   const chunks: Uint8Array[] = [];
   const header = new ArrayBuffer(12);

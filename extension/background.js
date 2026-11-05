@@ -10,9 +10,9 @@
 const DEFAULT_PORT = 3001;
 const PORT_SCAN = 12; // 3001..3012
 const CACHE_TTL = 30_000;
-const MENU_SINGLE = 'gem-pick-one';
-const MENU_BATCH = 'gem-pick-all';
-const MENU_FULLSHOT = 'gem-shot-full';
+const MENU_SINGLE = 'tuku-pick-one';
+const MENU_BATCH = 'tuku-pick-all';
+const MENU_FULLSHOT = 'tuku-shot-full';
 const ICON_FALLBACK =
   'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==';
 
@@ -23,9 +23,9 @@ let baseCache = null; // { base, at }
 /** 命中 /api/health 且返回 {ok:true} 才认为是图库服务（避免误认占端口的其它程序） */
 async function discoverBase(force = false) {
   if (!force && baseCache && Date.now() - baseCache.at < CACHE_TTL) return baseCache.base;
-  const { gemPort } = await chrome.storage.local.get('gemPort');
+  const { tukuPort } = await chrome.storage.local.get('tukuPort');
   const candidates = [];
-  if (gemPort) candidates.push(Number(gemPort));
+  if (tukuPort) candidates.push(Number(tukuPort));
   for (let p = DEFAULT_PORT; p < DEFAULT_PORT + PORT_SCAN; p++) {
     if (!candidates.includes(p)) candidates.push(p);
   }
@@ -36,7 +36,7 @@ async function discoverBase(force = false) {
       const j = await res.json();
       if (!j || j.ok !== true) continue;
       baseCache = { base: `http://127.0.0.1:${port}`, at: Date.now() };
-      await chrome.storage.local.set({ gemPort: port });
+      await chrome.storage.local.set({ tukuPort: port });
       return baseCache.base;
     } catch {
       /* 该端口没有服务，试下一个 */
@@ -263,7 +263,7 @@ async function captureFullPage(tabId) {
       target: { tabId },
       func: () => {
         const s = document.createElement('style');
-        s.id = '__gem_fullshot';
+        s.id = '__tuku_fullshot';
         s.textContent = 'html{scroll-behavior:auto!important}';
         document.documentElement.appendChild(s);
       },
@@ -291,7 +291,7 @@ async function captureFullPage(tabId) {
       .executeScript({
         target: { tabId },
         func: (top) => {
-          document.getElementById('__gem_fullshot')?.remove();
+          document.getElementById('__tuku_fullshot')?.remove();
           window.scrollTo({ top, behavior: 'instant' });
         },
         args: [m.y],

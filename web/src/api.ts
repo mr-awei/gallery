@@ -438,14 +438,14 @@ export async function getApiToken(): Promise<string> {
     url.searchParams.delete('token');
     window.history.replaceState({}, '', url.toString());
     try {
-      localStorage.setItem('gem_api_token', fromUrl);
+      localStorage.setItem('tuku_api_token', fromUrl);
     } catch {
       /* 隐私模式等场景忽略 */
     }
     return tokenCache;
   }
   try {
-    tokenCache = localStorage.getItem('gem_api_token') || '';
+    tokenCache = localStorage.getItem('tuku_api_token') || '';
   } catch {
     tokenCache = '';
   }
@@ -457,7 +457,7 @@ export async function getApiToken(): Promise<string> {
   }
   if (tokenCache) {
     try {
-      localStorage.setItem('gem_api_token', tokenCache);
+      localStorage.setItem('tuku_api_token', tokenCache);
     } catch {
       /* ignore */
     }

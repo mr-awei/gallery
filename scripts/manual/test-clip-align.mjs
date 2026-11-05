@@ -2,13 +2,18 @@
  * 手动验证：图像塔与文本塔是否在同一投影空间。
  * 判据：与画面相符的描述 cos 明显高于无关描述（一般 0.25+ vs 0.15 以下）。
  * 若所有文本 cos 都挤在一起，说明图像侧没走 visual_projection，语义搜图不可用。
- * 用法：node scripts/manual/test-clip-align.mjs
+ * 用法：node scripts/manual/test-clip-align.mjs <gallery.db 路径>
  */
 import fs from 'node:fs';
 import { DatabaseSync } from 'node:sqlite';
 import { embedImage, embedText } from '../../server/clip.js';
 
-const db = new DatabaseSync('E:/邓紫棋/lib_mvs2ij40/gallery.db', { readOnly: true });
+const dbPath = process.argv[2];
+if (!dbPath) {
+  console.error('用法: node scripts/manual/test-clip-align.mjs <gallery.db 路径>');
+  process.exit(1);
+}
+const db = new DatabaseSync(dbPath, { readOnly: true });
 const rows = db
   .prepare("SELECT id, title, abs_path FROM images WHERE media_kind='image' AND phash<>'' ORDER BY id LIMIT 3")
   .all();

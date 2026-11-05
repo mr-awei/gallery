@@ -28,7 +28,7 @@ function makePsd(w, h) {
 
 const w = 160;
 const h = 120;
-const file = path.join(os.tmpdir(), 'gemvault-min.psd');
+const file = path.join(os.tmpdir(), 'tuku-min.psd');
 fs.writeFileSync(file, makePsd(w, h));
 console.log('psd bytes', fs.statSync(file).size);
 

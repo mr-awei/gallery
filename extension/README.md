@@ -1,6 +1,6 @@
 # 图库采集助手（Chrome 扩展）
 
-把网页上的图片一键存进本地图库（GemVault）。**纯本地**：扩展只把图片地址/截图 POST 到 `http://127.0.0.1:<port>/api/extension/ingest`，由桌面端负责下载与入库。
+把网页上的图片一键存进本地图库。**纯本地**：扩展只把图片地址/截图 POST 到 `http://127.0.0.1:<port>/api/extension/ingest`，由桌面端负责下载与入库。
 
 端口不写死：开发模式是 3001，桌面版由 Electron 选随机端口；扩展启动时探测 `3001-3012` 的 `/api/health`，命中的端口会缓存到 `chrome.storage.local`。
 
@@ -43,4 +43,4 @@
   如果你之前加载过旧版本，请先在 `chrome://extensions` 移除再从 `extension/` 重新加载，
   否则旧 ID 调用采集接口会收到 401（以前是「任何扩展都放行」，等于图库对本机所有扩展开放）。
 - 需要换 ID（例如自己重新签名）时，同步改 `manifest.json` 的 `key`、
-  `server/config.js` 的 `EXTENSION_ORIGINS` 默认值，或设环境变量 `GEM_EXTENSION_ORIGINS`
+  `server/config.js` 的 `EXTENSION_ORIGINS` 默认值，或设环境变量 `TUKU_EXTENSION_ORIGINS`

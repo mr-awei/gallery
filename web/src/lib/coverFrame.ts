@@ -114,7 +114,7 @@ export async function fontFrameDataUrl(
   text: string,
   opts: { size?: number; inverted?: boolean } = {}
 ): Promise<string> {
-  const fam = `gemcover-${Math.random().toString(36).slice(2, 9)}`;
+  const fam = `tukucover-${Math.random().toString(36).slice(2, 9)}`;
   const face = new FontFace(fam, `url("${toAbs(url)}")`);
   const loaded = await face.load();
   document.fonts.add(loaded);

@@ -16,11 +16,11 @@ const BACKUP_DIR = path.join(DATA_DIR, 'edit-backups');
 /** 最多保留的条数 */
 const KEEP_COUNT = 200;
 /**
- * 备份总体积上限（默认 2GB，可用 GEM_UNDO_MAX_BYTES 覆盖）。
+ * 备份总体积上限（默认 2GB，可用 TUKU_UNDO_MAX_BYTES 覆盖）。
  * 只按条数淘汰是不够的：200 张 50MB 的 RAW/大图就是 10GB 悄悄躺在数据目录里，
  * 用户只会发现 C 盘莫名其妙满了。
  */
-const KEEP_BYTES = Number(process.env.GEM_UNDO_MAX_BYTES) || 2 * 1024 ** 3;
+const KEEP_BYTES = Number(process.env.TUKU_UNDO_MAX_BYTES) || 2 * 1024 ** 3;
 
 function ensureDir() {
   fs.mkdirSync(BACKUP_DIR, { recursive: true });

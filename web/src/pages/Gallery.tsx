@@ -692,7 +692,7 @@ export default function Gallery(props: Props) {
               draggable
               onDragStart={(e) => {
                 const ids = selected.has(it.id) && selected.size > 1 ? Array.from(selected) : [it.id];
-                e.dataTransfer.setData('application/x-gem-image-id', ids.join(','));
+                e.dataTransfer.setData('application/x-tuku-image-id', ids.join(','));
                 e.dataTransfer.effectAllowed = 'copy';
               }}
             >

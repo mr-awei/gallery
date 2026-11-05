@@ -1,5 +1,5 @@
 {
-  "name": "gem-gallery",
+  "name": "tuku-gallery",
   "productName": "图库",
   "version": "1.0.1",
   "private": true,
@@ -73,7 +73,7 @@
     "vite": "^6.0.7"
   },
   "build": {
-    "appId": "com.gem.gallery",
+    "appId": "com.tuku.gallery",
     "productName": "图库",
     "directories": {
       "output": "release-build",
@@ -139,7 +139,7 @@
       "createDesktopShortcut": true,
       "createStartMenuShortcut": true,
       "shortcutName": "图库",
-      "artifactName": "Gallery-Setup-${version}.exe"
+      "artifactName": "TuKu-Setup-${version}.exe"
     }
   }
 }

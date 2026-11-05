@@ -56,12 +56,12 @@ export default function App() {
   const [loading, setLoading] = useState(false);
   const [selected, setSelected] = useState<Set<number>>(new Set());
   const [viewMode, setViewMode] = useState<'masonry' | 'grid' | 'list'>(() => {
-    const v = localStorage.getItem('gem:view-mode');
+    const v = localStorage.getItem('tuku:view-mode');
     return v === 'grid' || v === 'list' ? v : 'masonry';
   });
   /** 缩略图尺寸（列宽 px，Eagle 的缩略图滑块），持久化在本地；默认「中小」= 250 */
   const [colWidth, setColWidth] = useState(() => {
-    const v = Number(localStorage.getItem('gem:col-width'));
+    const v = Number(localStorage.getItem('tuku:col-width'));
     return Number.isFinite(v) && v > 0 ? clampThumbWidth(v) : THUMB_DEFAULT;
   });
   const [tags, setTags] = useState<TagNode[]>([]);
@@ -138,7 +138,7 @@ const importingRef = useRef(false);
   const SIDEBAR_MIN = 200;
   const SIDEBAR_MAX = 440;
   const [sidebarW, setSidebarW] = useState(() => {
-    const v = Number(localStorage.getItem('gem:sidebar-w'));
+    const v = Number(localStorage.getItem('tuku:sidebar-w'));
     return v >= SIDEBAR_MIN && v <= SIDEBAR_MAX ? v : DEFAULT_SIDEBAR_W;
   });
   const resizeRef = useRef<{ startX: number; startW: number } | null>(null);
@@ -165,7 +165,7 @@ const importingRef = useRef(false);
     e.currentTarget.releasePointerCapture(e.pointerId);
     document.body.classList.remove('sidebar-resizing');
     setSidebarW(finalW);
-    localStorage.setItem('gem:sidebar-w', String(finalW));
+    localStorage.setItem('tuku:sidebar-w', String(finalW));
   };
   // 主内容滚动容器：切筛选/文件夹重载列表时必须滚回顶部，
   // 否则残留的 scrollTop 会让 MasonryGrid 虚拟窗口落在新内容之外（卡片裁剪/空白/提前到底）
@@ -526,14 +526,14 @@ const importingRef = useRef(false);
   }, []);
 
   /* 事件回调里抛的错（定时器、onClick 里的 await）到不了 React 错误边界，
-     由 main.tsx 统一转成 gem:error，这里用 toast 让用户至少知道「刚才那下失败了」 */
+     由 main.tsx 统一转成 tuku:error，这里用 toast 让用户至少知道「刚才那下失败了」 */
   useEffect(() => {
     const onErr = (e: Event) => {
       const msg = (e as CustomEvent).detail;
       if (typeof msg === 'string' && msg) showToast(`出现异常：${msg}`, 'error');
     };
-    window.addEventListener('gem:error', onErr);
-    return () => window.removeEventListener('gem:error', onErr);
+    window.addEventListener('tuku:error', onErr);
+    return () => window.removeEventListener('tuku:error', onErr);
   }, [showToast]);
 
   // 隐私空间的密码弹窗目标（null = 关闭）
@@ -716,9 +716,9 @@ const importingRef = useRef(false);
     const url = `${window.location.pathname}${qs ? `?${qs}` : ''}`;
     try {
       if (lastRouteRef.current.view !== view) {
-        window.history.pushState({ gemRoute: true }, '', url);
+        window.history.pushState({ tukuRoute: true }, '', url);
       } else {
-        window.history.replaceState({ gemRoute: true }, '', url);
+        window.history.replaceState({ tukuRoute: true }, '', url);
       }
     } catch {
       /* file:// 或受限环境下改不了地址栏，界面照常工作 */
@@ -1170,8 +1170,8 @@ const importingRef = useRef(false);
       const mode = (e as CustomEvent<{ mode?: 'command' | 'filter' }>).detail?.mode;
       setPalette(mode === 'filter' ? 'filter' : 'command');
     };
-    window.addEventListener('gem:palette', onAsk);
-    return () => window.removeEventListener('gem:palette', onAsk);
+    window.addEventListener('tuku:palette', onAsk);
+    return () => window.removeEventListener('tuku:palette', onAsk);
   }, []);
 
   /* 全局快捷键表：默认值 + 用户在设置里改过的键位（改完立即生效，无需重启） */
@@ -1285,12 +1285,12 @@ const importingRef = useRef(false);
   /** 视图模式 / 缩略图尺寸：写 localStorage，下次打开保持（Eagle 也记住缩略图大小） */
   const changeViewMode = useCallback((m: 'masonry' | 'grid' | 'list') => {
     setViewMode(m);
-    localStorage.setItem('gem:view-mode', m);
+    localStorage.setItem('tuku:view-mode', m);
   }, []);
   const changeColWidth = useCallback((w: number) => {
     const next = clampThumbWidth(w);
     setColWidth(next);
-    localStorage.setItem('gem:col-width', String(next));
+    localStorage.setItem('tuku:col-width', String(next));
   }, []);
 
   /** 「待整理」入口：进入图库并套用对应筛选 */
@@ -1652,7 +1652,7 @@ const importingRef = useRef(false);
         onResizeUp={onResizerUp}
         onResetWidth={() => {
           setSidebarW(DEFAULT_SIDEBAR_W);
-          localStorage.setItem('gem:sidebar-w', String(DEFAULT_SIDEBAR_W));
+          localStorage.setItem('tuku:sidebar-w', String(DEFAULT_SIDEBAR_W));
         }}
         onToast={showToast}
       />

@@ -13,11 +13,11 @@ watchUiScale();
 /**
  * 全局兜底：事件回调、定时器、未被 catch 的 await 抛错时，React 的错误边界
  * 是接不到的 —— 以前这些错只会出现在 DevTools 控制台，用户侧表现为「点了没反应」。
- * 这里统一转成 `gem:error` 事件，由 App 用 toast 呈现，并保留原始堆栈方便排查。
+ * 这里统一转成 `tuku:error` 事件，由 App 用 toast 呈现，并保留原始堆栈方便排查。
  */
 function reportError(message: string, detail?: unknown) {
   console.error('[uncaught]', detail ?? message);
-  window.dispatchEvent(new CustomEvent('gem:error', { detail: message }));
+  window.dispatchEvent(new CustomEvent('tuku:error', { detail: message }));
 }
 
 window.addEventListener('unhandledrejection', (e) => {

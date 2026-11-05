@@ -641,7 +641,7 @@ let savepointSeq = 0;
  * 所以既能正确嵌套，也不会因为「判断嵌套」失败而静默丢事务。
  */
 export function withTransaction(fn) {
-  const name = `gem_sp_${(savepointSeq = (savepointSeq + 1) % 1e9)}`;
+  const name = `tuku_sp_${(savepointSeq = (savepointSeq + 1) % 1e9)}`;
   db.exec(`SAVEPOINT ${name}`);
   try {
     const result = fn();

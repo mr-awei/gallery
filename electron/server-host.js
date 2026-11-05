@@ -53,14 +53,14 @@ export class ServerHost extends EventEmitter {
     if (!utilityProcess) throw new Error('当前环境不支持 utilityProcess');
 
     const child = utilityProcess.fork(this.entry, [], {
-      serviceName: 'gemvault-api',
+      serviceName: 'tuku-api',
       stdio: 'pipe',
       env: {
         ...process.env,
         ...this.env,
-        GEM_DESKTOP: this.desktop ? '1' : '0',
+        TUKU_DESKTOP: this.desktop ? '1' : '0',
         // 重启时沿用上次端口：前端页面还在这个 origin 上，换端口等于白屏
-        GEM_PORT: String(this.port || 0),
+        TUKU_PORT: String(this.port || 0),
       },
     });
     this.child = child;

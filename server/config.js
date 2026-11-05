@@ -18,8 +18,8 @@ export const WORKSPACE_ROOT = path.resolve(APP_ROOT, '..');
  * 注意：这里不能用顶层 await import('electron') —— 主进程要等入口模块求值完成
  * 才会启动事件循环，那样会死锁（进程活着但无窗口、无端口、无子进程）。
  */
-export const IS_PACKAGED = process.env.GEM_PACKAGED === '1';
-const USER_ROOT = process.env.GEM_USER_DATA || APP_ROOT;
+export const IS_PACKAGED = process.env.TUKU_PACKAGED === '1';
+const USER_ROOT = process.env.TUKU_USER_DATA || APP_ROOT;
 
 export const DATA_DIR = path.join(USER_ROOT, 'data');
 export const STORAGE_DIR = path.join(USER_ROOT, 'storage');
@@ -29,7 +29,7 @@ export const TRASH_DIR = path.join(STORAGE_DIR, 'trash');
 export const WEB_DIST = path.join(APP_ROOT, 'dist', 'web');
 
 /** 首次运行时图片的默认保存位置（由主进程注入；用户可在设置页改成任意文件夹，不再写死） */
-export const DEFAULT_STORAGE_DIR = process.env.GEM_DEFAULT_STORAGE_DIR || IMAGE_DIR;
+export const DEFAULT_STORAGE_DIR = process.env.TUKU_DEFAULT_STORAGE_DIR || IMAGE_DIR;
 
 for (const dir of [DATA_DIR, IMAGE_DIR, THUMB_DIR, TRASH_DIR]) {
   fs.mkdirSync(dir, { recursive: true });
@@ -45,9 +45,9 @@ export const PORT = Number(process.env.PORT || 3001);
  * AI 模型缓存目录（CLIP / Swin2SR 等 transformers.js 模型）。
  * 打包版代码在只读的 app.asar 内，缓存若指向 asar 里（老版本是 __dirname/../models）
  * 首次下载必然失败 —— 必须落到用户数据目录（打包后 %APPDATA%/图库/data/models）。
- * 可用环境变量 GEM_MODEL_DIR 覆盖。
+ * 可用环境变量 TUKU_MODEL_DIR 覆盖。
  */
-export const MODEL_CACHE_DIR = process.env.GEM_MODEL_DIR || path.join(DATA_DIR, 'models');
+export const MODEL_CACHE_DIR = process.env.TUKU_MODEL_DIR || path.join(DATA_DIR, 'models');
 
 // 开发模式一次性迁移：老版本把模型缓存在项目根 models/，避免升级后重新下载 ~150MB。
 // 打包版 asar 内的 models 无法被 ONNX Runtime 读取也无需迁移，跳过。
@@ -68,7 +68,7 @@ if (!IS_PACKAGED) {
  * 都能读写图库。改为按扩展 ID 精确匹配——ID 由 manifest 的 key 固定（见 extension/manifest.json），
  * 所以从任何路径加载本扩展都是这个 ID。要换 ID 时同步改 manifest.key 与环境变量。
  */
-export const EXTENSION_ORIGINS = (process.env.GEM_EXTENSION_ORIGINS || 'olckdffcmfpciekkkdekckpgphacfnfl')
+export const EXTENSION_ORIGINS = (process.env.TUKU_EXTENSION_ORIGINS || 'olckdffcmfpciekkkdekckpgphacfnfl')
   .split(',')
   .map((s) => s.trim().toLowerCase())
   .filter(Boolean)

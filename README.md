@@ -26,7 +26,7 @@ npm run lint           # eslint + 自定义静态检查
 ```
 
 > 已存在的素材用「导入本地素材」登记（按原路径登记，不复制），导入过程会去重并生成缩略图；
-> 每个素材文件夹就是一个资源库，库数据放在该文件夹下的 `.gemvault/` 里，随素材一起搬走。
+> 每个素材文件夹就是一个资源库，库数据放在该文件夹下的 `.tuku/` 里，随素材一起搬走。
 
 ## 功能
 
@@ -130,7 +130,7 @@ dist/web/       前端构建产物（vite build 输出，打包时随 asar 分�
 release-build/  electron-builder 打包输出
 ```
 
-素材根目录下每个资源库各有 `<素材文件夹>/.gemvault/lib_xxx/`，里面是 `gallery.db` 与 `thumbs/`；
+素材根目录下每个资源库各有 `<素材文件夹>/.tuku/lib_xxx/`，里面是 `gallery.db` 与 `thumbs/`；
 换机器或换盘符时整目录拷走即可（或走「设置 → 数据与维护 → 备份 / 恢复」）。
 
 ## 说明
@@ -144,14 +144,14 @@ release-build/  electron-builder 打包输出
 - **OCR 只支持 Windows**（走系统 `Windows.Media.Ocr`，不需要装任何外部程序）；其它平台会明确显示不可用，而不是给一个点了没反应的按钮。
 - **外部以图搜图**只对 SauceNAO 做真实上传识别；Google Lens / TinEye 需要图片有公网 URL，本地导入的图会被标注为不可用。Pinterest 只提供关键词外链，不冒称以图搜图。
 - **备份不包含原图**：原图本来就在素材文件夹里，备份的是 `gallery.db` + 可读 `library.json` + 可选缩略图；恢复到新目录时会按备份里记录的旧根路径重映射 `abs_path`。
-- 想跳过深度特征（离线 / CI / 只想跑接口）：用 `GEM_CLIP=off` 起服务，入库查重只走 pHash，语义搜索显示不可用。冒烟脚本默认就这么起——否则「模型这一会儿加载完没有」会让同一份代码在本地和 CI 上得出不同结论。
+- 想跳过深度特征（离线 / CI / 只想跑接口）：用 `TUKU_CLIP=off` 起服务，入库查重只走 pHash，语义搜索显示不可用。冒烟脚本默认就这么起——否则「模型这一会儿加载完没有」会让同一份代码在本地和 CI 上得出不同结论。
 - **缩略图缓存必须比原图新才算命中**：缓存按 `id` 命名（`thumbs/xx/<id>.jpg`、`<id>-pv.jpg`），而 `id` 会在重建库 / 清空库 / 恢复备份后从头再来，只判断「文件存在」会把上一个库同一 `id` 的图当成自己的——表现就是列表缩略图和灯箱大图不是同一张，pHash 也跟着错。服务端一律比对 `mtime`（容忍 2s 文件系统精度），新入库与回收站还原走 `force`（先删残留再画），重建后 `cover_ver + 1` 让前端换 URL 而不是吃旧缓存。
 - Wallhaven 在国内网络可能无法直连，采集失败时日志会提示，其余来源不受影响。
 
 ## 打包与代码签名
 
 ```bash
-npm run dist        # vite build + electron-builder → release-build/Gallery-Setup-*.exe（NSIS 安装包）
+npm run dist        # vite build + electron-builder → release-build/TuKu-Setup-*.exe（NSIS 安装包）
 npm run dist:dir    # 只出免安装目录 release-build/win-unpacked/，更快，适合先做打包验证
 ```
 
@@ -170,7 +170,7 @@ EV 证书（USB 硬件钥匙）不需要 `CSC_LINK`，装好厂商驱动后 elec
 验证签名结果：
 
 ```powershell
-Get-AuthenticodeSignature "release-build\Gallery-Setup-<版本号>.exe" | Format-List
+Get-AuthenticodeSignature "release-build\TuKu-Setup-<版本号>.exe" | Format-List
 ```
 
 ## 持续构建与 Releases
@@ -186,6 +186,6 @@ Get-AuthenticodeSignature "release-build\Gallery-Setup-<版本号>.exe" | Format
 几点约定：
 
 - rolling 是**预发布**，不会被 `/releases/latest` 选中——开发版不会通过自动更新推到用户手里；想要新版请推 tag。
-- 打包产物名带版本号（`Gallery-Setup-<version>.exe`），版本号一升文件名就变，所以每次构建先把整个 rolling Release（含 tag）删掉重建，资产不累积，tag 也始终指向最新提交；清理失败不阻断发布。
+- 打包产物名带版本号（`TuKu-Setup-<version>.exe`），版本号一升文件名就变，所以每次构建先把整个 rolling Release（含 tag）删掉重建，资产不累积，tag 也始终指向最新提交；清理失败不阻断发布。
 - 同一 ref 的多次构建串行排队（`concurrency`，不取消），防止两个运行同时往一个 Release 传产物互相覆盖。
 - 产物同时留一份 Actions Artifact（14 天），构建失败时日志推到 `ci-logs` 分支。

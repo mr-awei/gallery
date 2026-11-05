@@ -127,8 +127,8 @@ ws.onopen = async () => {
   await sleep(600);
   const shot = await send('Page.captureScreenshot', { format: 'png' });
   const { writeFileSync } = await import('node:fs');
-  writeFileSync('E:/gemvault/filterbar-test.png', Buffer.from(shot.data, 'base64'));
-  console.log('  📸 截图: E:/gemvault/filterbar-test.png');
+  writeFileSync('filterbar-test.png', Buffer.from(shot.data, 'base64'));
+  console.log('  📸 截图: filterbar-test.png（当前目录）');
 
   console.log('\n' + (errors.length ? `❌ JS 异常: ${errors.slice(0, 2).join(' | ')}` : '✓ 无 JS 异常'));
   console.log(bad ? `❌ ${bad} 项未通过` : '✓ 新筛选栏全部通过');

@@ -54,5 +54,5 @@ for (const zeroOut of [false, true]) {
   const ring = mean(buf, ow, Math.max(0, sx - 30), Math.max(0, sy - 30), Math.min(ow - 1, ss + 60));
   const d = Math.round(Math.hypot(inside[0] - ring[0], inside[1] - ring[1], inside[2] - ring[2]));
   console.log(`遮罩区RGB置零=${zeroOut}: ${Date.now() - t}ms 区内=${inside.join(',')} 周边=${ring.join(',')} 色差=${d}`);
-  if (zeroOut) await sharp(buf, { raw: { width: ow, height: oh, channels: 3 } }).png().toFile('e:/gemvault/server/scripts/inpaint-real2.png');
+  if (zeroOut) await sharp(buf, { raw: { width: ow, height: oh, channels: 3 } }).png().toFile(path.join(import.meta.dirname, 'inpaint-real2.png'));
 }

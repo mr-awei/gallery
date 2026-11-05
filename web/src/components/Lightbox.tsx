@@ -181,7 +181,7 @@ export default function Lightbox({
   const [wmOpen, setWmOpen] = useState(false); // 水印 / 相框工作台
   const [rotOpen, setRotOpen] = useState(false); // 旋转方向菜单（左转 / 右转）
   // 底部详情：默认只留一行摘要，要看完整字段再展开；选择记在本地，下次还按上次的样子
-  const [infoOpen, setInfoOpen] = useState(() => localStorage.getItem('gem:lb-info') === '1');
+  const [infoOpen, setInfoOpen] = useState(() => localStorage.getItem('tuku:lb-info') === '1');
   // 素材工具箱（检查器 / OCR / 来源 / 版本 / 多区域裁切）；点开后只加载当前页签的数据
   const [toolkit, setToolkit] = useState<ToolkitTab | null>(null);
   // 图片对比：默认拿「当前 + 下一张」，可换两侧
@@ -575,7 +575,7 @@ export default function Lightbox({
 
   // 详情折叠状态持久化
   useEffect(() => {
-    localStorage.setItem('gem:lb-info', infoOpen ? '1' : '0');
+    localStorage.setItem('tuku:lb-info', infoOpen ? '1' : '0');
   }, [infoOpen]);
 
 

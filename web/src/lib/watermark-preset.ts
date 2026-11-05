@@ -11,7 +11,7 @@ import type { WatermarkParams } from '../api';
 import type { WatermarkPreset, WatermarkPresetParams } from '../types';
 
 /** 导出文件的标识：导入时先认这个，避免把随便一个 JSON 当预设灌进来 */
-export const PRESET_KIND = 'gemvault.watermark-presets';
+export const PRESET_KIND = 'tuku.watermark-presets';
 export const PRESET_VERSION = 1;
 
 const str = (v: unknown, max: number, dflt = ''): string => {
@@ -85,7 +85,8 @@ export function parsePresetFile(raw: unknown): { presets: WatermarkPreset[]; ski
   let list: unknown = raw;
   if (raw && typeof raw === 'object' && !Array.isArray(raw)) {
     const obj = raw as Record<string, unknown>;
-    if (obj.kind && obj.kind !== PRESET_KIND) {
+    // 只认后缀：早先导出的文件 kind 前缀不同，但结构完全一样，不该因此拒收
+    if (obj.kind && !String(obj.kind).endsWith('.watermark-presets')) {
       throw new Error('这不是水印预设文件（kind 不匹配）');
     }
     list = obj.presets;

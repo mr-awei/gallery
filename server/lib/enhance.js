@@ -377,7 +377,7 @@ function getByPath(obj, p) {
  * 不用 FormData：Electron 的 net.fetch 走 Chromium 实现，与 Node 的 FormData/File 不互通。
  */
 function buildMultipart(parts, file) {
-  const boundary = `----GemEnhance${crypto.randomBytes(12).toString('hex')}`;
+  const boundary = `----TuKuEnhance${crypto.randomBytes(12).toString('hex')}`;
   const chunks = [];
   for (const p of parts) {
     chunks.push(

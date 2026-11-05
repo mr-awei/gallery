@@ -16,7 +16,7 @@ const svg = (s) => `<svg width="${s}" height="${s}" viewBox="0 0 512 512" xmlns=
       <stop offset="0.55" stop-color="#a23cf0"/>
       <stop offset="1" stop-color="#f857a6"/>
     </linearGradient>
-    <linearGradient id="gem" x1="0" y1="0" x2="1" y2="1">
+    <linearGradient id="tuku" x1="0" y1="0" x2="1" y2="1">
       <stop offset="0" stop-color="#ffffff"/>
       <stop offset="1" stop-color="#ffd9f2"/>
     </linearGradient>
@@ -24,7 +24,7 @@ const svg = (s) => `<svg width="${s}" height="${s}" viewBox="0 0 512 512" xmlns=
   <rect width="512" height="512" rx="112" fill="url(#bg)"/>
   <rect x="14" y="14" width="484" height="484" rx="100" fill="none" stroke="#ffffff" stroke-opacity="0.18" stroke-width="10"/>
   <g transform="translate(256 252)">
-    <path d="M0 -168 L104 -44 L0 178 L-104 -44 Z" fill="url(#gem)"/>
+    <path d="M0 -168 L104 -44 L0 178 L-104 -44 Z" fill="url(#tuku)"/>
     <path d="M-104 -44 L104 -44 L0 178 Z" fill="#e7b6ff" opacity="0.45"/>
     <path d="M0 -168 L104 -44 L0 178 L-104 -44 Z" fill="none" stroke="#ffffff" stroke-width="12" stroke-opacity="0.95"/>
     <path d="M0 -168 L0 178 M-104 -44 L104 -44" stroke="#ffffff" stroke-width="6" stroke-opacity="0.55"/>

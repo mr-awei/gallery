@@ -6,7 +6,7 @@
  */
 export type Theme = 'dark' | 'light';
 
-const KEY = 'gem-theme';
+const KEY = 'tuku-theme';
 
 export function getStoredTheme(): Theme {
   try {

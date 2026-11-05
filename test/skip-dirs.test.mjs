@@ -3,14 +3,14 @@ import assert from 'node:assert/strict';
 import { shouldSkipDir, isSkippedPath } from '../server/lib/skip-dirs.js';
 
 // 扫描（bulk-import）和监听（fs.watch）共用这一份排除表。
-// 以前两份各写各的，加 .gemvault 时漏掉了真正干活的那一份 —— 库数据默认就建在
+// 以前两份各写各的，加 .tuku 时漏掉了真正干活的那一份 —— 库数据默认就建在
 // 素材文件夹里，漏了就变成「扫描把库自己的缩略图当新素材吸进来」。
 
-test('库数据目录 .gemvault 一律跳过', () => {
-  assert.equal(shouldSkipDir('.gemvault'), true);
-  assert.equal(shouldSkipDir('.GemVault'), true, 'Windows 大小写不敏感');
+test('库数据目录 .tuku 一律跳过', () => {
+  assert.equal(shouldSkipDir('.tuku'), true);
+  assert.equal(shouldSkipDir('.TuKu'), true, 'Windows 大小写不敏感');
   assert.equal(
-    isSkippedPath('E:\\白底图\\.gemvault\\lib_abc\\thumbs\\01\\12-pv.jpg'),
+    isSkippedPath('E:\\白底图\\.tuku\\lib_abc\\thumbs\\01\\12-pv.jpg'),
     true,
     'watch 给的绝对路径同样要挡住，否则每写一张缩略图就触发一轮回扫'
   );

@@ -5,7 +5,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { probeMedia } from '../server/lib/media-probe.js';
 
-const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'gem-probe-test-'));
+const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'tuku-probe-test-'));
 
 function write(name, buf) {
   const p = path.join(tmp, name);

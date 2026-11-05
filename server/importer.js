@@ -11,7 +11,7 @@ import { shouldSkipDir, isSkippedPath } from './lib/skip-dirs.js';
 import { liveBus } from './live-bus.js';
 
 // 扫描/监听白名单：图片 + Eagle 式多格式素材（视频/音频/字体/PDF/Office/3D）
-// 排除表（thumbs / .gemvault / .library …）统一在 lib/skip-dirs.js，别再本地复制一份
+// 排除表（thumbs / .tuku / .library …）统一在 lib/skip-dirs.js，别再本地复制一份
 const EXTS = new Set(['.jpg', '.jpeg', '.png', '.webp', ...[...MEDIA_EXTS].map((e) => `.${e}`)]);
 const DEFAULT_MAX_DEPTH = 4;
 
@@ -231,7 +231,7 @@ export function watchStorageDir() {
       if (getSettings().watchEnabled === false) return;
       const full = path.join(dir, filename);
       if (!EXTS.has(path.extname(full).toLowerCase())) return;
-      // 跳过回收站 / 缩略图 / 库数据目录（.gemvault）/ 资产目录（.library）等内部目录。
+      // 跳过回收站 / 缩略图 / 库数据目录（.tuku）/ 资产目录（.library）等内部目录。
       // 这一条尤其关键：库数据默认就在素材文件夹里，监听不过滤的话
       // 每写一张缩略图就触发一轮回扫
       if (isSkippedPath(full)) return;

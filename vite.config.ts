@@ -12,8 +12,8 @@ export default defineConfig({
     port: 5173,
     proxy: {
       // 后端地址可用环境变量覆盖（多实例/测试时用），默认 3001
-      '/api': process.env.GEM_API_PROXY || 'http://localhost:3001',
-      '/files': process.env.GEM_API_PROXY || 'http://localhost:3001',
+      '/api': process.env.TUKU_API_PROXY || 'http://localhost:3001',
+      '/files': process.env.TUKU_API_PROXY || 'http://localhost:3001',
     },
   },
 });

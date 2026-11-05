@@ -16,7 +16,7 @@ import { fileURLToPath } from 'node:url';
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const PORT = 38790 + Math.floor(Math.random() * 500);
 const BASE = `http://127.0.0.1:${PORT}`;
-const tmpUser = fs.mkdtempSync(path.join(os.tmpdir(), 'gemvault-smoke-'));
+const tmpUser = fs.mkdtempSync(path.join(os.tmpdir(), 'tuku-smoke-'));
 
 const results = [];
 const check = (name, ok, detail = '') => {
@@ -54,12 +54,12 @@ const server = spawn(process.execPath, ['server/index.js'], {
   env: {
     ...process.env,
     PORT: String(PORT),
-    GEM_USER_DATA: tmpUser,
-    GEM_DATA_DIR: path.join(tmpUser, 'data'),
-    GEM_DEFAULT_STORAGE_DIR: path.join(tmpUser, 'storage'),
+    TUKU_USER_DATA: tmpUser,
+    TUKU_DATA_DIR: path.join(tmpUser, 'data'),
+    TUKU_DEFAULT_STORAGE_DIR: path.join(tmpUser, 'storage'),
     // 关掉 CLIP：不然入库查重要看「模型加载完没」——CI 上模型就绪了会把噪点图判成重复，
     // 本地没加载又通过，同一份代码两种结论。这里只测接口行为，不需要深度特征。
-    GEM_CLIP: 'off',
+    TUKU_CLIP: 'off',
     NO_COLOR: '1',
   },
   stdio: ['ignore', 'pipe', 'pipe'],
@@ -713,8 +713,8 @@ try {
     check('灯箱预览图：小体积 JPEG 且可缓存复用', okPv, detail);
   }
 
-  // 新建资源库：只填「素材文件夹」，库数据自动落到 <素材文件夹>/.gemvault/ 下。
-  // 这条守住「用户只需要回答一个问题」以及删库时会把 .gemvault 空壳一起收掉。
+  // 新建资源库：只填「素材文件夹」，库数据自动落到 <素材文件夹>/.tuku/ 下。
+  // 这条守住「用户只需要回答一个问题」以及删库时会把 .tuku 空壳一起收掉。
   {
     const rootDir = path.join(tmpUser, 'lib-smoke-root');
     fs.mkdirSync(rootDir, { recursive: true });
@@ -727,20 +727,20 @@ try {
     const newId = createdJson?.id;
     const list = await (await fetch(`${BASE}/api/libraries`, auth)).json().catch(() => ({}));
     const row = (list.libraries || []).find((l) => l.id === newId);
-    const expectedBase = path.join(rootDir, '.gemvault');
+    const expectedBase = path.join(rootDir, '.tuku');
     const okLib =
       created.ok &&
       !!row &&
-      // 没有第二个目录参数：数据就在素材文件夹下的 .gemvault 里
+      // 没有第二个目录参数：数据就在素材文件夹下的 .tuku 里
       path.resolve(row.path).startsWith(path.resolve(expectedBase)) &&
       path.resolve(row.root_path) === path.resolve(rootDir) &&
       fs.existsSync(path.join(row.path, 'gallery.db'));
-    // 删库：库目录和 .gemvault 空壳都要收掉（删文件是接口返回后的异步动作，等一会儿）
+    // 删库：库目录和 .tuku 空壳都要收掉（删文件是接口返回后的异步动作，等一会儿）
     if (row) await fetch(`${BASE}/api/libraries/${newId}`, { method: 'DELETE', ...auth });
     await new Promise((r) => setTimeout(r, 600));
     const shellGone = !fs.existsSync(expectedBase) || fs.readdirSync(expectedBase).length === 0;
     check(
-      '新建资源库：只需素材文件夹，数据自动落在 .gemvault',
+      '新建资源库：只需素材文件夹，数据自动落在 .tuku',
       okLib && shellGone,
       `${created.status} path=${row?.path || '-'} 空壳已清=${shellGone}`
     );

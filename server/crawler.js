@@ -25,11 +25,11 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
  */
 export const CRAWL_LIMITS = {
   /** 单次搜索请求超时（ms） */
-  SEARCH_TIMEOUT: Number(process.env.GEM_CRAWL_TIMEOUT) || 15000,
+  SEARCH_TIMEOUT: Number(process.env.TUKU_CRAWL_TIMEOUT) || 15000,
   /** 单图下载超时（ms） */
-  DOWNLOAD_TIMEOUT: Number(process.env.GEM_CRAWL_DL_TIMEOUT) || 25000,
+  DOWNLOAD_TIMEOUT: Number(process.env.TUKU_CRAWL_DL_TIMEOUT) || 25000,
   /** 搜索请求重试次数 */
-  SEARCH_RETRIES: Number(process.env.GEM_CRAWL_RETRIES) || 2,
+  SEARCH_RETRIES: Number(process.env.TUKU_CRAWL_RETRIES) || 2,
   /** 下载并发上限（用户设置里的 concurrency 会被夹到这个范围内） */
   MAX_CONCURRENCY: 12,
   /** 每个关键词最多翻多少页 */

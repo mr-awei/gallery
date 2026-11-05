@@ -14,7 +14,7 @@ import { removeFlatBackground } from '../server/lib/flatcut.js';
  * 这里专门用「蓝框里套一块白」的图把它钉住。
  */
 
-const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'gemvault-flatcut-'));
+const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'tuku-flatcut-'));
 const W = 800;
 const H = 600;
 

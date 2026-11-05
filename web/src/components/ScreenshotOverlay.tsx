@@ -17,7 +17,7 @@ const MIN_SIZE = 4;
 
 /**
  * 截图入库（Eagle 三件套之三）：主进程抓全屏底图 → 这里画框选区 → canvas 裁剪 → 走普通上传入库。
- * 快捷键 / 托盘 / 界面按钮都会派发 gem:screenshot，统一进这个遮罩。
+ * 快捷键 / 托盘 / 界面按钮都会派发 tuku:screenshot，统一进这个遮罩。
  */
 export default function ScreenshotOverlay({ onImported, onToast }: Props) {
   const [shot, setShot] = useState<{ src: string; w: number; h: number } | null>(null);
@@ -51,10 +51,10 @@ export default function ScreenshotOverlay({ onImported, onToast }: Props) {
   /* 全局入口：界面按钮（自定义事件）+ 主进程快捷键/托盘 */
   useEffect(() => {
     const handler = () => void open();
-    window.addEventListener('gem:screenshot', handler);
+    window.addEventListener('tuku:screenshot', handler);
     const off = desktop?.onShotRequest?.(handler);
     return () => {
-      window.removeEventListener('gem:screenshot', handler);
+      window.removeEventListener('tuku:screenshot', handler);
       off?.();
     };
   }, [open]);

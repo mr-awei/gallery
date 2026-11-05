@@ -5,7 +5,7 @@ import { useCallback, useEffect, useState } from 'react';
  * 存 localStorage 而不是库设置，是因为这是纯个人界面偏好，
  * 换图库/换电脑后按设备各自适应屏幕大小更合理。
  */
-const PREFIX = 'gem.toolbar.';
+const PREFIX = 'tuku.toolbar.';
 
 export function loadPinned(name: string, defaults: string[]): string[] {
   try {

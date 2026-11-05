@@ -183,7 +183,7 @@ export function register(app, ctx) {
       const name = `壁纸_${row.id}_${row.width}x${row.height}${ext}`;
       res.set(
         'Content-Disposition',
-        `attachment; filename="gem_${row.id}${ext}"; filename*=UTF-8''${encodeURIComponent(name)}`
+        `attachment; filename="tuku_${row.id}${ext}"; filename*=UTF-8''${encodeURIComponent(name)}`
       );
       res.sendFile(row.abs_path);
     })
@@ -208,7 +208,7 @@ export function register(app, ctx) {
     const maxSide = Math.min(12000, Math.max(0, Math.round(Number(opts.maxSide) || 0)));
     const zipName = format ? `图库导出_${rows.length}张_${ZIP_EXT[format]}.zip` : `图库导出_${rows.length}张.zip`;
 
-    res.set('Content-Disposition', `attachment; filename="gem_export.zip"; filename*=UTF-8''${encodeURIComponent(zipName)}`);
+    res.set('Content-Disposition', `attachment; filename="tuku_export.zip"; filename*=UTF-8''${encodeURIComponent(zipName)}`);
     res.set('Content-Type', 'application/zip');
     const archive = archiver('zip', { zlib: { level: 5 } });
     archive.on('error', (err) => res.status(500).end(err.message));

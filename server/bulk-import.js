@@ -46,8 +46,8 @@ import * as clip from './clip.js';
  */
 
 const EXTS = new Set(['.jpg', '.jpeg', '.png', '.webp', ...[...MEDIA_EXTS].map((e) => `.${e}`)]);
-// 排除表（thumbs / .gemvault / .library …）统一在 lib/skip-dirs.js，别再本地复制一份：
-// 之前这里和 importer.js 各有一份，加 .gemvault 时漏掉了真正干活的那一份
+// 排除表（thumbs / .tuku / .library …）统一在 lib/skip-dirs.js，别再本地复制一份：
+// 之前这里和 importer.js 各有一份，加 .tuku 时漏掉了真正干活的那一份
 const DEFAULT_MAX_DEPTH = 4;
 
 /**
@@ -228,7 +228,7 @@ async function* walkChunks(dirs, chunkSize = CHUNK, onDepthSkip = null) {
       for (const e of entries) {
         const full = path.join(dir, e.name);
         if (e.isDirectory()) {
-          // 排除表里除 thumbs / 回收站外，还包括 .gemvault（库数据目录，默认就在素材
+          // 排除表里除 thumbs / 回收站外，还包括 .tuku（库数据目录，默认就在素材
           // 文件夹里）和 .library（资产目录，*.info 是库内图片的副本，由导入到库自己登记）
           if (!shouldSkipDir(e.name)) subDirs.push(full);
           continue;

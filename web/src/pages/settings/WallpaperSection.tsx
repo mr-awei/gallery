@@ -367,7 +367,7 @@ export default function WallpaperSection({ settings, patch, onToast }: Props) {
                             className="input"
                             style={{ flex: 1 }}
                             value={live?.videoPath || ''}
-                            placeholder="C:\\Users\\...\\gem.mp4"
+                            placeholder="C:\\Users\\...\\tuku.mp4"
                             onChange={(e) => applyLive({ videoPath: e.target.value })}
                           />
                           <button

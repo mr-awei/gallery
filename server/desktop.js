@@ -24,7 +24,7 @@ async function electronShell() {
 
 /** 执行一段 PowerShell 脚本（写入 UTF-8 BOM 临时文件，避免中文路径编码问题） */
 async function runPowerShell(body) {
-  const tmp = path.join(os.tmpdir(), `gem_ps_${Date.now()}_${Math.random().toString(36).slice(2)}.ps1`);
+  const tmp = path.join(os.tmpdir(), `tuku_ps_${Date.now()}_${Math.random().toString(36).slice(2)}.ps1`);
   fs.writeFileSync(tmp, '﻿' + body, 'utf8');
   try {
     await execFileAsync('powershell', [
@@ -48,7 +48,7 @@ async function runPowerShell(body) {
 
 /** 执行 PowerShell 并捕获输出 */
 async function runPowerShellCapture(body) {
-  const tmp = path.join(os.tmpdir(), `gem_ps_${Date.now()}_${Math.random().toString(36).slice(2)}.ps1`);
+  const tmp = path.join(os.tmpdir(), `tuku_ps_${Date.now()}_${Math.random().toString(36).slice(2)}.ps1`);
   fs.writeFileSync(tmp, '﻿' + body, 'utf8');
   try {
     const { stdout } = await execFileAsync(
@@ -89,7 +89,7 @@ function csCacheDir() {
           /* 取不到 app 时退回系统临时目录 */
         }
       }
-      if (!dir) dir = path.join(os.tmpdir(), 'gem-cache', 'cs');
+      if (!dir) dir = path.join(os.tmpdir(), 'tuku-cache', 'cs');
       fs.mkdirSync(dir, { recursive: true });
       return dir;
     })();
@@ -153,7 +153,7 @@ public interface IDesktopWallpaper {
   [PreserveSig] int GetPosition(out int position);
 }
 
-public static class GemDesktop {
+public static class TukuDesktop {
   static IDesktopWallpaper W() {
     return (IDesktopWallpaper)Activator.CreateInstance(Type.GetTypeFromCLSID(new Guid("C2CF3110-460E-4fc1-B9D0-8A1C0C9CC4BD")));
   }
@@ -188,8 +188,8 @@ export async function listMonitors() {
     const dll = await ensureCsDll(DW_CS);
     const out = await runPowerShellCapture(
       `$ErrorActionPreference='Stop'\n` +
-        `if (-not ('GemDesktop' -as [type])) {\nAdd-Type -Path '${dll.replace(/'/g, "''")}'\n}\n` +
-        `[GemDesktop]::Monitors() | ForEach-Object { Write-Output $_ }\n`
+        `if (-not ('TukuDesktop' -as [type])) {\nAdd-Type -Path '${dll.replace(/'/g, "''")}'\n}\n` +
+        `[TukuDesktop]::Monitors() | ForEach-Object { Write-Output $_ }\n`
     );
     return String(out || '')
       .split(/\r?\n/)
@@ -213,15 +213,15 @@ export async function listMonitors() {
  */
 export async function setWallpapersCom(assignments, position = 3) {
   if (platform !== 'win32') throw new Error('仅 Windows 支持每个显示器独立壁纸');
-  const job = path.join(os.tmpdir(), `gem_wp_${Date.now()}_${Math.random().toString(36).slice(2)}.json`);
+  const job = path.join(os.tmpdir(), `tuku_wp_${Date.now()}_${Math.random().toString(36).slice(2)}.json`);
   fs.writeFileSync(job, JSON.stringify({ position, items: assignments }), 'utf8');
   try {
     const dll = await ensureCsDll(DW_CS);
     await runPowerShell(
       `$ErrorActionPreference='Stop'\n` +
-        `if (-not ('GemDesktop' -as [type])) {\nAdd-Type -Path '${dll.replace(/'/g, "''")}'\n}\n` +
+        `if (-not ('TukuDesktop' -as [type])) {\nAdd-Type -Path '${dll.replace(/'/g, "''")}'\n}\n` +
         `$o = ConvertFrom-Json (Get-Content -Raw -Encoding UTF8 '${job}')\n` +
-        `foreach ($it in $o.items) { [GemDesktop]::Set([string]$it.monitorId, [string]$it.path, [int]$o.position) }\n`
+        `foreach ($it in $o.items) { [TukuDesktop]::Set([string]$it.monitorId, [string]$it.path, [int]$o.position) }\n`
     );
   } finally {
     try {
@@ -243,7 +243,7 @@ const LIVE_CS = `
 using System;
 using System.Runtime.InteropServices;
 
-public static class GemLive {
+public static class TukuLive {
   delegate bool EnumProc(IntPtr hWnd, IntPtr lParam);
   [DllImport("user32.dll")] static extern IntPtr FindWindow(string cls, string win);
   [DllImport("user32.dll")] static extern IntPtr FindWindowEx(IntPtr parent, IntPtr child, string cls, string win);
@@ -352,8 +352,8 @@ export async function attachLiveWindow(hwndHex, width, height) {
   const dll = await ensureLiveCom();
   const hx = String(hwndHex).trim();
   const out = await runPowerShellCapture(
-    `if (-not ('GemLive' -as [type])) {\nAdd-Type -Path '${dll.replace(/'/g, "''")}'\n}\n` +
-      `[GemLive]::Attach([IntPtr]::new([long]::Parse('${hx}')), ${Number(width) || 0}, ${Number(height) || 0})\n`
+    `if (-not ('TukuLive' -as [type])) {\nAdd-Type -Path '${dll.replace(/'/g, "''")}'\n}\n` +
+      `[TukuLive]::Attach([IntPtr]::new([long]::Parse('${hx}')), ${Number(width) || 0}, ${Number(height) || 0})\n`
   );
   return String(out).trim().toLowerCase() === 'true';
 }
@@ -363,8 +363,8 @@ export async function detachLiveWindow(hwndHex) {
   if (platform !== 'win32') return false;
   const dll = await ensureLiveCom();
   const out = await runPowerShellCapture(
-    `if (-not ('GemLive' -as [type])) {\nAdd-Type -Path '${dll.replace(/'/g, "''")}'\n}\n` +
-      `[GemLive]::Detach([IntPtr]::new([long]::Parse('${String(hwndHex).trim()}')))\n`
+    `if (-not ('TukuLive' -as [type])) {\nAdd-Type -Path '${dll.replace(/'/g, "''")}'\n}\n` +
+      `[TukuLive]::Detach([IntPtr]::new([long]::Parse('${String(hwndHex).trim()}')))\n`
   );
   return String(out).trim().toLowerCase() === 'true';
 }
@@ -374,8 +374,8 @@ export async function liveWindowParent(hwndHex) {
   if (platform !== 'win32') return 0;
   const dll = await ensureLiveCom();
   const out = await runPowerShellCapture(
-    `if (-not ('GemLive' -as [type])) {\nAdd-Type -Path '${dll.replace(/'/g, "''")}'\n}\n` +
-      `[GemLive]::ParentOf([IntPtr]::new([long]::Parse('${String(hwndHex).trim()}')))\n`
+    `if (-not ('TukuLive' -as [type])) {\nAdd-Type -Path '${dll.replace(/'/g, "''")}'\n}\n` +
+      `[TukuLive]::ParentOf([IntPtr]::new([long]::Parse('${String(hwndHex).trim()}')))\n`
   );
   return Number(String(out).trim()) || 0;
 }
@@ -387,8 +387,8 @@ export async function isFullscreenAppRunning() {
     if (!screenSizeCache) screenSizeCache = await getScreenSize();
     const dll = await ensureLiveCom();
     const out = await runPowerShellCapture(
-      `if (-not ('GemLive' -as [type])) {\nAdd-Type -Path '${dll.replace(/'/g, "''")}'\n}\n` +
-        `[GemLive]::FullscreenAppRunning(${screenSizeCache.width}, ${screenSizeCache.height})\n`
+      `if (-not ('TukuLive' -as [type])) {\nAdd-Type -Path '${dll.replace(/'/g, "''")}'\n}\n` +
+        `[TukuLive]::FullscreenAppRunning(${screenSizeCache.width}, ${screenSizeCache.height})\n`
     );
     return String(out).trim().toLowerCase() === 'true';
   } catch {

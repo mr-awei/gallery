@@ -33,7 +33,7 @@ export function getLibrary(id) {
 }
 
 /** 新建一个资源库（不切换），返回新库 id。
- *  库数据默认放在素材文件夹下的隐藏目录 .gemvault/lib_xxx/ —— 库跟着素材走
+ *  库数据默认放在素材文件夹下的隐藏目录 .tuku/lib_xxx/ —— 库跟着素材走
  *  （Eagle 的 xxx.library 同一个思路），整个素材目录拷走就带走了库。
  *  想分开存放就传 libFolder，按其指定位置建。 */
 export function createLibrary({ name, rootPath, libFolder }) {
@@ -42,10 +42,10 @@ export function createLibrary({ name, rootPath, libFolder }) {
   const libDir = String(libFolder || '').trim();
   if (!libName) throw new Error('资源库名称不能为空');
   if (!root && !libDir) throw new Error('请选择素材文件夹');
-  // 默认：数据库 / 缩略图落在 <素材文件夹>/.gemvault/ 里。
+  // 默认：数据库 / 缩略图落在 <素材文件夹>/.tuku/ 里。
   // 以前建库要用户填「库数据目录」+「素材根目录」两个路径，可这两件事在用户脑子里
   // 就是同一个问题（我的图放哪），只有实现者才需要区分。
-  const dataBase = libDir ? path.resolve(libDir) : path.join(path.resolve(root), '.gemvault');
+  const dataBase = libDir ? path.resolve(libDir) : path.join(path.resolve(root), '.tuku');
   // 库目录用 ASCII 名（node:sqlite 在 Windows 中文路径下有句柄泄漏 bug，中文库目录无法删除）。
   // 显示名 name 仍为中文；目录名 = 库名中的 ASCII 字符 + 时间戳，保证唯一且可整体删除。
   const asciiBase = libName.replace(/[^a-zA-Z0-9_-]/g, '') || 'lib';
@@ -172,10 +172,10 @@ export function deleteLibrary(id) {
     } catch {
       /* 非空则保留 */
     }
-    // 库目录默认建在素材文件夹的 .gemvault/ 下：库都删完了就把这个空壳也收掉，
+    // 库目录默认建在素材文件夹的 .tuku/ 下：库都删完了就把这个空壳也收掉，
     // 别在用户素材目录里留下一个空文件夹（还删不掉，看着像垃圾）
     const parent = path.dirname(libDir);
-    if (path.basename(parent).toLowerCase() === '.gemvault') {
+    if (path.basename(parent).toLowerCase() === '.tuku') {
       try {
         fs.rmdirSync(parent);
       } catch {

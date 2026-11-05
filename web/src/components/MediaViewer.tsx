@@ -67,7 +67,7 @@ function useFontFamily(url: string) {
   const [family, setFamily] = useState('');
   useEffect(() => {
     let cancelled = false;
-    const fam = `gemfont-lb-${Math.random().toString(36).slice(2, 9)}`;
+    const fam = `tukufont-lb-${Math.random().toString(36).slice(2, 9)}`;
     let face: FontFace | null = null;
     try {
       face = new FontFace(fam, `url("${url}")`);

@@ -21,7 +21,7 @@ jobs:
       # 校验不需要 Electron 二进制（150MB+）：服务端在纯 Node 下不会去碰它
       ELECTRON_SKIP_BINARY_DOWNLOAD: '1'
       # 冒烟只测接口行为，别为了入库查重去下 CLIP 模型（加载与否会让结论随机变）
-      GEM_CLIP: 'off'
+      TUKU_CLIP: 'off'
     steps:
       - uses: actions/checkout@v4
 
@@ -100,7 +100,7 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          # 删掉整个滚动 Release 再让它重建：产物名带版本号（Gallery-Setup-1.0.2.exe），
+          # 删掉整个滚动 Release 再让它重建：产物名带版本号（TuKu-Setup-1.0.2.exe），
           # 逐个删旧资产既啰嗦又容易漏；顺带让 tag 指向本次提交（action-gh-release 不会挪已存在的 tag）。
           # 首次构建时 rolling 还不存在，gh 会返回非零 —— 别让它把这一步判成失败。
           $PSNativeCommandUseErrorActionPreference = $false

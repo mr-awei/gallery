@@ -10,7 +10,7 @@
  *   - "把收藏里评分高的导出来"     → 组合 list_favorites + ...
  *
  * 运行：node server/mcp-server.mjs   （默认连接 http://127.0.0.1:3001）
- * 端口可用环境变量 GEM_MCP_PORT / GEM_MCP_BASE 覆盖。
+ * 端口可用环境变量 TUKU_MCP_PORT / TUKU_MCP_BASE 覆盖。
  *
  * 协议：JSON-RPC 2.0 over stdio，**每条消息一行 JSON**（MCP stdio 传输规范）。
  * 注意：这里是 MCP，不是 LSP —— 不存在 Content-Length 帧，用 LSP 的帧格式解析会一条都读不出来。
@@ -22,19 +22,19 @@ import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
-const BASE = (process.env.GEM_MCP_BASE || `http://127.0.0.1:${process.env.GEM_MCP_PORT || 3001}`).replace(
+const BASE = (process.env.TUKU_MCP_BASE || `http://127.0.0.1:${process.env.TUKU_MCP_PORT || 3001}`).replace(
   /\/+$/,
   ''
 );
 
 /**
  * 本地 API 已开启鉴权（见 server/auth.js）。令牌解析顺序：
- * 环境变量 GEM_API_TOKEN → 应用用户数据目录/.api-token（打包桌面版）→ 项目根/.api-token（开发模式）。
+ * 环境变量 TUKU_API_TOKEN → 应用用户数据目录/.api-token（打包桌面版）→ 项目根/.api-token（开发模式）。
  */
 function resolveApiToken() {
-  if (process.env.GEM_API_TOKEN) return process.env.GEM_API_TOKEN;
+  if (process.env.TUKU_API_TOKEN) return process.env.TUKU_API_TOKEN;
   const candidates = [];
-  if (process.env.GEM_USER_DATA) candidates.push(path.join(process.env.GEM_USER_DATA, '.api-token'));
+  if (process.env.TUKU_USER_DATA) candidates.push(path.join(process.env.TUKU_USER_DATA, '.api-token'));
   const home = os.homedir();
   if (process.platform === 'win32') {
     candidates.push(path.join(process.env.APPDATA || path.join(home, 'AppData', 'Roaming'), '图库', '.api-token'));
@@ -82,7 +82,7 @@ process.stdin.on('data', (chunk) => {
       continue; // 非法行直接跳过，不影响后续消息
     }
     // handle 是异步的：单个请求出错不能拖垮整个 stdio 循环
-    handle(msg).catch((e) => process.stderr.write(`[gem-mcp] handle error: ${e?.stack || e}\n`));
+    handle(msg).catch((e) => process.stderr.write(`[tuku-mcp] handle error: ${e?.stack || e}\n`));
   }
 });
 process.stdin.on('end', () => process.exit(0));
@@ -257,7 +257,7 @@ async function handle(msg) {
       result: {
         protocolVersion: '2024-11-05',
         capabilities: { tools: {} },
-        serverInfo: { name: 'gem-gallery', version: '1.0.0' },
+        serverInfo: { name: 'tuku-gallery', version: '1.0.0' },
       },
     });
     return;
@@ -304,5 +304,5 @@ async function handle(msg) {
 
 // 防止崩溃导致宿主异常
 process.on('uncaughtException', (e) => {
-  process.stderr.write(`[gem-mcp] uncaught: ${e?.stack || e}\n`);
+  process.stderr.write(`[tuku-mcp] uncaught: ${e?.stack || e}\n`);
 });

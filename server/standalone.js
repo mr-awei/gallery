@@ -16,7 +16,7 @@
 import { settingsBus } from './lib/settings-bus.js';
 import { liveBus } from './live-bus.js';
 
-const isDesktop = process.env.GEM_DESKTOP === '1';
+const isDesktop = process.env.TUKU_DESKTOP === '1';
 
 /** 统一的父进程通道：Electron utilityProcess 用 parentPort，node fork 用 process.send */
 const channel = (() => {
@@ -74,7 +74,7 @@ async function main() {
 
   // 桌面端用随机端口（避免多实例/残留进程抢 3001）；独立运行（npm start / dev）沿用配置端口，
   // 否则 Vite 代理与文档里的 http://localhost:3001 就对不上了
-  const wantPort = Number(process.env.GEM_PORT) || (isDesktop ? 0 : PORT);
+  const wantPort = Number(process.env.TUKU_PORT) || (isDesktop ? 0 : PORT);
   let started;
   try {
     started = await startServer(wantPort, { desktop: isDesktop });

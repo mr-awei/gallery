@@ -95,7 +95,7 @@ export function backupLibrary({ targetDir, includeThumbs = true } = {}) {
   const meta = collectMeta();
   const payload = {
     schema: 1,
-    app: 'GemVault',
+    app: 'TuKu',
     exportedAt: new Date().toISOString(),
     name: active?.name || '图库',
     rootPath: active?.root_path || '',
@@ -112,7 +112,7 @@ export function backupLibrary({ targetDir, includeThumbs = true } = {}) {
   fs.writeFileSync(
     path.join(outDir, 'README.txt'),
     [
-      'GemVault 资源库备份',
+      '图库资源库备份',
       '',
       `导出时间：${payload.exportedAt}`,
       `素材数量：${payload.counts.images}`,
@@ -164,7 +164,7 @@ export function exportMetadataJson() {
   const meta = collectMeta();
   return {
     schema: 1,
-    app: 'GemVault',
+    app: 'TuKu',
     exportedAt: new Date().toISOString(),
     library: { name: getActiveLibrary()?.name, rootPath: getActiveLibrary()?.root_path || '' },
     ...meta,
@@ -215,7 +215,7 @@ export function restoreLibrary({ sourceDir, name, rootPath } = {}) {
   if (!src || !fs.existsSync(src)) throw new Error('备份文件夹不存在');
   const dbFile = path.join(src, 'gallery.db');
   const metaFile = path.join(src, 'library.json');
-  if (!fs.existsSync(dbFile)) throw new Error('这个文件夹里没有 gallery.db，不像是 GemVault 备份');
+  if (!fs.existsSync(dbFile)) throw new Error('这个文件夹里没有 gallery.db，不像是图库备份');
   let meta = {};
   if (fs.existsSync(metaFile)) {
     try {

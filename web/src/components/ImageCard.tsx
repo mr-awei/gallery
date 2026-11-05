@@ -167,7 +167,7 @@ function FontThumb({ url, title }: { url: string; title: string }) {
   const [family, setFamily] = useState('');
   useEffect(() => {
     let cancelled = false;
-    const fam = `gemfont-${Math.random().toString(36).slice(2, 9)}`;
+    const fam = `tukufont-${Math.random().toString(36).slice(2, 9)}`;
     let face: FontFace | null = null;
     try {
       face = new FontFace(fam, `url("${url}")`);
@@ -290,7 +290,7 @@ const ImageCard = React.memo(function ImageCard({
   const fullUrl = BASE + (item.downloadUrl || item.url);
 
   const params: string[] = [];
-  if (reloadToken) params.push(`gemr=${reloadToken}`);
+  if (reloadToken) params.push(`tukur=${reloadToken}`);
   // retry=1 让后端给这张图一次插队生成的机会；带 tick 保证 URL 每次都变（不被缓存挡住）
   if (retryTick) params.push('retry=1', `grt=${retryTick}`);
   const thumbSrc = params.length
@@ -600,7 +600,7 @@ const ImageCard = React.memo(function ImageCard({
         manualSort && onReorderDrop
           ? (e) => {
               // 必须 preventDefault 才允许 drop；只认卡片自己那套 MIME
-              if (!e.dataTransfer.types.includes('application/x-gem-image-id')) return;
+              if (!e.dataTransfer.types.includes('application/x-tuku-image-id')) return;
               e.preventDefault();
               e.dataTransfer.dropEffect = 'move';
               if (!dropHint) setDropHint(true);
@@ -611,7 +611,7 @@ const ImageCard = React.memo(function ImageCard({
       onDrop={
         manualSort && onReorderDrop
           ? (e) => {
-              const raw = e.dataTransfer.getData('application/x-gem-image-id');
+              const raw = e.dataTransfer.getData('application/x-tuku-image-id');
               setDropHint(false);
               if (!raw) return;
               e.preventDefault();
@@ -650,7 +650,7 @@ const ImageCard = React.memo(function ImageCard({
         e.dataTransfer.setData('text/uri-list', fullUrl);
         e.dataTransfer.setData('text/plain', fullUrl);
         // 拖的是选中态卡片时带整批 id，侧栏文件夹树可一次收下多张
-        e.dataTransfer.setData('application/x-gem-image-id', (dragIds?.length ? dragIds : [item.id]).join(','));
+        e.dataTransfer.setData('application/x-tuku-image-id', (dragIds?.length ? dragIds : [item.id]).join(','));
         e.dataTransfer.effectAllowed = 'copy';
       }}
       title={item.title}
@@ -772,7 +772,7 @@ const ImageCard = React.memo(function ImageCard({
             onClick={() => {
               setMenu(null);
               // 不在这里重复实现命令表：交给 App 的命令面板，右键即可搜「导出 / 拼接 / 对比…」
-              window.dispatchEvent(new CustomEvent('gem:palette', { detail: { mode: 'command', itemId: item.id } }));
+              window.dispatchEvent(new CustomEvent('tuku:palette', { detail: { mode: 'command', itemId: item.id } }));
             }}
             title="按名字搜索所有命令（Ctrl+K 也能打开）"
           >

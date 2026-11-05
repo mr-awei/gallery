@@ -86,12 +86,12 @@ export default function TagMetaDialog({ tag, tags, onClose, onSaved, onToast }: 
               className="input"
               style={{ width: '100%' }}
               value={group}
-              list="gem-tag-groups"
+              list="tuku-tag-groups"
               placeholder="例如：人物 / 场景 / 服装"
               autoFocus
               onChange={(e) => setGroup(e.target.value)}
             />
-            <datalist id="gem-tag-groups">
+            <datalist id="tuku-tag-groups">
               {[...new Set(tags.map((t) => t.group).filter(Boolean))].map((g) => (
                 <option key={g} value={g} />
               ))}

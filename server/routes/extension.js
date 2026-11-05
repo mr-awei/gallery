@@ -83,7 +83,7 @@ export function register(app, { asyncRoute }) {
       res.setHeader('Content-Type', 'application/zip');
       res.setHeader(
         'Content-Disposition',
-        `attachment; filename="gemvault-extension.zip"; filename*=UTF-8''${encodeURIComponent(
+        `attachment; filename="tuku-extension.zip"; filename*=UTF-8''${encodeURIComponent(
           `图库采集助手_${manifest?.version || '1.0.0'}.zip`
         )}`
       );

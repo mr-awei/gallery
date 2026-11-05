@@ -18,7 +18,7 @@ interface Props {
 
 type DropPos = 'before' | 'after' | 'child';
 
-const COLLAPSE_KEY = 'gem.tagCollapsed';
+const COLLAPSE_KEY = 'tuku.tagCollapsed';
 
 const readCollapsed = (): string[] => {
   try {

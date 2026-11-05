@@ -20,7 +20,7 @@ export const APP_NAME = '图库';
 export const APP_ICON = path.join(__dirname, '..', 'build', 'icon.ico');
 
 app.setName(APP_NAME);
-app.setAppUserModelId('com.gem.gallery.wallpaper');
+app.setAppUserModelId('com.tuku.gallery.wallpaper');
 
 /* ------------------------- 崩溃捕获与日志落盘（最先初始化） ------------------------- */
 // minidump 只落本地 userData/CrashReports，不上传（隐私优先）；配合日志可定位白屏 / 闪退
@@ -43,11 +43,11 @@ process.on('unhandledRejection', (err) => {
  * 主进程必须等入口模块求值完成才会启动事件循环，若在模块顶层 await import('electron')
  * 会形成死锁（表现为进程活着但无窗口、无端口、无子进程）。
  */
-process.env.GEM_USER_DATA = app.isPackaged ? app.getPath('userData') : APP_ROOT_DIR;
-process.env.GEM_PACKAGED = app.isPackaged ? '1' : '';
+process.env.TUKU_USER_DATA = app.isPackaged ? app.getPath('userData') : APP_ROOT_DIR;
+process.env.TUKU_PACKAGED = app.isPackaged ? '1' : '';
 // 默认图片保存位置：用户「图片」目录下的「图库」文件夹。
 // 不再写死具体路径——任何人安装后都能在设置页改成自己想要的任意文件夹。
-process.env.GEM_DEFAULT_STORAGE_DIR = path.join(app.getPath('pictures'), '图库');
+process.env.TUKU_DEFAULT_STORAGE_DIR = path.join(app.getPath('pictures'), '图库');
 
 // 服务端相关能力（在 app ready 后动态加载）
 // 服务端跑在独立 utilityProcess 里（见 server-host.js），主进程只保留
@@ -207,11 +207,11 @@ function registerShortcuts(win) {
 }
 
 /** 开发用：让桌面窗口加载 Vite 开发服务器（前端热更新），API 走 npm run dev 起的 3001。
- *  打包版一律忽略：--dev-url / GEM_DEV_URL 可加载任意远程页面且携带完整桥接，绝不能在生产生效。 */
+ *  打包版一律忽略：--dev-url / TUKU_DEV_URL 可加载任意远程页面且携带完整桥接，绝不能在生产生效。 */
 function devServerUrl() {
   if (app.isPackaged) return '';
   const arg = process.argv.find((a) => a.startsWith('--dev-url='));
-  return arg ? arg.slice('--dev-url='.length) : process.env.GEM_DEV_URL || '';
+  return arg ? arg.slice('--dev-url='.length) : process.env.TUKU_DEV_URL || '';
 }
 
 /* --------------------------- 导航 / 权限白名单 --------------------------- */
@@ -1305,7 +1305,7 @@ handleIpc('check-for-updates', async () => {
       { method: 'GET' },
       8000
     );
-    const repo = String(cfg?.updateRepo || process.env.GEM_UPDATE_REPO || '').trim();
+    const repo = String(cfg?.updateRepo || process.env.TUKU_UPDATE_REPO || '').trim();
     if (!repo || !/^[\w.-]+\/[\w.-]+$/.test(repo)) {
       return { ok: false, msg: '未配置更新源（设置 updateRepo，如 user/repo）' };
     }
@@ -1337,7 +1337,7 @@ handleIpc('check-for-updates', async () => {
 async function updateRepoSetting() {
   try {
     const cfg = await fetchJson(`http://127.0.0.1:${serverPort}/api/settings`, { method: 'GET' }, 8000);
-    const repo = String(cfg?.updateRepo || process.env.GEM_UPDATE_REPO || '').trim();
+    const repo = String(cfg?.updateRepo || process.env.TUKU_UPDATE_REPO || '').trim();
     return /^[\w.-]+\/[\w.-]+$/.test(repo) ? repo : '';
   } catch {
     return '';
@@ -1387,7 +1387,7 @@ app.whenReady().then(async () => {
   const externalDev = devServerUrl();
   if (externalDev) {
     // 开发模式：API 由 `npm run dev` 的 node 进程提供，令牌取自同一个 .api-token 文件
-    serverPort = Number(process.env.GEM_API_PORT || 3001);
+    serverPort = Number(process.env.TUKU_API_PORT || 3001);
     // 设置走 HTTP 拉一次快照（外部进程不会推 IPC）
     try {
       const res = await fetch(`http://127.0.0.1:${serverPort}/api/settings`, {

@@ -5,8 +5,8 @@ import { fileURLToPath } from 'node:url';
 import path from 'node:path';
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 
-// Extract LIVE_CS (GemLive class) from desktop.js so the verifier can call
-// GemLive.FindWorkerW() to locate the real desktop-layer WorkerW.
+// Extract LIVE_CS (TukuLive class) from desktop.js so the verifier can call
+// TukuLive.FindWorkerW() to locate the real desktop-layer WorkerW.
 const LIVE_CS = (() => {
   try {
     return fs.readFileSync(path.join(ROOT, 'server', 'desktop.js'), 'utf8').match(/const LIVE_CS = `([\s\S]*?)`;/)[1];
@@ -36,7 +36,7 @@ const check = (ok, label, extra = '') => {
 
 /** 本地 API 已开启鉴权：优先环境变量，其次项目根/.api-token（开发模式令牌文件） */
 const API_TOKEN =
-  process.env.GEM_API_TOKEN ||
+  process.env.TUKU_API_TOKEN ||
   (() => {
     try {
       return fs.readFileSync(path.join(ROOT, '.api-token'), 'utf8').trim();
@@ -78,7 +78,7 @@ public class WinChecker {
   }
   public static int CountWorkerWChildren(long[] pids){
     Pids = new HashSet<long>(pids); Count = 0;
-    IntPtr ww = GemLive.FindWorkerW();
+    IntPtr ww = TukuLive.FindWorkerW();
     if (ww != IntPtr.Zero) EnumChildWindows(ww, CountCB, IntPtr.Zero);
     return Count;
   }

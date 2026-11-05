@@ -8,5 +8,6 @@ const out = execSync(
   { encoding: 'utf8' }
 );
 console.log(out);
-console.log('library.js mtime:', fs.statSync('e:/gemvault/server/library.js').mtime.toLocaleString());
-console.log('app.js     mtime:', fs.statSync('e:/gemvault/server/app.js').mtime.toLocaleString());
+// 相对仓库根跑（npm run 的 cwd）
+console.log('library.js mtime:', fs.statSync('server/library.js').mtime.toLocaleString());
+console.log('app.js     mtime:', fs.statSync('server/app.js').mtime.toLocaleString());

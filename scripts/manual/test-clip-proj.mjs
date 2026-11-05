@@ -12,7 +12,12 @@ env.allowLocalModels = false;
 env.remoteHost = process.env.CLIP_HUB_HOST || 'https://hf-mirror.com';
 const MODEL_ID = 'Xenova/clip-vit-base-patch32';
 
-const db = new DatabaseSync('E:/邓紫棋/lib_mvs2ij40/gallery.db', { readOnly: true });
+const dbPath = process.argv[2];
+if (!dbPath) {
+  console.error('用法: node scripts/manual/test-clip-proj.mjs <gallery.db 路径>');
+  process.exit(1);
+}
+const db = new DatabaseSync(dbPath, { readOnly: true });
 const row = db.prepare("SELECT abs_path FROM images WHERE media_kind='image' AND phash<>'' ORDER BY id LIMIT 1").get();
 
 const norm = (v) => {

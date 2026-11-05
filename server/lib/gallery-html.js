@@ -78,7 +78,7 @@ export function renderGalleryHtml(items, opts = {}) {
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<meta name="generator" content="图库 GemVault">
+<meta name="generator" content="图库 TuKu">
 <title>${escapeHtml(title)}</title>
 <style>
   :root{
@@ -143,7 +143,7 @@ export function renderGalleryHtml(items, opts = {}) {
   <div class="head">
     <div>
       <h1>${escapeHtml(title)}</h1>
-      <div class="sub">${count} 张 · 导出于 ${now} · 图库 GemVault</div>
+      <div class="sub">${count} 张 · 导出于 ${now} · 图库 TuKu</div>
     </div>
     <div class="spacer"></div>
     <input id="q" type="search" placeholder="搜索标题或标签…" aria-label="搜索">

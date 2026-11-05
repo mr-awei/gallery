@@ -18,8 +18,8 @@
  */
 (() => {
   if (window.top !== window) return;
-  if (window.__gemDragCollector) return;
-  window.__gemDragCollector = true;
+  if (window.__tukuDragCollector) return;
+  window.__tukuDragCollector = true;
 
   const HIDE_AFTER_MS = 8000; // 拖拽中途静止太久就收起，避免球一直挂着
   const MAX_FILES = 8;

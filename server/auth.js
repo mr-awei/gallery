@@ -18,7 +18,7 @@
  * 4. 健康检查 /api/health：只返回 {ok,time}，无任何图库数据。桌面版监听随机端口，
  *    扩展必须先探测出端口才能调用，因此这里不能要求令牌。
  *
- * 其余调用方（MCP server、调试脚本）从 GEM_API_TOKEN 环境变量或
+ * 其余调用方（MCP server、调试脚本）从 TUKU_API_TOKEN 环境变量或
  * .api-token 文件读取令牌后以 Bearer 头调用。
  *
  * 令牌比较一律用 timingSafeEqual：`===` 会在第一个不同的字节处提前返回，

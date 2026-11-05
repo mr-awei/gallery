@@ -59,7 +59,7 @@ export async function exportEagleLibrary({ destDir, name } = {}) {
   if (!fs.existsSync(dest)) throw new Error('导出目录不存在，请重新选择');
 
   const lib = getActiveLibrary();
-  const libName = safeName(name || lib?.name || 'GemVault', 'GemVault');
+  const libName = safeName(name || lib?.name || 'TuKu', 'TuKu');
   const target = path.join(dest, `${libName}.library`);
   // 只在空目录里建：Eagle 库里同名素材会被覆盖，宁可让用户换个地方
   if (fs.existsSync(target)) {
@@ -111,7 +111,7 @@ export async function exportEagleLibrary({ destDir, name } = {}) {
         modificationTime: now,
         creationTime: now,
         applicationVersion: '4.0.0',
-        description: `由 GemVault 导出（${lib?.name || '当前库'}）`,
+        description: `由 TuKu 导出（${lib?.name || '当前库'}）`,
         name: libName,
       },
       null,

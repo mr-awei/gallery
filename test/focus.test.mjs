@@ -17,7 +17,7 @@ import { detectFocus, parseRatioSpec } from '../server/lib/focus.js';
  * 断言也换成「主体被框保留了多少」这种硬指标 —— 只检查「框大概在中间」是挡不住退化的。
  */
 
-const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'gemvault-focus-'));
+const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'tuku-focus-'));
 const W = 800;
 const H = 600;
 

@@ -102,7 +102,7 @@ const sleepMs = (ms) => new Promise((r) => setTimeout(r, ms));
  */
 export async function writeFileAtomic(target, data, attempts = 5) {
   const dir = path.dirname(target);
-  const tmp = path.join(dir, `.gem-tmp-${process.pid}-${Date.now()}`);
+  const tmp = path.join(dir, `.tuku-tmp-${process.pid}-${Date.now()}`);
   try {
     for (let i = 0; ; i++) {
       try {

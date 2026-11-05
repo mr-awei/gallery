@@ -2,7 +2,7 @@
 import { fileURLToPath } from 'node:url';
 import path from 'node:path';
 const PROJECT_ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
-process.env.GEM_DATA_DIR = process.env.GEM_DATA_DIR || path.join(PROJECT_ROOT, 'data');
+process.env.TUKU_DATA_DIR = process.env.TUKU_DATA_DIR || path.join(PROJECT_ROOT, 'data');
 const { db } = await import('../server/db.js');
 const lib = await import('../server/library.js');
 

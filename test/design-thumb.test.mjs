@@ -8,7 +8,7 @@ import JSZip from 'jszip';
 import { designThumbJpeg, largestJpeg } from '../server/lib/design-thumb.js';
 import { kindOfPath } from '../server/lib/media-kind.js';
 
-const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'gemvault-design-'));
+const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'tuku-design-'));
 test.after(() => fs.rmSync(tmp, { recursive: true, force: true }));
 
 /** 造一张真实 JPEG（sharp 编码，保证是合法图像） */

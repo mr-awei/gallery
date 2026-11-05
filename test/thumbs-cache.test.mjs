@@ -5,10 +5,10 @@ import os from 'node:os';
 import path from 'node:path';
 
 // config 在 import 时读环境变量，所以必须先设好再去动态 import
-const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'gemvault-thumbcache-'));
-process.env.GEM_USER_DATA = tmp;
-process.env.GEM_DATA_DIR = path.join(tmp, 'data');
-process.env.GEM_DEFAULT_STORAGE_DIR = path.join(tmp, 'storage');
+const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'tuku-thumbcache-'));
+process.env.TUKU_USER_DATA = tmp;
+process.env.TUKU_DATA_DIR = path.join(tmp, 'data');
+process.env.TUKU_DEFAULT_STORAGE_DIR = path.join(tmp, 'storage');
 
 const { isCacheFresh, existingThumbPath, existingPreviewPath, thumbPathFor, legacyThumbPath, mtimeOf } = await import(
   '../server/thumbs.js'

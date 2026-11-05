@@ -84,7 +84,7 @@ export default function ColorPad({ value, onChange, palette, title }: Props) {
   const emittedRef = useRef(value);
   /* 有真实图片主色就导出真实色板，否则退回内置通用色板 */
   const swatches = palette && palette.length ? palette : PALETTE;
-  const slug = (title || 'gemvault-palette')
+  const slug = (title || 'tuku-palette')
     .replace(/[\\/:*?"<>|]+/g, '-')
     .replace(/\.[a-z0-9]{2,5}$/i, '')
     .slice(0, 60);
@@ -204,7 +204,7 @@ export default function ColorPad({ value, onChange, palette, title }: Props) {
           type="button"
           className="btn sm"
           title="导出 Adobe 色板（.ase），Photoshop / Illustrator / Affinity 可直接导入"
-          onClick={() => downloadBlob(buildASE(swatches, title || 'GemVault'), `${slug}.ase`)}
+          onClick={() => downloadBlob(buildASE(swatches, title || '图库'), `${slug}.ase`)}
         >
           导出 ASE
         </button>

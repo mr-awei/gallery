@@ -13,7 +13,7 @@ interface Props {
 export default function CommentsPanel({ imageId, onCount, onClose, onToast }: Props) {
   const [list, setList] = useState<ImageComment[]>([]);
   const [body, setBody] = useState('');
-  const [author, setAuthor] = useState(() => localStorage.getItem('gem:author') || '');
+  const [author, setAuthor] = useState(() => localStorage.getItem('tuku:author') || '');
   const [busy, setBusy] = useState(false);
 
   useEffect(() => {
@@ -37,7 +37,7 @@ export default function CommentsPanel({ imageId, onCount, onClose, onToast }: Pr
     if (!text || busy) return;
     setBusy(true);
     try {
-      localStorage.setItem('gem:author', author.trim());
+      localStorage.setItem('tuku:author', author.trim());
       const r = await api.addComment(imageId, text, author.trim());
       setList((l) => [...l, r.comment]);
       onCount?.([...list, r.comment].length);

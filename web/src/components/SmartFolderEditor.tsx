@@ -229,7 +229,7 @@ export default function SmartFolderEditor({ initial, onClose, onSubmit }: Props)
             <input
               className="input"
               value={form.keywords}
-              placeholder="邓紫棋"
+              placeholder="风景 壁纸"
               onChange={(e) => set('keywords', e.target.value)}
             />
           </div>

@@ -13,8 +13,8 @@ import { dominantFromRaw } from './color.js';
  * 现在解码/编码/量化全部在这里（多核并行），主线程只剩 SQLite 批量写入。
  */
 
-const THUMB_WIDTH = Number(process.env.GEM_THUMB_WIDTH || 640);
-const THUMB_QUALITY = Number(process.env.GEM_THUMB_QUALITY || 82);
+const THUMB_WIDTH = Number(process.env.TUKU_THUMB_WIDTH || 640);
+const THUMB_QUALITY = Number(process.env.TUKU_THUMB_QUALITY || 82);
 
 parentPort.on('message', async (job) => {
   const { seq, file, buffer, thumbPath } = job;

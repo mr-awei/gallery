@@ -45,7 +45,7 @@ export function enlargeCandidates(srcUrl) {
 }
 
 function buildMultipart(fields, file) {
-  const boundary = `----GemVault${Date.now().toString(16)}${Math.random().toString(16).slice(2, 8)}`;
+  const boundary = `----TuKu${Date.now().toString(16)}${Math.random().toString(16).slice(2, 8)}`;
   const chunks = [];
   for (const [k, v] of Object.entries(fields)) {
     chunks.push(Buffer.from(`--${boundary}\r\nContent-Disposition: form-data; name="${k}"\r\n\r\n${v}\r\n`));

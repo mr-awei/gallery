@@ -2,7 +2,7 @@
   "manifest_version": 3,
   "name": "图库采集助手",
   "version": "1.3.2",
-  "description": "右键采集 / 拖拽采集网页图片、批量抓取、截图，直接存入本地图库（GemVault）",
+  "description": "右键采集 / 拖拽采集网页图片、批量抓取、截图，直接存入本地图库",
   "permissions": ["contextMenus", "activeTab", "scripting", "downloads", "storage", "tabs", "notifications"],
   "host_permissions": ["<all_urls>", "http://127.0.0.1/*", "http://localhost/*"],
   "action": {

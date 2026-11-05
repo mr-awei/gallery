@@ -50,7 +50,7 @@ export default function WatchCard({ onToast }: { onToast: (msg: string, kind?: '
       <div className="switch-row">
         <span>
           自动导入新文件
-          <span className="hint">　递归监听整个素材文件夹；回收站/缩略图/.gemvault/.library 已排除</span>
+          <span className="hint">　递归监听整个素材文件夹；回收站/缩略图/.tuku/.library 已排除</span>
         </span>
         <input type="checkbox" checked={enabled} disabled={busy} onChange={(e) => void toggle(e.target.checked)} />
       </div>

@@ -21,7 +21,7 @@ import { logoOnlySvg } from '../server/lib/watermark-styles.js';
  * 4. EXIF 必须能从 sharp 的 APP1 载荷里解出来（带 "Exif\0\0" 前缀）。
  */
 
-const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'gemvault-watermark-'));
+const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'tuku-watermark-'));
 const W = 800;
 const H = 600;
 let plainFile = '';

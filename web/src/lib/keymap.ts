@@ -44,9 +44,9 @@ export const DEFAULT_KEYMAP: Record<KeyAction, string> = {
   help: '?',
 };
 
-const STORAGE_KEY = 'gem:keymap';
+const STORAGE_KEY = 'tuku:keymap';
 /** 键位变更事件：同窗口内其它组件（含多开窗口）立即生效 */
-const CHANGE_EVENT = 'gem:keymap-changed';
+const CHANGE_EVENT = 'tuku:keymap-changed';
 
 /** 事件 → 规范化键位串（'Ctrl+Shift+Z' / 'Space' / '?'） */
 export function bindingOf(e: KeyboardEvent): string {

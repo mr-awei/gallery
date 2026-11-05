@@ -7,7 +7,7 @@ import { IconClose, IconFolder } from './Icons';
  * 新建资源库对话框。
  *
  * 只问两件事：叫什么、图片在哪个文件夹。库数据（gallery.db / thumbs）默认
- * 落在素材文件夹下的隐藏目录 .gemvault/ 里 —— 库跟着素材走，用户不用回答
+ * 落在素材文件夹下的隐藏目录 .tuku/ 里 —— 库跟着素材走，用户不用回答
  * 「数据库和图片分别放哪」这个只有实现者才关心的问题（以前要填两个目录）。
  * 想分开存放的走折叠的「高级」。
  */
@@ -29,7 +29,7 @@ function baseName(p: string) {
 function defaultDataDir(root: string) {
   if (!root) return '';
   const sep = root.includes('\\') ? '\\' : '/';
-  return `${root.replace(/[\\/]+$/, '')}${sep}.gemvault`;
+  return `${root.replace(/[\\/]+$/, '')}${sep}.tuku`;
 }
 
 export default function CreateLibraryDialog({ onCancel, onDone, onToast, welcome = false }: Props) {
@@ -168,7 +168,7 @@ export default function CreateLibraryDialog({ onCancel, onDone, onToast, welcome
                   style={{ flex: 1 }}
                   value={libFolder}
                   placeholder={
-                    rootPath ? `默认：${defaultDataDir(rootPath)}` : '默认建在素材文件夹下的 .gemvault 里'
+                    rootPath ? `默认：${defaultDataDir(rootPath)}` : '默认建在素材文件夹下的 .tuku 里'
                   }
                   readOnly={isDesktop}
                   onChange={(e) => setLibFolder(e.target.value)}

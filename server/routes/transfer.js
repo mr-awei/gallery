@@ -35,14 +35,14 @@ export function register(app, ctx) {
   app.get('/api/transfer/metadata.json', (req, res) => {
     const data = exportMetadataJson();
     res.setHeader('Content-Type', 'application/json; charset=utf-8');
-    res.setHeader('Content-Disposition', `attachment; filename="gemvault-library.json"; filename*=UTF-8''${encodeURIComponent('图库元数据.json')}`);
+    res.setHeader('Content-Disposition', `attachment; filename="tuku-library.json"; filename*=UTF-8''${encodeURIComponent('图库元数据.json')}`);
     res.send(JSON.stringify(data, null, 2));
   });
 
   app.get('/api/transfer/metadata.csv', (req, res) => {
     const csv = exportMetadataCsv();
     res.setHeader('Content-Type', 'text/csv; charset=utf-8');
-    res.setHeader('Content-Disposition', `attachment; filename="gemvault-images.csv"; filename*=UTF-8''${encodeURIComponent('图库素材清单.csv')}`);
+    res.setHeader('Content-Disposition', `attachment; filename="tuku-images.csv"; filename*=UTF-8''${encodeURIComponent('图库素材清单.csv')}`);
     res.send(csv);
   });
 
