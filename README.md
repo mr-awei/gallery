@@ -1,191 +1,337 @@
-# 图库
+# 图库 TuKu
 
-**桌面应用（Electron）**：多源采集、去重、筛选、浏览与管理本地高清图片，图片**直接保存到本地文件夹**，可一键设为桌面壁纸。
-技术栈：**Electron + Node 22+（内置 `node:sqlite`）+ Express 5 + sharp + React 18 + Vite 6**，无需外部数据库。
+> 本地优先的图片素材管理器：像 Eagle 一样管图，但数据全在你自己硬盘上。
+> Electron + React + SQLite，为百万级图库设计。
 
-## 启动桌面应用
+[![Build Windows Installer](https://github.com/mr-awei/gallery/actions/workflows/build.yml/badge.svg)](https://github.com/mr-awei/gallery/actions/workflows/build.yml)
+[![Latest Release](https://img.shields.io/github/v/release/mr-awei/gallery?label=release)](https://github.com/mr-awei/gallery/releases/latest)
+[![Node](https://img.shields.io/badge/node-%E2%89%A522.5-339933)](https://nodejs.org/)
 
-```bash
-npm install            # 仓库根目录执行（应用代码就在本仓库内，无需进入子目录）
-npm run desktop        # 先构建前端，再启动 Electron 窗口
-```
+- GitHub：<https://github.com/mr-awei/gallery>
+- Gitee 镜像：<https://gitee.com/mr-awei/gallery>
 
-首次启动后：设置 → 通用 →「保存文件夹」→ 选择你要存放照片的目录。
-采集到的图片会以 `关键词_来源_宽x高_时间.jpg` 直接写入该目录，可用资源管理器直接浏览。
-
-其它命令：
-
-```bash
-npm run desktop:dev    # 已构建过前端，只启动 Electron
-npm start              # 网页模式（浏览器访问 http://localhost:3001）
-npm run dev            # 前端热更新 http://localhost:5173 + 后端 :3001
-npm run verify         # 提交前跑一遍：eslint + 双 tsconfig 类型检查 + 单测 + 服务端冒烟
-npm run unit           # 只跑 node --test 单测（test/ 下）
-npm run smoke          # 只跑接口冒烟（真起服务、临时目录，不碰你的图库）
-npm run lint           # eslint + 自定义静态检查
-```
-
-> 已存在的素材用「导入本地素材」登记（按原路径登记，不复制），导入过程会去重并生成缩略图；
-> 每个素材文件夹就是一个资源库，库数据放在该文件夹下的 `.tuku/` 里，随素材一起搬走。
-
-## 功能
-
-| 模块 | 说明 |
-|---|---|
-| 多资源库 | 一个素材文件夹 = 一个资源库，各自独立的 `gallery.db` 与缩略图；左上角切换 / 新建 / 重命名，跨库访问被库代数与根路径前缀双重拦截 |
-| 多源采集 | 必应图片 / 百度图片 / 搜狗图片 / Wallhaven / 微博，关键词可增删改，每关键词可配置页数；**边搜边下载**，双进度条 + 失败明细（含原因），已下载 URL 跳过；任务落 `jobs` 表，中断可续采 |
-| 网络代理 | 关闭 / 系统代理 / HTTP / HTTPS / SOCKS5 / SOCKS4 + 主机、端口、账号密码、测试连接；采集、下载、AI 全部生效 |
-| 质量过滤 | 长边最小像素、最小文件大小、格式白名单、单张体积上限；深度过滤规则可配 |
-| 去重 | pHash（DCT 感知哈希）+ MD5 精确重复 + CLIP 语义相似三路；支持「全库 / 当前筛选 / 已选」三种扫描范围 |
-| 图库浏览 | 瀑布流 / 网格 / **列表**三视图，列表可按名称、体积、时间排序；缩略图懒加载、无限滚动、多层级文件夹树 |
-| 媒体预览 | 图片 / 视频 / 音频 / PDF（内嵌阅读器 + 页码跳转）/ PSD / Office（docx、xlsx）/ 3D（glb、gltf、obj、fbx、stl、ply）|
-| 大图预览 | Lightbox 全屏查看，信息检查器（分辨率 / 体积 / 来源 / 关键词 / 时间 / EXIF / 版本），ESC 关闭、方向键切换、收藏与标签编辑；预览图按可见区预取并带版本号长缓存，翻页与重复打开不糊 |
-| 图片编辑 | 单张与**批量裁切**（逐张框选、焦点检测自动构图）、旋转、调色（曝光/对比度/白平衡/曲线，预览与成品逐像素一致）、画质增强、纯底图抠图、AI 抠图、多区域裁切、**水印 / 相框**（23 款水印 + 20 款相框，读 EXIF 显示品牌型号 / 镜头 / 光圈 / 快门 / ISO / 时间 / 拍摄地点，可勾选、可批量）；写回前自动存版本 |
-| 版本历史 | 每次改写原图前保存旧文件，可按版本预览、回滚（回滚前再存一份，避免连锁丢失） |
-| 整理工具 | 相似图分组（pHash / CLIP）、同目录同名跨格式重复、拼接联系表（最多 60 张，1–12 列、间距、底色、输出格式）、并排 / 分割 / 重叠三种对比 |
-| OCR | Windows 系统 WinRT OCR（零外部二进制），识别图内文字并写入索引，可直接参与关键词搜索 |
-| 外部以图搜图 | SauceNAO 上传识别；Google Lens / TinEye 对带公网 `source_url` 的图可直链打开；并尝试推断更大的原图地址一键换大图 |
-| 动作（Actions） | 可编排的步骤：打标签 / 移入文件夹 / 评分 / 写备注 / 改标题 / 收藏 / OCR / AI 描述 / 自定义 AI 提示；支持按筛选预估命中数与批量执行 |
-| 书签浏览器 | 保存网页书签（标题、描述、封面、离线 HTML 快照，快照以 CSP `script-src 'none'` 提供），左侧列表预览、右侧直接看快照，可打开原网址 / 复制链接 / 重命名 / 删除 |
-| 命令面板 | `Ctrl/⌘+K` 搜命令，`Alt+F` 搜筛选器，卡片右键「搜索命令…」；导航、操作、界面、帮助统一入口 |
-| 收藏与标签 | 心形收藏、收藏夹视图、自定义标签（含标签元数据）与按标签筛选 |
-| 下载与导出 | 单张下载、批量选中打包 ZIP、导出 HTML 画廊（单文件内嵌缩略图）、元数据 JSON / CSV |
-| 数据出口 | 备份（VACUUM INTO 的 `gallery.db` + 可读 `library.json` + 可选缩略图）→ 恢复为新库时按旧根目录重映射绝对路径；从 Eagle 4 `.library` 迁移（名称/标签/备注/来源） |
-| 维护工具 | 库体检（张数 / 文件缺失 / 缩略图占用 / DB 体积 / 可撤销数）、重建缺失与过期缩略图（按原图 `mtime` 判断，重建后重算 pHash 并更新 `cover_ver`）、清理孤立缩略图（先试运行报数量再确认删除）、压缩数据库（`VACUUM` + 完整性检查）、补算音视频时长、库-盘失配的「尝试找回 / 移除记录」 |
-| 桌面能力 | 图片直接落盘；「设为桌面壁纸」「在文件夹中显示」、原生拖拽导出、开机自启、托盘、全局快捷键、应用内更新 |
-| AI 接入 | OpenAI 兼容接口，内置常见预设 + 自定义 Base URL / Key / 文本与视觉模型；支持拉取模型列表与测试连接；AI 结果可追溯（搜索会标明实际使用的引擎） |
-| AI 知识库 | 删除图片时选择「为什么不满意」并可让 AI 看图补充 → 沉淀为规则（来源/关键词/分辨率/宽高比/标签/相似画面/AI 描述词）→ 打分、降权排序、采集过滤、生成采集建议 |
-| 采集扩展 | Chrome MV3 扩展：单图 / 本页全部图片 / 可见区域截图 / **整页滚动截图**入库；端口自动探测，扩展 ID 固定 |
-| 仪表盘 | 总数 / 收藏数 / 体积 / 来源分布 / 分辨率分布 / 采集趋势 / 最近与最高画质预览 |
-| 设置 | 采集参数、去重阈值、采集源开关、关键词、保存位置与多库、回收站、代理、AI、任务、扩展、备份恢复、应用更新、**新手教程**（分步导览可随时重看／关闭自动弹） |
-| 新手教程 | 7 步高亮导览（侧栏 → 工具箱 → 筛选 → 网格 → 大图编辑 → 设置），可逐步「下一步」或一键跳过；看完/跳过记入设置，之后可在 设置 → 新手教程 重看 |
-
-## API
-
-接口按领域拆在 `server/routes/*.js`，每个文件 `register(app, ctx)` 挂载；下表是主要入口，逐条全量列表以各路由文件为准。
-
-```
-# 资源与浏览
-GET    /api/stats                       统计概览
-GET    /api/images?q=&source=&favorite=&orientation=&bucket=&tag=&sort=&page=
-GET    /api/images/:id                  PATCH(收藏/标签/标题/备注)  DELETE
-GET    /api/images/:id/thumb|file|download|snapshot
-GET    /api/images/:id/exif|pdf-info|versions|ocr|search-providers
-GET/POST /api/libraries                 多资源库列表 / 新建；POST /api/libraries/:id/activate 切换；PUT/DELETE /api/libraries/:id
-GET    /api/folders                     多层级文件夹树
-GET    /api/tags   GET /api/sources   GET /api/smart-folders   GET /api/playlists
-GET    /api/trash   POST /api/trash/:id/restore   POST /api/trash/empty
-
-# 采集、导入、任务
-POST   /api/crawl/start|stop            采集任务（jobs 表可续采）
-POST   /api/import/local                导入本地素材
-POST   /api/extension/ingest            扩展投递（按固定扩展 ID 免令牌）
-GET    /api/jobs   POST /api/jobs/:id/cancel|retry
-GET    /api/ops    POST /api/ops/:id/undo|undo-last     统一撤销栈
-
-# 编辑与增强
-POST   /api/images/:id/crop|rotate|adjust|remove-bg|crop-regions
-POST   /api/enhance/:id                 画质增强（单张）；POST /api/enhance/job/start 批量
-GET    /api/images/:id/versions         版本列表 / 预览 / 回滚
-POST   /api/images/batch/edit           批量编辑作业；GET /api/edit/job 查进度，POST /api/edit/job/cancel 取消
-
-# 整理
-GET    /api/similar?threshold=&ids=      pHash 相似分组（ids 限定扫描范围）
-GET    /api/similar/clip?minCos=&ids=    CLIP 语义相似分组
-GET    /api/dupes/format|md5             同目录跨格式 / MD5 精确重复
-POST   /api/similar/resolve              保留一张、其余进回收站
-POST   /api/maintenance/dominant|subject 主色 / 主体哈希补算
-
-# OCR、来源、动作
-POST   /api/images/:id/ocr   GET /api/ocr/status
-POST   /api/images/:id/reverse-search   GET .../upgrade-source/preview   POST /api/images/:id/upgrade-source
-GET/POST/PUT/DELETE /api/actions        动作编排；GET /api/actions/:id/preview
-
-# 导出与数据出口
-GET    /api/export/options   GET /api/export/stitch?ids=   联系表
-GET    /api/export/gallery                                 单文件 HTML 画廊（附件下载）
-GET    /api/transfer/preview|metadata.json|metadata.csv
-POST   /api/transfer/backup|restore|import-eagle            备份 / 恢复 / Eagle 迁移
-
-# 设置与系统
-GET/PUT /api/settings   GET/PUT /api/network   POST /api/network/test
-GET    /api/ai/presets|status   POST /api/ai/test|models|analyze
-GET    /api/kb/rules|feedback|stats   POST /api/kb/rescore
-POST   /api/images/:id/wallpaper   GET/POST /api/wallpaper/*
-GET    /api/health
-```
+---
 
 ## 目录
 
+- [它解决什么问题](#它解决什么问题)
+- [下载与安装](#下载与安装)
+- [自动更新（强制）](#自动更新强制)
+- [功能详解](#功能详解)
+  - [图库与浏览](#1-图库与浏览)
+  - [资源库 / 文件夹 / 标签](#2-资源库--文件夹--标签)
+  - [采集与导入](#3-采集与导入)
+  - [查重与整理](#4-查重与整理)
+  - [编辑、增强与水印](#5-编辑增强与水印)
+  - [壁纸引擎](#6-壁纸引擎)
+  - [AI 能力](#7-ai-能力)
+  - [效率工具](#8-效率工具)
+  - [数据、备份与安全](#9-数据备份与安全)
+- [MCP：让 AI 客户端直接操作图库](#mcp让-ai-客户端直接操作图库)
+- [从源码开始](#从源码开始)
+- [技术架构](#技术架构)
+- [目录结构](#目录结构)
+- [开发脚本](#开发脚本)
+- [打包、签名与发布](#打包签名与发布)
+- [常见问题](#常见问题)
+- [边界与说明](#边界与说明)
+
+---
+
+## 它解决什么问题
+
+设计师、运营、自媒体、摄影师的硬盘里通常躺着几万到上百万张图：素材网站存的、截图工具截的、手机导出的、从微信里翻出来的。系统资源管理器只有文件名和日期，找一张「上次那个蓝色渐变的登录页参考」基本靠翻。
+
+图库把这件事做成可检索的本地素材库：
+
+- **原图一个字节都不动** —— 只在自己的库数据里记录索引、缩略图和编辑参数；除裁切/旋转/调色等显式写回操作外，图片文件保持原样。
+- **数据全在本机** —— 不注册账号、不上传图库内容，AI 能力可选本地模型或自填密钥，关掉网络也能浏览与管理。
+- **按「素材库」而不是「文件夹」组织** —— 多资源库、任意层级文件夹、标签、智能文件夹、评分与颜色标记，一套东西同时满足「按项目分」和「按主题分」。
+
+## 下载与安装
+
+安装包在 [Releases](https://github.com/mr-awei/gallery/releases/latest) 里，文件名形如 `TuKu-Setup-<版本>.exe`。
+
+| 项 | 说明 |
+| --- | --- |
+| 系统 | Windows 10 1809 及以上（x64） |
+| 安装目录 | `%LOCALAPPDATA%\Programs\TuKu`（全 ASCII，无中文路径） |
+| 程序数据 | `%APPDATA%\TuKu`（库索引、设置、日志、API 令牌） |
+| 默认素材目录 | `%USERPROFILE%\Pictures\TuKu` |
+| 卸载 | 走系统「应用和功能」；**不会删除你的图片文件** |
+
+首次启动会做三件事：
+
+1. 若默认素材目录为空，放入 5 张随包示例图（只为让你一打开就有东西可看；删掉后不会再被塞回来）；
+2. 自动扫描默认素材目录并建库、生成缩略图；
+3. 向 GitHub Releases 查询新版本 —— 见下一节。
+
+> 日志在 `%APPDATA%\TuKu\logs\`，反馈问题带上日志能省很多来回。
+
+## 自动更新（强制）
+
+这是有意的产品决策：**旧版本不留在用户机器上**。
+
+- 安装版启动约 2.5 秒后自动向 GitHub Releases 查询（`latest.yml`）。
+- 一旦确认有新版本：
+  1. 立刻在后台开始下载安装包；
+  2. 界面被一层**不可关闭的全屏遮罩**接管，不能浏览、不能操作，只有进度条；
+  3. 下载完成后自动拉起安装程序并重启应用。
+- **检查失败（断网、更新源不可达）不会锁界面** —— 没确认有新版本，就没有理由把离线用户挡在门外；进入应用后仍可在「设置 → 应用与更新」手动重试。
+- 开发态（`npm run dev`）永远不检查更新；内网离线部署可设环境变量 `TUKU_FORCE_UPDATE=off` 关闭强制检查（正式安装包不要设）。
+- 遮罩唯一的出口是「重试 / 退出应用」，只在下载或安装反复失败时出现，避免卡成一块黑屏。
+
+**发布即更新**：只有推送 `v*` 标签产生的正式 Release 才会成为更新源；`main` 分支的推送构建成 `rolling` 预发布，不会推给任何用户。详见[打包、签名与发布](#打包签名与发布)。
+
+## 功能详解
+
+### 1. 图库与浏览
+
+- 瀑布流网格 + 详情面板：尺寸、体积、格式、EXIF、来源 URL、入库时间、所属文件夹与标签一次看全。
+- 缩略图分级生成、列表按需加载；滚动与筛选针对**百万级**库设计（分页查询、索引覆盖、缩略图懒加载），不是「几千张能用」的量级。
+- 单选 / 框选 / `Ctrl` 多选 / `Shift` 连选，拖拽即可在文件夹之间移动或打标签。
+- 明暗主题跟随设置，任何界面状态下都有明确的空态与加载态。
+- 回收站：删除先进回收站，可还原、可彻底清除，不会「删了就没了」。
+
+### 2. 资源库 / 文件夹 / 标签
+
+- **多资源库**：每个库是独立目录 + 独立 `gallery.db`，可以分别放在不同硬盘；同一时刻只有一个库处于激活状态，切换即切换数据源。
+- **任意层级文件夹**：树形结构、跨级拖拽、重命名、移动、封面设置。
+- **标签**：多标签筛选、标签重命名与合并、按标签批量操作。
+- **智能文件夹**：把一组筛选条件（格式、评分、颜色、标签、时间、来源、尺寸……）存成可反复打开的入口。
+- **评分与颜色**：五星评分 + 颜色标记，可参与筛选、自动换壁纸的最低评分门槛。
+
+### 3. 采集与导入
+
+- **本地导入**：选择文件夹递归导入，可配置扫描深度、跳过隐藏目录与常见垃圾目录（`node_modules`、`.git`、旧库目录等），增量识别已有文件，不必每次全量重扫。
+- **拖拽投放**：文件 / 文件夹直接拖进窗口中央的投放圆盘。
+- **剪贴板**：粘贴图片或图片地址即可入库。
+- **网页采集**：列表页批量抓取图片（遵守尺寸与格式门槛），支持网络代理。
+- **浏览器扩展**：网页图片右键采集、整页截图回传（扩展 ID 已固定，升级后需在浏览器里重新加载一次扩展）。
+- **屏幕截图**：全屏、框选、滚动长截图（单次最多 20 屏，超出会明确提示而不是静默截断）。
+- 入库自动读取 EXIF、按需生成缩略图、记录来源页 URL，并可按规则自动打标签。
+
+### 4. 查重与整理
+
+- **完全重复**：按 MD5 精确比对。
+- **相似重复**：按感知哈希（pHash）聚类，裁切/压缩/调色过的同一张图也能找出来。
+- 查重面板按组展示，可逐组保留、逐组清理，支持批量。
+- **库-盘一致性检查**：图片在应用外被改名、移动、删除后，能列出失配项并重新关联（这是「明明有图却显示不出来」的最常见原因）。
+- 孤儿缩略图清理：先 `dryRun` 出清单再执行，空库会拒绝清理，避免误删。
+
+### 5. 编辑、增强与水印
+
+- **裁切**：默认按显著度自动定位焦点（不是只会找人脸），支持自由比例与常用比例。
+- **旋转 / 翻转**：无损写回，保留原图备份。
+- **调色**：曝光、对比、饱和、色温、高光/阴影、锐化等，参数化保存；预览渲染与最终成品**逐像素一致**。
+- **全自动调色**：以「不许比原图更闷」为准绳 —— 不压暗、不压平反差、饱和度只增不减。
+- **批量处理**：多选后统一套用，配合统一撤销栈一次回退。
+- **水印 / 相框**：23 款水印 + 20 款相框，型号库覆盖近千款设备（按季更新），位置支持三级选择与本机字体。
+- **抠图**：本地或在线两种通道，结果可对比原图确认。
+- **增强**：明确的插值放大（不是「AI 超分」），界面与文档如实标注能力边界。
+
+> 破坏性写回前请先备份：裁切、旋转、增强、调色会改动原图文件与数据库字段。
+
+### 6. 壁纸引擎
+
+- 一键把任意图片设为 Windows 桌面壁纸。
+- **自动换壁纸**：可设间隔分钟数、挑选范围、顺序（顺序 / 随机）、最低评分，并排除「不喜欢」的图。
+- **换一张 / 收藏当前 / 不喜欢当前**：不喜欢会进排除列表；当排除把候选吃空时自动重置列表重选，而不是报「没有可用图片」。
+- **托盘常驻**：关闭窗口缩到托盘，托盘菜单可直接换壁纸、收藏、暂停、打开主窗口。
+- **全局快捷键**：不开主窗口也能换图。
+- **每一步都有反馈**：托盘气泡提示结果，菜单顶部还留一条「上次操作：…」—— 通知被系统免打扰吞掉时，点开托盘一样能看到到底成没成。
+
+### 7. AI 能力
+
+所有 AI 能力都可以关；本地模型可选下载，云端能力需要你自己填 API Key（存在本库设置里，不上传别处）。
+
+- **语义搜索**：CLIP 向量检索，用自然语言找图（「雨夜的街道」「蓝色渐变的登录页」），模型缺失时会明说不可用，不会假装搜了。
+- **自动标签与描述**：入库或批量触发，结果写入标签/描述字段，可人工修正。
+- **适配度评分**：基于可见性、对比度、主体占比等可解释指标，不包装成玄学「AI 打分」。
+- **知识库问答**：围绕当前库内容提问，回答附带引用到的图片。
+- **OCR**：调用 Windows 内置 OCR 引擎，识别结果可搜索（仅 Windows）。
+- **以图搜图**：SauceNAO（需自填 Cookie）、Google Lens（需要图片有公网可访问地址）等通道，失败会说明是哪一步不通。
+- **动作建议**：按当前选中项给出可执行的整理建议（打标签、归类、清理），点一下即执行。
+
+### 8. 效率工具
+
+- **命令面板**：`Ctrl + K` 搜命令与图片，键盘流操作。
+- **书签**：把一组筛选视图存下来，随时跳回。
+- **HTML 画廊**：导出静态 HTML 画廊，方便发给别人看（图片内嵌，双击即开）。
+- **扩展系统**：内置扩展管理，能力按权限声明；扩展目录随安装包分发。
+- **MCP 服务**：把图库暴露成 MCP 工具给 AI 客户端调用（见下一节）。
+- **统一搜索**：文件名、标签、描述、OCR 文本、来源、颜色、尺寸、时间多条件组合。
+
+### 9. 数据、备份与安全
+
+- 所有数据落本地 SQLite；缩略图与库数据放在素材目录下的 `.tuku` 中，随素材目录一起搬走即可。
+- **备份 / 恢复**：导出库索引与设置（不含原图），换机或重装后可恢复组织关系。
+- **导出**：按文件夹结构导出、CSV、JSON。
+- **鉴权**：本地 API 使用每次启动生成的令牌，前端通过预加载桥访问；`?token=` 仅允许 GET。
+- **IPC 校验**：主进程只接受本应用页面发来的调用。
+- **错误不静默**：失败一律有提示或日志，不吞异常。
+
+## MCP：让 AI 客户端直接操作图库
+
+`npm run mcp` 启动一个 stdio MCP 服务（零依赖，JSON-RPC 2.0），把图库能力暴露给 Claude Desktop、Cursor、CodeBuddy 等客户端：
+
+| 工具 | 作用 |
+| --- | --- |
+| `search_images` | 按关键词/条件搜图 |
+| `set_wallpaper` | 指定图片设为壁纸 |
+| `set_wallpaper_by_query` | 用一句话换壁纸（「换张演唱会的 live 图」） |
+| `next_wallpaper` | 换下一张 |
+| `current_wallpaper` | 当前壁纸是谁 |
+| `favorite_current` / `dislike_current` | 收藏 / 不喜欢当前壁纸 |
+| `list_favorites` | 列出收藏 |
+| `list_smart_folders` / `apply_smart_folder` | 列出并应用智能文件夹 |
+| `get_library_stats` | 库统计（数量、格式分布、体积） |
+
+客户端配置示例（stdio）：
+
+```json
+{
+  "mcpServers": {
+    "tuku": {
+      "command": "node",
+      "args": ["<解压或克隆后的项目目录>\\server\\mcp-server.mjs"],
+      "env": { "TUKU_MCP_BASE": "http://127.0.0.1:3001" }
+    }
+  }
+}
 ```
-electron/       main.js 窗口/原生菜单/IPC · server-host.js 以 utilityProcess 拉起服务 · updater.js 更新
-server/         app.js（组装与启动）· routes/*.js（按领域的 HTTP 入口）· lib/*.js（编辑/整理/传输等实现）
-                db.js(建表与迁移) · library.js(入库/落盘/去重) · libraries.js(多资源库) · jobs.js(任务与撤销栈)
-web/            前端源码：pages/（仪表盘 / 图库 / 整理 / 清单 / 采集 / 书签 / 知识库 / 搜索 / 增强 / 设置）
-                components/（灯箱、工具箱、面板等）· styles/ 按区块拆分
-extension/      Chrome MV3 采集扩展（打包时作为 extraResources 分发）
-test/           node --test 单测（npm run unit）
-scripts/        smoke.mjs 端到端冒烟 · lint.mjs 静态检查 · manual/ 历史手工排查脚本（需本机开发环境，不在 CI 里跑）
-dist/web/       前端构建产物（vite build 输出，打包时随 asar 分发）
-release-build/  electron-builder 打包输出
-```
 
-素材根目录下每个资源库各有 `<素材文件夹>/.tuku/lib_xxx/`，里面是 `gallery.db` 与 `thumbs/`；
-换机器或换盘符时整目录拷走即可（或走「设置 → 数据与维护 → 备份 / 恢复」）。
+需要图库应用（本地服务）正在运行；令牌自动从 `%APPDATA%\TuKu\.api-token` 读取。
 
-## 说明
-
-- 桌面端后端跑在 Electron 的 `utilityProcess` 子进程里（随机端口，带 `?token=` 的 GET 才允许无头访问），图片由 Node 直接写入本地文件夹，不经浏览器下载；进程退出时会先停服再退出。
-- 设为桌面壁纸：Windows 通过 `SystemParametersInfo(SPI_SETDESKWALLPAPER)`，macOS 用 Finder，Linux 用 gsettings。
-- 工作区已有素材按原路径登记（不复制）；新采集的图片写入当前资源库的素材文件夹。
-- 删除策略默认「应用内回收站」：文件移到库内 `trash/`（同盘移动，秒完成），可在设置页一键恢复；比系统回收站 API 更可靠（部分环境会报 `The system call level is not correct`）。
-- 知识库完全本地：`feedback` / `kb_rules` / `ai_desc` 三张 SQLite 表，API Key 只存本机。
-- 不配置 AI 也能变聪明：删除时选择的原因会直接转成规则；配置 AI 后可看图分析并归纳更细的规则。
-- **OCR 只支持 Windows**（走系统 `Windows.Media.Ocr`，不需要装任何外部程序）；其它平台会明确显示不可用，而不是给一个点了没反应的按钮。
-- **外部以图搜图**只对 SauceNAO 做真实上传识别；Google Lens / TinEye 需要图片有公网 URL，本地导入的图会被标注为不可用。Pinterest 只提供关键词外链，不冒称以图搜图。
-- **备份不包含原图**：原图本来就在素材文件夹里，备份的是 `gallery.db` + 可读 `library.json` + 可选缩略图；恢复到新目录时会按备份里记录的旧根路径重映射 `abs_path`。
-- 想跳过深度特征（离线 / CI / 只想跑接口）：用 `TUKU_CLIP=off` 起服务，入库查重只走 pHash，语义搜索显示不可用。冒烟脚本默认就这么起——否则「模型这一会儿加载完没有」会让同一份代码在本地和 CI 上得出不同结论。
-- **缩略图缓存必须比原图新才算命中**：缓存按 `id` 命名（`thumbs/xx/<id>.jpg`、`<id>-pv.jpg`），而 `id` 会在重建库 / 清空库 / 恢复备份后从头再来，只判断「文件存在」会把上一个库同一 `id` 的图当成自己的——表现就是列表缩略图和灯箱大图不是同一张，pHash 也跟着错。服务端一律比对 `mtime`（容忍 2s 文件系统精度），新入库与回收站还原走 `force`（先删残留再画），重建后 `cover_ver + 1` 让前端换 URL 而不是吃旧缓存。
-- Wallhaven 在国内网络可能无法直连，采集失败时日志会提示，其余来源不受影响。
-
-## 打包与代码签名
+## 从源码开始
 
 ```bash
-npm run dist        # vite build + electron-builder → release-build/TuKu-Setup-*.exe（NSIS 安装包）
-npm run dist:dir    # 只出免安装目录 release-build/win-unpacked/，更快，适合先做打包验证
+git clone https://github.com/mr-awei/gallery.git
+cd gallery
+npm ci
+npm run dev        # 同时起服务端(3001)、Vite(5173)、Electron
 ```
 
-**代码签名（可选）**：不签名时 SmartScreen 会提示「未知发布者」，功能不受影响。
-项目未内置证书；拿到 `.pfx/.p12` 证书文件后**无需改任何配置**，打包前设置环境变量即可：
+要求 **Node ≥ 22.5**（用到内置 `node:sqlite` 与 `--experimental` 之外的现代 API）。
 
-```powershell
-$env:CSC_LINK = "D:\certs\mycert.pfx"     # 证书文件路径（也支持 http(s) 直链）
-$env:CSC_KEY_PASSWORD = "证书密码"
-npm run dist
+其他常用入口：
+
+```bash
+npm run dev:web    # 只起服务端 + 浏览器开发（不开 Electron）
+npm run desktop    # 构建前端后以桌面应用启动
+npm run mcp        # 启动 MCP 服务
+npm run import     # 命令行导入本地图片
 ```
 
-electron-builder 检测到 `CSC_LINK` 后自动对 exe 与安装包做 SHA-256 签名并加 RFC 3161 时间戳
-（时间戳服务已在 `package.json` 的 `build.win` 中配置为 DigiCert）。
-EV 证书（USB 硬件钥匙）不需要 `CSC_LINK`，装好厂商驱动后 electron-builder 会自动从证书库选择。
-验证签名结果：
+## 技术架构
 
-```powershell
-Get-AuthenticodeSignature "release-build\TuKu-Setup-<版本号>.exe" | Format-List
+```
+┌─────────────────────────┐      HTTP + token      ┌──────────────────────────┐
+│ Electron 主进程          │ ─────────────────────► │ 本地服务（独立进程）       │
+│ · 窗口 / 托盘 / 快捷键    │ ◄───── 事件广播 ─────── │ · Express 路由            │
+│ · 壁纸 / 更新 / 对话框    │                        │ · SQLite（node:sqlite）   │
+└──────────┬──────────────┘                        │ · 导入 / 缩略图 / 查重     │
+           │ preload 桥（contextIsolation）          │ · AI / OCR / 抓取          │
+           ▼                                        └──────────────────────────┘
+┌─────────────────────────────────────────┐
+│ 渲染进程：React + TypeScript（Vite 构建） │
+└─────────────────────────────────────────┘
 ```
 
-## 持续构建与 Releases
+几个刻意的设计：
 
-`.github/workflows/build.yml` 每次云端构建都会更新 Release（`contents: write`）：
+- **服务端跑独立进程**：数据库只有一个属主，渲染进程崩溃不会带崩数据；主进程退出时先停服务再退出。
+- **主进程不引数据库代码**：避免两套连接抢锁。
+- **前后端只走 HTTP**：桌面端与浏览器端共用同一套接口，调试时可以直接开浏览器。
+- **更新器（electron-updater）只认正式 Release**：`latest.yml` 由 CI 生成，滚动预发布不会污染更新通道。
 
-| 触发 | verify | 打包 | Release |
-| --- | --- | --- | --- |
-| push `main` / 手动触发 | 跑 | 通过后打包 | 更新预发布 **rolling**（固定 tag，exe / blockmap / latest.yml 原地覆盖，tag 跟随最新提交） |
-| push tag `v*` | 跑 | 通过后打包 | 建正式 Release（`make_latest: true`，客户端自动更新只认它） |
-| PR | 跑 | 不打包 | 不更新 |
+## 目录结构
 
-几点约定：
+```
+electron/        主进程：窗口、托盘、快捷键、壁纸、更新、IPC 校验
+server/          Express 服务与业务：路由、数据库、导入、缩略图、查重、AI、OCR、抓取
+  lib/           纯函数与工具（跳过目录、路径、事件总线等）
+  routes/        按域拆分的路由
+  settings/      设置读写（按库 / 跨库）
+web/src/         React 前端：页面、组件、状态、样式
+extension/       浏览器扩展（随包分发）
+assets/samples/  首次启动的示例图
+scripts/         快速校验、冒烟测试、自定义 lint
+test/            单元测试（node --test）
+docs/            功能缺口清单等文档
+```
 
-- rolling 是**预发布**，不会被 `/releases/latest` 选中——开发版不会通过自动更新推到用户手里；想要新版请推 tag。
-- 打包产物名带版本号（`TuKu-Setup-<version>.exe`），版本号一升文件名就变，所以每次构建先把整个 rolling Release（含 tag）删掉重建，资产不累积，tag 也始终指向最新提交；清理失败不阻断发布。
-- 同一 ref 的多次构建串行排队（`concurrency`，不取消），防止两个运行同时往一个 Release 传产物互相覆盖。
-- 产物同时留一份 Actions Artifact（14 天），构建失败时日志推到 `ci-logs` 分支。
+## 开发脚本
+
+| 命令 | 说明 |
+| --- | --- |
+| `npm run dev` | 服务端 + Vite + Electron 一起跑（日常开发） |
+| `npm run dev:web` | 只跑服务端 + 浏览器 |
+| `npm run build` | 构建前端到 `dist/` |
+| `npm run typecheck` | 前后端两套 tsconfig 全量类型检查 |
+| `npm run lint` | ESLint + 自定义静态检查（禁调试残留、禁静默吞错） |
+| `npm run unit` | `node --test test/**/*.test.mjs` |
+| `npm run smoke` | 62 项接口冒烟（含备份恢复、CSP、鉴权） |
+| `npm run verify` | 以上四项串起来，提交前必跑 |
+| `npm run dist` | 构建前端 + 打 Windows 安装包（输出 `release-build/`） |
+| `npm run dist:dir` | 只打免安装目录，验证打包结果用 |
+
+## 打包、签名与发布
+
+```bash
+npm run dist        # Windows 安装包 → release-build/TuKu-Setup-<version>.exe
+```
+
+- 安装包为 NSIS，`artifactName` 固定 `TuKu-Setup-${version}.exe`。
+- `extraResources` 会带上浏览器扩展与示例图（`resources/extension`、`resources/samples`）。
+- 本地打包默认尝试签名（`CSC_IDENTITY_AUTO_DISCOVERY`）；CI 里跳过自动发现，走无签名构建。
+- 产物目录若被占用或存在旧文件，electron-builder 的批量删除可能被系统安全策略拦截 —— 换个输出目录最省事：`npm run dist -- --publish never "--config.directories.output=build-out"`。
+
+发布流程（GitHub Actions，`.github/workflows/build.yml`）：
+
+| 触发 | 结果 |
+| --- | --- |
+| push / PR 到 `main` | 先跑 lint + typecheck + unit + smoke，全绿才构建 |
+| push `main` | 构建安装包 → 固定 tag `rolling` 的**预发布**（不进入自动更新通道） |
+| push `v*` 标签 | 构建安装包 → 创建正式 Release 并占据 `latest` → **成为所有客户端的强制更新源** |
+
+所以发版只需：
+
+```bash
+npm version patch --no-git-tag-version   # 或手动改 package.json
+git commit -am "chore: 发布 v1.0.2"
+git tag v1.0.2 && git push origin main --tags
+```
+
+注意：自动更新读的是 GitHub Releases。Gitee 仓库只做代码镜像，不参与更新分发。
+
+## 常见问题
+
+**Q：更新下载不动 / 一直转圈？**
+断网或 GitHub 不可达时进度会停住，遮罩会转为失败态，可点「重试」或「退出应用」后重开。重开会重新检查。
+
+**Q：断网还能用吗？**
+能。更新检查失败不锁界面，只是不会升到新版本。
+
+**Q：我的图片会被删吗？**
+不会。卸载、更新、换版本都只动程序与库索引；原图在你的素材目录里，删库也不会删文件。
+
+**Q：为什么有的图显示不出来？**
+大概率是文件在应用外被改名/移动/删除了，或库目录整体换了盘符。用「库-盘一致性检查」重新关联，或把素材目录搬回原路径。
+
+**Q：托盘图标不见了？**
+Windows 会把新图标收进「隐藏的图标」里，拖出来固定即可；应用仍在运行。
+
+**Q：日志在哪？**
+`%APPDATA%\TuKu\logs\`。反馈问题时附上最近一次启动的日志。
+
+**Q：数据能搬到另一台机器吗？**
+把素材目录连同其中的 `.tuku` 一起拷走，新机器上把该目录设为素材目录即可；也可以用「导出 → 恢复」搬组织关系（不含原图）。
+
+## 边界与说明
+
+- **Windows 优先**：壁纸、OCR、托盘气泡等能力依赖 Windows API；服务端与浏览器端可跨平台运行，但桌面集成未在其他系统验证。
+- **备份不含原图**：备份导出的是库索引与设置，图片需要自己同步素材目录。
+- **AI 是可选能力**：本地模型需要下载，云端能力需要自填密钥；模型缺失时功能会明确置灰或报错，不会给出假结果。
+- **增强是插值放大**：不宣称超分；抠图、语义搜索的效果取决于所用模型。
+- **强制更新有代价**：没有「稍后再说」，这是为分发一致性做的取舍；离线环境请用 `TUKU_FORCE_UPDATE=off` 自行构建。

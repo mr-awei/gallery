@@ -5,7 +5,14 @@ import { fileURLToPath } from 'node:url';
 import { initLogger } from './logger.js';
 import { ServerHost } from './server-host.js';
 import { getSettingsSnapshot, setSettingsCache } from './settings-cache.js';
-import { checkForUpdates, downloadUpdate, installUpdate, updateState } from './updater.js';
+import {
+  checkForUpdates,
+  downloadUpdate,
+  installUpdate,
+  updateState,
+  startForcedUpdate,
+  onBeforeInstall,
+} from './updater.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const APP_ROOT_DIR = path.resolve(__dirname, '..');
@@ -1441,6 +1448,13 @@ handleIpc('update-download', () => downloadUpdate());
 handleIpc('update-install', () => installUpdate());
 handleIpc('update-state', () => updateState());
 
+/** 强制更新遮罩里的「退出应用」：装不上时至少让用户能关掉，而不是卡死在遮罩里 */
+handleIpc('app:quit', () => {
+  forceQuit = true;
+  setImmediate(() => app.quit());
+  return { ok: true };
+});
+
 handleIpc('live-wallpaper-control', async (_e, patch) => {
   // 失败也要如实回 ok:false：以前无论成功失败都返回 { ok: true }
   const r = await fetchJson(
@@ -1773,10 +1787,31 @@ app.whenReady().then(async () => {
     }
   });
 
+  // 强制更新装完会直接退出重启：窗口的 close 默认缩回托盘，必须放行
+  onBeforeInstall(() => {
+    forceQuit = true;
+  });
+
   await createWindow();
 
   createTray();
   registerGlobalShortcuts();
+
+  // 启动即查更新（延迟几秒，别跟首屏抢带宽）；确认有新版 → 自动下载 + 遮罩锁定
+  setTimeout(() => {
+    void (async () => {
+      try {
+        const r = await startForcedUpdate({ repo: await updateRepoSetting() });
+        if (r?.hasUpdate) {
+          console.info('[update] 发现新版本', r.latest, '，已进入强制更新');
+          // --hidden 启动时用户看不到遮罩，必须把窗口提上来
+          showMainWindow();
+        }
+      } catch (err) {
+        console.warn('[update] 启动检查失败：', err?.message || err);
+      }
+    })();
+  }, 2500);
   // 托盘创建失败 + 以 --hidden 启动 = 用户完全没有入口，兜底把窗口显示出来
   if (START_HIDDEN && !tray) {
     console.warn('[desktop] 托盘不可用，--hidden 启动时强制显示主窗口');
@@ -1818,7 +1853,9 @@ app.on('will-quit', (e) => {
   // 超时也强退——绝不能变成「点了退出却关不掉」。
   const finish = () => {
     try {
-      app.exit(0);
+      // 用 quit 而不是 exit：exit 跳过 before-quit/quit 整条链路，
+      // 更新安装（quitAndInstall）与日志收尾都拿不到退出事件
+      app.quit();
     } catch {
       /* 已经没了 */
     }

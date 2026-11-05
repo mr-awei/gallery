@@ -38,6 +38,7 @@ import { matchesBinding, useKeymap } from './lib/keymap';
 import TopBar from './layout/TopBar';
 import Sidebar from './layout/Sidebar';
 import StatusBar from './layout/StatusBar';
+import ForcedUpdateOverlay from './components/ForcedUpdateOverlay';
 import { TOOLS } from './layout/nav';
 
 const PAGE_SIZE = 48;
@@ -1936,6 +1937,9 @@ const importingRef = useRef(false);
 
       {/* 应用内 prompt/confirm 对话框（替代原生弹窗，全局唯一挂载点） */}
       <DialogHost />
+
+      {/* 强制更新：确认有新版本后全屏接管，装完才允许继续用 */}
+      <ForcedUpdateOverlay />
 
       {tagEdit && (
         <TagMetaDialog

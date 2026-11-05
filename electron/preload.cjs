@@ -59,4 +59,6 @@ contextBridge.exposeInMainWorld('desktopAPI', {
     ipcRenderer.on('update-state', handler);
     return () => ipcRenderer.removeListener('update-state', handler);
   },
+  // 强制更新遮罩的兜底出口：下载/安装反复失败时让用户能退出应用
+  quit: () => ipcRenderer.invoke('app:quit'),
 });

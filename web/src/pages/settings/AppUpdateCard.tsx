@@ -92,7 +92,10 @@ export default function AppUpdateCard({ appInfo, patch, onToast }: Props) {
   };
 
   return (
-    <Card title="应用与更新" desc="随系统启动；安装版可直接在应用内下载并安装新版本。">
+    <Card
+      title="应用与更新"
+      desc="随系统启动；安装版每次启动都会向 GitHub Releases 查询新版本，确认有更新后自动下载并重启安装（更新完成前不可使用）。"
+    >
       {desktop && (
         <div className="switch-row">
           <span>开机自动启动</span>

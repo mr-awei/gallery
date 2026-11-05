@@ -91,6 +91,8 @@ interface DesktopAPI {
   updateInstall?: () => Promise<{ ok: boolean; msg?: string }>;
   updateState?: () => Promise<UpdateState>;
   onUpdateState?: (cb: (s: UpdateState) => void) => () => void;
+  /** 退出应用（强制更新失败时的兜底出口） */
+  quit?: () => Promise<{ ok: boolean }>;
 }
 
 /** 采集源（/api/sources 下发，前端不再维护第二份硬编码列表） */
@@ -155,6 +157,8 @@ export interface UpdateState {
   error: string;
   supported: boolean;
   current?: string;
+  /** 已确认有新版本且要求强制更新：界面必须全屏遮挡，装完才允许继续用 */
+  force?: boolean;
 }
 
 export const desktop = (window as unknown as { desktopAPI?: DesktopAPI }).desktopAPI;

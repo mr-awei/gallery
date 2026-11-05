@@ -5,9 +5,11 @@
  * 用户下载完还得自己关应用、点安装包、再走一遍安装向导。CI 明明已经把
  * `latest.yml` / `*.blockmap` 传到 Release 了，却没有任何消费者。
  *
- * 这里补上真正的增量更新链路：检查 → 后台下载（带进度）→ 重启安装。
+ * 链路：检查 → 后台下载（带进度）→ 重启安装。
  * - 只在打包版启用（开发态没有 app-update.yml，也没有安装包可替换）
- * - 下载永不自动开始：用户在设置里点了才下，避免偷跑几百 MB 流量
+ * - **强制更新**：启动即检查，一旦确认有新版本就自动下载并锁住界面，装完才允许继续用；
+ *   对应的界面是 web 端的 ForcedUpdateOverlay（收到 force=true 就全屏遮挡）
+ * - 检查失败（断网 / 更新源 404）不锁界面：没确认有新版本就没有理由把人挡在门外
  * - 更新源优先用设置里的 `updateRepo`（owner/repo，方便 fork 自建），
  *   否则交给 electron-builder 打进包的 app-update.yml
  */
@@ -23,7 +25,22 @@ const state = {
   notes: '',
   error: '',
   supported: false,
+  /** 已确认有新版本且要求强制更新：前端据此显示不可关闭的全屏遮罩 */
+  force: false,
 };
+
+/** 强制更新模式（启动时确认有新版后置 true，此后任何检查都走强制链路） */
+let forceMode = false;
+/** 启动自动检查只跑一次：窗口重建 / 多窗口不会再触发一遍 */
+let kickedOff = false;
+
+/**
+ * 是否启用强制更新。给内网离线部署与本地调试留一个开关，
+ * 正式安装包不要设 TUKU_FORCE_UPDATE=off，否则旧版会一直留在用户机器上。
+ */
+export function forceUpdateEnabled() {
+  return String(process.env.TUKU_FORCE_UPDATE ?? 'on').toLowerCase() !== 'off';
+}
 
 function isSupported() {
   // 开发态没有 app-update.yml，electron-updater 会直接抛「未配置更新源」
@@ -67,15 +84,23 @@ function wire(up) {
   wired = true;
   up.on('checking-for-update', () => setState({ status: 'checking', error: '' }));
   up.on('update-available', (info) => {
+    // 不管是启动自动检查还是设置页手动点「检查更新」，只要确认有新版就走强制链路
+    const force = forceMode || forceUpdateEnabled();
+    if (force) forceMode = true;
     setState({
       status: 'available',
       version: String(info?.version || ''),
       notes: String(info?.releaseNotes || '').slice(0, 2000),
       percent: 0,
       error: '',
+      force,
     });
+    // 不等用户点「下载」：确认有新版就立刻拉包，遮罩直接接管界面
+    if (force) void downloadUpdate();
   });
-  up.on('update-not-available', () => setState({ status: 'idle', percent: 0, error: '' }));
+  up.on('update-not-available', () =>
+    setState({ status: 'idle', percent: 0, error: '', force: false })
+  );
   up.on('download-progress', (p) => {
     setState({
       status: 'downloading',
@@ -83,9 +108,21 @@ function wire(up) {
     });
   });
   up.on('update-downloaded', (info) => {
-    setState({ status: 'downloaded', percent: 100, version: String(info?.version || state.version) });
+    setState({
+      status: 'downloaded',
+      percent: 100,
+      version: String(info?.version || state.version),
+      force: state.force,
+    });
+    if (state.force) {
+      // 留 1.2s 只是让界面把「正在重启安装」画出来；随后必须重启，不给继续用的选项
+      setTimeout(() => {
+        void installUpdate();
+      }, 1200);
+    }
   });
   up.on('error', (err) => {
+    // force 保持原值：已经确认有新版却下载失败时，界面要继续遮挡并给「重试」
     setState({ status: 'error', error: String(err?.message || err).slice(0, 300) });
   });
 }
@@ -128,9 +165,23 @@ export async function checkForUpdates(opts = {}) {
     };
   } catch (err) {
     const msg = String(err?.message || err).slice(0, 300);
-    setState({ status: 'error', error: msg });
+    // 检查这一步失败（断网 / 更新源不可达）说明不了「有新版本」，不锁界面
+    setState({ status: 'error', error: msg, force: false });
     return { ok: false, supported: true, current: app.getVersion(), msg };
   }
+}
+
+/**
+ * 启动时的强制更新检查：确认有新版就自动下载、自动重启安装，期间界面被遮罩锁住。
+ * 只跑一次（多窗口 / 窗口重建不会重复触发）；开发态与 TUKU_FORCE_UPDATE=off 直接跳过。
+ * @param {{ repo?: string }} [opts]
+ */
+export async function startForcedUpdate(opts = {}) {
+  if (kickedOff) return { skipped: true };
+  kickedOff = true;
+  if (!isSupported() || !forceUpdateEnabled()) return { skipped: true };
+  forceMode = true;
+  return checkForUpdates(opts);
 }
 
 /** 后台下载更新（带进度事件），返回立刻，进度走 update-state 广播 */
@@ -153,6 +204,14 @@ export async function downloadUpdate() {
   }
 }
 
+/** 退出前必须做的事（主进程注入：置 forceQuit，否则窗口 close 会缩回托盘、装不上） */
+let prepareQuit = () => {};
+
+/** 主进程注册「安装前强制放行退出」的回调 */
+export function onBeforeInstall(fn) {
+  prepareQuit = fn;
+}
+
 /** 退出并安装（isSilent=false 会拉起安装向导，用户能看到进度） */
 export async function installUpdate() {
   if (!isSupported()) return { ok: false, msg: '当前是开发模式，自动更新只在安装版可用' };
@@ -161,6 +220,7 @@ export async function installUpdate() {
   // 先让主进程走正常退出流程（停服务、存设置），再交给安装包
   setImmediate(() => {
     try {
+      prepareQuit();
       up.quitAndInstall(false, true);
     } catch (err) {
       setState({ status: 'error', error: String(err?.message || err).slice(0, 300) });
