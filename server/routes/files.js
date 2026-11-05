@@ -53,6 +53,11 @@ async function encodeEntry(row, format, quality, maxSide) {
 export function register(app, ctx) {
   const { asyncRoute } = ctx;
 
+  // 库数据就放在 <素材目录>/.tuku 下，而 Express 的 send 默认把路径里以点开头的
+  // 目录当隐藏文件直接回 404 —— 表现就是「缩略图/预览全在转圈，但磁盘上文件明明在」。
+  // 这些路径全部来自数据库（我们自己的缓存与原图），必须显式放开。
+  const SEND_OPTS = { dotfiles: 'allow' };
+
 
   app.get(
     '/api/images/:id/thumb',
@@ -68,7 +73,7 @@ export function register(app, ctx) {
         if (!custom) return res.status(404).end('no thumb');
         res.set('Cache-Control', 'public, max-age=604800');
         res.type(custom);
-        return res.sendFile(custom);
+        return res.sendFile(custom, SEND_OPTS);
       }
       // 已有缩略图：直发（绝大多数请求走这条，零解码）。
       // 必须比对原图 mtime：按 id 命名的缓存可能是「上一辈子这个 id」的残留，
@@ -77,7 +82,7 @@ export function register(app, ctx) {
       if (cached) {
         res.set('Cache-Control', 'public, max-age=604800');
         res.type(cached);
-        return res.sendFile(cached);
+        return res.sendFile(cached, SEND_OPTS);
       }
       // 缺缩略图（上次导入被打断、增强/旋转后重建）：绝不在这里现场解码 ——
       // 首屏几十张并发 sharp 会把 CPU 打满，切库后要三四十秒才出图。
@@ -87,7 +92,7 @@ export function register(app, ctx) {
         if (made && fs.existsSync(made)) {
           res.set('Cache-Control', 'public, max-age=604800');
           res.type(made);
-          return res.sendFile(made);
+          return res.sendFile(made, SEND_OPTS);
         }
       }
       queueThumb(id);
@@ -134,7 +139,7 @@ export function register(app, ctx) {
       if (hit) {
         res.set('Cache-Control', cacheHeader);
         res.type(hit);
-        return res.sendFile(hit);
+        return res.sendFile(hit, SEND_OPTS);
       }
       // 同一张图的并发请求共享一次生成（预加载 + 灯箱同时要很常见）。
       // 以前超过 2 个就回 503，前端只能退回去加载 21MB 的原图 —— 那才是「模糊一两秒」。
@@ -152,7 +157,7 @@ export function register(app, ctx) {
       if (made && fs.existsSync(made)) {
         res.set('Cache-Control', cacheHeader);
         res.type(made);
-        return res.sendFile(made);
+        return res.sendFile(made, SEND_OPTS);
       }
       // 生成失败（文件损坏等）：404 但不能缓存，否则这张图再也出不来
       res.set('Cache-Control', 'no-store');
@@ -170,7 +175,7 @@ export function register(app, ctx) {
       // 这里只对文件流放宽到同源可框，其余页面仍保持 DENY。
       res.setHeader('X-Frame-Options', 'SAMEORIGIN');
       res.setHeader('Content-Security-Policy', "frame-ancestors 'self'");
-      res.sendFile(row.abs_path);
+      res.sendFile(row.abs_path, SEND_OPTS);
     })
   );
 
@@ -185,7 +190,7 @@ export function register(app, ctx) {
         'Content-Disposition',
         `attachment; filename="tuku_${row.id}${ext}"; filename*=UTF-8''${encodeURIComponent(name)}`
       );
-      res.sendFile(row.abs_path);
+      res.sendFile(row.abs_path, SEND_OPTS);
     })
   );
 

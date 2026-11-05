@@ -275,7 +275,8 @@ export function register(app, ctx) {
       // 同一个 URL 换了文件内容（设置里改视频路径 / 覆盖同名文件）时，
       // 强缓存会让窗口一直播旧的；本地文件重读代价可忽略，直接不缓存
       res.set('Cache-Control', 'no-store');
-      res.sendFile(p);
+      // 视频可能就放在素材目录的 .tuku 下，必须放开点路径
+      res.sendFile(p, { dotfiles: 'allow' });
     })
   );
 

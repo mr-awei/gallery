@@ -431,7 +431,7 @@ export function buildApp({ desktop = false } = {}) {
       const style = String(req.query.style || getSettings().wallpaperFill || 'blur');
       const result = await wallpaper.buildWallpaper(Number(req.params.id), style);
       res.set('Cache-Control', 'no-store');
-      res.sendFile(result.path);
+      res.sendFile(result.path, { dotfiles: 'allow' });
     })
   );
 

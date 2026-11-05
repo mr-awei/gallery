@@ -54,9 +54,11 @@ const server = spawn(process.execPath, ['server/index.js'], {
   env: {
     ...process.env,
     PORT: String(PORT),
-    TUKU_USER_DATA: tmpUser,
-    TUKU_DATA_DIR: path.join(tmpUser, 'data'),
-    TUKU_DEFAULT_STORAGE_DIR: path.join(tmpUser, 'storage'),
+    // 用户数据目录故意带点（.app）：真实库的缩略图就长在 <素材目录>/.tuku/… 下，而
+    // Express 的 send 默认把点开头的路径段当隐藏文件回 404 —— 那会让所有缩略图一直转圈。
+    TUKU_USER_DATA: path.join(tmpUser, '.app'),
+    TUKU_DATA_DIR: path.join(tmpUser, '.app', 'data'),
+    TUKU_DEFAULT_STORAGE_DIR: path.join(tmpUser, '.app', 'storage'),
     // 关掉 CLIP：不然入库查重要看「模型加载完没」——CI 上模型就绪了会把噪点图判成重复，
     // 本地没加载又通过，同一份代码两种结论。这里只测接口行为，不需要深度特征。
     TUKU_CLIP: 'off',
@@ -109,7 +111,7 @@ try {
   check('服务启动', await waitReady());
 
   // 读自动生成的 API token（wx 独占创建）
-  const tokenFile = path.join(tmpUser, '.api-token');
+  const tokenFile = path.join(tmpUser, '.app', '.api-token');
   const token = fs.existsSync(tokenFile) ? fs.readFileSync(tokenFile, 'utf8').trim() : '';
   check('API token 自动生成', token.length >= 20);
 
@@ -203,23 +205,28 @@ try {
     // 缩略图/预览图按 id 命名，而 id 会随建库、清库、恢复备份从头再来。磁盘上「上一辈子
     // 同一个 id」的缩略图如果被直接认领，列表显示的就是别人的图，点开灯箱又是对的
     // （预览图刚生成）—— 用户看到的就是「缩略图和大图不是一张」。
-    const thumbsRoot = path.join(tmpUser, 'storage', 'thumbs');
+    const thumbsRoot = path.join(tmpUser, '.app', 'storage', 'thumbs');
     const listIds = async () =>
       ((await (await fetch(`${BASE}/api/images?limit=200`, { headers })).json()).items || []).map((i) => i.id);
+    const bucketedOf = (id) => path.join(thumbsRoot, (id % 256).toString(16).padStart(2, '0'), `${id}.jpg`);
+    const legacyOf = (id) => path.join(thumbsRoot, `${id}.jpg`);
     const nextId = Math.max(0, ...(await listIds())) + 1;
-    const bucketedThumb = path.join(thumbsRoot, (nextId % 256).toString(16).padStart(2, '0'), `${nextId}.jpg`);
-    const legacyThumb = path.join(thumbsRoot, `${nextId}.jpg`);
+    // 预览图预取/文件监听都是异步的，入库时拿到的 id 未必正好是「当前最大 + 1」。
+    // 给后面几个 id 都埋上旧缩略图，别让用例输在竞态上（真正的断言用接口返回的 id）。
+    const candidates = [nextId, nextId + 1, nextId + 2, nextId + 3];
     // 冒充旧行留下的竖版缩略图（640x960、深蓝纯色），mtime 设到 2020 年
     const staleJpeg = await sharp({
       create: { width: 640, height: 960, channels: 3, background: '#204060' },
     })
       .jpeg()
       .toBuffer();
-    for (const p of [bucketedThumb, legacyThumb]) {
-      fs.mkdirSync(path.dirname(p), { recursive: true });
-      fs.writeFileSync(p, staleJpeg);
-      const old = new Date('2020-01-01T00:00:00Z');
-      fs.utimesSync(p, old, old);
+    for (const id of candidates) {
+      for (const p of [bucketedOf(id), legacyOf(id)]) {
+        fs.mkdirSync(path.dirname(p), { recursive: true });
+        fs.writeFileSync(p, staleJpeg);
+        const old = new Date('2020-01-01T00:00:00Z');
+        fs.utimesSync(p, old, old);
+      }
     }
     // 新图：横构图浅底 + 红块，和那张深蓝竖图完全不像
     const freshPng = await sharp({ create: { width: 900, height: 600, channels: 3, background: '#f5e6c8' } })
@@ -229,10 +236,12 @@ try {
       .png()
       .toBuffer();
     const ingested = await post([asUrl(freshPng, 'image/png')], { skipQuality: true });
+    const newId = Number(ingested.results?.[0]?.id) || Math.max(0, ...(await listIds()));
     const thumbSig = async (input) =>
       sharp(input, { failOn: 'none' }).resize(16, 16, { fit: 'fill' }).removeAlpha().raw().toBuffer();
     const sa = await thumbSig(freshPng);
-    const sb = fs.existsSync(bucketedThumb) ? await thumbSig(bucketedThumb) : null;
+    const newThumb = bucketedOf(newId);
+    const sb = fs.existsSync(newThumb) ? await thumbSig(newThumb) : null;
     let diff = -1;
     if (sb) {
       diff = 0;
@@ -242,9 +251,17 @@ try {
     check(
       '新入库的图不会继承旧 id 的缩略图',
       ingested.saved === 1 && diff >= 0 && diff < 12,
-      `16x16 平均像素差=${diff.toFixed(1)} saved=${ingested.saved}（0 附近才算同一张，深蓝竖图会 >100）`
+      `id=${newId} 16x16 平均像素差=${diff.toFixed(1)} saved=${ingested.saved}（0 附近才算同一张，深蓝竖图会 >100）`
     );
-    check('新入库时同 id 的旧平铺缩略图被清掉', !fs.existsSync(legacyThumb), legacyThumb);
+    check('新入库时同 id 的旧平铺缩略图被清掉', !fs.existsSync(legacyOf(newId)), legacyOf(newId));
+    // 磁盘上有文件 ≠ 接口拿得到：缩略图目录在点目录（.tuku / .data）下时，
+    // sendFile 默认会把点路径当隐藏文件直接 404，界面上就是所有卡片一直转圈。
+    const thumbRes = await fetch(`${BASE}/api/images/${newId}/thumb`, { headers });
+    check(
+      '点目录下的缩略图能通过接口取到（不是隐藏文件 404）',
+      thumbRes.ok && (thumbRes.headers.get('content-type') || '').startsWith('image/'),
+      `id=${newId} status=${thumbRes.status} type=${thumbRes.headers.get('content-type')}`
+    );
   }
 
   // 错误响应必须是 JSON：未匹配的 /api 路径若掉进 HTML 兜底，前端 request() 解析失败，

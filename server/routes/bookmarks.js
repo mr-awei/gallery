@@ -24,7 +24,8 @@ export function register(app, { asyncRoute }) {
     res.setHeader('X-Content-Type-Options', 'nosniff');
     res.setHeader('Cache-Control', 'private, max-age=86400');
     res.type('text/html; charset=utf-8');
-    res.sendFile(path.resolve(file), (err) => {
+    // 快照可能落在 .tuku 这类点目录下：send 默认把点开头的路径段当隐藏文件回 404
+    res.sendFile(path.resolve(file), { dotfiles: 'allow' }, (err) => {
       if (err && !res.headersSent) res.status(404).end();
     });
   });

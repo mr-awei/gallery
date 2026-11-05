@@ -92,7 +92,8 @@ export function register(app, ctx) {
     if (!v) return res.status(404).json({ error: '版本文件不存在' });
     res.setHeader('Cache-Control', 'private, max-age=3600');
     res.setHeader('X-Content-Type-Options', 'nosniff');
-    res.sendFile(path.resolve(v.file), (err) => {
+    // 版本备份同样可能在点目录下（如 .tuku/versions）
+    res.sendFile(path.resolve(v.file), { dotfiles: 'allow' }, (err) => {
       if (err && !res.headersSent) res.status(404).end();
     });
   });
