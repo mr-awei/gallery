@@ -302,6 +302,10 @@ async function createWindow() {
     },
   });
 
+  // 必须在 loadURL 之前登记：页面最早的 IPC（例如启动时应用主题的 set-theme）
+  // 在窗口加载过程中就会发出来，登记晚了会被 trustedSender 当成外部页面拒掉
+  appWindows.add(mainWindow);
+
   registerShortcuts(mainWindow);
 
   // 权限白名单（主窗口与 /live 壁纸页共用默认 session）
@@ -498,7 +502,6 @@ async function createWindow() {
     appWindows.delete(mainWindow);
     mainWindow = null;
   });
-  appWindows.add(mainWindow);
 }
 
 /**
