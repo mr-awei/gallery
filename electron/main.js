@@ -24,7 +24,9 @@ const APP_DIR_NAME = 'TuKu';
 export const APP_ICON = path.join(__dirname, '..', 'build', 'icon.ico');
 
 app.setName(APP_DIR_NAME);
-app.setAppUserModelId('com.tuku.gallery.wallpaper');
+// 必须与 electron-builder 的 appId / 安装快捷方式 AUMID 完全一致，否则 Windows 上
+// Notification / 托盘气泡（Win10+ 走 toast）会被系统静默丢弃 —— 表现就是「点了没反馈」
+app.setAppUserModelId('com.tuku.gallery');
 
 /* ------------------------- 崩溃捕获与日志落盘（最先初始化） ------------------------- */
 // minidump 只落本地 userData/CrashReports，不上传（隐私优先）；配合日志可定位白屏 / 闪退
@@ -557,6 +559,10 @@ async function openAppWindow() {
 
 let tray = null;
 let trayHintShown = false;
+/** 托盘菜单刷新器（createTray 里赋值）：trayNotify 操作完顺手把菜单内容也更新一遍 */
+let trayMenuRefresher = null;
+/** 最近一次托盘操作的结果：系统通知被免打扰拦掉时，用户点开菜单仍能看到 */
+let lastTrayNotice = '';
 
 /**
  * 关窗是否只藏到托盘。
@@ -650,6 +656,14 @@ async function restartLocalServer() {
  */
 function trayNotify(title, content) {
   const body = String(content || '').trim();
+  // 系统通知可能被「专注助手 / 免打扰」拦掉，或者用户已经关掉气泡：
+  // 菜单顶部同时留一条「上次操作」，点开托盘就等于看到结果，不用猜生效没生效
+  lastTrayNotice = `${title}${body ? `：${body}` : ''}`.slice(0, 60);
+  try {
+    Promise.resolve(trayMenuRefresher?.()).catch(() => {});
+  } catch (err) {
+    console.error('[tray] 刷新菜单失败：', err?.message || err);
+  }
   try {
     if (tray && !tray.isDestroyed()) {
       tray.displayBalloon({ title, content: body || title, icon: APP_ICON, noSound: true });
@@ -720,6 +734,9 @@ function createTray() {
     } catch {}
     const title = String(cur.title || '').slice(0, 16);
     const menu = Menu.buildFromTemplate([
+      ...(lastTrayNotice
+        ? [{ label: `上次操作：${lastTrayNotice}`, enabled: false }, { type: 'separator' }]
+        : []),
       { label: '打开主窗口', click: showMainWindow },
       {
         label: '框选截图…',
@@ -844,6 +861,7 @@ function createTray() {
     tray.setContextMenu(menu);
   };
 
+  trayMenuRefresher = refreshMenu;
   tray.on('click', showMainWindow);
   refreshMenu();
   setInterval(refreshMenu, 30000); // 让菜单里的「当前壁纸」保持最新
