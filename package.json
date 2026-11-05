@@ -1,6 +1,6 @@
 {
   "name": "tuku-gallery",
-  "productName": "图库",
+  "productName": "TuKu",
   "version": "1.0.1",
   "private": true,
   "description": "通用图片管理与壁纸工具 — 多源采集 / pHash 去重 / 暗色图片库",
@@ -74,7 +74,7 @@
   },
   "build": {
     "appId": "com.tuku.gallery",
-    "productName": "图库",
+    "productName": "TuKu",
     "directories": {
       "output": "release-build",
       "buildResources": "build"
@@ -93,6 +93,11 @@
       {
         "from": "extension",
         "to": "extension",
+        "filter": ["**/*"]
+      },
+      {
+        "from": "assets/samples",
+        "to": "samples",
         "filter": ["**/*"]
       }
     ],

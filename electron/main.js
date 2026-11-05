@@ -1,4 +1,4 @@
-import { app, BrowserWindow, Menu, Tray, globalShortcut, dialog, ipcMain, shell, screen, powerMonitor, nativeTheme, crashReporter, desktopCapturer, nativeImage } from 'electron';
+import { app, BrowserWindow, Menu, Tray, globalShortcut, dialog, ipcMain, shell, screen, powerMonitor, nativeTheme, crashReporter, desktopCapturer, nativeImage, Notification } from 'electron';
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -17,9 +17,13 @@ const APP_ROOT_DIR = path.resolve(__dirname, '..');
 const START_HIDDEN = process.argv.includes('--hidden');
 
 export const APP_NAME = '图库';
+// 磁盘上的目录名一律 ASCII：安装目录、AppData 数据目录都会跟着它走。
+// 中文目录还有实打实的坑——node:sqlite 在中文路径下关闭后句柄不释放，
+// 删库目录会卡住（见 server/libraries.js 里库目录也用 ASCII 名）。
+const APP_DIR_NAME = 'TuKu';
 export const APP_ICON = path.join(__dirname, '..', 'build', 'icon.ico');
 
-app.setName(APP_NAME);
+app.setName(APP_DIR_NAME);
 app.setAppUserModelId('com.tuku.gallery.wallpaper');
 
 /* ------------------------- 崩溃捕获与日志落盘（最先初始化） ------------------------- */
@@ -45,9 +49,10 @@ process.on('unhandledRejection', (err) => {
  */
 process.env.TUKU_USER_DATA = app.isPackaged ? app.getPath('userData') : APP_ROOT_DIR;
 process.env.TUKU_PACKAGED = app.isPackaged ? '1' : '';
-// 默认图片保存位置：用户「图片」目录下的「图库」文件夹。
+// 默认图片保存位置：用户「图片」目录下的 TuKu 文件夹。
+// 不用中文目录名——素材路径会进 DB、进日志、进备份，ASCII 少一堆编码麻烦。
 // 不再写死具体路径——任何人安装后都能在设置页改成自己想要的任意文件夹。
-process.env.TUKU_DEFAULT_STORAGE_DIR = path.join(app.getPath('pictures'), '图库');
+process.env.TUKU_DEFAULT_STORAGE_DIR = path.join(app.getPath('pictures'), 'TuKu');
 
 // 服务端相关能力（在 app ready 后动态加载）
 // 服务端跑在独立 utilityProcess 里（见 server-host.js），主进程只保留
@@ -638,9 +643,34 @@ async function restartLocalServer() {
   }
 }
 
+/**
+ * 托盘菜单的结果必须让用户看得见。
+ * 以前每个 click 都是「请求发出去就不管了」，后端报错（比如换壁纸时提示
+ * 「该范围内没有可用图片」）只写进日志，用户点完只觉得没生效。
+ */
+function trayNotify(title, content) {
+  const body = String(content || '').trim();
+  try {
+    if (tray && !tray.isDestroyed()) {
+      tray.displayBalloon({ title, content: body || title, icon: APP_ICON, noSound: true });
+      return;
+    }
+  } catch (err) {
+    console.error('[tray] 气泡提示失败：', err?.message || err);
+  }
+  try {
+    if (Notification.isSupported()) new Notification({ title, body: body || title, icon: APP_ICON }).show();
+  } catch {
+    /* 系统不支持通知就只留日志 */
+  }
+}
+
 /** 通过本地接口操作壁纸（托盘菜单与全局快捷键共用） */
 async function wallpaperAction(kind) {
-  if (!serverPort) return null;
+  if (!serverPort) {
+    trayNotify('壁纸没换成', '本地服务还没起来，等几秒再试，或点「重启本地服务」');
+    return null;
+  }
   const path =
     kind === 'now'
       ? '/api/wallpaper/now'
@@ -648,9 +678,17 @@ async function wallpaperAction(kind) {
         ? '/api/wallpaper/current/favorite'
         : '/api/wallpaper/current/dislike';
   try {
-    return await fetchJson(`http://127.0.0.1:${serverPort}${path}`, { method: 'POST' }, 30000);
+    const data = await fetchJson(`http://127.0.0.1:${serverPort}${path}`, { method: 'POST' }, 30000);
+    // fetchJson 不看状态码：500 时它照样返回 { error }，必须自己判
+    if (!data || data.error) throw new Error(data?.error || '服务没有返回结果');
+    const name = String(data.title || '').slice(0, 40);
+    if (kind === 'favorite') trayNotify('已收藏', name ? `已收藏「${name}」` : '已收藏当前壁纸');
+    else if (kind === 'dislike') trayNotify('已跳过', name ? `换成了「${name}」` : '已跳过这一张，换下一张');
+    else trayNotify('壁纸已更换', name ? `当前壁纸：${name}` : '已切换到新壁纸');
+    return data;
   } catch (err) {
     console.error('[wallpaper] 操作失败：', err?.message || err);
+    trayNotify('壁纸没换成', err?.message || '未知错误');
     return null;
   }
 }
@@ -683,12 +721,23 @@ function createTray() {
     const title = String(cur.title || '').slice(0, 16);
     const menu = Menu.buildFromTemplate([
       { label: '打开主窗口', click: showMainWindow },
-      { label: '框选截图…', click: () => requestRegionShot() },
+      {
+        label: '框选截图…',
+        click: () => {
+          // 窗口隐藏 / 屏幕抓取被拦时这里会抛，不能静默吞掉
+          void Promise.resolve(requestRegionShot())
+            .catch((err) => trayNotify('截图没成功', err?.message || '屏幕抓取不可用，试试打开主窗口再截'))
+            .finally(() => refreshMenu());
+        },
+      },
       {
         label: restartingServer ? '正在重启本地服务…' : '重启本地服务',
         enabled: !restartingServer,
         click: () => {
-          void restartLocalServer().then(() => refreshMenu());
+          void restartLocalServer().then((ok) => {
+            if (ok) trayNotify('本地服务已重启', '现在可以继续换壁纸、收藏了');
+            refreshMenu();
+          });
         },
       },
       {
@@ -713,6 +762,7 @@ function createTray() {
             console.error('[tray] 保存托盘常驻设置失败：', err?.message || err);
             // 保存失败就回滚开关，别让界面显示的和实际行为不一致
             setSettingsCache({ ...getSettingsSnapshot(), closeToTray: !next });
+            trayNotify('设置没保存', err?.message || '本地服务没响应');
             refreshMenu();
           }
         },
@@ -733,18 +783,24 @@ function createTray() {
       {
         label: live.enabled ? '关闭动态壁纸' : '开启动态壁纸',
         click: async () => {
+          const next = !live.enabled;
           try {
-            // 只保存配置，真正的创建/销毁由 liveBus 广播触发
+            // 只保存配置，真正的创建/销毁由 liveBus 广播触发（server → 主进程 → 窗口）
             await fetchJson(
               `http://127.0.0.1:${serverPort}/api/wallpaper/live`,
               {
                 method: 'PUT',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ enabled: !live.enabled }),
+                body: JSON.stringify({ enabled: next }),
               }
+            );
+            trayNotify(
+              next ? '动态壁纸已开启' : '动态壁纸已关闭',
+              next ? '桌面会按当前壁纸动起来；想停就在托盘菜单再点一次' : ''
             );
           } catch (err) {
             console.error('[tray] 动态壁纸切换失败：', err?.message || err);
+            trayNotify('动态壁纸没切换', err?.message || '本地服务没响应，试试「重启本地服务」');
           }
           refreshMenu();
         },
@@ -753,17 +809,25 @@ function createTray() {
       {
         label: auto.enabled ? '暂停定时切换' : '启用定时切换',
         click: async () => {
+          const next = !auto.enabled;
           try {
-            await fetchJson(
+            const data = await fetchJson(
               `http://127.0.0.1:${serverPort}/api/wallpaper/auto`,
               {
                 method: 'PUT',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ enabled: !auto.enabled }),
+                body: JSON.stringify({ enabled: next }),
               }
+            );
+            if (!data || data.error) throw new Error(data?.error || '服务没有返回结果');
+            const every = data?.config?.intervalMinutes || auto.intervalMinutes;
+            trayNotify(
+              next ? '定时切换已开启' : '定时切换已暂停',
+              next && every ? `每 ${every} 分钟换一张` : ''
             );
           } catch (err) {
             console.error('[tray] 切换定时失败：', err?.message || err);
+            trayNotify('定时切换没生效', err?.message || '本地服务没响应');
           }
           refreshMenu();
         },
@@ -1366,9 +1430,58 @@ handleIpc('live-wallpaper-control', async (_e, patch) => {
   return r && r.ok === false ? { ok: false, error: r.error } : { ok: true };
 });
 
+/* --------------------------- 首装示例图播种 --------------------------- */
+
+/**
+ * 安装后第一次打开，把随包附带的示例图片放进默认素材目录（图片/TuKu）。
+ * 装完就该看到「图库里有图」，而不是空库 + 一句「请选择文件夹」。
+ * 只在默认目录为空时写入，且写一次标记就不再写 —— 用户删光图片后重启不会被塞回来。
+ */
+function seedSampleImages() {
+  const dest = process.env.TUKU_DEFAULT_STORAGE_DIR;
+  if (!dest) return;
+  const marker = path.join(app.getPath('userData'), '.samples-seeded');
+  if (fs.existsSync(marker)) return;
+  const src = app.isPackaged
+    ? path.join(process.resourcesPath, 'samples')
+    : path.join(APP_ROOT_DIR, 'assets', 'samples');
+  try {
+    let existing = [];
+    try {
+      existing = fs.readdirSync(dest);
+    } catch {
+      existing = [];
+    }
+    // 目录里已经有东西（用户自己的素材）就不掺示例图
+    if (!existing.length && fs.existsSync(src)) {
+      fs.mkdirSync(dest, { recursive: true });
+      let copied = 0;
+      for (const f of fs.readdirSync(src)) {
+        const from = path.join(src, f);
+        if (!fs.statSync(from).isFile()) continue;
+        fs.copyFileSync(from, path.join(dest, f));
+        copied++;
+      }
+      console.info('[seed] 已放入示例图片', copied, '张 →', dest);
+    }
+  } catch (err) {
+    console.warn('[seed] 示例图片准备失败：', err?.message || err);
+  }
+  // 标记照写：即使这次目录非空（用户自有素材），下次也不再尝试
+  try {
+    fs.mkdirSync(path.dirname(marker), { recursive: true });
+    fs.writeFileSync(marker, new Date().toISOString());
+  } catch {
+    /* 标记写不了就下次再判断一次，不影响启动 */
+  }
+}
+
 app.whenReady().then(async () => {
   // 第二个实例不再初始化服务与窗口
   if (!gotSingleInstanceLock) return;
+
+  // 必须在服务进程启动前完成：服务启动时会因为图库为空而自动扫描素材目录
+  seedSampleImages();
 
   // 目录环境变量已在模块顶层设置。主进程只加载「不碰 SQLite」的模块：
   // config（路径/令牌）、desktop（窗口挂载）、proxy（代理规则 + Chromium 会话）。

@@ -81,6 +81,19 @@ function scopeQuery(scope, playlistId) {
  * 另外支持 minScore（低于该分数不选）与 excluded（用户点过「不喜欢」的图不再出现）
  */
 export async function pickImage(cfg) {
+  const id = await pickOnce(cfg);
+  if (id != null) return id;
+  // 「不喜欢」记录是把双刃剑：库里只有几张图时，点几下就把候选吃干净了，
+  // 之后每次「换一张」都只能报「该范围内没有可用图片」。排到空就清空重来。
+  if (Array.isArray(cfg.excluded) && cfg.excluded.length) {
+    console.warn('[auto] 候选被「不喜欢」记录排空，已清空排除列表重选');
+    cfg.excluded = [];
+    return pickOnce(cfg);
+  }
+  return id;
+}
+
+async function pickOnce(cfg) {
   const { scope, playlistId, order } = cfg;
   const { sql, params } = scopeQuery(scope, playlistId);
   const where = [`i.id IN (${sql})`];
@@ -242,6 +255,8 @@ export async function applyNow(scopeOverride = null, playlistIdOverride = null) 
       scope: cfg.scope,
       playlistId: cfg.playlistId,
       cursor: cfg.cursor ?? current.cursor ?? 0,
+      // pickImage 排空后会把 excluded 就地清空，这里跟着落盘，否则下次还从满列表开始
+      excluded: cfg.excluded ?? current.excluded ?? [],
       lastRunAt: nowIso,
       lastImageId: imageId,
     },

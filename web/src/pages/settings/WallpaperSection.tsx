@@ -86,9 +86,14 @@ export default function WallpaperSection({ settings, patch, onToast }: Props) {
   };
 
   const saveAuto = async (patch: Partial<AutoConfig>) => {
-    const status = await api.saveAutoWallpaper(patch);
-    setAutoStatus(status);
-    onToast('已保存');
+    // 以前没有 catch：接口失败时开关看着没动、也没有任何提示，用户只会觉得「点了没生效」
+    try {
+      const status = await api.saveAutoWallpaper(patch);
+      setAutoStatus(status);
+      onToast('已保存');
+    } catch (err) {
+      onToast(`保存失败：${(err as Error).message}`);
+    }
   };
 
   const switchNow = async () => {

@@ -74,6 +74,7 @@ export default [
     ignores: [
       'dist/**',
       'release-build/**',
+      'build-out/**',
       'node_modules/**',
       '.codebuddy/**',
       '_tmp/**',
