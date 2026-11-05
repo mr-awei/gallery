@@ -14,7 +14,6 @@ export function register(app, ctx) {
     res.json({
       ok: true,
       sourceUrl: row.source_url || '',
-      pageUrl: row.page_url || '',
       providers: listProviders(row),
     });
   });

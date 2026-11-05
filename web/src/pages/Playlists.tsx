@@ -1,8 +1,8 @@
-import React, { useCallback, useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { api, quiet } from '../api';
 import type { ImageItem, Playlist } from '../types';
 import { IconFolder, IconTrash, IconWallpaper } from '../components/Icons';
-import { promptDialog } from '../components/Dialogs';
+import { confirmDialog, promptDialog } from '../components/Dialogs';
 import { formatDate } from '../api';
 
 export default function Playlists({
@@ -10,7 +10,7 @@ export default function Playlists({
   onOpen,
   onSetWallpaper,
 }: {
-  onToast: (msg: string) => void;
+  onToast: (msg: string, kind?: 'info' | 'error') => void;
   onOpen: (item: ImageItem, pool: ImageItem[]) => void;
   onSetWallpaper: (item: ImageItem) => void;
 }) {
@@ -19,6 +19,10 @@ export default function Playlists({
   const [items, setItems] = useState<ImageItem[]>([]);
   const [newName, setNewName] = useState('');
   const [newDesc, setNewDesc] = useState('');
+  /** 写操作进行中：按钮禁用，避免重复提交同名清单 */
+  const [busy, setBusy] = useState(false);
+  /** 拉图片的请求序号：快速切 A→B 时，A 的迟到响应不能覆盖 B 的列表 */
+  const imageSeq = useRef(0);
   /** 描述草稿：后端 PUT 一直支持 description，界面上原来没有入口，字段永远是空串 */
   const [descDraft, setDescDraft] = useState('');
   const activeList = lists.find((p) => p.id === activeId) || null;
@@ -35,24 +39,41 @@ export default function Playlists({
   }, [activeId, activeList?.description]);
 
   useEffect(() => {
+    const seq = ++imageSeq.current;
     if (!activeId) {
       setItems([]);
       return;
     }
-    api.playlistImages(activeId).then(setItems).catch(quiet);
-  }, [activeId]);
+    api
+      .playlistImages(activeId)
+      .then((r) => {
+        if (seq === imageSeq.current) setItems(r);
+      })
+      .catch((err) => {
+        if (seq !== imageSeq.current) return;
+        setItems([]);
+        onToast(`清单图片没能加载：${(err as Error).message}`, 'error');
+      });
+  }, [activeId, onToast]);
 
   const create = async () => {
     const name = newName.trim();
-    if (!name) return;
-    // 描述一起提交：建完再补填的话，用户通常就直接忘了，字段永远空着
-    const res = await api.createPlaylist(name, newDesc.trim());
-    setLists(res.playlists);
-    setNewName('');
-    setNewDesc('');
-    const created = res.playlists.find((p) => p.name === name);
-    if (created) setActiveId(created.id);
-    onToast(`已创建清单「${name}」`);
+    if (!name || busy) return;
+    setBusy(true);
+    try {
+      // 描述一起提交：建完再补填的话，用户通常就直接忘了，字段永远空着
+      const res = await api.createPlaylist(name, newDesc.trim());
+      setLists(res.playlists);
+      setNewName('');
+      setNewDesc('');
+      const created = res.playlists.find((p) => p.name === name);
+      if (created) setActiveId(created.id);
+      onToast(`已创建清单「${name}」`);
+    } catch (err) {
+      onToast(`创建清单失败：${(err as Error).message}`, 'error');
+    } finally {
+      setBusy(false);
+    }
   };
 
   /** 清单改名：API 早就支持 PUT，界面上一直没有入口 */
@@ -64,7 +85,7 @@ export default function Playlists({
       setLists(res.playlists);
       onToast(`已重命名为「${nn}」`);
     } catch (err) {
-      onToast((err as Error).message);
+      onToast((err as Error).message, 'error');
     }
   };
 
@@ -77,27 +98,45 @@ export default function Playlists({
       setLists(res.playlists);
       onToast(text ? '描述已保存' : '描述已清空');
     } catch (err) {
-      onToast((err as Error).message);
+      onToast((err as Error).message, 'error');
     }
   };
 
   const removeList = async (p: Playlist) => {
-    if (!window.confirm(`删除清单「${p.name}」？清单内的图片不会被删除。`)) return;
-    const res = await api.deletePlaylist(p.id);
-    setLists(res.playlists);
-    if (activeId === p.id) setActiveId(null);
+    if (busy) return;
+    if (!(await confirmDialog(`删除清单「${p.name}」？清单内的图片不会被删除。`))) return;
+    setBusy(true);
+    try {
+      const res = await api.deletePlaylist(p.id);
+      setLists(res.playlists);
+      if (activeId === p.id) setActiveId(null);
+      onToast(`已删除清单「${p.name}」`);
+    } catch (err) {
+      onToast(`删除清单失败：${(err as Error).message}`, 'error');
+    } finally {
+      setBusy(false);
+    }
   };
 
   const removeItem = async (imageId: number) => {
     if (!activeId) return;
-    const res = await api.removeFromPlaylist(activeId, imageId);
-    setLists(res.playlists);
-    setItems((prev) => prev.filter((i) => i.id !== imageId));
+    try {
+      // 服务端确认成功后再动本地列表：失败时界面不能先「假装已移除」
+      const res = await api.removeFromPlaylist(activeId, imageId);
+      setLists(res.playlists);
+      setItems((prev) => prev.filter((i) => i.id !== imageId));
+    } catch (err) {
+      onToast(`移除失败：${(err as Error).message}`, 'error');
+    }
   };
 
   const useForAuto = async (p: Playlist) => {
-    await api.saveAutoWallpaper({ scope: 'playlist', playlistId: p.id });
-    onToast(`自动换壁纸已切换到清单「${p.name}」`);
+    try {
+      await api.saveAutoWallpaper({ scope: 'playlist', playlistId: p.id });
+      onToast(`自动换壁纸已切换到清单「${p.name}」`);
+    } catch (err) {
+      onToast(`切换失败：${(err as Error).message}`, 'error');
+    }
   };
 
   return (
@@ -182,8 +221,13 @@ export default function Playlists({
               onChange={(e) => setNewName(e.target.value)}
               onKeyDown={(e) => e.key === 'Enter' && create()}
             />
-            <button className="btn primary" onClick={create}>
-              新建
+            <button
+              className="btn primary"
+              disabled={busy || !newName.trim()}
+              title={!newName.trim() ? '先输入清单名称' : busy ? '正在创建…' : '创建新清单'}
+              onClick={create}
+            >
+              {busy ? '创建中…' : '新建'}
             </button>
           </div>
           <input

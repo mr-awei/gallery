@@ -21,10 +21,22 @@ const queue = []; // 待生成的 id（FIFO）
 const queued = new Set(); // 去重：同一张图只排一次
 let running = 0;
 let syncRunning = 0;
+/** 失败计数与最后一条错误：以前 `.catch(() => '')` 把失败吞成空串，占位图永远不消失也无从排查 */
+let failed = 0;
+let lastError = '';
+
+function noteFailure(id, err) {
+  failed += 1;
+  lastError = `#${id} ${err?.message || err}`;
+  // 只在前几次与每 50 次打一条：一次坏库可能是所有图都失败，逐条打会把日志刷爆
+  if (failed <= 3 || failed % 50 === 0) {
+    console.warn(`[thumb] 生成失败（累计 ${failed} 次）：${lastError}`);
+  }
+}
 
 /** 正在补图的队列长度（诊断用） */
 export function thumbQueueStats() {
-  return { pending: queue.length, running, syncRunning };
+  return { pending: queue.length, running, syncRunning, failed, lastError };
 }
 
 /** 切库时清空：队列里的 id 属于旧库，继续跑会拿旧 id 去新库的 thumbs 目录里生成 */
@@ -48,7 +60,7 @@ function pump() {
     queued.delete(id);
     running++;
     void generate(id)
-      .catch(() => '')
+      .catch((err) => noteFailure(id, err))
       .finally(() => {
         running--;
         pump();
@@ -75,7 +87,8 @@ export async function trySyncThumb(id) {
   syncRunning++;
   try {
     return await generate(id);
-  } catch {
+  } catch (err) {
+    noteFailure(id, err);
     return null;
   } finally {
     syncRunning--;

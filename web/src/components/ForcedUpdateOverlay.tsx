@@ -2,18 +2,17 @@ import React, { useEffect, useState } from 'react';
 import { desktop, quiet, type UpdateState } from '../api';
 
 /**
- * 强制更新遮罩。
+ * 更新就绪提示层。
  *
- * 主进程确认「有新版本」后广播 force=true，这层全屏遮罩接管界面：
- * 没有关闭按钮、没有「稍后再说」，下载完自动重启安装。
- * 只有一种情况给出口 —— 下载/安装反复失败，那时允许重试或退出应用，
- * 否则用户会被永久挡在一个什么也干不了的黑屏上。
+ * 只在一个时刻出现：**更新包已经下载到本地、可以立刻安装**时。
+ * 检查与下载都在后台静默进行，用户照常使用，不会卡在「正在检查/正在下载」的遮罩上。
+ *
+ * 装不上时给出口：安装程序启动失败会显示「重试安装 / 本次先继续用」，
+ * 避免用户被锁死在一个永远装不上的状态（下次启动仍会重新检查）。
  */
-const VISIBLE: UpdateState['status'][] = ['available', 'downloading', 'downloaded', 'error'];
-
 export default function ForcedUpdateOverlay() {
   const [state, setState] = useState<UpdateState | null>(null);
-  const [retrying, setRetrying] = useState(false);
+  const [busy, setBusy] = useState(false);
 
   useEffect(() => {
     if (!desktop?.updateState) return;
@@ -21,7 +20,7 @@ export default function ForcedUpdateOverlay() {
     desktop
       .updateState()
       .then((s) => {
-        // 主进程可能在本组件挂载前就已经检查出结果，先补一次快照
+        // 主进程可能在本组件挂载前就已经下载完成，先补一次快照
         if (alive) setState(s);
       })
       .catch(quiet);
@@ -32,69 +31,75 @@ export default function ForcedUpdateOverlay() {
     };
   }, []);
 
-  if (!desktop || !state?.force || !state.status || !VISIBLE.includes(state.status)) return null;
+  if (!state?.ready || state.dismissed) return null;
 
-  const { status } = state;
-  const percent = Math.max(0, Math.min(100, Number(state.percent) || 0));
-  const shown = status === 'downloaded' ? 100 : percent;
+  const failed = state.status === 'error';
   const version = state.version || '新版本';
   const current = state.current || '';
 
-  const hint =
-    status === 'downloaded'
-      ? '下载完成，正在重启安装…'
-      : status === 'downloading'
-        ? `${percent}% · 正在下载安装包`
-        : status === 'available'
-          ? '正在准备下载…'
-          : '更新中断';
-
-  const retry = async () => {
-    setRetrying(true);
+  const retryInstall = async () => {
+    setBusy(true);
     try {
-      // 主进程此时仍是强制模式：重新检查到新版会自动开始下载
-      const r = await desktop?.updateCheck?.();
-      if (!r?.ok) {
-        setState((s) => (s ? { ...s, status: 'error', error: r?.msg || '检查更新失败' } : s));
+      const r = await desktop?.updateInstall?.();
+      if (r && !r.ok) {
+        setState((s) => (s ? { ...s, status: 'error', error: r.msg || '安装未能启动' } : s));
       }
     } catch (err) {
-      setState((s) => (s ? { ...s, status: 'error', error: (err as Error).message } : s));
+      setState((s) =>
+        s ? { ...s, status: 'error', error: (err as Error).message || '安装未能启动' } : s
+      );
     } finally {
-      setRetrying(false);
+      setBusy(false);
     }
+  };
+
+  const dismiss = async () => {
+    try {
+      await desktop?.updateDismiss?.();
+    } catch {
+      /* 主进程没响应就只是关不掉，不影响继续用 */
+    }
+    setState((s) => (s ? { ...s, dismissed: true } : s));
   };
 
   return (
     <div style={overlayStyle} role="alertdialog" aria-modal="true" aria-label="应用更新">
       <div style={cardStyle}>
         <div style={badgeStyle}>图库</div>
-        <h1 style={titleStyle}>需要更新后才能继续使用</h1>
+        <h1 style={titleStyle}>{failed ? '更新安装未能启动' : '新版本已就绪'}</h1>
         <p style={descStyle}>
-          发现新版本 <b style={strongStyle}>v{version}</b>
-          {current ? `（当前 v${current}）` : ''}，正在自动升级，请稍候。
+          新版本 <b style={strongStyle}>v{version}</b>
+          {current ? `（当前 v${current}）` : ''} 已下载完成
+          {failed ? '，但安装程序没能启动。' : '，正在重启安装，请稍候。'}
         </p>
 
-        <div style={barWrapStyle}>
-          <div style={{ ...barStyle, width: `${shown}%` }} />
-        </div>
-        <div style={hintStyle}>{hint}</div>
-
-        {status === 'error' && (
+        {!failed && (
           <>
-            <p style={errorStyle}>{state.error || '更新下载失败'}</p>
+            <div style={barWrapStyle}>
+              <div style={{ ...barStyle, width: '100%' }} />
+            </div>
+            <div style={hintStyle}>更新包已在本地，无需再次下载</div>
+          </>
+        )}
+
+        {failed && (
+          <>
+            <p style={errorStyle}>{state.error || '安装程序未能启动'}</p>
             <div style={rowStyle}>
-              <button type="button" style={primaryBtnStyle} disabled={retrying} onClick={retry}>
-                {retrying ? '重试中…' : '重试'}
+              <button type="button" style={primaryBtnStyle} disabled={busy} onClick={retryInstall}>
+                {busy ? '正在启动…' : '重试安装'}
               </button>
-              <button type="button" style={ghostBtnStyle} onClick={() => void desktop?.quit?.()}>
-                退出应用
+              <button type="button" style={ghostBtnStyle} onClick={dismiss}>
+                本次先继续用
               </button>
             </div>
           </>
         )}
 
         <div style={footStyle}>
-          为保证数据与新功能一致，旧版本不再提供使用入口。更新完成后应用会自动重新打开。
+          {failed
+            ? '选择「本次先继续用」后可以照常使用，下次启动会再次尝试安装；也可以退出应用后手动运行安装包。'
+            : '安装过程会关闭并重新打开应用，图库数据不受影响。'}
         </div>
       </div>
     </div>

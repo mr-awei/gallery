@@ -1,6 +1,7 @@
 import fs from 'node:fs';
 import fsp from 'node:fs/promises';
 import path from 'node:path';
+import { assertWritableDir } from './safe-path.js';
 import { db, getSettings } from '../db.js';
 import { getActiveLibrary } from '../libraries.js';
 import { hiddenFolderPaths, hiddenImagesClause } from './privacy.js';
@@ -54,7 +55,7 @@ async function mapLimit(list, limit, fn) {
  * destDir 是「放 .library 的父目录」；最终产物是 destDir/<库名>.library
  */
 export async function exportEagleLibrary({ destDir, name } = {}) {
-  const dest = String(destDir || '').trim();
+  const dest = assertWritableDir(destDir, '导出目录');
   if (!dest) throw new Error('请选择导出目录');
   if (!fs.existsSync(dest)) throw new Error('导出目录不存在，请重新选择');
 

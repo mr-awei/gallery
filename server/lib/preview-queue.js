@@ -27,9 +27,20 @@ const queued = new Set();
 let running = 0;
 /** 前台（用户正点开的那张）正在生成的张数：>0 时后台完全让路 */
 let fg = 0;
+/** 失败计数与最后一条错误：以前静默吞成空串，灯箱一直是模糊图也查不到原因 */
+let failed = 0;
+let lastError = '';
+
+function noteFailure(id, err) {
+  failed += 1;
+  lastError = `#${id} ${err?.message || err}`;
+  if (failed <= 3 || failed % 50 === 0) {
+    console.warn(`[preview] 生成失败（累计 ${failed} 次）：${lastError}`);
+  }
+}
 
 export function previewQueueStats() {
-  return { pending: queue.length, running, fg };
+  return { pending: queue.length, running, fg, failed, lastError };
 }
 
 /** 切库时清空：排队的 id 属于旧库，继续跑只会拿旧 id 去新库目录里写文件 */
@@ -64,7 +75,7 @@ function pump() {
     queued.delete(id);
     running++;
     void generate(id)
-      .catch(() => '')
+      .catch((err) => noteFailure(id, err))
       .finally(() => {
         running--;
         pump();

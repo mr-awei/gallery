@@ -38,9 +38,13 @@ function safeEqual(a, b) {
 /** 允许把令牌放在 query 里的方法：只读请求。写操作必须用 header */
 const QUERY_TOKEN_METHODS = new Set(['GET', 'HEAD']);
 
-/** 请求是否携带有效令牌（API_TOKEN 为空时视为未启用，仅靠回环监听兜底） */
+/**
+ * 请求是否携带有效令牌。
+ * 令牌为空时一律返回 false（而不是放行）——空令牌只可能来自配置异常，
+ * 那种情况下「静默全站开放」是最糟的默认值。config.js 已保证会退回内存令牌。
+ */
 export function hasValidToken(req) {
-  if (!API_TOKEN) return true;
+  if (!API_TOKEN) return false;
   const auth = String(req.headers['authorization'] || '');
   if (auth.startsWith('Bearer ') && safeEqual(auth.slice(7), API_TOKEN)) return true;
   if (safeEqual(req.headers['x-api-token'], API_TOKEN)) return true;

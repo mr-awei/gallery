@@ -99,7 +99,7 @@ function CropCell({
 interface Props {
   items: CropItem[];
   onClose: () => void;
-  onToast?: (msg: string) => void;
+  onToast?: (msg: string, kind?: 'info' | 'error') => void;
   /** 任务结束：刷新列表，让卡片拿到新尺寸/新缩略图 */
   onDone?: () => void;
 }

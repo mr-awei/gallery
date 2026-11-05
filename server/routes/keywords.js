@@ -408,8 +408,8 @@ export function register(app, ctx) {
   app.delete(
     '/api/library',
     asyncRoute(async (_req, res) => {
-      const removed = lib.clearLibrary();
-      res.json({ ok: true, removed });
+      const { removed, failed } = await lib.clearLibrary();
+      res.json({ ok: true, removed, failed });
     })
   );
 

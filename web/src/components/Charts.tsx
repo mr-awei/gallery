@@ -108,7 +108,8 @@ export function TrendLine({ data }: { data: { date: string; count: number }[] })
         <polygon points={area} fill="url(#areaFill)" />
         <polyline points={line} fill="none" stroke="url(#lineStroke)" strokeWidth="2.2" strokeLinejoin="round" />
         {points.map((p, i) => (
-          <circle key={i} cx={p.x} cy={p.y} r={2.6} fill="#ff4d8d" />
+          /* key 用日期桶标签：用下标时，数据窗口一平移（换时间范围）就会复用错节点 */
+          <circle key={data[i]?.date || `p${i}`} cx={p.x} cy={p.y} r={2.6} fill="#ff4d8d" />
         ))}
       </svg>
       <div style={{ display: 'flex', justifyContent: 'space-between', color: 'var(--muted)', fontSize: 11 }}>

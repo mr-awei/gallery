@@ -19,7 +19,7 @@ export default function Knowledge({
   onToast,
   onLibraryChanged,
 }: {
-  onToast: (msg: string) => void;
+  onToast: (msg: string, kind?: 'info' | 'error') => void;
   onLibraryChanged: () => void;
 }) {
   const [rules, setRules] = useState<KbRule[]>([]);
@@ -55,7 +55,7 @@ export default function Knowledge({
       refresh();
       onLibraryChanged();
     } catch (err) {
-      onToast((err as Error).message);
+      onToast((err as Error).message, 'error');
     } finally {
       setBusy('');
     }
@@ -67,7 +67,7 @@ export default function Knowledge({
       const res = await api.aiSuggest();
       setSuggestion(res.text);
     } catch (err) {
-      onToast((err as Error).message);
+      onToast((err as Error).message, 'error');
     } finally {
       setBusy('');
     }
@@ -81,7 +81,7 @@ export default function Knowledge({
       refresh();
       onLibraryChanged();
     } catch (err) {
-      onToast((err as Error).message);
+      onToast((err as Error).message, 'error');
     } finally {
       setBusy('');
     }

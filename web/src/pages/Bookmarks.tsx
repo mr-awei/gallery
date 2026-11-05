@@ -1,10 +1,14 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { api, formatDate, quiet } from '../api';
+import { api, copyText, formatDate, withToken } from '../api';
 import type { Filters, ImageItem } from '../types';
 import { IconLink, IconRefresh, IconSearch, IconTrash } from '../components/Icons';
+import { confirmDialog } from '../components/Dialogs';
+
+/** 一次取多少条：以前固定只取前 300 条，顶部却显示真实总数，数字和列表永远对不上 */
+const PAGE = 100;
 
 interface Props {
-  onToast?: (msg: string) => void;
+  onToast?: (msg: string, kind?: 'info' | 'error') => void;
   /** 打开大图（父级灯箱）：书签也能进灯箱看封面/改元数据 */
   onOpen: (item: ImageItem, list: ImageItem[]) => void;
   onLibraryChanged?: () => void;
@@ -36,53 +40,87 @@ export default function Bookmarks({ onToast, onOpen, onLibraryChanged }: Props) 
   const [items, setItems] = useState<ImageItem[]>([]);
   const [total, setTotal] = useState(0);
   const [loading, setLoading] = useState(false);
+  const [loadingMore, setLoadingMore] = useState(false);
+  const [hasMore, setHasMore] = useState(false);
+  const [page, setPage] = useState(1);
   const [curId, setCurId] = useState<number | null>(null);
   const [missing, setMissing] = useState(false);
   const seq = useRef(0);
 
-  const load = useCallback(async () => {
-    const my = ++seq.current;
-    setLoading(true);
-    try {
-      const r = await api.images({ ...baseFilters, q }, 1, 300);
-      if (my !== seq.current) return;
-      setItems(r.items);
-      setTotal(r.total);
-      setCurId((prev) => (prev && r.items.some((i) => i.id === prev) ? prev : r.items[0]?.id ?? null));
-    } catch (e) {
-      if (my === seq.current) onToast?.((e as Error).message);
-    } finally {
-      if (my === seq.current) setLoading(false);
-    }
-  }, [q, onToast]);
+  const load = useCallback(
+    async (nextPage = 1, append = false) => {
+      const my = ++seq.current;
+      if (append) setLoadingMore(true);
+      else setLoading(true);
+      try {
+        const r = await api.images({ ...baseFilters, q }, nextPage, PAGE);
+        if (my !== seq.current) return;
+        setItems((prev) => (append ? [...prev, ...r.items] : r.items));
+        setTotal(r.total);
+        setHasMore(r.hasMore);
+        setPage(nextPage);
+        if (!append) {
+          setCurId((prev) =>
+            prev && r.items.some((i) => i.id === prev) ? prev : r.items[0]?.id ?? null
+          );
+        }
+      } catch (e) {
+        if (my === seq.current) onToast?.((e as Error).message, 'error');
+      } finally {
+        if (my === seq.current) {
+          setLoading(false);
+          setLoadingMore(false);
+        }
+      }
+    },
+    [q, onToast]
+  );
 
   useEffect(() => {
-    const t = window.setTimeout(load, q ? 250 : 0);
+    const t = window.setTimeout(() => load(1, false), q ? 250 : 0);
     return () => window.clearTimeout(t);
   }, [load, q]);
 
   const cur = useMemo(() => items.find((i) => i.id === curId) || null, [items, curId]);
 
-  useEffect(() => setMissing(false), [curId]);
+  /**
+   * 快照是否缺失：以前 missing 只被置 false、从未置 true，404 时右栏一片空白
+   * 却连一句解释都没有。这里用 HEAD 探一下（同源，带鉴权头），失败才提示。
+   */
+  useEffect(() => {
+    if (!curId) {
+      setMissing(false);
+      return;
+    }
+    let alive = true;
+    setMissing(false);
+    withToken(`/api/images/${curId}/snapshot`)
+      .then((url) => fetch(url, { method: 'HEAD' }))
+      .then((r) => {
+        if (alive) setMissing(!r.ok);
+      })
+      .catch(() => {
+        if (alive) setMissing(true);
+      });
+    return () => {
+      alive = false;
+    };
+  }, [curId]);
 
   const copy = async (text: string) => {
-    try {
-      await navigator.clipboard.writeText(text);
-      onToast?.('链接已复制');
-    } catch {
-      onToast?.('复制失败，请手动复制');
-    }
+    const ok = await copyText(text);
+    onToast?.(ok ? '链接已复制' : '复制失败，请手动复制', ok ? 'info' : 'error');
   };
 
   const remove = async (it: ImageItem) => {
-    if (!window.confirm(`删除书签「${it.title}」？快照文件也会一并删除。`)) return;
+    if (!(await confirmDialog(`删除书签「${it.title}」？快照文件也会一并删除。`))) return;
     try {
       await api.remove(it.id);
       onToast?.('已删除');
       onLibraryChanged?.();
-      load();
+      void load(1, false);
     } catch (e) {
-      onToast?.((e as Error).message);
+      onToast?.((e as Error).message, 'error');
     }
   };
 
@@ -107,7 +145,7 @@ export default function Bookmarks({ onToast, onOpen, onLibraryChanged }: Props) 
               onChange={(e) => setQ(e.target.value)}
             />
           </div>
-          <button className="btn sm" onClick={load} title="重新载入">
+          <button className="btn sm" onClick={() => load(1, false)} title="重新载入">
             <IconRefresh /> 刷新
           </button>
         </div>
@@ -144,6 +182,17 @@ export default function Bookmarks({ onToast, onOpen, onLibraryChanged }: Props) 
               </div>
             )}
             {loading && <div className="bm-empty">载入中…</div>}
+            {hasMore && !loading && (
+              <button
+                className="btn sm"
+                style={{ margin: 8 }}
+                disabled={loadingMore}
+                title={`已显示 ${items.length} / ${total} 条`}
+                onClick={() => load(page + 1, true)}
+              >
+                {loadingMore ? '载入中…' : `加载更多（还有 ${Math.max(0, total - items.length)} 条）`}
+              </button>
+            )}
           </div>
 
           <div className="bm-frame">
@@ -171,6 +220,11 @@ export default function Bookmarks({ onToast, onOpen, onLibraryChanged }: Props) 
                   </button>
                 </div>
                 <div className="bm-iframe-wrap">
+                  {missing && (
+                    <div className="bm-empty" style={{ borderBottom: '1px solid var(--line)' }}>
+                      ⚠️ 快照文件缺失（可能已被清理），这里没有内容可显示；需要看原文请点「打开原网址」。
+                    </div>
+                  )}
                   <iframe
                     key={cur.id}
                     className="bm-iframe"
@@ -178,11 +232,10 @@ export default function Bookmarks({ onToast, onOpen, onLibraryChanged }: Props) 
                     sandbox=""
                     referrerPolicy="no-referrer"
                     title={cur.title}
-                    onLoad={() => setMissing(false)}
+                    onError={() => setMissing(true)}
                   />
                   <div className="bm-snap-note">
                     快照不含脚本与外链 frame，排版可能与原网页有差异；需要完整内容请点「打开原网址」。
-                    {missing && ' 快照文件可能已被清理。'}
                   </div>
                 </div>
               </>

@@ -18,7 +18,7 @@ export default function ActionsPanel({
   open: boolean;
   ids: number[];
   onClose: () => void;
-  onToast?: (m: string) => void;
+  onToast?: (m: string, kind?: 'info' | 'error') => void;
   onRefresh?: () => void;
 }) {
   const [types, setTypes] = useState<Record<string, { label: string; desc: string }>>({});

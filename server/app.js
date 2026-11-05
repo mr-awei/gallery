@@ -221,7 +221,30 @@ export function buildApp({ desktop = false } = {}) {
     res.setHeader('Cross-Origin-Resource-Policy', 'same-origin');
     next();
   });
-  // 限制请求体大小：50MB 足够大图 base64 导入，同时防止恶意超大请求打爆内存
+  /**
+   * 请求体分级：只有真正需要 base64 大图的三个入口允许到 50MB，其余写操作 8MB 封顶。
+   * 以前全局一律 50MB —— 任何接口收到一个 40MB 的无关 body 都会先被完整读进内存。
+   * 这里在解析之前看 Content-Length 直接拒，成本几乎为零。
+   */
+  const BIG_BODY_PATHS = [
+    /^\/api\/extension\/ingest/,
+    /^\/api\/search\/by-image/,
+    /^\/api\/images\/\d+\/thumb/,
+    /^\/api\/import\/upload/,
+  ];
+  const BODY_CAP_SMALL = 8 * 1024 * 1024;
+  const BODY_CAP_BIG = 50 * 1024 * 1024;
+  app.use((req, res, next) => {
+    if (req.method === 'GET' || req.method === 'HEAD') return next();
+    const declared = Number(req.headers['content-length'] || 0);
+    if (!declared) return next();
+    const cap = BIG_BODY_PATHS.some((re) => re.test(req.path)) ? BODY_CAP_BIG : BODY_CAP_SMALL;
+    if (declared > cap) {
+      return res.status(413).json({ error: `请求体超过上限（${Math.round(cap / 1024 / 1024)}MB）` });
+    }
+    next();
+  });
+  // 解析上限仍留 50MB：上面已经按路径做过更严的前置拒绝
   app.use(express.json({ limit: '50mb' }));
 
   /* ----------------------------- 实时事件（SSE） ----------------------------- */

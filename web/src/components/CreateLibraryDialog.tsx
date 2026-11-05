@@ -14,7 +14,7 @@ import { IconClose, IconFolder } from './Icons';
 interface Props {
   onCancel: () => void;
   onDone: (library: Library) => void;
-  onToast: (msg: string) => void;
+  onToast: (msg: string, kind?: 'info' | 'error') => void;
   /** 首次启动复用同一个弹窗：换个欢迎式的头部，跳过 = 完成引导（不再单独维护一套引导页） */
   welcome?: boolean;
 }
@@ -77,7 +77,7 @@ export default function CreateLibraryDialog({ onCancel, onDone, onToast, welcome
       const { library } = await api.activateLibrary(id);
       onDone(library);
     } catch (err) {
-      onToast((err as Error).message);
+      onToast((err as Error).message, 'error');
       setBusy(false);
     }
   };

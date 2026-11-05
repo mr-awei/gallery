@@ -55,7 +55,7 @@ interface Props {
   onResizeMove: (e: PointerEvent<HTMLDivElement>) => void;
   onResizeUp: (e: PointerEvent<HTMLDivElement>) => void;
   onResetWidth: () => void;
-  onToast: (msg: string) => void;
+  onToast: (msg: string, kind?: 'info' | 'error') => void;
 }
 
 export default function Sidebar({

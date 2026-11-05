@@ -44,6 +44,8 @@ import type {
 export interface AppInfo {
   /** 实际生效的全局快捷键（被占用时会自动换备用键） */
   hotkeys: Record<string, string>;
+  /** 候选键全被占用、实际没注册上的（键名 → 试过的候选键串） */
+  failedHotkeys?: Record<string, string>;
   shortcutEnabled: boolean;
   version: string;
   platform: string;
@@ -53,6 +55,10 @@ interface DesktopAPI {
   isDesktop: boolean;
   pickFolder: () => Promise<string | null>;
   openFolder: (path: string) => Promise<string | null>;
+  /** 打开崩溃转储目录（桌面端） */
+  openCrashDir?: () => Promise<string>;
+  /** 打开运行日志目录（桌面端） */
+  openLogDir?: () => Promise<string>;
   revealFile: (path: string) => Promise<boolean>;
   download: (url: string) => Promise<boolean>;
   /** 多窗口浏览：再开一个窗口看同一份图库 */
@@ -84,13 +90,19 @@ interface DesktopAPI {
   /** 主进程请求开始框选（快捷键/托盘触发） */
   onShotRequest?: (cb: () => void) => () => void;
   /** 订阅全局快捷键重新注册事件（设置里开关快捷键后即时更新提示），返回取消订阅函数 */
-  onHotkeysChanged?: (cb: (hotkeys: Record<string, string>) => void) => () => void;
+  onHotkeysChanged?: (
+    cb: (p: { hotkeys: Record<string, string>; failed: Record<string, string> }) => void
+  ) => () => void;
   /** 应用内更新（electron-updater）：检查 / 下载 / 重启安装 */
   updateCheck?: () => Promise<UpdateCheckResult & { supported?: boolean }>;
   updateDownload?: () => Promise<{ ok: boolean; msg?: string }>;
   updateInstall?: () => Promise<{ ok: boolean; msg?: string }>;
   updateState?: () => Promise<UpdateState>;
   onUpdateState?: (cb: (s: UpdateState) => void) => () => void;
+  /** 本地服务重启中/已恢复（重启期间界面要遮住，避免用户对着失败请求操作） */
+  onServiceState?: (cb: (s: { restarting: boolean; port?: number; error?: string }) => void) => () => void;
+  /** 忽略本次更新提示（安装失败时的出口） */
+  updateDismiss?: () => Promise<{ ok: boolean }>;
   /** 退出应用（强制更新失败时的兜底出口） */
   quit?: () => Promise<{ ok: boolean }>;
 }
@@ -159,6 +171,10 @@ export interface UpdateState {
   current?: string;
   /** 已确认有新版本且要求强制更新：界面必须全屏遮挡，装完才允许继续用 */
   force?: boolean;
+  /** 更新包已下载到本地、可以安装：界面此时才需要遮挡提示 */
+  ready?: boolean;
+  /** 用户选了「本次先继续用」，本次会话不再遮挡 */
+  dismissed?: boolean;
 }
 
 export const desktop = (window as unknown as { desktopAPI?: DesktopAPI }).desktopAPI;
@@ -190,6 +206,19 @@ export function prettyHotkey(acc?: string) {
     .replace('Control', 'Ctrl')
     .split('+')
     .join('+');
+}
+
+/**
+ * 复制纯文本到剪贴板。返回是否成功——调用方据此给「已复制 / 复制失败」，
+ * 不再每个组件各写一份 try/catch 与各自的成功文案。
+ */
+export async function copyText(text: string): Promise<boolean> {
+  try {
+    await navigator.clipboard.writeText(text);
+    return true;
+  } catch {
+    return false;
+  }
 }
 
 /**
@@ -405,11 +434,30 @@ export async function postBlobWithNote(
 
 /**
  * 静默但可见的错误兜底：替代裸 `.catch(() => {})`。
- * 预取/后台刷新这类「失败无所谓」的请求不再完全吞错——失败原因至少留在
- * DevTools console 里，排查「为什么某功能一直不更新」时不再两眼一抹黑。
+ * 失败不能只写一行 console —— 那会让「请求挂了」在界面上表现为「没有数据」，
+ * 用户以为图库空了。现在除了记日志，还会通知订阅者（App 全局错误条）。
  */
+type ApiErrorListener = (err: Error) => void;
+const apiErrorListeners = new Set<ApiErrorListener>();
+
+/** 订阅后台请求失败（返回取消订阅函数） */
+export function onApiError(cb: ApiErrorListener) {
+  apiErrorListeners.add(cb);
+  return () => {
+    apiErrorListeners.delete(cb);
+  };
+}
+
 export const quiet = (err: unknown) => {
-  console.warn('[quiet]', (err as Error)?.message || err);
+  const e = err instanceof Error ? err : new Error(String(err));
+  console.warn('[quiet]', e.message);
+  for (const cb of apiErrorListeners) {
+    try {
+      cb(e);
+    } catch {
+      /* 订阅者自己出错不该反噬请求链 */
+    }
+  }
 };
 
 /** 默认请求超时：本地服务正常毫秒级返回，20s 已远超正常波动 */
@@ -1315,12 +1363,24 @@ export const api = {
       { method: 'POST' }
     ),
 
-  // 回收站
-  trash: () => request<TrashItem[]>('/api/trash'),
+  // 回收站：带 limit 走服务端分页（返回 items + total），不带则维持一次性取全部
+  trash: (params?: { limit?: number; offset?: number; q?: string }) => {
+    if (!params?.limit) return request<TrashItem[]>('/api/trash');
+    const qs = new URLSearchParams({ limit: String(params.limit) });
+    if (params.offset) qs.set('offset', String(params.offset));
+    if (params.q) qs.set('q', params.q);
+    return request<{ items: TrashItem[]; total: number }>(`/api/trash?${qs}`);
+  },
   restoreTrash: (id: number) => request<ImageItem>(`/api/trash/${id}/restore`, { method: 'POST' }),
   deleteTrash: (id: number) => request<{ ok: boolean }>(`/api/trash/${id}`, { method: 'DELETE' }),
   emptyTrash: () => request<{ ok: boolean; removed: number }>('/api/trash/empty', { method: 'POST' }),
-  clearLibrary: () => request<{ ok: boolean; removed: number }>('/api/library', { method: 'DELETE' }),
+  clearLibrary: () =>
+    request<{
+      ok: boolean;
+      removed: number;
+      /** 移动失败、仍保留在图库里的条目（文件被占用等） */
+      failed?: Array<{ id: number; path: string; error: string }>;
+    }>('/api/library', { method: 'DELETE' }),
 
   // 检索：颜色 / AI / 以图
   searchColor: (hex: string, tol = 48, limit = 120) =>
@@ -1690,11 +1750,21 @@ export async function withToken(url: string) {
   return `${url}${url.includes('?') ? '&' : '?'}token=${encodeURIComponent(token)}`;
 }
 
+/**
+ * 体积格式化：全站唯一实现（以前有 5 份各自四舍五入，同一个文件在不同页面显示不同数字）。
+ * 0 → '0 B'；10 以下保留一位小数（1.5 MB），10 以上取整（128 MB）。
+ */
 export function formatSize(bytes: number) {
-  if (!bytes) return '0 B';
-  const mb = bytes / 1024 / 1024;
-  if (mb >= 1) return `${mb.toFixed(1)} MB`;
-  return `${Math.max(1, Math.round(bytes / 1024))} KB`;
+  const n = Number(bytes);
+  if (!Number.isFinite(n) || n <= 0) return '0 B';
+  const units = ['B', 'KB', 'MB', 'GB', 'TB'];
+  let v = n;
+  let i = 0;
+  while (v >= 1024 && i < units.length - 1) {
+    v /= 1024;
+    i += 1;
+  }
+  return `${v >= 10 || i === 0 ? Math.round(v) : v.toFixed(1)} ${units[i]}`;
 }
 
 export function formatDate(iso: string) {

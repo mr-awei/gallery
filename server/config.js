@@ -106,7 +106,10 @@ export const API_TOKEN = (() => {
     try {
       return fs.readFileSync(tokenFile, 'utf8').trim();
     } catch {
-      return '';
+      // 落盘失败（只读目录 / 权限 / 被占用）：退回本次运行的内存令牌。
+      // 绝不能返回空串 —— 空令牌会让 auth.js 直接放行整个 API，等于鉴权不存在。
+      console.warn('[config] 无法写入 .api-token，本次运行使用内存令牌（重启后失效）');
+      return token;
     }
   }
 })();

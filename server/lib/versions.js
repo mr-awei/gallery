@@ -2,6 +2,7 @@
 // 撤销（undo）只会消费最新一条；这里把同一张图的历史全部摊开，允许回到任意一版，
 // 并且「回到旧版」本身也先压一份当前的备份，所以回退同样可以再撤销。
 import fs from 'node:fs';
+import fsp from 'node:fs/promises';
 import path from 'node:path';
 import * as lib from '../library.js';
 import { db } from '../db.js';
@@ -84,12 +85,13 @@ export async function restoreVersion(imageId, versionId) {
   if (!img.abs_path) throw new Error('原文件记录缺失');
 
   // 先把「现在」存一份，保证恢复旧版也能撤销
-  pushEditBackup(img, 'restore');
-  fs.copyFileSync(row.backup_path, img.abs_path);
+  await pushEditBackup(img, 'restore');
+  await fsp.copyFile(row.backup_path, img.abs_path);
 
   let fsMtime = Number(img.fs_mtime || 0) + 1;
   try {
-    fsMtime = Math.max(Math.round(fs.statSync(img.abs_path).mtimeMs / 1000), fsMtime);
+    const st = await fsp.stat(img.abs_path);
+    fsMtime = Math.max(Math.round(st.mtimeMs / 1000), fsMtime);
   } catch {
     /* 用递增兜底 */
   }

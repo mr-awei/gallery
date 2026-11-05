@@ -1,4 +1,5 @@
 import React from 'react';
+import { copyText } from '../api';
 
 /**
  * 错误边界：某个页面在渲染期抛错时，React 会卸载整棵树 —— 用户看到的就是
@@ -42,14 +43,9 @@ export default class ErrorBoundary extends React.Component<
       '组件栈：',
       info,
     ].join('\n');
-    try {
-      await navigator.clipboard.writeText(text);
-      this.setState({ copied: true });
-      window.setTimeout(() => this.setState({ copied: false }), 2000);
-    } catch {
-      // 剪贴板权限被拒时退化成「让人手动选中」：把详情展开即可
-      this.setState({ copied: false });
-    }
+    const ok = await copyText(text);
+    this.setState({ copied: ok });
+    if (ok) window.setTimeout(() => this.setState({ copied: false }), 2000);
   };
 
   render() {

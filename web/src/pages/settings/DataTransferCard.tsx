@@ -5,7 +5,7 @@ import Card from './Card';
 
 interface Props {
   onLibraryChanged: () => void;
-  onToast: (msg: string) => void;
+  onToast: (msg: string, kind?: 'info' | 'error') => void;
 }
 
 type Preview = Awaited<ReturnType<typeof api.transferPreview>>;
@@ -38,7 +38,7 @@ export default function DataTransferCard({ onLibraryChanged, onToast }: Props) {
       })
       .catch((err) => {
         setLoadErr((err as Error).message);
-        onToast(`备份概览读取失败：${(err as Error).message}`);
+        onToast(`备份概览读取失败：${(err as Error).message}`, 'error');
       });
   }, [onToast]);
 
@@ -57,7 +57,7 @@ export default function DataTransferCard({ onLibraryChanged, onToast }: Props) {
     } catch (e) {
       // 备份失败只落在小字 log 里太容易被忽略（尤其卡片下半屏），同时弹提示
       setLog(`备份失败：${(e as Error).message}`);
-      onToast(`备份失败：${(e as Error).message}`);
+      onToast(`备份失败：${(e as Error).message}`, 'error');
     } finally {
       setBusy('');
     }
@@ -80,7 +80,7 @@ export default function DataTransferCard({ onLibraryChanged, onToast }: Props) {
       onLibraryChanged();
     } catch (e) {
       setLog(`恢复失败：${(e as Error).message}`);
-      onToast(`恢复失败：${(e as Error).message}`);
+      onToast(`恢复失败：${(e as Error).message}`, 'error');
     } finally {
       setBusy('');
     }
@@ -105,7 +105,7 @@ export default function DataTransferCard({ onLibraryChanged, onToast }: Props) {
       onLibraryChanged();
     } catch (e) {
       setLog(`Eagle 迁移失败：${(e as Error).message}`);
-      onToast(`Eagle 迁移失败：${(e as Error).message}`);
+      onToast(`Eagle 迁移失败：${(e as Error).message}`, 'error');
     } finally {
       setBusy('');
     }
@@ -169,7 +169,8 @@ export default function DataTransferCard({ onLibraryChanged, onToast }: Props) {
           同时复制缩略图（体积更大，但恢复后无需重建）
         </label>
         <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginTop: 8 }}>
-          <button className="btn sm" disabled={!!busy} onClick={backup}>
+          <button className="btn sm" disabled={!!busy}
+            title={busy ? '上一个操作还在进行，完成后再试' : undefined} onClick={backup}>
             {busy === 'backup' ? '备份中…' : '备份到…'}
           </button>
           <button className="btn sm ghost" onClick={() => downloadFile('/api/transfer/metadata.json')}>
@@ -205,7 +206,8 @@ export default function DataTransferCard({ onLibraryChanged, onToast }: Props) {
             value={restoreName}
             onChange={(e) => setRestoreName(e.target.value)}
           />
-          <button className="btn sm primary" disabled={!!busy} onClick={restore}>
+          <button className="btn sm primary" disabled={!!busy}
+            title={busy ? '上一个操作还在进行，完成后再试' : undefined} onClick={restore}>
             {busy === 'restore' ? '恢复中…' : '恢复为新库'}
           </button>
         </div>
@@ -231,7 +233,8 @@ export default function DataTransferCard({ onLibraryChanged, onToast }: Props) {
           <button className="btn sm" onClick={async () => setEagleRoot((await pickFolder()) || eagleRoot)}>
             {eagleRoot ? '换目标文件夹…' : '选择目标文件夹…（默认用素材文件夹）'}
           </button>
-          <button className="btn sm" disabled={!!busy} onClick={importEagle}>
+          <button className="btn sm" disabled={!!busy}
+            title={busy ? '上一个操作还在进行，完成后再试' : undefined} onClick={importEagle}>
             {busy === 'eagle' ? '迁移中…' : eagleLeft ? `继续迁移（还剩 ${eagleLeft}）` : '开始迁移'}
           </button>
         </div>
@@ -253,6 +256,7 @@ export default function DataTransferCard({ onLibraryChanged, onToast }: Props) {
           <button
             className="btn sm"
             disabled={!!busy}
+            title={busy ? '上一个操作还在进行，完成后再试' : undefined}
             onClick={async () => {
               const dir = await pickFolder();
               if (!dir) return;
@@ -268,7 +272,7 @@ export default function DataTransferCard({ onLibraryChanged, onToast }: Props) {
                 onToast(`Eagle 库已生成：${r.dir}`);
               } catch (e) {
                 setLog(`导出 Eagle 库失败：${(e as Error).message}`);
-                onToast(`导出失败：${(e as Error).message}`);
+                onToast(`导出失败：${(e as Error).message}`, 'error');
               } finally {
                 setBusy('');
               }

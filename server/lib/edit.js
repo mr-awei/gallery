@@ -6,6 +6,7 @@
  * 单张与批量共用同一套核心函数（批量只是循环 + 任务状态）。
  */
 import fs from 'node:fs';
+import { assertWritableDir } from './safe-path.js';
 import path from 'node:path';
 import sharp from 'sharp';
 import { db } from '../db.js';
@@ -784,7 +785,7 @@ function uniquePath(dir, name) {
  */
 export async function persistEdit(id, row, data, info, opts, tag) {
   if (opts.saveMode === 'copy') {
-    const dir = String(opts.targetDir || '').trim();
+    const dir = assertWritableDir(opts.targetDir, '保存位置');
     if (!dir) throw new Error('请先选择保存位置');
     if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
     const outPath = uniquePath(dir, buildCopyName(row.abs_path, tag));
@@ -805,7 +806,7 @@ export async function persistEdit(id, row, data, info, opts, tag) {
 
   const absPath = row.abs_path;
   // 覆盖前留一份原件，配合「撤销」——覆盖写回不可逆，误点一次就是永久损失
-  pushEditBackup(row, tag);
+  await pushEditBackup(row, tag);
   await writeFileAtomic(absPath, data);
   const newHash = await computePHash(data).catch(() => '');
   // 内容已变：主体哈希重算（失败记 SKIP，等同「不可抠图」，分组自动退回全图哈希）

@@ -124,7 +124,7 @@ async function request(url, body, timeout = 60000) {
     },
     body: JSON.stringify(body),
     signal: AbortSignal.timeout(timeout),
-  });
+  }, { allowPrivate: true }); // 本地 Ollama / 局域网推理服务是正常用法
   const text = await res.text();
   if (!res.ok) throw new Error(friendlyError(res.status, text));
   try {
@@ -175,10 +175,14 @@ export async function listModels() {
   const a = aiConfig();
   if (!a.baseUrl) throw new Error('请先填写 Base URL');
   const url = endpoint(a.baseUrl, '/models');
-  const res = await httpFetch(url, {
-    headers: a.apiKey ? { Authorization: `Bearer ${a.apiKey}` } : {},
-    signal: AbortSignal.timeout(20000),
-  });
+  const res = await httpFetch(
+    url,
+    {
+      headers: a.apiKey ? { Authorization: `Bearer ${a.apiKey}` } : {},
+      signal: AbortSignal.timeout(20000),
+    },
+    { allowPrivate: true }
+  );
   const text = await res.text();
   if (!res.ok) throw new Error(`拉取模型失败 · ${friendlyError(res.status, text)}`);
   let json;

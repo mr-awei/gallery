@@ -746,52 +746,5 @@ function finish(jobRef, message) {
   });
 }
 
-/**
- * 下载并入库一组直链（通用工具：任意 URL 列表 → 图库）。
- * 批量走流水线（worker 派生 + 批量事务），下载间隔保留节流避免对源站过快。
- * 注意：原先给「初始素材」功能用，该功能连同 SEED_URLS 一起删了，现在没有路由调用它。
- */
-export async function ingestUrls(urls, { source = 'direct', keyword = '直链导入' } = {}) {
-  const buffers = [];
-  const okUrls = [];
-  for (const url of urls) {
-    try {
-      const buffer = await httpGet(url, {
-        timeout: CRAWL_LIMITS.DOWNLOAD_TIMEOUT,
-        retries: 3,
-        maxBytes: 40 * 1024 * 1024,
-        // 这里是任意直链（用户粘贴 / 初始素材），不挂任何站点的 Referer：
-        // 以前写死 https://www.doubao.com/ 属于从别处复制残留，等于给源站递了个假来源
-      });
-      buffers.push(buffer);
-      okUrls.push(url);
-    } catch (err) {
-      buffers.push(null);
-      okUrls.push(url);
-    }
-    await sleep(CRAWL_LIMITS.DOWNLOAD_GAP);
-  }
-  const results = new Array(okUrls.length);
-  const slots = [];
-  for (let i = 0; i < okUrls.length; i++) {
-    if (!buffers[i]) {
-      results[i] = { url: okUrls[i], ok: false, reason: 'failed', error: '下载失败' };
-      continue;
-    }
-    slots.push(i);
-  }
-  if (slots.length) {
-    const perItem = new Array(slots.length);
-    await bulkIngestBuffers(
-      slots.map((i) => ({ buffer: buffers[i], source, keyword, sourceUrl: okUrls[i], title: keyword })),
-      { onEach: (i, r) => (perItem[i] = r) }
-    );
-    slots.forEach((slot, i) => {
-      const r = perItem[i];
-      results[slot] = r
-        ? { url: okUrls[slot], ok: r.ok, reason: r.reason, id: r.id, duplicateOf: r.duplicateOf }
-        : { url: okUrls[slot], ok: false, reason: 'failed', error: '入库失败' };
-    });
-  }
-  return results;
-}
+// 原 ingestUrls()（任意直链 → 图库）已删除：它唯一的调用方「初始素材」功能连同
+// SEED_URLS 一起下线后就没有路由接它了，留着只会让人以为有这个能力。

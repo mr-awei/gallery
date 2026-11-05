@@ -13,7 +13,7 @@ interface Props {
   /** 当前页能取到的选中项，仅用于预览 */
   items: ImageItem[];
   onClose: () => void;
-  onToast: (msg: string) => void;
+  onToast: (msg: string, kind?: 'info' | 'error') => void;
   onDone: () => void;
 }
 
@@ -96,7 +96,7 @@ export default function RenameBatchDialog({ ids, items, onClose, onToast, onDone
       onDone();
       onClose();
     } catch (err) {
-      onToast((err as Error).message);
+      onToast((err as Error).message, 'error');
       setBusy(false);
     }
   };

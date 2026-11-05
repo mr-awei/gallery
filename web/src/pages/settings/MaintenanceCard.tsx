@@ -1,21 +1,17 @@
 import React, { useCallback, useEffect, useState } from 'react';
-import { api, quiet } from '../../api';
+import { api, desktop, formatSize, quiet } from '../../api';
+import { confirmDialog } from '../../components/Dialogs';
 import Card from './Card';
 
 interface Props {
   onLibraryChanged: () => void;
-  onToast: (msg: string) => void;
+  onToast: (msg: string, kind?: 'info' | 'error') => void;
 }
 
 type Status = Awaited<ReturnType<typeof api.maintenanceStatus>>;
 
-function fmtBytes(n: number) {
-  if (!n) return '0 B';
-  if (n < 1024) return `${n} B`;
-  if (n < 1024 * 1024) return `${(n / 1024).toFixed(0)} KB`;
-  if (n < 1024 * 1024 * 1024) return `${(n / 1024 / 1024).toFixed(1)} MB`;
-  return `${(n / 1024 / 1024 / 1024).toFixed(2)} GB`;
-}
+// 体积格式化统一走 api.formatSize（以前每个页面一份，同一个数显示得不一样）
+const fmtBytes = formatSize;
 
 /**
  * 「维护工具」卡片：
@@ -40,7 +36,7 @@ export default function MaintenanceCard({ onLibraryChanged, onToast }: Props) {
     try {
       setStatus(await api.maintenanceStatus());
     } catch (err) {
-      onToast((err as Error).message);
+      onToast((err as Error).message, 'error');
     }
     api.missingFiles().then(setMissing).catch(quiet);
     api.clipStatus().then(setClip).catch(quiet);
@@ -58,7 +54,7 @@ export default function MaintenanceCard({ onLibraryChanged, onToast }: Props) {
       await fn();
       await load();
     } catch (err) {
-      onToast((err as Error).message);
+      onToast((err as Error).message, 'error');
     } finally {
       setBusy('');
     }
@@ -67,7 +63,8 @@ export default function MaintenanceCard({ onLibraryChanged, onToast }: Props) {
   const rebuildThumbs = () =>
     run('thumb', async () => {
       const r = await api.maintenanceRebuildThumbs(300);
-      onToast(`重建 ${r.rebuilt} 张（已存在 ${r.skipped}，失败 ${r.failed}）`);
+      const failedPart = r.failed ? `，失败 ${r.failed}` : '';
+      onToast(`重建 ${r.rebuilt} 张（已存在 ${r.skipped}${failedPart}）`, r.failed ? 'error' : 'info');
       onLibraryChanged();
     });
 
@@ -75,7 +72,10 @@ export default function MaintenanceCard({ onLibraryChanged, onToast }: Props) {
     run('orphan', async () => {
       const dry = await api.maintenanceOrphanThumbs(true);
       if (!dry.found) return onToast('没有孤立缩略图');
-      if (!window.confirm(`发现 ${dry.found} 个孤立缩略图文件，删除它们？`)) return;
+      const ok = await confirmDialog(
+        `发现 ${dry.found} 个孤立缩略图文件，删除它们？（只删 thumbs 目录里没有对应记录的图片，不影响原图）`
+      );
+      if (!ok) return;
       const r = await api.maintenanceOrphanThumbs(false);
       onToast(`已清理 ${r.removed} 个孤立缩略图`);
     });
@@ -119,7 +119,10 @@ export default function MaintenanceCard({ onLibraryChanged, onToast }: Props) {
   const purge = async () => {
     const n = missing?.count || 0;
     if (!n) return onToast('没有缺失文件');
-    if (!window.confirm(`从库中移除 ${n} 条「文件已不在磁盘」的记录？（不会删文件）`)) return;
+    const ok = await confirmDialog(
+      `从库中移除 ${n} 条「文件已不在磁盘」的记录？只删数据库记录，不影响磁盘文件；移除后无法再「尝试找回」。`
+    );
+    if (!ok) return;
     await run('purge', async () => {
       const r = await api.purgeMissing();
       onToast(`已移除 ${r.removed} 条失配记录`);
@@ -161,19 +164,24 @@ export default function MaintenanceCard({ onLibraryChanged, onToast }: Props) {
       )}
 
       <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginTop: 12 }}>
-        <button className="btn sm" disabled={!!busy} onClick={rebuildThumbs}>
+        <button className="btn sm" disabled={!!busy}
+          title={busy ? '有维护任务正在进行，等它结束再点' : undefined} onClick={rebuildThumbs}>
           {busy === 'thumb' ? '重建中…' : '重建缺失缩略图'}
         </button>
-        <button className="btn sm" disabled={!!busy} onClick={cleanOrphans}>
+        <button className="btn sm" disabled={!!busy}
+          title={busy ? '有维护任务正在进行，等它结束再点' : undefined} onClick={cleanOrphans}>
           {busy === 'orphan' ? '清理中…' : '清理孤立缩略图'}
         </button>
-        <button className="btn sm" disabled={!!busy} onClick={vacuum}>
+        <button className="btn sm" disabled={!!busy}
+          title={busy ? '有维护任务正在进行，等它结束再点' : undefined} onClick={vacuum}>
           {busy === 'vacuum' ? '压缩中…' : '压缩数据库'}
         </button>
-        <button className="btn sm" disabled={!!busy} onClick={rescan}>
+        <button className="btn sm" disabled={!!busy}
+          title={busy ? '有维护任务正在进行，等它结束再点' : undefined} onClick={rescan}>
           {busy === 'rescan' ? '扫描中…' : '重新扫描目录'}
         </button>
-        <button className="btn sm" disabled={!!busy} onClick={probeMedia}>
+        <button className="btn sm" disabled={!!busy}
+          title={busy ? '有维护任务正在进行，等它结束再点' : undefined} onClick={probeMedia}>
           {busy === 'probe' ? '探测中…' : '补算音视频时长'}
         </button>
       </div>
@@ -184,10 +192,28 @@ export default function MaintenanceCard({ onLibraryChanged, onToast }: Props) {
           先「尝试找回」（按文件名在保存目录里重新定位），确认实在找不回来再「移除记录」。
         </div>
         <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginTop: 8 }}>
-          <button className="btn sm" disabled={!!busy || !missing?.count} onClick={relocate}>
+          <button
+            className="btn sm"
+            disabled={!!busy || !missing?.count}
+            title={
+              busy ? '有维护任务正在进行' : !missing?.count ? '当前没有失配文件，无需找回' : undefined
+            }
+            onClick={relocate}
+          >
             {busy === 'relocate' ? '找回中…' : `尝试找回${missing?.count ? `（${missing.count}）` : ''}`}
           </button>
-          <button className="btn sm danger" disabled={!!busy || !missing?.count} onClick={purge}>
+          <button
+            className="btn sm danger"
+            disabled={!!busy || !missing?.count}
+            title={
+              busy
+                ? '有维护任务正在进行'
+                : !missing?.count
+                  ? '当前没有失配文件，没有记录可移除'
+                  : '只删除数据库记录，磁盘上找不回的文件会彻底失去关联'
+            }
+            onClick={purge}
+          >
             移除失配记录
           </button>
         </div>
@@ -212,8 +238,60 @@ export default function MaintenanceCard({ onLibraryChanged, onToast }: Props) {
               : '读取中…'}
         </div>
         <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginTop: 8 }}>
-          <button className="btn sm" disabled={!!busy || !!clip?.loadError || clip?.running} onClick={clipBackfill}>
+          <button
+            className="btn sm"
+            disabled={!!busy || !!clip?.loadError || clip?.running}
+            title={
+              clip?.loadError
+                ? `模型不可用：${clip.loadError}`
+                : clip?.running
+                  ? '正在补算特征'
+                  : busy
+                    ? '有维护任务正在进行'
+                    : undefined
+            }
+            onClick={clipBackfill}
+          >
             {clip?.running ? `补算中 ${clip.done}/${clip.total}` : '补算缺失特征'}
+          </button>
+        </div>
+      </div>
+
+      <div className="maint-missing" style={{ marginTop: 12 }}>
+        <div style={{ fontSize: 12.5, color: 'var(--muted)', lineHeight: 1.9 }}>
+          <b style={{ color: 'var(--text)' }}>崩溃与日志</b>：崩溃转储只留在本机，启动时自动清理 7 天前的文件。
+          遇到闪退、白屏，可以把这两个目录里的文件发给开发者定位。
+        </div>
+        <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginTop: 8 }}>
+          <button
+            className="btn sm"
+            disabled={!desktop?.openCrashDir}
+            title={desktop?.openCrashDir ? '打开崩溃转储目录' : '仅桌面端可用'}
+            onClick={async () => {
+              try {
+                const err = await desktop?.openCrashDir?.();
+                if (err) onToast(`打不开目录：${err}`, 'error');
+              } catch (e) {
+                onToast(`打不开目录：${(e as Error).message}`, 'error');
+              }
+            }}
+          >
+            打开崩溃转储目录
+          </button>
+          <button
+            className="btn sm"
+            disabled={!desktop?.openLogDir}
+            title={desktop?.openLogDir ? '打开运行日志目录' : '仅桌面端可用'}
+            onClick={async () => {
+              try {
+                const err = await desktop?.openLogDir?.();
+                if (err) onToast(`打不开目录：${err}`, 'error');
+              } catch (e) {
+                onToast(`打不开目录：${(e as Error).message}`, 'error');
+              }
+            }}
+          >
+            打开运行日志目录
           </button>
         </div>
       </div>

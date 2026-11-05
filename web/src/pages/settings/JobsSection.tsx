@@ -4,7 +4,7 @@ import type { JobItem, OpLogItem } from '../../api';
 import Card from './Card';
 
 interface Props {
-  onToast: (msg: string) => void;
+  onToast: (msg: string, kind?: 'info' | 'error') => void;
 }
 
 const KIND_LABEL: Record<string, string> = {
@@ -69,7 +69,7 @@ export default function JobsSection({ onToast }: Props) {
       onToast(r.message || (r.ok ? '已请求停止' : '无法停止'));
       refresh();
     } catch (err) {
-      onToast((err as Error).message);
+      onToast((err as Error).message, 'error');
     } finally {
       setBusy(false);
     }
@@ -82,7 +82,7 @@ export default function JobsSection({ onToast }: Props) {
       onToast('已重新入队');
       refresh();
     } catch (err) {
-      onToast((err as Error).message);
+      onToast((err as Error).message, 'error');
     } finally {
       setBusy(false);
     }
@@ -99,7 +99,7 @@ export default function JobsSection({ onToast }: Props) {
       onToast(`已撤销：${op.summary}${detail ? `（${detail}）` : ''}`);
       refresh();
     } catch (err) {
-      onToast((err as Error).message);
+      onToast((err as Error).message, 'error');
     } finally {
       setBusy(false);
     }

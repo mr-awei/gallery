@@ -5,7 +5,7 @@ import crypto from 'node:crypto';
 import fsp from 'node:fs/promises';
 import { Worker } from 'node:worker_threads';
 import sharp from 'sharp';
-import { db, getSettings, getThumbDir, getLibraryGeneration } from './db.js';
+import { db, getSettings, getThumbDir, getLibraryGeneration, withTransaction } from './db.js';
 import { listRules, scoreImage } from './kb.js';
 import {
   indexPhash,
@@ -272,7 +272,7 @@ export async function bulkImportLocal({
 
   // 预编译语句复用（旧实现每张图 prepare 一次）
   const insStmt = db.prepare(
-    `INSERT INTO images (title, abs_path, thumb, source, keyword, source_url, width, height,
+    `INSERT OR IGNORE INTO images (title, abs_path, thumb, source, keyword, source_url, width, height,
       size_bytes, mime, phash, favorite, tags, created_at, fs_mtime)
      VALUES (?, ?, NULL, ?, ?, '', 0, 0, ?, '', '', 0, '', ?, ?)`
   );
@@ -324,28 +324,25 @@ export async function bulkImportLocal({
       return;
     }
     const deletes = [];
-    db.exec('BEGIN');
     try {
-      for (const r of batch) {
-        if (r.filtered) {
-          deletes.push(r);
-          continue;
+      // withTransaction 用 SAVEPOINT：与偏好训练/知识库重打分交叉时不会
+      // 抛「cannot start a transaction within a transaction」而把整批吞成失败
+      withTransaction(() => {
+        for (const r of batch) {
+          if (r.filtered) {
+            deletes.push(r);
+            continue;
+          }
+          updStmt.run(
+            r.width, r.height, r.mime, r.thumb, r.phash,
+            r.dominant, r.hue, r.palette, r.score, r.reasons, r.mtime, r.id
+          );
+          if (r.phash) indexPhash(r.id, r.phash);
+          if (r.folderId) linkStmt.run(r.id, r.folderId);
         }
-        updStmt.run(
-          r.width, r.height, r.mime, r.thumb, r.phash,
-          r.dominant, r.hue, r.palette, r.score, r.reasons, r.mtime, r.id
-        );
-        if (r.phash) indexPhash(r.id, r.phash);
-        if (r.folderId) linkStmt.run(r.id, r.folderId);
-      }
-      for (const r of deletes) delStmt.run(r.id);
-      db.exec('COMMIT');
+        for (const r of deletes) delStmt.run(r.id);
+      });
     } catch (err) {
-      try {
-        db.exec('ROLLBACK');
-      } catch {
-        /* 忽略 */
-      }
       console.error('[bulk] 批量回填失败', err?.message || err);
       result.errors += batch.length;
       // 回滚后这批「新登记」的行（update=false）没有 thumb 字段，缩略图文件却
@@ -417,7 +414,7 @@ export async function bulkImportLocal({
       for (const r of rows) known.set(r.abs_path, r);
     }
 
-    const work = [];
+    let work = [];
     for (const m of meta) {
       result.total++;
       const row = known.get(m.file);
@@ -441,25 +438,35 @@ export async function bulkImportLocal({
     }
 
     // 3) 批量 INSERT 先拿 id（缩略图文件名 = id.jpg），整批一个事务
-    db.exec('BEGIN');
+    let dupSkipped = 0;
     try {
-      for (const m of work) {
-        if (m.update) continue;
-        const info = insStmt.run(
-          path.basename(m.file), m.file, 'local', keyword || '壁纸库', m.size, now, m.mtime
-        );
-        m.id = Number(info.lastInsertRowid);
-      }
-      db.exec('COMMIT');
+      withTransaction(() => {
+        for (const m of work) {
+          if (m.update) continue;
+          // OR IGNORE：并发下同一路径已被别的流程登记，唯一索引会拦下这条
+          const info = insStmt.run(
+            path.basename(m.file), m.file, 'local', keyword || '壁纸库', m.size, now, m.mtime
+          );
+          if (info.changes) {
+            m.id = Number(info.lastInsertRowid);
+          } else {
+            m.dup = true;
+            dupSkipped++;
+          }
+        }
+      });
     } catch (err) {
-      try {
-        db.exec('ROLLBACK');
-      } catch {
-        /* 忽略 */
-      }
       console.error('[bulk] 批量登记失败', err?.message || err);
       result.errors += work.length;
       continue;
+    }
+    if (dupSkipped) {
+      // 已由另一条链路登记：跳过派生，别用这次的扫描结果去覆盖别人刚写好的行
+      work = work.filter((m) => !m.dup);
+      if (!work.length) {
+        finished += meta.length;
+        continue;
+      }
     }
 
     // 4) 派生资产交给 worker 池（解码 / 编码 / pHash / 主色），主线程只收结果
@@ -653,35 +660,37 @@ export async function bulkIngestBuffers(items, { onEach = null, libGeneration = 
 
   /* 3) 批量 INSERT 拿 id（整批一个事务） */
   const insStmt = db.prepare(
-    `INSERT INTO images (title, abs_path, thumb, source, keyword, source_url, width, height,
+    `INSERT OR IGNORE INTO images (title, abs_path, thumb, source, keyword, source_url, width, height,
       size_bytes, mime, phash, favorite, tags, created_at, fs_mtime)
      VALUES (?, ?, NULL, ?, ?, ?, ?, ?, ?, ?, '', 0, ?, ?, 0)`
   );
-  db.exec('BEGIN');
   try {
-    for (const a of writable) {
-      const info = insStmt.run(
-        a.it.title || path.basename(a.finalPath),
-        a.finalPath,
-        a.it.source || 'local',
-        a.it.keyword || '',
-        a.it.sourceUrl || '',
-        a.width,
-        a.height,
-        a.size,
-        `image/${a.format === 'jpg' ? 'jpeg' : a.format}`,
-        a.it.tags || '',
-        new Date().toISOString()
-      );
-      a.id = Number(info.lastInsertRowid);
+    withTransaction(() => {
+      for (const a of writable) {
+        const info = insStmt.run(
+          a.it.title || path.basename(a.finalPath),
+          a.finalPath,
+          a.it.source || 'local',
+          a.it.keyword || '',
+          a.it.sourceUrl || '',
+          a.width,
+          a.height,
+          a.size,
+          `image/${a.format === 'jpg' ? 'jpeg' : a.format}`,
+          a.it.tags || '',
+          new Date().toISOString()
+        );
+        if (info.changes) a.id = Number(info.lastInsertRowid);
+        // 唯一索引拦下的（并发重复登记）：原图不能删，交给下面的重复计数
+      }
+    });
+    for (let i = writable.length - 1; i >= 0; i--) {
+      if (!writable[i].id) {
+        writable.splice(i, 1);
+        result.duplicates = (result.duplicates || 0) + 1;
+      }
     }
-    db.exec('COMMIT');
   } catch (err) {
-    try {
-      db.exec('ROLLBACK');
-    } catch {
-      /* 忽略 */
-    }
     console.error('[bulk] 采集批量登记失败', err?.message || err);
     // 登记失败：原图已落盘的清掉，避免孤儿文件
     for (const a of writable) {
@@ -771,32 +780,27 @@ export async function bulkIngestBuffers(items, { onEach = null, libGeneration = 
   }
 
   // 删除与回填分别整批一个事务
-  db.exec('BEGIN');
   try {
-    for (const a of kills) delStmt.run(a.id);
-    for (const a of keeps) {
-      const res = a.derived;
-      updStmt.run(
-        res.width,
-        res.height,
-        `image/${(res.format || a.format).toLowerCase() === 'jpg' ? 'jpeg' : (res.format || a.format).toLowerCase()}`,
-        res.thumb,
-        res.phash || '',
-        res.dominant?.dominant || '',
-        res.dominant?.hue || '',
-        JSON.stringify(res.dominant?.palette || []),
-        a.score || 0,
-        (a.reasons || []).join('；'),
-        a.id
-      );
-    }
-    db.exec('COMMIT');
+    withTransaction(() => {
+      for (const a of kills) delStmt.run(a.id);
+      for (const a of keeps) {
+        const res = a.derived;
+        updStmt.run(
+          res.width,
+          res.height,
+          `image/${(res.format || a.format).toLowerCase() === 'jpg' ? 'jpeg' : (res.format || a.format).toLowerCase()}`,
+          res.thumb,
+          res.phash || '',
+          res.dominant?.dominant || '',
+          res.dominant?.hue || '',
+          JSON.stringify(res.dominant?.palette || []),
+          a.score || 0,
+          (a.reasons || []).join('；'),
+          a.id
+        );
+      }
+    });
   } catch (err) {
-    try {
-      db.exec('ROLLBACK');
-    } catch {
-      /* 忽略 */
-    }
     console.error('[bulk] 采集批量回填失败', err?.message || err);
     // 回滚后 keeps 的行没有派生字段、缩略图却已落盘 —— 清理孤儿缩略图
     for (const a of keeps) fsp.rm(a.derived?.thumb, { force: true }).catch(() => {});

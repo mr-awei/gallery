@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { CSSProperties } from 'react';
 import { createPortal } from 'react-dom';
-import { api, formatDate, formatSize, pickFolder, quiet } from '../api';
+import { api, copyText, formatDate, formatSize, pickFolder, quiet } from '../api';
 import type { VersionInfo } from '../api';
 import type { ImageItem } from '../types';
 import { IconClose, IconCopy, IconDownload, IconRefresh, IconTrash, IconWand } from './Icons';
@@ -16,7 +16,7 @@ interface Props {
   item: ImageItem;
   tab?: ToolkitTab;
   onClose: () => void;
-  onToast?: (msg: string) => void;
+  onToast?: (msg: string, kind?: 'info' | 'error') => void;
   /** 换大图 / 恢复版本后回传新数据，父级同步原图与列表 */
   onReplaced?: (item: ImageItem) => void;
 }
@@ -154,7 +154,7 @@ function InfoTab({ item }: { item: ImageItem }) {
 
 /* ---------------------------------- OCR ---------------------------------- */
 
-function OcrTab({ item, onToast }: { item: ImageItem; onToast?: (m: string) => void }) {
+function OcrTab({ item, onToast }: { item: ImageItem; onToast?: (m: string, kind?: 'info' | 'error') => void }) {
   const [status, setStatus] = useState<{ available: boolean; note: string } | null>(null);
   const [text, setText] = useState('');
   const [meta, setMeta] = useState<{ engine?: string; createdAt?: string; chars?: number } | null>(null);
@@ -205,12 +205,8 @@ function OcrTab({ item, onToast }: { item: ImageItem; onToast?: (m: string) => v
             <button
               className="btn sm"
               onClick={async () => {
-                try {
-                  await navigator.clipboard.writeText(text);
-                  onToast?.('文字已复制到剪贴板');
-                } catch {
-                  onToast?.('复制失败，请手动选中复制');
-                }
+                const ok = await copyText(text);
+                onToast?.(ok ? '文字已复制到剪贴板' : '复制失败，请手动选中复制', ok ? 'info' : 'error');
               }}
             >
               <IconCopy /> 复制文字
@@ -260,7 +256,7 @@ function SourceTab({
   onReplaced,
 }: {
   item: ImageItem;
-  onToast?: (m: string) => void;
+  onToast?: (m: string, kind?: 'info' | 'error') => void;
   onReplaced?: (it: ImageItem) => void;
 }) {
   const [providers, setProviders] = useState<Awaited<ReturnType<typeof api.searchProviders>> | null>(null);
@@ -410,7 +406,7 @@ function VersionsTab({
   onReplaced,
 }: {
   item: ImageItem;
-  onToast?: (m: string) => void;
+  onToast?: (m: string, kind?: 'info' | 'error') => void;
   onReplaced?: (it: ImageItem) => void;
 }) {
   const [data, setData] = useState<{
@@ -505,7 +501,7 @@ interface Rect {
   h: number;
 }
 
-function RegionsTab({ item, onToast }: { item: ImageItem; onToast?: (m: string) => void }) {
+function RegionsTab({ item, onToast }: { item: ImageItem; onToast?: (m: string, kind?: 'info' | 'error') => void }) {
   const [rects, setRects] = useState<Rect[]>([]);
   const [draft, setDraft] = useState<Rect | null>(null);
   const [dir, setDir] = useState('');

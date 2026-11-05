@@ -8,7 +8,7 @@ import Card from './Card';
 
 type Info = { ok: boolean; dir: string; version: string; name: string; id: string; exists: boolean };
 
-export default function ExtensionSection({ onToast }: { onToast: (msg: string) => void }) {
+export default function ExtensionSection({ onToast }: { onToast: (msg: string, kind?: 'info' | 'error') => void }) {
   const [info, setInfo] = useState<Info | null>(null);
   const [loading, setLoading] = useState(true);
 
@@ -45,7 +45,7 @@ export default function ExtensionSection({ onToast }: { onToast: (msg: string) =
       await api.openExtensionDir();
       onToast('已在资源管理器打开扩展目录');
     } catch (err) {
-      onToast((err as Error).message);
+      onToast((err as Error).message, 'error');
     }
   };
 

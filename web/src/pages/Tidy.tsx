@@ -1,12 +1,13 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { api, formatSize, quiet } from '../api';
+import { confirmDialog } from '../components/Dialogs';
 import type { DupeGroup, Filters, ImageItem, SimilarGroup } from '../types';
 import { IconRefresh, IconTrash, IconWand } from '../components/Icons';
 import DuelView from '../components/DuelView';
 import CompareView from '../components/CompareView';
 
 interface Props {
-  onToast: (msg: string) => void;
+  onToast: (msg: string, kind?: 'info' | 'error') => void;
   onLibraryChanged: () => void;
   /** 当前筛选条件（用于「只查当前筛选结果」） */
   filters?: Filters;
@@ -74,7 +75,7 @@ export default function Tidy({ onToast, onLibraryChanged, filters, folderId, sel
         onLibraryChanged();
         return true;
       } catch (err) {
-        onToast((err as Error).message);
+        onToast((err as Error).message, 'error');
         return false;
       }
     },
@@ -129,7 +130,7 @@ export default function Tidy({ onToast, onLibraryChanged, filters, folderId, sel
         const range = ids?.length ? `（范围 ${ids.length} 张）` : '';
         onToast(res.count ? `发现 ${res.count} 组相似图片${range}` : `没有发现相似图片${range}`);
       } catch (err) {
-        onToast((err as Error).message);
+        onToast((err as Error).message, 'error');
       } finally {
         setScanning(false);
         setScanLabel('');
@@ -155,7 +156,7 @@ export default function Tidy({ onToast, onLibraryChanged, filters, folderId, sel
       const extra = scanned.saved ? `（本次新登记 ${scanned.saved} 张）` : '';
       onToast(res.count ? `发现 ${res.count} 组同名格式重复（推荐保留 PNG）${extra}` : `没有同名 JPG/PNG 重复${extra}`);
     } catch (err) {
-      onToast((err as Error).message);
+      onToast((err as Error).message, 'error');
     } finally {
       setScanning(false);
       setScanLabel('');
@@ -180,7 +181,7 @@ export default function Tidy({ onToast, onLibraryChanged, filters, folderId, sel
         `发现 ${res.count} 组：${exact} 组完全重复（可一键清理），${res.count - exact} 组系列照（只折叠，不自动删）`
       );
     } catch (err) {
-      onToast((err as Error).message);
+      onToast((err as Error).message, 'error');
     } finally {
       setScanning(false);
       setScanLabel('');
@@ -215,7 +216,7 @@ export default function Tidy({ onToast, onLibraryChanged, filters, folderId, sel
       setMd5Keep(next);
       onToast(res.groups.length ? `发现 ${res.groups.length} 组完全重复，可回收 ${formatSize(res.reclaim || 0)}` : '没有字节完全相同的重复文件');
     } catch (err) {
-      onToast((err as Error).message);
+      onToast((err as Error).message, 'error');
     } finally {
       setScanning(false);
       setScanLabel('');
@@ -228,14 +229,15 @@ export default function Tidy({ onToast, onLibraryChanged, filters, folderId, sel
     const keep = md5Keep[g.md5] || g.items[0]?.id;
     const ids = g.items.filter((it) => it.id !== keep).map((it) => it.id);
     if (!ids.length) return;
-    if (!window.confirm(`保留 1 张，把另外 ${ids.length} 张移入回收站？（可在「设置 → 数据与维护」恢复）`)) return;
+    if (!(await confirmDialog(`保留 1 张，把另外 ${ids.length} 张移入回收站？（可在「设置 → 数据与维护」恢复）`)))
+      return;
     setBusy(g.md5);
     try {
       const r = await api.resolveDupes(keep, ids);
       const failed = r.failed || [];
       if (failed.length) {
         // 部分失败必须如实说：之前无论删没删成都提示「已解决」，重复项还在列表里消失
-        onToast(`已移入回收站 ${r.removed} 张，${failed.length} 张失败：${failed[0].error}`);
+        onToast(`已移入回收站 ${r.removed} 张，${failed.length} 张失败：${failed[0].error}`, 'error');
       } else {
         onToast(`已移入回收站 ${r.removed} 张`);
       }
@@ -243,7 +245,7 @@ export default function Tidy({ onToast, onLibraryChanged, filters, folderId, sel
       if (!failed.length) setMd5Groups((prev) => prev.filter((x) => x.md5 !== g.md5));
       onLibraryChanged();
     } catch (err) {
-      onToast((err as Error).message);
+      onToast((err as Error).message, 'error');
     } finally {
       setBusy('');
     }
@@ -253,7 +255,7 @@ export default function Tidy({ onToast, onLibraryChanged, filters, folderId, sel
   const resolveAllMd5 = async () => {
     if (!md5Groups.length) return;
     const total = md5Groups.reduce((s, g) => s + g.items.length - 1, 0);
-    if (!window.confirm(`将处理 ${md5Groups.length} 组，共移入回收站 ${total} 张（每组保留一张）？`)) return;
+    if (!(await confirmDialog(`将处理 ${md5Groups.length} 组，共移入回收站 ${total} 张（每组保留一张）？`))) return;
     setBusy('__md5all__');
     let removed = 0;
     let failed = 0;
@@ -279,7 +281,7 @@ export default function Tidy({ onToast, onLibraryChanged, filters, folderId, sel
       );
       onLibraryChanged();
     } catch (err) {
-      onToast((err as Error).message);
+      onToast((err as Error).message, 'error');
     } finally {
       setBusy('');
     }
@@ -306,7 +308,12 @@ export default function Tidy({ onToast, onLibraryChanged, filters, folderId, sel
       onToast('这组只有一张图，无需处理');
       return true;
     }
-    if (!window.confirm(`保留 1 张，把另外 ${removeIds.length} 张移入应用内回收站？（可在「设置 → 数据与维护」恢复）`)) return false;
+    if (
+      !(await confirmDialog(
+        `保留 1 张，把另外 ${removeIds.length} 张移入应用内回收站？（可在「设置 → 数据与维护」恢复）`
+      ))
+    )
+      return false;
     setBusy(g.key);
     try {
       const res = await api.resolveSimilar(keep, removeIds);
@@ -315,7 +322,7 @@ export default function Tidy({ onToast, onLibraryChanged, filters, folderId, sel
       loadStats();
       onLibraryChanged();
     } catch (err) {
-      onToast((err as Error).message);
+      onToast((err as Error).message, 'error');
     } finally {
       setBusy('');
     }
@@ -332,7 +339,10 @@ export default function Tidy({ onToast, onLibraryChanged, filters, folderId, sel
     }
     const total = list.reduce((s, g) => s + g.items.length - 1, 0);
     const tip = seriesCount ? `另有 ${seriesCount} 组系列照已跳过` : '';
-    if (!window.confirm(`将处理 ${list.length} 组，共移入回收站 ${total} 张（每组保留推荐的那张）。${tip}确定吗？`)) return;
+    if (
+      !(await confirmDialog(`将处理 ${list.length} 组，共移入回收站 ${total} 张（每组保留推荐的那张）。${tip}确定吗？`))
+    )
+      return;
     setBusy('__all__');
     let removed = 0;
     const doneKeys = new Set<string>();
@@ -351,7 +361,7 @@ export default function Tidy({ onToast, onLibraryChanged, filters, folderId, sel
       loadStats();
       onLibraryChanged();
     } catch (err) {
-      onToast((err as Error).message);
+      onToast((err as Error).message, 'error');
     } finally {
       setBusy('');
     }
@@ -372,7 +382,7 @@ export default function Tidy({ onToast, onLibraryChanged, filters, folderId, sel
       onToast(`主色补算完成，共 ${done} 张`);
       loadStats();
     } catch (err) {
-      onToast((err as Error).message);
+      onToast((err as Error).message, 'error');
     } finally {
       setBusy('');
       setJobProgress('');
@@ -396,7 +406,7 @@ export default function Tidy({ onToast, onLibraryChanged, filters, folderId, sel
       onToast(skipped ? `主体哈希完成：${done} 张算出，${skipped} 张非白底已跳过` : `主体哈希补算完成，共 ${done} 张`);
       loadStats();
     } catch (err) {
-      onToast((err as Error).message);
+      onToast((err as Error).message, 'error');
     } finally {
       setBusy('');
       setJobProgress('');
@@ -423,7 +433,7 @@ export default function Tidy({ onToast, onLibraryChanged, filters, folderId, sel
       onToast(`AI 打标完成，共 ${done} 张`);
       loadStats();
     } catch (err) {
-      onToast((err as Error).message);
+      onToast((err as Error).message, 'error');
     } finally {
       setBusy('');
       setJobProgress('');

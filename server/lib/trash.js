@@ -2,7 +2,7 @@
 import fs from 'node:fs';
 import fsp from 'node:fs/promises';
 import path from 'node:path';
-import { db, getSettings } from '../db.js';
+import { db, getSettings, withTransaction } from '../db.js';
 import * as clip from '../clip.js';
 import { invalidateQuality } from '../quality.js';
 import {
@@ -42,11 +42,13 @@ export async function removeImage(id, { reason = '' } = {}) {
   const settings = getSettings();
   const policy = settings.deletePolicy || 'trash';
   let fileError = null;
+  /** 本次搬到回收站后的实际路径：记录删不掉时要能搬回去 */
+  let movedTo = null;
 
   if (isManagedPath(row.abs_path, settings) && fs.existsSync(row.abs_path)) {
     if (policy === 'trash') {
       try {
-        await moveToAppTrash(row, reason);
+        movedTo = await moveToAppTrash(row, reason);
       } catch (err) {
         fileError = `移到回收站失败：${err.message}`;
       }
@@ -61,7 +63,22 @@ export async function removeImage(id, { reason = '' } = {}) {
   }
 
   if (fileError) return { ok: false, error: fileError };
-  db.prepare('DELETE FROM images WHERE id = ?').run(id);
+  try {
+    withTransaction(() => {
+      db.prepare('DELETE FROM images WHERE id = ?').run(id);
+    });
+  } catch (err) {
+    // 记录没删掉：文件必须搬回原位，否则就是「文件走了、记录还在」的半删除态
+    if (movedTo) {
+      await fsp.rename(movedTo, row.abs_path).catch(() => {});
+      try {
+        db.prepare('DELETE FROM trash WHERE trash_path = ?').run(movedTo);
+      } catch {
+        /* 回收站行留在原地，至少文件已回去 */
+      }
+    }
+    return { ok: false, error: `删除记录失败：${err.message}` };
+  }
   removePhash(id);
   clip.deleteEmbedding(id);
   invalidateQuality(id);
@@ -74,36 +91,69 @@ async function moveToAppTrash(row, reason) {
   let target = path.join(trashDir, base);
   if (fs.existsSync(target)) target = path.join(trashDir, `${Date.now().toString(36)}_${base}`);
   await fsp.rename(row.abs_path, target);
-  db.prepare(
-    `INSERT INTO trash(image_id, title, origin_path, trash_path, source, keyword, width, height,
-      size_bytes, mime, phash, tags, favorite, reason, deleted_at)
-     VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`
-  ).run(
-    row.id,
-    row.title,
-    row.abs_path,
-    target,
-    row.source,
-    row.keyword,
-    row.width,
-    row.height,
-    row.size_bytes,
-    row.mime,
-    row.phash,
-    row.tags,
-    row.favorite,
-    reason,
-    new Date().toISOString()
-  );
+  try {
+    withTransaction(() => {
+      db.prepare(
+        `INSERT INTO trash(image_id, title, origin_path, trash_path, source, keyword, width, height,
+          size_bytes, mime, phash, tags, favorite, reason, deleted_at)
+         VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`
+      ).run(
+        row.id,
+        row.title,
+        row.abs_path,
+        target,
+        row.source,
+        row.keyword,
+        row.width,
+        row.height,
+        row.size_bytes,
+        row.mime,
+        row.phash,
+        row.tags,
+        row.favorite,
+        reason,
+        new Date().toISOString()
+      );
+    });
+  } catch (err) {
+    // 回收站记录没写成功：把文件搬回原位，别让用户既看不到图也找不到文件
+    await fsp.rename(target, row.abs_path).catch(() => {});
+    throw err;
+  }
+  return target;
 }
 
 /* ------------------------------- 应用内回收站 ------------------------------ */
 
-export function listTrash() {
-  return db
-    .prepare('SELECT * FROM trash ORDER BY id DESC')
-    .all()
-    .map((r) => ({
+/**
+ * 回收站列表。
+ * 不传分页参数时保持旧行为（返回全部数组）；传了 limit/offset 就只取这一页并带总数，
+ * 免得回收站里堆了几万条时每次打开都要把整表读出来再序列化。
+ */
+export function listTrash(opts = {}) {
+  const limit = Math.max(1, Math.min(500, Number(opts.limit) || 0));
+  const offset = Math.max(0, Number(opts.offset) || 0);
+  const q = String(opts.q || '').trim();
+
+  if (!limit) {
+    return db
+      .prepare('SELECT * FROM trash ORDER BY id DESC')
+      .all()
+      .map(toTrashDTO);
+  }
+
+  const where = q ? 'WHERE title LIKE ? OR reason LIKE ? OR origin_path LIKE ?' : '';
+  const args = q ? [`%${q}%`, `%${q}%`, `%${q}%`] : [];
+  const total = Number(db.prepare(`SELECT COUNT(*) AS n FROM trash ${where}`).get(...args)?.n || 0);
+  const items = db
+    .prepare(`SELECT * FROM trash ${where} ORDER BY id DESC LIMIT ? OFFSET ?`)
+    .all(...args, limit, offset)
+    .map(toTrashDTO);
+  return { items, total };
+}
+
+function toTrashDTO(r) {
+  return {
       id: r.id,
       imageId: r.image_id,
       title: r.title,
@@ -115,9 +165,9 @@ export function listTrash() {
       height: r.height,
       sizeBytes: r.size_bytes,
       phash: r.phash,
-      reason: r.reason,
-      deletedAt: r.deleted_at,
-    }));
+    reason: r.reason,
+    deletedAt: r.deleted_at,
+  };
 }
 
 export async function restoreFromTrash(id) {
@@ -129,34 +179,45 @@ export async function restoreFromTrash(id) {
     target = target.replace(/(\.\w+)$/, `_恢复${Date.now().toString(36)}$1`);
   }
   await fsp.rename(row.trash_path, target);
-  const info = db
-    .prepare(
-      `INSERT INTO images(title, abs_path, thumb, source, keyword, source_url, width, height,
-        size_bytes, mime, phash, favorite, tags, created_at)
-       VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)`
-    )
-    .run(
-      row.title,
-      target,
-      null,
-      row.source,
-      row.keyword,
-      '',
-      row.width,
-      row.height,
-      row.size_bytes,
-      row.mime,
-      row.phash,
-      row.favorite,
-      row.tags,
-      new Date().toISOString()
-    );
-  const newId = Number(info.lastInsertRowid);
+  let newId;
+  try {
+    // 入库与清回收站记录必须在同一个事务里：以前是先 rename 再 INSERT，
+    // INSERT 一抛错文件已回原位、回收站行却还指着不存在的路径，第二次恢复必失败。
+    newId = withTransaction(() => {
+      const info = db
+        .prepare(
+          `INSERT INTO images(title, abs_path, thumb, source, keyword, source_url, width, height,
+            size_bytes, mime, phash, favorite, tags, created_at)
+           VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)`
+        )
+        .run(
+          row.title,
+          target,
+          null,
+          row.source,
+          row.keyword,
+          '',
+          row.width,
+          row.height,
+          row.size_bytes,
+          row.mime,
+          row.phash,
+          row.favorite,
+          row.tags,
+          new Date().toISOString()
+        );
+      db.prepare('DELETE FROM trash WHERE id = ?').run(id);
+      return Number(info.lastInsertRowid);
+    });
+  } catch (err) {
+    // 记录没写成：把文件放回回收站，保持记录与文件仍然一致
+    await fsp.rename(target, row.trash_path).catch(() => {});
+    throw err;
+  }
   if (row.phash) indexPhash(newId, row.phash);
   // 还原拿到的是新的 id，同 id 的旧缓存（旧库/旧行残留）必须先清掉再生成
   const thumb = await ensureThumb(newId, target, { force: true });
   if (thumb) db.prepare('UPDATE images SET thumb = ? WHERE id = ?').run(thumb, newId);
-  db.prepare('DELETE FROM trash WHERE id = ?').run(id);
   return toDTO(getImage(newId));
 }
 
@@ -192,8 +253,15 @@ export async function renameImage(id, title) {
   return toDTO(getImage(id));
 }
 
-/** 清空图库：文件移入应用内回收站，仍可恢复 */
-export function clearLibrary() {
+/**
+ * 清空图库：文件移入应用内回收站，仍可恢复。
+ *
+ * 关键约束：**移动失败的那一行必须留在图库里**。
+ * 过去的写法是失败只打日志、循环结束后无条件 DELETE FROM images ——
+ * 文件还在磁盘上、记录却被抹掉，既不在图库也不在回收站，用户无从恢复。
+ * @returns {{removed:number, failed:Array<{id:number, path:string, error:string}>}}
+ */
+export async function clearLibrary() {
   const rows = db.prepare('SELECT * FROM images').all();
   const settings = getSettings();
   const insert = db.prepare(
@@ -201,15 +269,27 @@ export function clearLibrary() {
       size_bytes, mime, phash, tags, favorite, reason, deleted_at)
      VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`
   );
+  const del = db.prepare('DELETE FROM images WHERE id = ?');
+  const cleared = [];
+  const failed = [];
+  const now = new Date().toISOString();
+
+  const exists = (p) =>
+    fsp
+      .access(p)
+      .then(() => true)
+      .catch(() => false);
+
+  // 异步搬文件：以前同步 rename 遍历全库，大库清空时整个服务（含界面请求）都卡住
   for (const row of rows) {
-    if (row.thumb) fs.rmSync(row.thumb, { force: true });
-    if (isManagedPath(row.abs_path, settings) && fs.existsSync(row.abs_path)) {
+    const managed = isManagedPath(row.abs_path, settings) && (await exists(row.abs_path));
+    if (managed) {
       const base = path.basename(row.abs_path);
       const trashDir = trashDirFor(row.abs_path);
       let target = path.join(trashDir, base);
-      if (fs.existsSync(target)) target = path.join(trashDir, `${Date.now().toString(36)}_${base}`);
+      if (await exists(target)) target = path.join(trashDir, `${Date.now().toString(36)}_${base}`);
       try {
-        fs.renameSync(row.abs_path, target);
+        await fsp.rename(row.abs_path, target);
         insert.run(
           row.id,
           row.title,
@@ -225,14 +305,30 @@ export function clearLibrary() {
           row.tags,
           row.favorite,
           '清空图库',
-          new Date().toISOString()
+          now
         );
       } catch (err) {
         console.error('[trash] 清空图库时移动失败', row.abs_path, err.message);
+        failed.push({ id: row.id, path: row.abs_path, error: err.message });
+        continue; // 记录保留：文件还在，用户仍能在图库里看到它
       }
     }
+    cleared.push(row);
   }
-  db.prepare('DELETE FROM images').run();
-  clearPhashIndex();
-  return rows.length;
+
+  // 只删除确认已搬进回收站的记录，且一次性事务提交
+  withTransaction(() => {
+    for (const row of cleared) del.run(row.id);
+  });
+
+  for (const row of cleared) {
+    if (row.thumb) await fsp.rm(row.thumb, { force: true }).catch(() => {});
+    clip.deleteEmbedding(row.id);
+    invalidateQuality(row.id);
+    // 有失败项时索引不能整表清空，逐个摘掉已删除的 id
+    if (failed.length) removePhash(row.id);
+  }
+  if (!failed.length) clearPhashIndex();
+
+  return { removed: cleared.length, failed };
 }

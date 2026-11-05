@@ -1,8 +1,16 @@
-import { app, BrowserWindow, Menu, Tray, globalShortcut, dialog, ipcMain, shell, screen, powerMonitor, nativeTheme, crashReporter, desktopCapturer, nativeImage } from 'electron';
+import { app, BrowserWindow, Menu, Tray, globalShortcut, dialog, ipcMain, shell, screen, session, powerMonitor, nativeTheme, crashReporter, desktopCapturer, nativeImage } from 'electron';
 import fs from 'node:fs';
+import fsp from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { initLogger } from './logger.js';
+import { flushLogs, getLogDir, initLogger } from './logger.js';
+import {
+  escapeHtml,
+  isLocalApiUrl as isLocalApiUrlFor,
+  isNewer,
+  isPathInsideAny,
+  originAllowed,
+} from './lib/pure.js';
 import { ServerHost } from './server-host.js';
 import { getSettingsSnapshot, setSettingsCache } from './settings-cache.js';
 import {
@@ -10,8 +18,11 @@ import {
   downloadUpdate,
   installUpdate,
   updateState,
-  startForcedUpdate,
+  startBackgroundUpdate,
+  dismissUpdate,
   onBeforeInstall,
+  onInstallFailed,
+  onUpdateReady,
 } from './updater.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -31,6 +42,18 @@ const APP_DIR_NAME = 'TuKu';
 export const APP_ICON = path.join(__dirname, '..', 'build', 'icon.ico');
 
 app.setName(APP_DIR_NAME);
+
+// 绿色版（electron-builder portable 目标）会把 exe 解到临时目录运行，若仍用默认
+// userData，绿色版与安装版会共用同一个库目录与设置：一边升级 schema、另一边还在写，
+// 混用版本直接互相破坏。portable 会注入 PORTABLE_EXECUTABLE_DIR，把数据放到 exe 旁边。
+if (process.env.PORTABLE_EXECUTABLE_DIR) {
+  try {
+    app.setPath('userData', path.join(process.env.PORTABLE_EXECUTABLE_DIR, `${APP_DIR_NAME}Data`));
+  } catch (err) {
+    console.warn('[desktop] 绿色版数据目录设置失败，沿用默认 userData：', err?.message || err);
+  }
+}
+
 // 必须与 electron-builder 的 appId / 安装快捷方式 AUMID 完全一致，否则 Windows 上
 // Notification / 托盘气泡（Win10+ 走 toast）会被系统静默丢弃 —— 表现就是「点了没反馈」
 app.setAppUserModelId('com.tuku.gallery');
@@ -38,9 +61,52 @@ app.setAppUserModelId('com.tuku.gallery');
 /* ------------------------- 崩溃捕获与日志落盘（最先初始化） ------------------------- */
 // minidump 只落本地 userData/CrashReports，不上传（隐私优先）；配合日志可定位白屏 / 闪退
 try {
-  crashReporter.start({ uploadToServer: false });
+  // 不自动上传；转储只留在本机
+  crashReporter.start({ uploadToServer: false, compress: true });
 } catch {
   /* 部分平台不支持，忽略 */
+}
+
+/** 清掉 7 天前的崩溃转储：崩溃信息既不出去，也不该无限占磁盘 */
+function cleanupCrashDumps(maxAgeDays = 7) {
+  try {
+    const dir = app.getPath('crashDumps');
+    const cutoff = Date.now() - maxAgeDays * 24 * 60 * 60 * 1000;
+    let removed = 0;
+    const walk = (d, depth = 0) => {
+      if (depth > 3) return;
+      let entries;
+      try {
+        entries = fs.readdirSync(d, { withFileTypes: true });
+      } catch {
+        return;
+      }
+      for (const e of entries) {
+        const p = path.join(d, e.name);
+        if (e.isDirectory()) {
+          walk(p, depth + 1);
+          try {
+            if (!fs.readdirSync(p).length) fs.rmdirSync(p);
+          } catch {
+            /* 非空/被占用 */
+          }
+          continue;
+        }
+        try {
+          if (fs.statSync(p).mtimeMs < cutoff) {
+            fs.unlinkSync(p);
+            removed += 1;
+          }
+        } catch {
+          /* 单个文件失败不影响其它 */
+        }
+      }
+    };
+    walk(dir);
+    if (removed) console.info(`[crash] 已清理 ${removed} 个 ${maxAgeDays} 天前的崩溃转储`);
+  } catch (err) {
+    console.warn('[crash] 清理崩溃转储失败：', err?.message || err);
+  }
 }
 initLogger(app.isPackaged ? app.getPath('userData') : APP_ROOT_DIR);
 process.on('uncaughtException', (err) => {
@@ -86,12 +152,14 @@ const gotSingleInstanceLock = app.requestSingleInstanceLock();
 if (!gotSingleInstanceLock) {
   app.quit();
 } else {
-  app.on('second-instance', () => {
-    if (mainWindow && !mainWindow.isDestroyed()) {
-      if (mainWindow.isMinimized()) mainWindow.restore();
-      mainWindow.show();
-      mainWindow.focus();
-    }
+  app.on('second-instance', (_e, argv) => {
+    // 直接从开始菜单再点一次时，主窗口可能已经被销毁（进程还在托盘）：
+    // 以前这里只处理「窗口还在」的情况，于是表现成「应用打不开」。
+    // showMainWindow 自带「窗口缺失就重建」。
+    showMainWindow();
+    // 拖到 exe 上 / 双击关联文件打开：第二个实例把文件路径带进来
+    const files = pickImagePathsFromArgv(argv);
+    if (files.length) void importPathsFromShell(files);
   });
 }
 
@@ -110,16 +178,9 @@ function withApiToken(url) {
   }
 }
 
-/** URL 是否指向本机的图库服务（host 必须精确相等，不能用 includes —— 127.0.0.1.attacker.example 会命中） */
+/** URL 是否指向本机的图库服务（实现见 lib/pure.js，便于单测） */
 function isLocalApiUrl(raw) {
-  try {
-    const u = new URL(raw);
-    if (u.protocol !== 'http:' && u.protocol !== 'https:') return false;
-    if (u.hostname !== '127.0.0.1' && u.hostname !== 'localhost') return false;
-    return !serverPort || Number(u.port || 80) === Number(serverPort);
-  } catch {
-    return false;
-  }
+  return isLocalApiUrlFor(raw, serverPort);
 }
 
 /**
@@ -134,7 +195,9 @@ function trustedSender(e) {
   if (!owner) return false;
   const url = String(e.senderFrame?.url || '');
   if (!url) return true; // 主框架无 URL（极早期调用）时只靠 sender 身份
-  return /^https?:\/\/(127\.0\.0\.1|localhost)(:\d+)?\//i.test(url);
+  // 与导航白名单同一套精确 origin 比对（含端口）：以前这里用正则放行任意端口，
+  // 本机别的服务占一个端口就能冒充「可信调用方」
+  return isTrustedOrigin(url);
 }
 
 /** 带调用方校验的 ipcMain.handle */
@@ -252,8 +315,17 @@ function trustedOrigins() {
 }
 
 function isTrustedOrigin(target) {
+  return originAllowed(target, trustedOrigins());
+}
+
+/** 微博登录窗允许停留的站点：登录流程会跨 passport / login.sina / 静态资源几跳 */
+const WEIBO_HOST_RE = /(^|\.)(weibo\.(cn|com)|sina\.(com\.cn|cn)|sinaimg\.cn)$/i;
+
+function isWeiboOrigin(target) {
   try {
-    return trustedOrigins().has(new URL(target).origin);
+    const u = new URL(target);
+    if (u.protocol !== 'https:' && u.protocol !== 'http:') return false;
+    return WEIBO_HOST_RE.test(u.hostname);
   } catch {
     return false;
   }
@@ -262,10 +334,11 @@ function isTrustedOrigin(target) {
 /** 敏感权限白名单：只给自家页面，且只给真正需要的几项 */
 const ALLOWED_PERMISSIONS = new Set(['clipboard-sanitized-write', 'fullscreen', 'notifications']);
 
-let permissionGuardInstalled = false;
+/** 已装守卫的 session：微博登录窗/壁纸窗用的是各自 partition，全局布尔只护得住第一个窗口 */
+const guardedSessions = new WeakSet();
 function installPermissionGuard(ses) {
-  if (permissionGuardInstalled) return;
-  permissionGuardInstalled = true;
+  if (!ses || guardedSessions.has(ses)) return;
+  guardedSessions.add(ses);
   // 原来完全没有处理器：默认全部放行，任意页面（含动态壁纸加载的远程站点）
   // 打开一次就能拿到摄像头/麦克风/地理定位/通知权限。
   ses.setPermissionRequestHandler((wc, permission, callback, details) => {
@@ -280,6 +353,188 @@ function installPermissionGuard(ses) {
   });
 }
 
+/* ---------------- 窗口位置记忆 / 关联文件（双击图片用本应用打开） ---------------- */
+
+/** 窗口状态落在 userData 下的一个小 JSON 里：不进图库 DB，多库切换时也不会互相覆盖 */
+function windowStatePath() {
+  return path.join(app.getPath('userData'), 'window-state.json');
+}
+
+function loadWindowState() {
+  try {
+    const raw = fs.readFileSync(windowStatePath(), 'utf8');
+    const s = JSON.parse(raw);
+    if (!s || !Number.isFinite(s.width) || !Number.isFinite(s.height)) return null;
+    return s;
+  } catch {
+    return null;
+  }
+}
+
+function saveWindowState(win) {
+  if (!win || win.isDestroyed()) return;
+  try {
+    const b = win.isMaximized() || win.isFullScreen() ? win.getNormalBounds() : win.getBounds();
+    const payload = { ...b, maximized: win.isMaximized() };
+    fs.mkdirSync(path.dirname(windowStatePath()), { recursive: true });
+    fs.writeFileSync(windowStatePath(), JSON.stringify(payload));
+  } catch (err) {
+    console.warn('[desktop] 保存窗口位置失败：', err?.message || err);
+  }
+}
+
+/** 恢复的窗口必须还有足够面积落在某块屏幕上，否则（拔了副屏）会开在看不见的地方 */
+function boundsVisibleOnSomeDisplay(b) {
+  if (!b) return false;
+  return screen.getAllDisplays().some((d) => {
+    const a = d.workArea;
+    const w = Math.min(b.x + b.width, a.x + a.width) - Math.max(b.x, a.x);
+    const h = Math.min(b.y + b.height, a.y + a.height) - Math.max(b.y, a.y);
+    return w > 200 && h > 120;
+  });
+}
+
+const MEDIA_EXT_RE = /\.(jpe?g|png|gif|webp|bmp|avif|svg|tiff?|heic|mp4|webm|mov|mkv|avi|mp3|wav|flac|ogg|m4a)$/i;
+
+/** 从命令行参数里挑出「看起来是图片/视频/音频」的绝对路径（拖到 exe 上、双击关联文件） */
+function pickImagePathsFromArgv(argv) {
+  const out = [];
+  for (const raw of argv || []) {
+    if (!raw || raw.startsWith('-')) continue;
+    if (!MEDIA_EXT_RE.test(raw)) continue;
+    const p = path.resolve(raw);
+    try {
+      if (fs.statSync(p).isFile()) out.push(p);
+    } catch {
+      /* 不是真实文件：多半是 exe 自身路径 */
+    }
+  }
+  return out;
+}
+
+/**
+ * 把「用本应用打开」的文件导进图库。
+ * 服务端只提供目录扫描与上传两个入口，这里按单文件走上传（二进制 body），
+ * 避免为了几十个文件去改动导入任务的状态机。
+ */
+let shellImporting = false;
+async function importPathsFromShell(files) {
+  if (!files?.length) return;
+  if (!serverPort) {
+    showToastBanner('暂时无法导入', '本地服务还没就绪，请稍后再试');
+    return;
+  }
+  if (shellImporting) {
+    showToastBanner('导入进行中', '上一批「用图库打开」的文件还在入库，请稍候');
+    return;
+  }
+  shellImporting = true;
+  let ok = 0;
+  let failed = 0;
+  try {
+    for (const file of files) {
+      try {
+        const buf = await fsp.readFile(file);
+        const url = withApiToken(
+          `http://127.0.0.1:${serverPort}/api/import/upload?filename=${encodeURIComponent(path.basename(file))}`
+        );
+        const res = await fetch(url, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/octet-stream',
+            ...(apiToken ? { Authorization: `Bearer ${apiToken}` } : {}),
+          },
+          body: buf,
+        });
+        if (res.ok) ok += 1;
+        else failed += 1;
+      } catch (err) {
+        console.warn('[desktop] 导入关联文件失败：', file, err?.message || err);
+        failed += 1;
+      }
+    }
+  } finally {
+    shellImporting = false;
+  }
+  if (ok || failed) {
+    showToastBanner(
+      '已用图库打开',
+      failed ? `成功 ${ok} 个，失败 ${failed} 个（格式或体积不符合入库规则）` : `成功导入 ${ok} 个文件`
+    );
+  }
+}
+
+/* ------------------------------ 启动页 ------------------------------ */
+// 首次建库 / 大库迁移时服务可能十几秒才就绪。以前这段时间什么都没有，
+// 用户看到鼠标转圈会以为没打开，于是重复双击（又被单实例锁吞掉）。
+let splashWindow = null;
+
+function splashHtml(text) {
+  return `<!doctype html><html><head><meta charset="utf-8"><style>
+    html,body{margin:0;height:100%;background:#0a0a12;color:#e8ecf5;
+      font:13.5px/1.7 "Microsoft YaHei",system-ui,sans-serif;display:flex;
+      align-items:center;justify-content:center;-webkit-user-select:none}
+    .box{text-align:center;padding:0 28px}
+    .logo{width:56px;height:56px;margin:0 auto 14px;border-radius:14px;
+      background:linear-gradient(135deg,#4f6bff,#9b5cff);box-shadow:0 8px 24px rgba(79,107,255,.35)}
+    .t{font-size:15px;font-weight:600;letter-spacing:.5px}
+    .s{margin-top:8px;color:#8b93a7;font-size:12.5px}
+  </style></head><body><div class="box">
+    <div class="logo"></div><div class="t">图库</div>
+    <div class="s" id="s">${text}</div>
+  </div></body></html>`;
+}
+
+function showSplash() {
+  if (splashWindow && !splashWindow.isDestroyed()) return splashWindow;
+  try {
+    splashWindow = new BrowserWindow({
+      width: 380,
+      height: 220,
+      frame: false,
+      resizable: false,
+      center: true,
+      show: true,
+      backgroundColor: '#0a0a12',
+      title: '图库',
+      icon: APP_ICON,
+      webPreferences: { contextIsolation: true, nodeIntegration: false },
+    });
+    splashWindow.loadURL(`data:text/html;charset=utf-8,${encodeURIComponent(splashHtml('正在启动本地服务…'))}`);
+    splashWindow.on('closed', () => {
+      splashWindow = null;
+    });
+  } catch (err) {
+    console.warn('[desktop] 启动页创建失败：', err?.message || err);
+  }
+  return splashWindow;
+}
+
+function closeSplash() {
+  if (splashWindow && !splashWindow.isDestroyed()) splashWindow.close();
+  splashWindow = null;
+}
+
+/** 启动失败：关掉启动页，给出原因与「重试 / 退出」——不能让用户干等或直接消失 */
+async function failSplash(message) {
+  closeSplash();
+  const { response } = await dialog.showMessageBox({
+    type: 'error',
+    title: '图库启动失败',
+    message: '本地服务没能启动',
+    detail: `${message}\n\n可以点「重试」再启动一次；仍失败请查看日志目录（设置 → 数据与维护）。`,
+    buttons: ['重试', '退出'],
+    defaultId: 0,
+    cancelId: 1,
+  });
+  if (response === 0) {
+    app.relaunch();
+    app.exit(0);
+  } else {
+    app.exit(1);
+  }
+}
+
 async function createWindow() {
   if (!serverPort) {
     // 走到这里说明服务进程没起来（whenReady 已经做过一次提示与重试），不再白屏
@@ -292,12 +547,18 @@ async function createWindow() {
   const winWidth = Math.min(1760, Math.max(1120, Math.round(workArea.width * 0.84)));
   const winHeight = Math.min(1080, Math.max(660, Math.round(workArea.height * 0.86)));
 
+  // 还原上次的位置/大小；拔掉副屏导致越界时回落到「居中 + 默认尺寸」
+  const saved = loadWindowState();
+  const restore = boundsVisibleOnSomeDisplay(saved);
+  const initialBounds = restore
+    ? { x: saved.x, y: saved.y, width: saved.width, height: saved.height }
+    : { width: winWidth, height: winHeight };
+
   mainWindow = new BrowserWindow({
-    width: winWidth,
-    height: winHeight,
-    minWidth: Math.min(1024, winWidth),
-    minHeight: Math.min(680, winHeight),
-    center: true,
+    ...initialBounds,
+    minWidth: Math.min(1024, initialBounds.width),
+    minHeight: Math.min(680, initialBounds.height),
+    center: !restore,
     title: `${APP_NAME} · 本地图片管理`,
     icon: APP_ICON,
     backgroundColor: '#0a0a12',
@@ -312,6 +573,17 @@ async function createWindow() {
   // 必须在 loadURL 之前登记：页面最早的 IPC（例如启动时应用主题的 set-theme）
   // 在窗口加载过程中就会发出来，登记晚了会被 trustedSender 当成外部页面拒掉
   appWindows.add(mainWindow);
+
+  // 位置/大小记忆：拖动/缩放停下来 400ms 后写盘，关窗时再补一次
+  let boundsTimer = null;
+  const persistBounds = () => {
+    if (boundsTimer) clearTimeout(boundsTimer);
+    boundsTimer = setTimeout(() => saveWindowState(mainWindow), 400);
+  };
+  mainWindow.on('resize', persistBounds);
+  mainWindow.on('move', persistBounds);
+  mainWindow.on('close', () => saveWindowState(mainWindow));
+  if (restore && saved.maximized) mainWindow.maximize();
 
   registerShortcuts(mainWindow);
 
@@ -333,8 +605,28 @@ async function createWindow() {
 
   const devUrl = devServerUrl();
   const url = devUrl || `http://127.0.0.1:${serverPort}`;
-  console.log('[desktop] 加载', url);
+  console.info('[desktop] 加载', url);
   if (devUrl) {
+    // 开发态以前完全不设 CSP（生产态由服务端下发）：Vite 命中 XSS 时没有任何兜底。
+    // 这里按 Vite 的最低需求给一份「宽松但存在」的策略。
+    const DEV_CSP = [
+      "default-src 'self'",
+      "script-src 'self' 'unsafe-inline' 'unsafe-eval'",
+      "style-src 'self' 'unsafe-inline'",
+      "img-src 'self' data: blob: http: https:",
+      "media-src 'self' data: blob: http: https:",
+      "font-src 'self' data:",
+      "connect-src 'self' http://127.0.0.1:* http://localhost:* ws://127.0.0.1:* ws://localhost:*",
+    ].join('; ');
+    mainWindow.webContents.session.webRequest.onHeadersReceived((details, callback) => {
+      if (details.resourceType !== 'mainFrame' || !isTrustedOrigin(details.url)) {
+        callback({ responseHeaders: details.responseHeaders });
+        return;
+      }
+      callback({
+        responseHeaders: { ...details.responseHeaders, 'Content-Security-Policy': [DEV_CSP] },
+      });
+    });
     // 开发模式：Vite 可能还没起来，失败就重试，避免白屏
     let lastErr = null;
     for (let i = 0; i < 40; i++) {
@@ -356,7 +648,7 @@ async function createWindow() {
   }
   if (START_HIDDEN) {
     // 开机自启：界面已经加载好但先不显示，用户点托盘/快捷键再露出来
-    console.log('[desktop] --hidden 启动：窗口保持隐藏，仅托盘可见');
+    console.info('[desktop] --hidden 启动：窗口保持隐藏，仅托盘可见');
   } else {
     mainWindow.show();
   }
@@ -370,24 +662,6 @@ async function createWindow() {
       shell.openExternal(target);
     }
     return { action: 'deny' };
-  });
-
-  // 下载时自己弹「另存为」：显式决定保存位置，取消就取消下载
-  mainWindow.webContents.session.on('will-download', async (_e, item) => {
-    let name = 'download';
-    try {
-      name = item.getFilename() || name;
-    } catch {}
-    const { canceled, filePath } = await dialog.showSaveDialog(mainWindow, {
-      title: '保存文件',
-      defaultPath: path.join(app.getPath('downloads'), name),
-      buttonLabel: '保存',
-    });
-    if (canceled || !filePath) {
-      item.cancel();
-      return;
-    }
-    item.setSavePath(filePath);
   });
 
   /* ------------- 渲染进程兜底：崩溃自动重载、卡死给出口、加载失败重试 ------------- */
@@ -467,10 +741,6 @@ async function createWindow() {
     loadRetries = 0;
   });
 
-  app.on('child-process-gone', (_e, details) => {
-    console.error('[desktop] 子进程退出:', details.type, details.reason, details.exitCode);
-    // 服务进程的死活由 ServerHost 的 exit 事件管（会自动重启），这里只记录其它进程
-  });
   // 兼容新旧两种签名（Electron 44 起改为事件对象）
   mainWindow.webContents.on('console-message', (...args) => {
     const ev = args[0];
@@ -571,6 +841,7 @@ let tray = null;
 let trayHintShown = false;
 /** 托盘菜单刷新器（createTray 里赋值）：trayNotify 操作完顺手把菜单内容也更新一遍 */
 let trayMenuRefresher = null;
+let trayTimer = null;
 /** 最近一次托盘操作的结果：系统通知被免打扰拦掉时，用户点开菜单仍能看到 */
 let lastTrayNotice = '';
 
@@ -620,6 +891,43 @@ function showMainWindow() {
 
 let restartingServer = false;
 
+/** 服务重启前/后通知所有渲染窗口：重启期间界面该显示遮罩，而不是让用户对着失败的请求发呆 */
+function broadcastServiceState(payload) {
+  for (const win of BrowserWindow.getAllWindows()) {
+    if (win.isDestroyed()) continue;
+    try {
+      win.webContents.send('service-state', payload);
+    } catch {
+      /* 窗口正在销毁 */
+    }
+  }
+}
+
+/**
+ * 端口变了以后，所有应用窗口都要换 origin —— 以前只重载 mainWindow，
+ * appWindows 里的多开窗口会一直指着旧端口，全部请求失败，navigation 白名单也跟着失效。
+ */
+function reloadAllAppWindows() {
+  const base = `http://127.0.0.1:${serverPort}`;
+  const targets = new Set([mainWindow, ...appWindows]);
+  for (const win of targets) {
+    if (!win || win.isDestroyed()) continue;
+    let url = base;
+    try {
+      // 保留各窗口原来的路由（#/xx 或 /search），只换端口
+      const cur = new URL(win.webContents.getURL());
+      if (cur.hostname === '127.0.0.1' || cur.hostname === 'localhost') {
+        cur.protocol = 'http:';
+        cur.port = String(serverPort);
+        url = cur.toString();
+      }
+    } catch {
+      /* 当前不是应用页面（about:blank 等）：直接用根地址 */
+    }
+    win.loadURL(url).catch((err) => console.warn('[desktop] 重载窗口失败：', err?.message || err));
+  }
+}
+
 /**
  * 托盘「重启本地服务」。
  * server-host 在崩溃窗口内连续失败达到上限后会进入 dead 态：此时所有接口、壁纸、
@@ -634,6 +942,7 @@ async function restartLocalServer() {
     return false;
   }
   restartingServer = true;
+  broadcastServiceState({ restarting: true });
   try {
     await serverHost.stop().catch(() => {});
     // 清空崩溃窗口内的失败计数，否则刚起来再崩一次又立刻进 dead
@@ -642,13 +951,11 @@ async function restartLocalServer() {
     serverPort = info.port;
     apiToken = info.token || apiToken;
     setSettingsCache(info.settings || {});
-    if (mainWindow && !mainWindow.isDestroyed()) {
-      await mainWindow
-        .loadURL(`http://127.0.0.1:${serverPort}`)
-        .catch((err) => console.error('[desktop] 重启后重载窗口失败：', err?.message || err));
-    }
+    broadcastServiceState({ restarting: false, port: serverPort });
+    reloadAllAppWindows();
     return true;
   } catch (err) {
+    broadcastServiceState({ restarting: false, error: String(err?.message || err) });
     dialog.showErrorBox(
       '重启本地服务失败',
       `${err?.message || err}\n\n请完全退出应用后重新打开。`
@@ -667,10 +974,7 @@ const TOAST_HEIGHT = 96;
 let toastWindow = null;
 let toastTimer = null;
 
-function escapeHtml(text) {
-  const map = { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' };
-  return String(text).replace(/[&<>"']/g, (c) => map[c]);
-}
+// escapeHtml 已抽到 lib/pure.js（提示窗拼 HTML，转义漏一个就是注入）
 
 function closeToast() {
   if (toastTimer) {
@@ -812,6 +1116,8 @@ function createTray() {
 
   const refreshMenu = async () => {
     if (!tray || tray.isDestroyed()) return;
+    // 端口还没就绪时去请求 http://127.0.0.1:0/... 只会刷一堆错误日志
+    if (!serverPort) return;
     let cur = {};
     let auto = {};
     let live = {};
@@ -956,8 +1262,10 @@ function createTray() {
   trayMenuRefresher = refreshMenu;
   tray.on('click', showMainWindow);
   refreshMenu();
-  setInterval(refreshMenu, 30000); // 让菜单里的「当前壁纸」保持最新
-  console.log('[tray] 托盘已就绪（左键打开窗口 / 右键菜单）');
+  // 句柄要留着才能在退出时 clear：以前这个 interval 会活到进程结束
+  if (trayTimer) clearInterval(trayTimer);
+  trayTimer = setInterval(refreshMenu, 30000); // 让菜单里的「当前壁纸」保持最新
+  console.info('[tray] 托盘已就绪（左键打开窗口 / 右键菜单）');
 }
 
 /**
@@ -1101,6 +1409,8 @@ async function endRegionShot() {
 
 /** 已成功注册的全局快捷键（键名 → 加速键），界面上会显示实际生效的那一组 */
 const registeredHotkeys = {};
+/** 候选键全被占用、实际没注册上的（键名 → 试过的候选键串），设置页要显示原因 */
+const failedHotkeys = {};
 
 /**
  * 全局快捷键：别的窗口聚焦时也能换壁纸。
@@ -1108,9 +1418,10 @@ const registeredHotkeys = {};
  */
 function registerGlobalShortcuts() {
   if (getSettings().globalShortcuts === false) {
-    console.log('[shortcut] 已按设置关闭全局快捷键');
+    console.info('[shortcut] 已按设置关闭全局快捷键');
     return;
   }
+  for (const k of Object.keys(failedHotkeys)) delete failedHotkeys[k];
   const handlers = {
     next: () => wallpaperAction('now'),
     favorite: () => wallpaperAction('favorite'),
@@ -1149,9 +1460,21 @@ function registerGlobalShortcuts() {
         console.warn('[shortcut] 注册异常：', acc, err?.message || err);
       }
     }
-    if (!registeredHotkeys[action]) console.warn('[shortcut] 候选键全部被占用：', action);
+    if (!registeredHotkeys[action]) {
+      // 以前只写一行 console：用户在设置里看到「已启用」，按下去毫无反应
+      failedHotkeys[action] = list.join(' / ');
+    }
   }
-  console.log('[shortcut] 已注册：', JSON.stringify(registeredHotkeys));
+  const failedActions = Object.keys(failedHotkeys);
+  if (failedActions.length) {
+    const names = { next: '换壁纸', favorite: '收藏', window: '打开窗口', screenshot: '截图', live: '动态壁纸' };
+    const detail = failedActions
+      .map((a) => `${names[a] || a}（${failedHotkeys[a]}）`)
+      .join('、');
+    console.warn('[shortcut] 以下快捷键候选键全部被占用：', detail);
+    showToastBanner('部分快捷键没能注册', `${detail} 已被其他程序占用，可在设置里看到具体冲突键。`);
+  }
+  console.info('[shortcut] 已注册：', JSON.stringify(registeredHotkeys));
 }
 
 /**
@@ -1166,10 +1489,14 @@ function refreshGlobalShortcuts() {
     console.warn('[shortcut] 注销旧快捷键失败：', err?.message || err);
   }
   for (const k of Object.keys(registeredHotkeys)) delete registeredHotkeys[k];
+  for (const k of Object.keys(failedHotkeys)) delete failedHotkeys[k];
   registerGlobalShortcuts();
   if (mainWindow && !mainWindow.isDestroyed()) {
-    // 让设置页显示的「实际生效键位」立刻跟上
-    mainWindow.webContents.send('hotkeys-changed', registeredHotkeys);
+    // 让设置页显示的「实际生效键位 / 冲突键位」立刻跟上
+    mainWindow.webContents.send('hotkeys-changed', {
+      hotkeys: registeredHotkeys,
+      failed: failedHotkeys,
+    });
   }
 }
 
@@ -1261,9 +1588,10 @@ async function mountLiveWindow() {
   if (!liveWindow || liveWindow.isDestroyed()) return false;
   const b = liveBounds;
   const h = nativeHandleDecimal(liveWindow);
-  console.log('[live-debug] mount hwnd=', h, 'w=', b.width, 'h=', b.height);
-  const ok = await desktopApi?.attachLiveWindow(h, b.width, b.height).catch((e) => { console.log('[live-debug] attach err', e?.message); return false; });
-  console.log('[live-debug] attach ok=', ok);
+  const ok = await desktopApi?.attachLiveWindow(h, b.width, b.height).catch((err) => {
+    console.warn('[live] 挂载调用失败：', err?.message || err);
+    return false;
+  });
   if (ok) {
     // 注意：挂载（SetParent + WS_CHILD）之后不要再调用 setBounds/showInactive，
     // 否则 Chromium 会重新认领父窗口、把刚挂到 WorkerW 的窗口还原回顶层，导致重新变成顶层窗口。
@@ -1277,6 +1605,30 @@ async function mountLiveWindow() {
   }
   return !!ok;
 }
+
+/**
+ * 网页模式只允许公网 http(s)：这个窗口是「置顶、无边框、常驻」的，
+ * 允许 file:// 或内网地址等于把应用变成一个任意页面容器。
+ */
+function isSafeLiveUrl(raw) {
+  try {
+    const u = new URL(String(raw));
+    if (u.protocol !== 'http:' && u.protocol !== 'https:') return false;
+    const host = u.hostname.toLowerCase();
+    if (!host || host === 'localhost' || host === '0.0.0.0' || host === '::1' || host === '[::1]') return false;
+    if (/^127\./.test(host)) return false;
+    if (/^10\./.test(host)) return false;
+    if (/^192\.168\./.test(host)) return false;
+    if (/^172\.(1[6-9]|2\d|3[01])\./.test(host)) return false;
+    if (/^169\.254\./.test(host)) return false;
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+/** 锁屏/休眠监听句柄：以前 stop 时不摘，开关十几次就触发 MaxListenersExceeded */
+let livePowerHandlers = null;
 
 /** 性能规则：全屏应用 / 笔记本用电池 / 锁屏 时自动暂停动态壁纸 */
 function startLivePerfRules() {
@@ -1298,14 +1650,23 @@ function startLivePerfRules() {
     pause(shouldPause);
   }, 3000);
   // 锁屏/休眠暂停，解锁后由轮询自动恢复
-  powerMonitor?.on('lock-screen', () => pause(true));
-  powerMonitor?.on('suspend', () => pause(true));
+  livePowerHandlers = {
+    lock: () => pause(true),
+    suspend: () => pause(true),
+  };
+  powerMonitor?.on('lock-screen', livePowerHandlers.lock);
+  powerMonitor?.on('suspend', livePowerHandlers.suspend);
 }
 
 function stopLivePerfRules() {
   if (livePerfTimer) {
     clearInterval(livePerfTimer);
     livePerfTimer = null;
+  }
+  if (livePowerHandlers) {
+    powerMonitor?.removeListener('lock-screen', livePowerHandlers.lock);
+    powerMonitor?.removeListener('suspend', livePowerHandlers.suspend);
+    livePowerHandlers = null;
   }
 }
 
@@ -1322,7 +1683,7 @@ async function getLiveCfg() {
 /** 根据配置创建 / 销毁动态壁纸窗口，并加载对应内容 */
 async function applyLiveWallpaper() {
   if (process.platform !== 'win32') {
-    console.log('[live] 动态壁纸目前仅支持 Windows，已跳过');
+    console.info('[live] 动态壁纸目前仅支持 Windows，已跳过');
     return;
   }
   const cfg = await getLiveCfg();
@@ -1335,22 +1696,50 @@ async function applyLiveWallpaper() {
   }
   // web 模式直接加载网址；其它模式用内置渲染页（/live 会按配置渲染）。
   // /live 页的 fetch 走 ?token= 传递鉴权（见 server/live-page.js）
-  const url =
-    cfg.mode === 'web' && cfg.webUrl
-      ? cfg.webUrl
-      : `http://127.0.0.1:${serverPort}/live?token=${encodeURIComponent(apiToken)}`;
+  let useWeb = cfg.mode === 'web' && !!cfg.webUrl;
+  if (useWeb && !isSafeLiveUrl(cfg.webUrl)) {
+    console.warn('[live] 拒绝加载非公网 http(s) 的网页地址：', cfg.webUrl);
+    showToastBanner('动态壁纸网址被拒绝', '只允许公网 http(s) 地址，已改用内置壁纸页');
+    useWeb = false;
+  }
+  const url = useWeb
+    ? cfg.webUrl
+    : `http://127.0.0.1:${serverPort}/live?token=${encodeURIComponent(apiToken)}`;
   try {
     if (liveWindow.webContents.getURL() !== url) await liveWindow.loadURL(url);
     // 页面加载后再挂载，避免挂载时还没渲染
     await new Promise((r) => setTimeout(r, 1200));
-    await mountLiveWindow();
+    const mounted = await mountLiveWindow();
+    if (!mounted) {
+      // 挂载失败时以前只 hide 窗口：设置里还显示「已开启」、托盘也这么说，用户以为桌面在动
+      await rollbackLiveWallpaper('系统没有允许把窗口挂到桌面层（可能不支持当前桌面环境）');
+      return;
+    }
     // 让页面立即按最新配置渲染（覆盖模式切换：slideshow ↔ video 无需整窗重载）
     liveWindow.webContents
       .executeJavaScript(`window.__live && window.__live.apply && window.__live.apply()`)
       .catch(() => {});
   } catch (err) {
     console.error('[live] 启动失败：', err?.message || err);
+    await rollbackLiveWallpaper(`动态壁纸没能启动：${err?.message || err}`);
   }
+}
+
+/** 启动失败就把 enabled 回滚成 false：不能让开关与实际行为长期不一致 */
+async function rollbackLiveWallpaper(reason) {
+  try {
+    if (serverPort) {
+      await fetchJson(
+        `http://127.0.0.1:${serverPort}/api/wallpaper/live`,
+        { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ enabled: false }) },
+        5000
+      );
+    }
+  } catch (err) {
+    console.warn('[live] 回滚开关失败：', err?.message || err);
+  }
+  destroyLiveWindow();
+  showToastBanner('动态壁纸没能开启', reason);
 }
 
 // 设置变更 / 托盘 / 快捷键 通过 IPC 触发（只负责保存，真正动作由 liveBus 广播）
@@ -1381,6 +1770,15 @@ async function weiboLoginFlow() {
     webPreferences: { contextIsolation: true, nodeIntegration: false, partition: 'weibo-login' },
   });
   const ses = weiboWin.webContents.session;
+  // 第三方页面：权限、弹窗、跳转都要单独上锁（它用的是自己的 partition，
+  // 默认 session 的守卫一点也不管它；以前这里摄像头/麦克风是全放行的）
+  installPermissionGuard(ses);
+  weiboWin.webContents.setWindowOpenHandler(() => ({ action: 'deny' }));
+  weiboWin.webContents.on('will-navigate', (e, target) => {
+    if (isWeiboOrigin(target)) return;
+    e.preventDefault();
+    console.warn('[weibo] 已阻止登录窗跳转：', target);
+  });
   // HTTP 头只允许 latin1：app.setName('图库') 会把中文应用名带进 Electron 默认 UA，
   // 直接用作 fetch 请求头会报 ByteString 错误（之前窗口不自动关闭的元凶），
   // 非 ASCII 字符统一百分号编码后再使用
@@ -1486,14 +1884,6 @@ handleIpc('check-for-updates', async () => {
     const rel = await fetchJson(`https://api.github.com/repos/${repo}/releases/latest`, { method: 'GET' }, 15000);
     const latest = String(rel?.tag_name || '').replace(/^v/i, '');
     const current = app.getVersion();
-    const isNewer = (a, b) => {
-      const pa = String(a).split('.').map((n) => parseInt(n, 10) || 0);
-      const pb = String(b).split('.').map((n) => parseInt(n, 10) || 0);
-      for (let i = 0; i < 3; i++) {
-        if ((pa[i] || 0) !== (pb[i] || 0)) return (pa[i] || 0) > (pb[i] || 0);
-      }
-      return false;
-    };
     return {
       ok: true,
       hasUpdate: isNewer(latest, current),
@@ -1528,6 +1918,7 @@ handleIpc('update-check', async () => {
 });
 handleIpc('update-download', () => downloadUpdate());
 handleIpc('update-install', () => installUpdate());
+handleIpc('update-dismiss', () => dismissUpdate());
 handleIpc('update-state', () => updateState());
 
 /** 强制更新遮罩里的「退出应用」：装不上时至少让用户能关掉，而不是卡死在遮罩里 */
@@ -1537,11 +1928,21 @@ handleIpc('app:quit', () => {
   return { ok: true };
 });
 
+/** 动态壁纸配置里允许经 IPC 下发的字段（白名单）：渲染层被注入也改不了别的键，更写不进 file:// 地址 */
+const LIVE_PATCH_FIELDS = ['enabled', 'mode', 'webUrl', 'intervalMinutes', 'muted', 'pauseOnBattery', 'pauseOnFullscreen', 'opacity'];
+
 handleIpc('live-wallpaper-control', async (_e, patch) => {
+  const safe = {};
+  for (const k of LIVE_PATCH_FIELDS) {
+    if (patch && Object.prototype.hasOwnProperty.call(patch, k)) safe[k] = patch[k];
+  }
+  if (typeof safe.webUrl === 'string' && safe.webUrl && !isSafeLiveUrl(safe.webUrl)) {
+    return { ok: false, error: '网页模式只支持公网 http(s) 地址（不能用 file:// 或内网地址）' };
+  }
   // 失败也要如实回 ok:false：以前无论成功失败都返回 { ok: true }
   const r = await fetchJson(
     `http://127.0.0.1:${serverPort}/api/wallpaper/live`,
-    { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(patch || {}) },
+    { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(safe) },
     5000
   ).catch((err) => ({ ok: false, error: String(err?.message || err) }));
   return r && r.ok === false ? { ok: false, error: r.error } : { ok: true };
@@ -1596,6 +1997,46 @@ function seedSampleImages() {
 app.whenReady().then(async () => {
   // 第二个实例不再初始化服务与窗口
   if (!gotSingleInstanceLock) return;
+
+  cleanupCrashDumps();
+  // 服务就绪前先把启动页亮出来：首建库/大迁移时最长十几秒，不能什么都不显示
+  showSplash();
+
+  /* -------- 这些监听只能注册一次（以前写在 createWindow 里） --------
+     session 级 / app 级监听挂在 createWindow 内部时，主窗口每被托盘、快捷键或
+     activate 重建一次就多挂一份 —— 一次下载会连续弹出 N 个「另存为」框。 */
+  session.defaultSession.on('will-download', async (_e, item) => {
+    const win = BrowserWindow.getFocusedWindow() || mainWindow;
+    let name = 'download';
+    try {
+      name = item.getFilename() || name;
+    } catch {}
+    // 先暂停：Electron 要求尽早 setSavePath，否则数据已经在临时目录里跑了；
+    // 暂停后等对话框结果，取消就整个撤销，不会留下半截文件。
+    try {
+      item.pause();
+    } catch {}
+    const { canceled, filePath } = await dialog.showSaveDialog(win, {
+      title: '保存文件',
+      defaultPath: path.join(app.getPath('downloads'), name),
+      buttonLabel: '保存',
+    });
+    if (canceled || !filePath) {
+      item.cancel();
+      return;
+    }
+    item.setSavePath(filePath);
+    item.resume();
+    item.once('done', (_ev, state) => {
+      if (state === 'completed') showToastBanner('下载完成', path.basename(filePath));
+      else if (state === 'interrupted') showToastBanner('下载中断', name);
+    });
+  });
+
+  app.on('child-process-gone', (_e, details) => {
+    console.error('[desktop] 子进程退出:', details.type, details.reason, details.exitCode);
+    // 服务进程的死活由 ServerHost 的 exit 事件管（会自动重启），这里只记录其它进程
+  });
 
   // 必须在服务进程启动前完成：服务启动时会因为图库为空而自动扫描素材目录
   seedSampleImages();
@@ -1662,10 +2103,10 @@ app.whenReady().then(async () => {
       serverPort = info.port;
       apiToken = info.token || apiToken;
       setSettingsCache(info.settings || {});
-      if (mainWindow && !mainWindow.isDestroyed()) {
-        if (changed) mainWindow.loadURL(`http://127.0.0.1:${serverPort}`).catch(() => {});
-        else mainWindow.webContents.reload();
-      }
+      // 所有窗口一起换 origin：只重载 mainWindow 会让多开窗口变成白屏死窗口
+      if (changed) reloadAllAppWindows();
+      else if (mainWindow && !mainWindow.isDestroyed()) mainWindow.webContents.reload();
+      broadcastServiceState({ restarting: false, port: serverPort });
     });
     serverHost.on('dead', (msg) => {
       console.error('[desktop] 服务进程不可用：', msg);
@@ -1680,14 +2121,12 @@ app.whenReady().then(async () => {
       serverPort = info.port;
       apiToken = info.token || apiToken;
       setSettingsCache(info.settings || {});
-      console.log('[desktop] 服务进程就绪，端口', serverPort, 'pid', info.pid);
+      console.info('[desktop] 服务进程就绪，端口', serverPort, 'pid', info.pid);
     } catch (err) {
       console.error('[desktop] 服务进程启动失败:', err);
-      dialog.showErrorBox(
-        '图库服务启动失败',
-        `本地服务未能启动：${err?.message || err}\n\n请重启应用；若反复出现，请检查防火墙或安全软件是否拦截了本机监听。`
+      await failSplash(
+        `本地服务未能启动：${err?.message || err}\n若反复出现，请检查防火墙或安全软件是否拦截了本机监听。`
       );
-      app.exit(1);
       return;
     }
   }
@@ -1709,10 +2148,32 @@ app.whenReady().then(async () => {
   }
   handleIpc('app-info', () => ({
     hotkeys: registeredHotkeys,
+    failedHotkeys,
     shortcutEnabled: getSettings().globalShortcuts !== false,
     version: app.getVersion(),
     platform: process.platform,
   }));
+
+  // 崩溃转储 / 运行日志目录：崩溃既不自动上报，至少要能让用户找到并导出来
+  handleIpc('open-crash-dir', async () => {
+    const dir = app.getPath('crashDumps');
+    try {
+      await fsp.mkdir(dir, { recursive: true });
+    } catch {
+      /* 目录已存在 */
+    }
+    return shell.openPath(dir);
+  });
+  handleIpc('open-log-dir', async () => {
+    const dir = getLogDir();
+    if (!dir) return '暂无可用的日志目录';
+    try {
+      await fsp.mkdir(dir, { recursive: true });
+    } catch {
+      /* 已存在 */
+    }
+    return shell.openPath(dir);
+  });
 
   handleIpc('pick-folder', async () => {
     const result = await dialog.showOpenDialog(mainWindow, {
@@ -1729,23 +2190,13 @@ app.whenReady().then(async () => {
     nativeTheme.themeSource = theme === 'light' ? 'light' : theme === 'dark' ? 'dark' : 'system';
     return nativeTheme.themeSource;
   });
-  handleIpc('get-theme', () => nativeTheme.themeSource);
+  // get-theme 已移除：preload 从来没暴露过它，界面的主题来自设置项 /api/settings
 
   /* IPC 路径白名单：只放行应用实际管理的两个根目录（用户图片库 storageDir
    * 与应用数据 storage 根[缩略图/回收站]），防止渲染层被注入后借 IPC
    * 任意打开资源管理器 / 定位本机文件 */
-  const pathAllowed = (p) => {
-    if (typeof p !== 'string' || !p.trim()) return false;
-    const roots = [getSettings().storageDir, ipcStorageRoot].filter(Boolean).map((r) => path.resolve(r));
-    if (!roots.length) return false;
-    const target = path.resolve(p);
-    return roots.some((root) => {
-      const rel = path.relative(root, target);
-      // rel 为空 = 就是根目录本身（「打开存储文件夹」按钮就是这么调的），必须放行
-      if (rel === '') return true;
-      return !(rel === '..' || rel.startsWith(`..${path.sep}`)) && !path.isAbsolute(rel);
-    });
-  };
+  // 路径白名单：实现抽到 lib/pure.js（越界判断写错一次就等于任意文件读写）
+  const pathAllowed = (p) => isPathInsideAny(p, [getSettings().storageDir, ipcStorageRoot]);
 
   handleIpc('open-folder', async (_e, p) => {
     const target = p || getSettings().storageDir;
@@ -1869,33 +2320,67 @@ app.whenReady().then(async () => {
     }
   });
 
-  // 强制更新装完会直接退出重启：窗口的 close 默认缩回托盘，必须放行
-  onBeforeInstall(() => {
+  // 安装前：放行窗口关闭，并先把服务停干净 —— 否则 NSIS 要覆盖的正是
+  // 子进程还占着的文件，在 Windows 上会直接装失败
+  onBeforeInstall(async () => {
     forceQuit = true;
+    await stopServerOnce();
+  });
+
+  // 安装没能启动：服务刚被我们停掉，必须拉回来 —— 否则用户点「本次先继续用」
+  // 拿到的是一堆接口全挂的页面，跟卡死没区别
+  onInstallFailed(async () => {
+    forceQuit = false;
+    if (!serverHost || serverHost.running) return;
+    try {
+      serverStopped = false;
+      serverHost.restarts = [];
+      const info = await serverHost.start();
+      serverPort = info.port;
+      apiToken = info.token || apiToken;
+      setSettingsCache(info.settings || {});
+      broadcastServiceState({ restarting: false, port: serverPort });
+      reloadAllAppWindows();
+      console.info('[update] 安装失败后已恢复本地服务，端口', serverPort);
+    } catch (err) {
+      console.error('[update] 安装失败后恢复服务失败：', err?.message || err);
+    }
   });
 
   await createWindow();
+  closeSplash();
+
+  // 「用图库打开」：双击关联文件、把文件拖到 exe 上都走这里
+  const startupFiles = pickImagePathsFromArgv(process.argv);
+  if (startupFiles.length) void importPathsFromShell(startupFiles);
+  app.on('open-file', (e, filePath) => {
+    e.preventDefault();
+    const files = pickImagePathsFromArgv([filePath]);
+    if (files.length) void importPathsFromShell(files);
+  });
 
   createTray();
   registerGlobalShortcuts();
 
 
 
-  // 启动即查更新（延迟几秒，别跟首屏抢带宽）；确认有新版 → 自动下载 + 遮罩锁定
+  // 安装包下载完才提示：这时候才需要把窗口提上来（--hidden 启动时看不到遮罩）
+  onUpdateReady(() => {
+    showMainWindow();
+  });
+
+  // 后台静默检查更新：确认有新版就顺手下载，下载期间界面照常可用；
+  // 只有包已经落到本地、能立刻安装时才会弹提示
   setTimeout(() => {
     void (async () => {
       try {
-        const r = await startForcedUpdate({ repo: await updateRepoSetting() });
-        if (r?.hasUpdate) {
-          console.info('[update] 发现新版本', r.latest, '，已进入强制更新');
-          // --hidden 启动时用户看不到遮罩，必须把窗口提上来
-          showMainWindow();
-        }
+        const r = await startBackgroundUpdate({ repo: await updateRepoSetting() });
+        if (r?.hasUpdate) console.info('[update] 后台下载新版本', r.latest);
       } catch (err) {
         console.warn('[update] 启动检查失败：', err?.message || err);
       }
     })();
-  }, 2500);
+  }, 3000);
   // 托盘创建失败 + 以 --hidden 启动 = 用户完全没有入口，兜底把窗口显示出来
   if (START_HIDDEN && !tray) {
     console.warn('[desktop] 托盘不可用，--hidden 启动时强制显示主窗口');
@@ -1921,6 +2406,22 @@ app.whenReady().then(async () => {
   app.exit(1);
 });
 
+/**
+ * 停服务只做一次。
+ * 更新安装前会主动停一次（先把文件占用释放掉），will-quit 里还会再走一次；
+ * 不拦住的话第二次会一直等一个已经退出的子进程。
+ */
+let serverStopped = false;
+async function stopServerOnce() {
+  if (serverStopped) return;
+  serverStopped = true;
+  try {
+    await serverHost?.stop?.();
+  } catch (err) {
+    console.error('[desktop] 停服失败：', err?.message || err);
+  }
+}
+
 let quitting = false;
 app.on('will-quit', (e) => {
   if (quitting) return;
@@ -1931,8 +2432,18 @@ app.on('will-quit', (e) => {
   } catch (err) {
     console.warn('[shortcut] 退出前注销失败：', err?.message || err);
   }
+  if (trayTimer) {
+    clearInterval(trayTimer);
+    trayTimer = null;
+  }
   destroyLiveWindow();
   closeToast();
+  // 日志缓冲可能还有最后几行：退出前同步落一次
+  try {
+    flushLogs(true);
+  } catch {
+    /* 日志失败不能影响退出 */
+  }
   // 以前是 void serverHost.stop()：fire-and-forget，主进程立刻退出，服务子进程
   // 来不及关库/落盘（下次启动可能撞锁、丢最后一批写入）。现在挡住退出，最多等 3 秒，
   // 超时也强退——绝不能变成「点了退出却关不掉」。
@@ -1950,8 +2461,7 @@ app.on('will-quit', (e) => {
     finish();
   }, 3000);
   Promise.resolve()
-    .then(() => serverHost?.stop?.())
-    .catch((err) => console.error('[desktop] 停服失败：', err?.message || err))
+    .then(() => stopServerOnce())
     .finally(() => {
       clearTimeout(timer);
       finish();

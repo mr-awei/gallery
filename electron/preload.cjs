@@ -43,6 +43,9 @@ contextBridge.exposeInMainWorld('desktopAPI', {
   getApiToken: () => ipcRenderer.invoke('get-api-token'),
   // 多窗口浏览：再开一个窗口看同一份图库（共享本地服务与数据库）
   openNewWindow: () => ipcRenderer.invoke('window:new'),
+  // 崩溃转储 / 运行日志目录（排查问题时让用户把文件发给开发者）
+  openCrashDir: () => ipcRenderer.invoke('open-crash-dir'),
+  openLogDir: () => ipcRenderer.invoke('open-log-dir'),
   // 开机自启开关（读/写系统登录项）
   getAutoLaunch: () => ipcRenderer.invoke('get-auto-launch'),
   setAutoLaunch: (enabled) => ipcRenderer.invoke('set-auto-launch', enabled),
@@ -52,12 +55,20 @@ contextBridge.exposeInMainWorld('desktopAPI', {
   updateCheck: () => ipcRenderer.invoke('update-check'),
   updateDownload: () => ipcRenderer.invoke('update-download'),
   updateInstall: () => ipcRenderer.invoke('update-install'),
+  // 「本次先继续用」：装不上时的出口，下次启动仍会重新检查
+  updateDismiss: () => ipcRenderer.invoke('update-dismiss'),
   updateState: () => ipcRenderer.invoke('update-state'),
   // 更新状态变化（检查/下载进度/已下载/出错），返回取消订阅函数
   onUpdateState: (cb) => {
     const handler = (_e, payload) => cb(payload);
     ipcRenderer.on('update-state', handler);
     return () => ipcRenderer.removeListener('update-state', handler);
+  },
+  // 本地服务重启中/已恢复：{ restarting, port?, error? }，返回取消订阅函数
+  onServiceState: (cb) => {
+    const handler = (_e, payload) => cb(payload);
+    ipcRenderer.on('service-state', handler);
+    return () => ipcRenderer.removeListener('service-state', handler);
   },
   // 强制更新遮罩的兜底出口：下载/安装反复失败时让用户能退出应用
   quit: () => ipcRenderer.invoke('app:quit'),

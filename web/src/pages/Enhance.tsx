@@ -1,5 +1,6 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { api, quiet } from '../api';
+import { confirmDialog } from '../components/Dialogs';
 import { subscribeEvents } from '../events';
 import type {
   AiUpscaleStatus,
@@ -14,7 +15,7 @@ import type {
 import { IconRefresh, IconWand } from '../components/Icons';
 
 interface Props {
-  onToast: (msg: string) => void;
+  onToast: (msg: string, kind?: 'info' | 'error') => void;
   onLibraryChanged: () => void;
 }
 
@@ -150,7 +151,7 @@ export default function Enhance({ onToast, onLibraryChanged }: Props) {
       // 再从服务端拉一次，补上因达到上限而未显示的图片
       refresh();
     } catch (err) {
-      onToast(`增强失败：${(err as Error).message}`);
+      onToast(`增强失败：${(err as Error).message}`, 'error');
     } finally {
       setProcessing((p) => {
         const n = new Set(p);
@@ -162,7 +163,10 @@ export default function Enhance({ onToast, onLibraryChanged }: Props) {
 
   const doAll = async () => {
     if (!candidates.items.length) return;
-    if (isAi && !window.confirm(`AI 超分较慢（每张约数秒到数十秒），将处理 ${candidates.count} 张，可能耗时较长。继续？`)) {
+    if (
+      isAi &&
+      !(await confirmDialog(`AI 超分较慢（每张约数秒到数十秒），将处理 ${candidates.count} 张，可能耗时较长。继续？`))
+    ) {
       return;
     }
     try {
@@ -173,7 +177,7 @@ export default function Enhance({ onToast, onLibraryChanged }: Props) {
       );
       setJob(st);
     } catch (err) {
-      onToast(`启动失败：${(err as Error).message}`);
+      onToast(`启动失败：${(err as Error).message}`, 'error');
     }
   };
 
@@ -247,7 +251,12 @@ export default function Enhance({ onToast, onLibraryChanged }: Props) {
               停止增强
             </button>
           ) : (
-            <button className="btn primary" disabled={!candidates.items.length} onClick={doAll}>
+            <button
+              className="btn primary"
+              disabled={!candidates.items.length}
+              title={!candidates.items.length ? '当前没有低于标准、需要增强的图片' : '按当前模型处理全部待增强图片'}
+              onClick={doAll}
+            >
               <IconWand /> 一键增强全部（{candidates.items.length}）
             </button>
           )}
@@ -261,8 +270,17 @@ export default function Enhance({ onToast, onLibraryChanged }: Props) {
             <p>AI 模型需要先下载 Real-ESRGAN 运行库（约 43MB，免 Python / 免 CUDA），下载后即可离线使用。</p>
           </div>
           <div className="missing-banner-actions">
-            <button className="btn sm primary" disabled={aiStatus?.downloading} onClick={installAi}>
-              {aiStatus?.downloading ? `下载中 ${aiStatus.progress}%` : '立即下载安装'}
+            <button
+              className="btn sm primary"
+              disabled={aiStatus?.downloading}
+              title={aiStatus?.downloading ? '运行库正在下载，完成后自动可用' : '下载 Real-ESRGAN 运行库（约 43MB）'}
+              onClick={installAi}
+            >
+              {aiStatus?.downloading
+                ? aiStatus.progress >= 0
+                  ? `下载中 ${aiStatus.progress}%`
+                  : '下载中…'
+                : '立即下载安装'}
             </button>
           </div>
         </div>
@@ -271,9 +289,12 @@ export default function Enhance({ onToast, onLibraryChanged }: Props) {
       {aiStatus?.downloading && (
         <div className="card" style={{ marginBottom: 14 }}>
           <div className="label">正在下载 AI 超分运行库</div>
-          <div className="enh-progress" style={{ marginTop: 8 }}>
-            <div style={{ width: `${aiStatus.progress}%` }} />
-          </div>
+          {/* 进度未知（拿不到 Content-Length）时不画进度条，只留已下载体积的文字说明 */}
+          {aiStatus.progress >= 0 && (
+            <div className="enh-progress" style={{ marginTop: 8 }}>
+              <div style={{ width: `${aiStatus.progress}%` }} />
+            </div>
+          )}
           <div className="hint" style={{ marginTop: 6 }}>
             {aiStatus.message} · 下载期间可继续浏览其他页面
           </div>
@@ -377,6 +398,15 @@ export default function Enhance({ onToast, onLibraryChanged }: Props) {
             <button
               className="btn sm primary"
               disabled={processing.has(item.id) || !!job?.running || (isAi && !models.aiInstalled)}
+              title={
+                isAi && !models.aiInstalled
+                  ? 'AI 运行库尚未安装，先点上方「立即下载安装」'
+                  : job?.running
+                    ? '批量增强正在进行，单张增强暂时不可用'
+                    : processing.has(item.id)
+                      ? '这张正在增强'
+                      : undefined
+              }
               onClick={() => doEnhance(item.id)}
             >
               <IconWand /> {processing.has(item.id) ? '增强中…' : '增强'}

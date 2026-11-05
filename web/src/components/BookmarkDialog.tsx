@@ -10,7 +10,7 @@ import { IconClose, IconLink } from './Icons';
 interface Props {
   onClose: () => void;
   onSaved: (item: ImageItem) => void;
-  onToast: (msg: string) => void;
+  onToast: (msg: string, kind?: 'info' | 'error') => void;
 }
 
 export default function BookmarkDialog({ onClose, onSaved, onToast }: Props) {
@@ -35,7 +35,7 @@ export default function BookmarkDialog({ onClose, onSaved, onToast }: Props) {
       onToast(r.item?.width ? '已保存网页（含封面和离线快照）' : '已保存网页（这个页面没有封面图）');
       onSaved(r.item);
     } catch (err) {
-      onToast((err as Error).message);
+      onToast((err as Error).message, 'error');
       setBusy(false);
     }
   };

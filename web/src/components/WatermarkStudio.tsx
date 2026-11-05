@@ -13,7 +13,7 @@ type Props = {
   /** 选中的图片；1 张是单图，多张走批量任务 */
   ids: number[];
   onClose: () => void;
-  onToast?: (msg: string) => void;
+  onToast?: (msg: string, kind?: 'info' | 'error') => void;
   /** 单张应用会把更新后的条目回传（另存不入库时为 null），批量任务则只通知刷新 */
   onDone?: (item?: ImageItem | null) => void;
 };

@@ -5,7 +5,7 @@ import { subscribeEvents } from '../events';
 import type { CrawlStatus, Keyword } from '../types';
 import { IconPlay, IconStop, IconTrash } from '../components/Icons';
 
-export default function Crawl({ onToast }: { onToast: (msg: string) => void }) {
+export default function Crawl({ onToast }: { onToast: (msg: string, kind?: 'info' | 'error') => void }) {
   const [keywords, setKeywords] = useState<Keyword[]>([]);
   const [picked, setPicked] = useState<Set<number>>(new Set());
   const [sources, setSources] = useState<Set<string>>(new Set());
@@ -106,7 +106,7 @@ export default function Crawl({ onToast }: { onToast: (msg: string) => void }) {
       setTab('log');
       refresh();
     } catch (err) {
-      onToast(`启动失败：${(err as Error).message}`);
+      onToast(`启动失败：${(err as Error).message}`, 'error');
     }
   };
 
@@ -116,7 +116,7 @@ export default function Crawl({ onToast }: { onToast: (msg: string) => void }) {
       onToast('正在停止…');
       refresh();
     } catch (err) {
-      onToast(`停止失败：${(err as Error).message}`);
+      onToast(`停止失败：${(err as Error).message}`, 'error');
     }
   };
 
@@ -129,7 +129,7 @@ export default function Crawl({ onToast }: { onToast: (msg: string) => void }) {
       setPicked((prev) => new Set([...prev, ...res.keywords.filter((k) => k.text === text).map((k) => k.id)]));
       setNewKw('');
     } catch (err) {
-      onToast(`添加关键词失败：${(err as Error).message}`);
+      onToast(`添加关键词失败：${(err as Error).message}`, 'error');
     }
   };
 
@@ -143,7 +143,7 @@ export default function Crawl({ onToast }: { onToast: (msg: string) => void }) {
         return next;
       });
     } catch (err) {
-      onToast(`删除关键词失败：${(err as Error).message}`);
+      onToast(`删除关键词失败：${(err as Error).message}`, 'error');
     }
   };
 
@@ -194,7 +194,7 @@ export default function Crawl({ onToast }: { onToast: (msg: string) => void }) {
                 onToast('已继续上次的采集');
                 setResumable(null);
               } catch (err) {
-                onToast((err as Error).message);
+                onToast((err as Error).message, 'error');
               }
             }}
           >

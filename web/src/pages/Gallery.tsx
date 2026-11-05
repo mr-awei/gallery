@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { api, downloadFile, quiet } from '../api';
+import { api, downloadFile, exportZipUrl, formatSize, quiet } from '../api';
 import { UPLOAD_HINT, importFiles } from '../lib/importer';
 import type { Filters, ImageItem, FolderNode, Playlist } from '../types';
 import FilterBar from '../components/FilterBar';
@@ -57,7 +57,7 @@ interface Props {
   onRefresh: () => void;
   /** 撤销最近一次覆盖写回（裁切/旋转/调色/增强） */
   onUndo?: () => void;
-  onToast?: (msg: string) => void;
+  onToast?: (msg: string, kind?: 'info' | 'error') => void;
   importing?: boolean;
   /** 导入进度：progress 0-100，saved 为已入库张数，message 为服务端任务名（边导边显示时用） */
   importProgress?: {
@@ -129,14 +129,7 @@ const LIST_OVERSCAN = 10;
 
 function fmtBytes(n: number) {
   if (!n) return '—';
-  const u = ['B', 'KB', 'MB', 'GB'];
-  let v = n;
-  let i = 0;
-  while (v >= 1024 && i < u.length - 1) {
-    v /= 1024;
-    i++;
-  }
-  return `${v >= 10 || i === 0 ? Math.round(v) : v.toFixed(1)} ${u[i]}`;
+  return formatSize(n);
 }
 
 const KIND_TEXT: Record<string, string> = {
@@ -319,8 +312,8 @@ export default function Gallery(props: Props) {
   }, [listIdsSig, warmVisible]);
 
   const downloadZip = () => {
-    const ids = [...selected].join(',');
-    if (ids) downloadFile(`/api/download/zip?ids=${ids}`);
+    // 走 api 里的唯一实现：硬拼 URL 会绕过令牌与参数编码
+    if (selected.size) downloadFile(exportZipUrl([...selected]));
   };
 
   /** 把选中的图从当前文件夹移出（只解除归类，不删文件） */

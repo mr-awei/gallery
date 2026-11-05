@@ -6,6 +6,7 @@ import * as lib from '../library.js';
 import { parseExif } from '../lib/exif.js';
 import { listVersions, restoreVersion, versionFile } from '../lib/versions.js';
 import { cropImage } from '../lib/edit.js';
+import { assertWritableDir } from '../lib/safe-path.js';
 
 /** 数 PDF 页数：不引入 pdfjs，直接看 PDF 结构里的 /Type /Page 对象与 /Count。
  *  对象流（ObjStm）压缩过的 PDF 数不准，这时返回 pages=0 让前端只给页码跳转、不显示总数。 */
@@ -120,7 +121,7 @@ export function register(app, ctx) {
         .filter((r) => r.w > 0.01 && r.h > 0.01)
         .slice(0, 24);
       if (!regions.length) return res.status(400).json({ error: '至少需要一个裁切框' });
-      const targetDir = String(req.body?.targetDir || '').trim();
+      const targetDir = assertWritableDir(req.body?.targetDir, '保存位置');
       if (!targetDir) return res.status(400).json({ error: '请先选择保存位置' });
       if (!fs.existsSync(targetDir)) fs.mkdirSync(targetDir, { recursive: true });
       const addToLibrary = Boolean(req.body?.addToLibrary);

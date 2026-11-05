@@ -136,6 +136,60 @@ const phashHi = [];         // 槽位 → 高 32 位
 const phashSlot = new Map(); // id → 槽位
 const phashFree = [];       // 可复用的墓碑槽
 
+/**
+ * 分桶索引（多索引哈希）：64 位拆成 4 个 16 位块，每块一张 value → 槽位 表。
+ * 汉明距离 ≤ t 时，四块里至少有一块的距离 ≤ ⌊t/4⌋（容斥：四块都 > t/4 则总和 > t），
+ * 所以查询只需枚举那一档的 key（t=6 时每块 137 个），不必再扫全库。
+ * 以前每导入一张都要跟内存里所有 pHash 逐个比，十万张就是 O(n²)。
+ */
+const PHASH_CHUNKS = 4;
+const phashBuckets = Array.from({ length: PHASH_CHUNKS }, () => new Map());
+
+function chunkOf(lo, hi, c) {
+  if (c === 0) return lo & 0xffff;
+  if (c === 1) return lo >>> 16;
+  if (c === 2) return hi & 0xffff;
+  return hi >>> 16;
+}
+
+function bucketAdd(slot, lo, hi) {
+  for (let c = 0; c < PHASH_CHUNKS; c++) {
+    const key = chunkOf(lo, hi, c);
+    const map = phashBuckets[c];
+    let list = map.get(key);
+    if (!list) {
+      list = [];
+      map.set(key, list);
+    }
+    list.push(slot);
+  }
+}
+
+function bucketRemove(slot, lo, hi) {
+  for (let c = 0; c < PHASH_CHUNKS; c++) {
+    const key = chunkOf(lo, hi, c);
+    const map = phashBuckets[c];
+    const list = map.get(key);
+    if (!list) continue;
+    const i = list.indexOf(slot);
+    if (i >= 0) list.splice(i, 1);
+    if (!list.length) map.delete(key);
+  }
+}
+
+/** 枚举 16 位空间里与 v 距离 ≤ r 的所有 key（r 只会是 0/1/2，穷举位移组合即可） */
+function keysWithin16(v, r) {
+  const out = [v];
+  if (r <= 0) return out;
+  for (let i = 0; i < 16; i++) out.push(v ^ (1 << i));
+  if (r >= 2) {
+    for (let i = 0; i < 16; i++) {
+      for (let j = i + 1; j < 16; j++) out.push(v ^ (1 << i) ^ (1 << j));
+    }
+  }
+  return out;
+}
+
 const POP16 = (() => {
   const t = new Uint8Array(65536);
   for (let i = 1; i < 65536; i++) t[i] = t[i >> 1] + (i & 1);
@@ -158,6 +212,9 @@ function addPhash(id, hex) {
   const parts = parsePhash64(hex);
   if (!parts) return;
   const [lo, hi] = parts;
+  // 同一 id 重新派生/批量回填时先摘掉旧槽：否则旧哈希会永远留在分桶里，
+  // 查重与以图搜图会命中「幽灵图」（指向已改动的同一行，距离却是旧值）
+  if (phashSlot.has(id)) removePhash(id);
   let slot = phashFree.pop();
   if (slot === undefined) {
     slot = phashIds.length;
@@ -169,6 +226,7 @@ function addPhash(id, hex) {
   phashLo[slot] = lo;
   phashHi[slot] = hi;
   phashSlot.set(id, slot);
+  bucketAdd(slot, lo, hi);
 }
 
 export function clearPhashIndex() {
@@ -177,6 +235,7 @@ export function clearPhashIndex() {
   phashHi.length = 0;
   phashSlot.clear();
   phashFree.length = 0;
+  for (const map of phashBuckets) map.clear();
 }
 
 export function initPhashIndex() {
@@ -196,22 +255,76 @@ export function indexPhash(id, hex) {
 export function removePhash(id) {
   const slot = phashSlot.get(id);
   if (slot === undefined) return;
+  bucketRemove(slot, phashLo[slot], phashHi[slot]);
   phashIds[slot] = 0;
+  phashLo[slot] = 0;
+  phashHi[slot] = 0;
   phashSlot.delete(id);
   phashFree.push(slot);
+}
+
+/**
+ * 取与给定 pHash 相近的若干条（以图搜图用）。
+ * 以前是 "SELECT * FROM images WHERE phash <> ''" 全表进内存再逐个算距离，
+ * 库到十万级单次请求就要几百毫秒到几秒；这里复用同一套分桶索引。
+ * @returns {{id:number, dist:number}[]} 按距离升序
+ */
+export function findSimilarByPhash(hex, threshold, limit = 200) {
+  const target = parsePhash64(hex);
+  if (!target) return [];
+  const [tLo, tHi] = target;
+  const t = Math.max(0, Math.min(64, Number(threshold) || 0));
+  const perChunk = Math.floor(t / 4);
+  const max = Math.max(1, Math.min(5000, Number(limit) || 200));
+  const seen = new Set();
+  const out = [];
+  for (let c = 0; c < PHASH_CHUNKS; c++) {
+    const map = phashBuckets[c];
+    if (!map.size) continue;
+    for (const key of keysWithin16(chunkOf(tLo, tHi, c), perChunk)) {
+      const list = map.get(key);
+      if (!list) continue;
+      for (const slot of list) {
+        if (seen.has(slot)) continue;
+        seen.add(slot);
+        const id = phashIds[slot];
+        if (!id) continue;
+        let dist = hamming32(phashLo[slot], tLo);
+        if (dist > t) continue;
+        dist += hamming32(phashHi[slot], tHi);
+        if (dist <= t) out.push({ id, dist });
+      }
+    }
+  }
+  out.sort((a, b) => a.dist - b.dist);
+  return out.slice(0, max);
 }
 
 export function findDuplicateByPhash(hex, threshold) {
   const target = parsePhash64(hex);
   if (!target) return null;
   const [tLo, tHi] = target;
-  for (let i = 0; i < phashIds.length; i++) {
-    const id = phashIds[i];
-    if (!id) continue;
-    let dist = hamming32(phashLo[i], tLo);
-    if (dist > threshold) continue;
-    dist += hamming32(phashHi[i], tHi);
-    if (dist <= threshold) return id;
+  const t = Math.max(0, Math.min(64, Number(threshold) || 0));
+  // 四块里必有一块距离 ≤ ⌊t/4⌋，按这个半径去查桶
+  const perChunk = Math.floor(t / 4);
+  const seen = new Set();
+  for (let c = 0; c < PHASH_CHUNKS; c++) {
+    const map = phashBuckets[c];
+    if (!map.size) continue;
+    for (const key of keysWithin16(chunkOf(tLo, tHi, c), perChunk)) {
+      const list = map.get(key);
+      if (!list) continue;
+      for (const slot of list) {
+        if (seen.has(slot)) continue;
+        seen.add(slot);
+        const id = phashIds[slot];
+        if (!id) continue;
+        let dist = hamming32(phashLo[slot], tLo);
+        if (dist > t) continue;
+        dist += hamming32(phashHi[slot], tHi);
+        if (dist <= t) return id;
+      }
+    }
   }
   return null;
 }
@@ -261,8 +374,15 @@ export function buildFileName({ keyword, source, width, height, format, ext }) {
 /** 是否由本应用管理（可随图库一起删除）的文件 */
 export function isManagedPath(p, settings = getSettings()) {
   if (!p) return false;
-  const dirs = [IMAGE_DIR, settings.storageDir].filter(Boolean);
-  return dirs.some((d) => p.startsWith(d));
+  const target = path.resolve(String(p));
+  const dirs = [IMAGE_DIR, settings?.storageDir].filter(Boolean).map((d) => path.resolve(d));
+  // 必须按「路径段」判断，不能裸 startsWith：
+  // C:\images2\a.jpg 会被 C:\images 前缀命中，导致删除/清库时动到用户自己的素材目录。
+  // rel 为空表示就是目录本身；以 .. 开头或仍是绝对路径（跨盘）都说明在外层。
+  return dirs.some((root) => {
+    const rel = path.relative(root, target);
+    return !!rel && !rel.startsWith('..') && !path.isAbsolute(rel);
+  });
 }
 
 /**
@@ -587,7 +707,8 @@ export async function ingest(params, settings = getSettings()) {
     if (!skipQuality && sizeBytes < minBytes) return { ok: false, reason: KEEP_REASONS.tooLight };
     if (sizeBytes > maxBytes) return { ok: false, reason: KEEP_REASONS.tooLarge };
   } else if (absPath) {
-    const stat = fs.statSync(absPath);
+    // 异步 stat：批量导入时几千个文件的同步 stat 会按住事件循环
+    const stat = await fsp.stat(absPath);
     sizeBytes = stat.size;
     fsMtime = Math.round(stat.mtimeMs / 1000);
     if (!skipQuality && sizeBytes < minBytes) return { ok: false, reason: KEEP_REASONS.tooLight };
@@ -634,7 +755,7 @@ export async function ingest(params, settings = getSettings()) {
     // 在 DTO 里永远没有 ?v= 版本号。原图/缩略图响应带 7 天强缓存，没有版本号就意味着
     // 后续裁切/调色/旋转完，浏览器会一直拿旧图。
     try {
-      fsMtime = Math.round(fs.statSync(finalPath).mtimeMs / 1000);
+      fsMtime = Math.round((await fsp.stat(finalPath)).mtimeMs / 1000);
     } catch {
       /* 取不到就沿用上面 absPath 分支的值（buffer 分支则为 0） */
     }
@@ -658,9 +779,11 @@ export async function ingest(params, settings = getSettings()) {
     /* 指纹失败不影响入库 */
   }
 
+  // OR IGNORE：abs_path 上有唯一索引，watch 与 rescan 并发时后到的那条直接放弃，
+  // 不会因为约束冲突把整批导入打成「本批失败」
   const info = db
     .prepare(
-      `INSERT INTO images (title, abs_path, thumb, source, keyword, source_url, width, height,
+      `INSERT OR IGNORE INTO images (title, abs_path, thumb, source, keyword, source_url, width, height,
         size_bytes, mime, phash, favorite, tags, created_at, fs_mtime, md5, media_kind)
        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, ?, ?, ?, ?, ?)`
     )
@@ -684,6 +807,12 @@ export async function ingest(params, settings = getSettings()) {
       'image'
     );
   const id = Number(info.lastInsertRowid);
+  if (!info.changes) {
+    // 同一路径已被另一个流程写进去了（并发导入）：原路径的文件绝不能删；
+    // 但如果是我们刚复制出来的副本，就没人认领了，清掉免得留孤儿
+    if (finalPath !== absPath) await fsp.rm(finalPath, { force: true }).catch(() => {});
+    return { ok: false, reason: KEEP_REASONS.duplicate };
+  }
 
   // 缩略图：每张图唯一一次整图解码。
   // force：这个 id 是刚插进去的，磁盘上若有同名缩略图/预览图，只可能是旧库残留，

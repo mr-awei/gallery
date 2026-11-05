@@ -2,12 +2,15 @@ import fs from 'node:fs';
 import fsp from 'node:fs/promises';
 import path from 'node:path';
 import { LEGACY_DIRS } from './config.js';
-import { db, getSettings, getLibraryGeneration, getActiveLibrary } from './db.js';
-import { ingest, resyncImageMeta } from './library.js';
+import { db, getSettings, getLibraryGeneration, getActiveLibrary, withTransaction } from './db.js';
+import { ingest, resyncImageMeta, removePhash } from './library.js';
+import * as clip from './clip.js';
+import { invalidateQuality } from './quality.js';
 import { ingestMedia, isMediaPath, MEDIA_EXTS } from './lib/media.js';
 import { bulkImportLocal } from './bulk-import.js';
 import { SOURCES } from './crawler.js';
 import { shouldSkipDir, isSkippedPath } from './lib/skip-dirs.js';
+import { md5File } from './lib/hash.js';
 import { liveBus } from './live-bus.js';
 
 // 扫描/监听白名单：图片 + Eagle 式多格式素材（视频/音频/字体/PDF/Office/3D）
@@ -245,9 +248,9 @@ export function watchStorageDir() {
   }
 }
 
-/** 找出图库中已经不在磁盘上的记录 */
+/** 找出图库中已经不在磁盘上的记录（带缩略图路径，清理时要用） */
 export function findMissing() {
-  const rows = db.prepare('SELECT id, abs_path, size_bytes FROM images').all();
+  const rows = db.prepare('SELECT id, abs_path, size_bytes, thumb FROM images').all();
   return rows.filter((r) => !fs.existsSync(r.abs_path));
 }
 
@@ -291,10 +294,35 @@ export function getMissingCached(maxAgeMs = 60_000) {
   return missingCache;
 }
 
+/**
+ * 清理「磁盘上已不存在」的记录。
+ *
+ * 不能只 DELETE 行：缩略图会变成孤儿文件，更严重的是内存里的 pHash 索引还留着
+ * 已删除的 id —— 后续查重会拿这些幽灵 id 与新图比较，把刚导入的同一张图判成
+ * 「重复」并连文件一起删掉。所以删除行之后必须同步摘索引、删缩略图。
+ */
 export function purgeMissing() {
   const missing = findMissing();
+  if (!missing.length) {
+    invalidateMissingCache();
+    return 0;
+  }
   const del = db.prepare('DELETE FROM images WHERE id = ?');
-  for (const row of missing) del.run(row.id);
+  withTransaction(() => {
+    for (const row of missing) del.run(row.id);
+  });
+  for (const row of missing) {
+    if (row.thumb) {
+      try {
+        fs.rmSync(row.thumb, { force: true });
+      } catch {
+        /* 缩略图删不掉不影响记录已清理 */
+      }
+    }
+    removePhash(row.id);
+    clip.deleteEmbedding(row.id);
+    invalidateQuality(row.id);
+  }
   invalidateMissingCache();
   return missing.length;
 }
@@ -303,15 +331,16 @@ export function purgeMissing() {
  * 尝试找回丢失的图片：用户可能只是移动/更换了保存文件夹。
  * 按文件名在当前保存目录中搜索，文件大小一致或唯一匹配时修复路径。
  */
-export function relocateMissing() {
+export async function relocateMissing() {
   const missing = findMissing();
   if (!missing.length) return { relocated: 0, remaining: 0 };
 
   const byName = new Map(); // 文件名(小写) -> [{ absPath, size }]
   for (const file of scanLocalImages([getSettings().storageDir || LEGACY_DIRS[0]])) {
     let size = 0;
+    // 异步 stat：大目录里几千个文件用 statSync 会把事件循环按住
     try {
-      size = fs.statSync(file).size;
+      size = (await fsp.stat(file)).size;
     } catch {}
     const key = path.basename(file).toLowerCase();
     if (!byName.has(key)) byName.set(key, []);
@@ -333,6 +362,12 @@ export function relocateMissing() {
       candidates.find((c) => c.size && c.size === row.size_bytes) ||
       (candidates.length === 1 ? candidates[0] : null);
     if (!match) continue;
+    // 内容校验：同名同大小的文件仍可能是两张完全不同的图（IMG_0001.jpg 这类批量命名）。
+    // 以前唯一候选就直接改路径，库里会出现「张冠李戴」——宁可留着待人工确认。
+    if (row.md5) {
+      const actual = await md5File(match.absPath).catch(() => '');
+      if (actual && actual !== row.md5) continue;
+    }
     upd.run(match.absPath, row.id);
     usedPaths.add(match.absPath);
     relocated++;

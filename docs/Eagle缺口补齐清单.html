@@ -1,0 +1,469 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>GemVault · Eagle 4 缺口补齐清单</title>
+<style>
+  :root{
+    --bg:#0f1117; --panel:#171a23; --panel2:#1e2230; --line:#2a2f3e;
+    --txt:#e6e9ef; --muted:#9aa3b2; --accent:#5b8cff; --accent2:#ff6b9d;
+    --ok:#3ecf8e; --warn:#ffcc55; --bad:#ff6b6b; --chip:#222838;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:linear-gradient(180deg,#0c0e14,#0f1117 240px);color:var(--txt);
+    font-family:-apple-system,"Segoe UI","PingFang SC","Microsoft YaHei",Roboto,sans-serif;line-height:1.65;font-size:15px}
+  header{padding:44px 32px 16px;max-width:1180px;margin:0 auto}
+  h1{font-size:29px;margin:0 0 8px;letter-spacing:.5px}
+  .sub{color:var(--muted);font-size:14.5px}
+  .wrap{max-width:1180px;margin:0 auto;padding:0 32px 70px}
+  section{background:var(--panel);border:1px solid var(--line);border-radius:16px;padding:24px 26px;margin:20px 0;
+    box-shadow:0 8px 30px rgba(0,0,0,.25)}
+  h2{font-size:21px;margin:0 0 6px;display:flex;align-items:center;gap:10px}
+  h2 .n{background:linear-gradient(135deg,var(--accent),var(--accent2));color:#0b0d12;width:30px;height:30px;
+    border-radius:9px;display:inline-flex;align-items:center;justify-content:center;font-size:15px;font-weight:700;flex:0 0 auto}
+  h3{font-size:16.5px;margin:22px 0 8px;color:#cdd5e3}
+  .muted{color:var(--muted)}
+  table{border-collapse:collapse;width:100%;margin:14px 0;font-size:13.5px}
+  th,td{border:1px solid var(--line);padding:9px 11px;text-align:left;vertical-align:top}
+  th{background:var(--panel2);color:#fff;font-weight:600}
+  tr:nth-child(even) td{background:rgba(255,255,255,.02)}
+  .ok{color:var(--ok);font-weight:700} .warn{color:var(--warn);font-weight:700} .bad{color:var(--bad);font-weight:700}
+  .tag{display:inline-block;background:var(--chip);color:var(--muted);border:1px solid var(--line);
+    border-radius:999px;padding:2px 10px;font-size:12px;margin:2px 4px 2px 0}
+  .tag.blue{color:var(--accent);border-color:#2c3a63}
+  .pill{display:inline-block;padding:2px 9px;border-radius:6px;font-size:12px;font-weight:700}
+  .p0{background:#3a1722;color:#ff8aa6;border:1px solid #5a2535}
+  .p1{background:#2c2a17;color:#ffd479;border:1px solid #5a4e25}
+  .p2{background:#172a3a;color:#7fc0ff;border:1px solid #254a5a}
+  .kpi{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:14px;margin:10px 0}
+  .kpi .box{background:var(--panel2);border:1px solid var(--line);border-radius:12px;padding:16px}
+  .kpi .num{font-size:26px;font-weight:800;color:#fff}
+  .kpi .lab{color:var(--muted);font-size:13px}
+  .note{background:#14182499;border-left:3px solid var(--accent);padding:10px 14px;border-radius:8px;
+    color:#c7cee0;font-size:13.5px;margin:12px 0}
+  .note.warnbar{border-left-color:var(--warn)}
+  .bar{height:8px;border-radius:6px;background:var(--line);overflow:hidden;margin:6px 0 12px}
+  .bar > i{display:block;height:100%;width:0;background:linear-gradient(90deg,var(--accent),var(--accent2));transition:width .25s}
+  ul{margin:8px 0 8px 2px;padding-left:20px} li{margin:5px 0}
+  ol{margin:8px 0 8px 2px;padding-left:22px}
+  code{background:#0c0e14;border:1px solid var(--line);border-radius:5px;padding:1px 6px;font-size:12.5px;word-break:break-all}
+  footer{color:var(--muted);font-size:12.5px;text-align:center;padding:22px}
+  .toolbar{position:sticky;top:0;z-index:20;display:flex;gap:8px;flex-wrap:wrap;align-items:center;
+    background:rgba(15,17,23,.94);backdrop-filter:blur(8px);border:1px solid var(--line);border-radius:12px;
+    padding:10px 12px;margin:14px 0 0}
+  .toolbar button{background:var(--panel2);color:#cdd5e3;border:1px solid var(--line);border-radius:8px;
+    padding:6px 12px;font-size:13px;cursor:pointer;font-family:inherit}
+  .toolbar button:hover{border-color:#3b4a6b;color:#fff}
+  .toolbar button.on{background:#243052;border-color:#3b5b9c;color:#fff}
+  .toolbar .sp{flex:1} .toolbar .hint{color:var(--muted);font-size:12.5px}
+  .gap{background:var(--panel2);border:1px solid var(--line);border-radius:12px;padding:15px 18px;margin:13px 0;
+    transition:opacity .2s,border-color .2s}
+  .gap .head{display:flex;align-items:flex-start;gap:10px;flex-wrap:wrap}
+  .gap input[type=checkbox]{width:18px;height:18px;margin:3px 0 0;accent-color:#5b8cff;cursor:pointer;flex:0 0 auto}
+  .gap .title{font-size:16px;font-weight:700;color:#fff;margin:0}
+  .gap .gid{color:var(--muted);font-size:12px;font-family:ui-monospace,Consolas,monospace}
+  .gap .meta{margin-left:auto;display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+  .gap .body{margin-top:10px;padding-top:9px;border-top:1px dashed var(--line)}
+  .gap .row{margin:6px 0;font-size:13.5px;color:#d6dbe6}
+  .gap .ev{font-size:12.5px;color:var(--muted)}
+  .gap .steps li,.gap .accept li{font-size:13.5px}
+  .gap .accept li::marker{color:var(--ok)}
+  .gap.done{opacity:.45;border-color:#22321f}
+  .gap.done .title{text-decoration:line-through}
+  .gap[hidden]{display:none}
+  .doneFlag{display:none;color:var(--ok);font-size:12px;font-weight:700}
+  .gap.done .doneFlag{display:inline}
+</style>
+</head>
+<body>
+<header>
+  <h1>GemVault · Eagle 4 缺口补齐清单</h1>
+  <div class="sub">
+    对标 Eagle 4 ｜ 审查对象 <code>e:\gemvault</code>（Electron + Fastify + node:sqlite）｜ 生成 2026-11-02
+    ｜ 结论：覆盖度 ≈ 85%，缺口 14 项，硬缺口（P0）仅 2 项
+  </div>
+</header>
+
+<div class="wrap">
+
+<section>
+  <h2><span class="n">0</span>怎么用</h2>
+  <p style="margin-top:0">每张卡片都是一个可勾选的待办。勾选状态存在浏览器 <code>localStorage</code>（键
+  <code>gemvault.eagle.gaps.v1</code>），关掉再开还在原位；顶部进度条跟着走。补齐一条勾一条即可。</p>
+  <div class="note">
+    「现状证据」全部是 2026-11-02 在代码里实测的结论（文件:行号），不是看 README 推断的。若你后来在别处补掉了，
+    勾选时顺手把卡片的落点改成实际位置。工作量按<b>单人含自测</b>估算，单位人日。
+  </div>
+  <div class="kpi">
+    <div class="box"><div class="num" id="kpiTotal">–</div><div class="lab">缺口总数</div></div>
+    <div class="box"><div class="num" id="kpiDone">0</div><div class="lab">已补齐</div></div>
+    <div class="box"><div class="num" id="kpiP0">–</div><div class="lab">P0 未完成</div></div>
+    <div class="box"><div class="num">20–28</div><div class="lab">全量人日（估）</div></div>
+  </div>
+  <div class="bar"><i id="progressBar"></i></div>
+  <div class="toolbar">
+    <button data-filter="all" class="on">全部</button>
+    <button data-filter="todo">未完成</button>
+    <button data-filter="done">已完成</button>
+    <button data-filter="p0">P0</button>
+    <button data-filter="p1">P1</button>
+    <button data-filter="p2">P2</button>
+    <span class="sp"></span>
+    <button id="btnCopy">复制未完成清单</button>
+    <button id="btnReset">重置进度</button>
+    <span class="hint" id="copyHint"></span>
+  </div>
+</section>
+
+<section>
+  <h2><span class="n">1</span>现状总览</h2>
+  <p class="muted" style="margin-top:0">百分比是粗估，用来看结构，不必较真。</p>
+  <table>
+    <tr><th style="width:96px">维度</th><th style="width:80px">覆盖度</th><th>已具备的关键能力（抽查证据）</th></tr>
+    <tr><td><b>组织</b></td><td class="ok">约 85%</td>
+      <td>标签层级 / 群组 / 颜色（<code>tag_meta</code> 的 <code>parent</code>、<code>tag_group</code>、<code>color</code>）；智能文件夹；待整理三项；星级与备注（<code>db.js:435-436</code>）；文件夹封面与排序</td></tr>
+    <tr><td><b>浏览</b></td><td class="ok">约 85%</td>
+      <td>11 种排序含 <code>smart</code>/<code>recommend</code>/<code>random</code>（<code>lib/query.js:44-56</code>）；缩略图尺寸；对比视图；幻灯片</td></tr>
+    <tr><td><b>采集</b></td><td class="ok">约 90%</td>
+      <td>拖拽 / 粘贴 / 右键采集 / 批量抓取 / 可见区截图 / <b>整页长图</b>（<code>extension/background.js:168</code>）；书签快照；断点续采</td></tr>
+    <tr><td><b>处理</b></td><td class="ok">约 85%</td>
+      <td>裁剪 / 旋转 / 调色 / 增强 / 抠图 / 超分 / 水印 / 长图拼接 / 标注 / 评论 / OCR / 批量重命名 / 批量转格式</td></tr>
+    <tr><td><b>素材类型</b></td><td class="ok">约 90%</td>
+      <td>图片、视频、GIF、音频（波形）、字体（改文案实时预览）、PDF、Office、3D、PSD、AI、RAW（<code>MediaViewer.tsx:10-13</code>）</td></tr>
+    <tr><td><b>输出</b></td><td class="warn">约 80%</td>
+      <td>HTML 画廊、zip 下载、复制图片、拖到外部应用（<code>electron/main.js:1497</code>）、元数据 CSV/JSON、备份恢复、<b>导入 Eagle 库</b></td></tr>
+    <tr><td><b>AI</b></td><td class="ok">约 95%</td>
+      <td>本地 CLIP 语义搜索、以图搜图、自动标签、自动描述、反向搜图、知识库与偏好闭环 —— <b>这块反超 Eagle</b></td></tr>
+    <tr><td><b>系统集成</b></td><td class="warn">约 70%</td>
+      <td>托盘、主题、多资源库；缺多窗口、快捷键自定义、空格预览 —— 本轮唯一明显短板</td></tr>
+  </table>
+  <div class="note warnbar"><b>先看清楚再动手：</b>14 项里只有 2 项属于「Eagle 有、我完全没有、用户立刻感知」。
+  其余多为锦上添花，别为了对齐把已经比 Eagle 好的东西（第 3 节）改回去。</div>
+</section>
+
+<section>
+  <h2><span class="n">2</span>缺口清单</h2>
+  <div class="muted" style="font-size:13px">● 已具备 ｜ ◐ 半成品 ｜ ○ 缺失</div>
+  <div id="gapList"></div>
+</section>
+
+<section>
+  <h2><span class="n">3</span>别乱改：这些你比 Eagle 强</h2>
+  <ul>
+    <li><b>版本历史</b>（<code>versions</code> 表 + 回溯预览）—— Eagle 没有。</li>
+    <li><b>长图拼接、水印工作室、OCR、反向搜图、动态壁纸</b>—— Eagle 要么没有，要么得装插件。</li>
+    <li><b>纯本地 CLIP 语义搜索 + 偏好闭环</b>—— Eagle 的 AI 依赖外部 API。</li>
+    <li><b>多资源库 + 三道闸</b>（库代数 / 根前缀 / <code>.library</code> 排除）—— 比 Eagle 的单库更工程化。</li>
+    <li><b>HTML 画廊与数据出口</b>（CSV/JSON/zip）—— Eagle 导出能力弱。</li>
+  </ul>
+  <div class="note">判断标准：如果某个「对齐」改动会让上面任一项退化，那就是走错方向了。</div>
+</section>
+
+<section>
+  <h2><span class="n">4</span>顺带看到的工程风险</h2>
+  <ul>
+    <li><b>巨型文件</b>：<code>App.tsx</code> 72KB、<code>api.ts</code> 68KB、<code>Lightbox.tsx</code> 66KB、<code>WatermarkStudio.tsx</code> 43KB —— 改一处要读整屏，继续按 hook 拆。</li>
+    <li><b>197 个端点 / 21 个 route 文件</b>，没有版本前缀也没有统一校验层 —— 一旦开放 API 就再也改不动，<b>先定 <code>/api/v1</code> 再发布</b>（与 EAGLE-03 相关）。</li>
+    <li><b>运行期错误 typecheck 抓不到</b>（上一轮白屏就是 TDZ 类问题）—— 面板级组件统一套 <code>ErrorBoundary</code>，并补一条「每个面板能挂载且不抛错」的冒烟。</li>
+  </ul>
+</section>
+
+<footer>GemVault · Eagle 缺口清单 ｜ 勾选进度仅存本地浏览器 ｜ 生成于 2026-11-02</footer>
+</div>
+
+<script>
+const GAPS = [];
+
+/* ---------- P0 ---------- */
+GAPS.push({
+  id: 'EAGLE-01', p: 'p0', title: '文件夹密码锁 / 隐私空间', effort: '1–1.5 人日', tags: ['收益最高'],
+  eagle: '任意文件夹可设访问密码，锁住后缩略图与内容都不显示，输密码才解锁。私活稿与个人素材同库共存时是刚需，也是 Eagle 付费理由里排前三的一条。',
+  now: '<span class="ok">● 已实现</span>。<code>folders</code> 增 <code>lock_hash / lock_salt</code>（scrypt + 随机盐，明文不落库）；<code>server/lib/privacy.js</code> 在列表、搜索、统计、Eagle 导出中排除「已锁且本次会话未解锁」的整棵子树；<code>GET /api/folders/:id/images</code> 未解锁直接 403。解锁只在进程内存，重启回锁、切库清空。',
+  steps: [
+    '迁移加列 <code>folders.lock_pass</code>（scrypt 哈希 + salt），沿用现有 <code>ensureColumn</code> 套路，别改建表语句。',
+    '解锁态只放内存（Map&lt;folderId, 到期时间&gt;），进程重启即失效——落库等于没锁。',
+    '守卫收在一处：<code>server/lib/query.js</code> 列表/搜索入口 + <code>/api/folders/:id/*</code> + 导出 / 批量 / 回收站四条旁路，统一剔除「已锁未解锁」的文件夹子树。',
+    '前端：文件夹树显示锁图标，点击弹解锁框，同会话不再追问；锁图标要能被屏幕阅读器识别。',
+    '边界写清楚：这是<b>访问控制，不是文件加密</b>，文案别写「加密」。真加密一旦忘密码就是永久丢图。'
+  ],
+  accept: [
+    '上锁后列表、搜索、标签筛选、智能文件夹、HTML 画廊、zip 导出全部看不到该子树（逐个写单测）。',
+    '密码错误 5 次后指数退避，且错误响应不泄露「文件夹存在 / 密码几位」。',
+    '重启应用自动回到锁定态。'
+  ]
+});
+
+GAPS.push({
+  id: 'EAGLE-02', p: 'p0', title: '视频剪辑（首尾裁剪）+ 截帧导出 GIF', effort: '3–5 人日', tags: ['体感最强'],
+  eagle: '视频预览里拖两个把手裁掉首尾并存成新文件；任意位置截一帧存图或导出 GIF。素材处理链里最高频的一步。',
+  now: '<span class="bad">○ 完全缺失</span>。证据：<code>MediaViewer.tsx:11</code> 只做到「用当前帧做封面」；全库无 trim / GIF 导出实现；<code>server/lib/media.js:7</code> 明确写了「为什么不用 ffmpeg」——补功能时要尊重这个前提。',
+  steps: [
+    '首选纯前端：<code>WebCodecs</code>（VideoDecoder + VideoEncoder）重编码，<code>MediaRecorder</code> 兜底；产物写临时文件后复用现有导入管线，自动出缩略图与元数据。',
+    'GIF：VideoDecoder 抽帧 → 量化（可复用 <code>web/src/lib/palette.ts</code> 的取色）→ 自拼 GIF89a；帧数与尺寸设上限，别让 4K 长片吃爆内存。',
+    '若走 ffmpeg：stream copy 裁首尾会切在黑屏/花屏（关键帧对齐），必须重编码或对齐最近关键帧并提示用户。',
+    '产物默认「另存为新素材 + 保留原片」，挂到 <code>versions</code> 版本历史里，别就地覆盖。'
+  ],
+  accept: [
+    '裁剪后时长误差 ≤ 0.1s；成品能正常预览并被语义搜索召回。',
+    'GIF 体积/帧率可调，中断可恢复（复用 <code>jobs</code> 表）。',
+    '干净机器（无 ffmpeg）上功能可用，否则就违背零外部依赖。'
+  ]
+});
+
+/* ---------- P1 ---------- */
+GAPS.push({
+  id: 'EAGLE-03', p: 'p1', title: '开放 API：<code>/api/v1</code> + 本地 token + scope', effort: '2–3 人日', tags: ['战略级'],
+  eagle: '本地 HTTP API 供脚本/第三方调用（导入、检索、建标签、跑动作），是 Eagle 生态与自动化工作流的入口。',
+  now: '<span class="bad">○ 完全缺失</span>。证据：全库 <code>plugin=0</code>；现有 197 个 <code>/api/*</code> 路径全部是内部 UI 形态，无版本前缀、无 token、无 scope（21 个 route 文件注入式注册）。',
+  steps: [
+    '<b>先定版本</b>：新增 <code>server/routes/v1.js</code> 挂 <code>/api/v1</code>，只挑稳定资源（素材、文件夹、标签、搜索）暴露；内部路径不许第三方直接依赖。',
+    'token 由主进程生成写入 <code>.api-token</code>（已有这个文件），v1 端点校验 Bearer + scope，缺失即 401/403。',
+    '限流与审计：按 token 记账，写操作落 <code>op_log</code>，便于「谁删了我的图」溯源。',
+    '出 OpenAPI 文档 + 一个 curl 示例，否则等于没开放。'
+  ],
+  accept: [
+    '无 token 一律 401；scope 不足 403；错误信息不泄露内部路径。',
+    '内部 UI 改字段不会破坏 v1（v1 有独立序列化层）。',
+    '外部脚本能完成「导入 → 打标签 → 搜索」闭环。'
+  ]
+});
+
+GAPS.push({
+  id: 'EAGLE-04', p: 'p1', title: '插件 / 脚本宿主（复用已有 actions）', effort: '3–5 人日', tags: ['生态'],
+  eagle: '插件市场里一键装「批量压缩 / 去背景 / 导出格式 / 生成色板」，本质是把常用脚本包装成菜单项。',
+  now: '<span class="warn">◐ 已有抽象，缺宿主</span>。证据：<code>actions</code> 表 + <code>/api/actions/:id/run</code> + <code>ActionsPanel.tsx</code> 已是「自定义动作」雏形，但动作只能选内置能力，不能执行用户脚本。',
+  steps: [
+    '先扩动作类型：<code>action.type = builtin | script</code>，script 用受限沙箱（<code>node:vm</code> 或 utilityProcess 子进程，别在主进程 eval）。',
+    '暴露能力白名单给脚本（importImage / setTags / searchImages），而不是整个 <code>server/</code>。',
+    '插件清单 <code>plugin.json</code>（id、版本、所需权限），本地目录安装即可，先不做商店。',
+    '与 EAGLE-03 共用 token/scope 模型，避免两套权限。'
+  ],
+  accept: [
+    '脚本超时/抛错不会拖垮服务，能在 UI 里看到日志。',
+    '装/卸插件不影响图库数据；插件无权删文件除非显式授予。'
+  ]
+});
+
+GAPS.push({
+  id: 'EAGLE-05', p: 'p1', title: 'Eagle 库导出（反向互通）', effort: '1–1.5 人日', tags: ['低成本'],
+  eagle: 'Eagle 的 <code>.library</code> 是开放目录结构，别的工具能读能写，用户因此敢长期投入。',
+  now: '<span class="ok">● 已实现</span>。<code>POST /api/export/eagle</code> → <code>server/lib/eagle-export.js</code> 写出标准 <code>&lt;库名&gt;.library</code>：根 <code>metadata.json</code> 的文件夹树 + <code>images/&lt;13位id&gt;.info/</code> 下的原图与逐图 metadata（标签、星级、备注、来源、宽高、主色板、时间）。缩略图交给 Eagle 自建；隐私夹不导出；目标非空则拒绝覆盖。',
+  steps: [
+    '按 Eagle 结构写：<code>images/&lt;id&gt;.info/metadata.json</code> + <code>tags.json</code> + <code>mtime.json</code>，图片按 id 命名。',
+    '只导出可映射字段（标题、标签、评分、来源 URL、文件夹路径），不可映射的写进 <code>metadata.json</code> 的自定义段并提示。',
+    '大库走 <code>jobs</code>，出进度与失败清单，别一次性同步跑完。'
+  ],
+  accept: [
+    '导出的库能被 Eagle 直接打开，标签与文件夹层级不丢。',
+    '往返一次（导入→导出）字段一致，写一条往返单测。'
+  ]
+});
+
+GAPS.push({
+  id: 'EAGLE-06', p: 'p1', title: '文件夹标签继承', effort: '0.5 人日', tags: ['老用户习惯'],
+  eagle: '给文件夹打标签，里面的素材自动带上该标签（如「客户A」文件夹下所有图都能按标签搜到）。',
+  now: '<span class="ok">● 已实现</span>。<code>folders.tags</code> 存逗号串，查询期沿 <code>folders.path</code> 前缀继承（<code>lib/query.js</code> 的 <code>attachInheritedTags</code>），<b>不</b>物化进 <code>item_tags</code>；侧栏文件夹名后显示标签，信息面板区分「直接标签」与只读的「继承标签」。',
+  steps: [
+    '两种落法：<b>物化</b>（导入/移动时把父级标签写进 <code>item_tags</code>）或<b>查询期继承</b>（搜索时并上祖先标签）。推荐查询期，避免数据膨胀。',
+    '查询期做法：<code>query.js</code> 里按 <code>folders.path</code> 前缀取祖先链，合并进 tag 过滤条件。',
+    'UI 上区分「直接标签」与「继承标签」，否则用户删不掉会困惑。'
+  ],
+  accept: [
+    '按继承标签搜索能命中子文件夹素材；移除文件夹标签后立即失效。',
+    '不产生重复 <code>item_tags</code> 行。'
+  ]
+});
+
+/* ---------- P2 ---------- */
+GAPS.push({
+  id: 'EAGLE-07', p: 'p2', title: '空格快速预览', effort: '0.5 人日', tags: ['肌肉记忆'],
+  eagle: '选中素材按空格弹出快速预览，再按空格关闭，不离开网格就能连续看。',
+  now: '<span class="ok">● 已实现</span>。<code>App.tsx</code> 全窗口监听空格：优先预览鼠标悬停的卡片，其次选中项，再次第一张；<code>Lightbox</code> 内静态图再按空格关闭，视频/音频为播放暂停。卡片自身聚焦时空格仍是勾选，不抢。',
+  steps: [
+    '在全局 keydown 里加空格：仅当焦点不在输入框且已选中 1 项时打开快速预览。',
+    '快速预览复用 Lightbox 的只读态，别另写一套；Esc/空格关闭后焦点回到原卡片。',
+    '方向键在快速预览里切上/下一张。'
+  ],
+  accept: ['输入框内按空格正常打字；预览开启时空格不触发滚动。', '关闭后焦点与滚动位置不跳。']
+});
+
+GAPS.push({
+  id: 'EAGLE-08', p: 'p2', title: '多窗口浏览', effort: '1–2 人日', tags: ['多屏'],
+  eagle: '可以把一个文件夹/搜索结果「在新窗口打开」，双屏比对素材。',
+  now: '<span class="ok">● 已实现</span>。<code>electron/main.js</code> 新增 <code>window:new</code> IPC（命令面板「新建窗口」/ 默认 <kbd>Ctrl+N</kbd>）；副窗口共享同一个本地服务与数据库，IPC 的 <code>trustedSender</code> 改为校验 <code>appWindows</code> 集合，关掉副窗口即真关。',
+  steps: [
+    '主进程加 <code>openLibraryWindow(params)</code>，通过 URL hash/查询串带初始视图（文件夹 id + 排序）。',
+    '多窗口共享同一 server 与 DB，注意只读视图不要触发全库扫描。',
+    '关闭最后一个窗口才退出（现有 will-quit 已有停服逻辑，别重复）。'
+  ],
+  accept: ['两个窗口改同一素材时另一窗口能刷新到最新。', '关窗不漏进程、不重复停服。']
+});
+
+GAPS.push({
+  id: 'EAGLE-09', p: 'p2', title: '快捷键自定义', effort: '1.5 人日', tags: ['老用户'],
+  eagle: '设置里可改任意快捷键，老用户能把 Eagle 的键位带过来。',
+  now: '<span class="ok">● 已实现</span>。<code>web/src/lib/keymap.ts</code> 集中 9 个全局动作的默认键位 + localStorage 持久化 + 冲突检测；设置 → 快捷键可逐个「录制」，改完立即生效，帮助面板实时显示当前键位（场景内键位固定不改）。',
+  steps: [
+    '把散落的键位集中成一张 <code>KEYMAP</code> 表（id、默认键、分组），渲染与匹配都读它。',
+    '用户改键存进库级 settings（沿用按库存储约定），冲突直接拒绝并提示占用了谁。',
+    '支持恢复默认 + 导出/导入键位 JSON。'
+  ],
+  accept: ['改键后立即生效且重启保留；冲突键不会被静默覆盖。']
+});
+
+GAPS.push({
+  id: 'EAGLE-10', p: 'p2', title: '图片手动排序（拖拽定序）', effort: '1–1.5 人日', tags: ['策展'],
+  eagle: '可在文件夹里手动拖动排列，做成「策展顺序」再导出。',
+  now: '<span class="ok">● 已实现</span>。<code>image_folders.sort_order</code>（步长 1024，同一张图在不同夹可不同序）+ <code>sort=manual</code>；卡片拖拽即插入目标位置，仅在文件夹视图启用，与「拖进文件夹」共用 <code>application/x-gem-image-id</code>。',
+  steps: [
+    '在 <code>image_folders</code> 上加 <code>sort_order</code>（同一素材在不同文件夹可有不同顺序，别放 images 表）。',
+    '新增 sort=manual，拖拽后批量写序号（间隔 1024 便于插入，避免每次全表重排）。',
+    '只在该文件夹内生效，全局视图回退到默认排序。'
+  ],
+  accept: ['拖动后顺序持久化；新导入素材默认排末尾。', '1000 项拖动一次只发一条批量请求。']
+});
+
+GAPS.push({
+  id: 'EAGLE-11', p: 'p2', title: '搜索语法（tag: / color: / rating:）', effort: '0.5 人日', tags: ['低成本高感知'],
+  eagle: '搜索框支持 <code>tag:logo color:red rating:>=4</code> 这类前缀，高级用户几乎全靠它。',
+  now: '<span class="ok">● 已实现</span>。<code>lib/query.js</code> 的 <code>parseSearchSyntax</code> 支持 <code>tag: color: rating: folder: kind: is:</code>（色系 12 色中英文 + 精确色号；tag 支持逗号多值 AND、别名展开、文件夹继承），未知前缀原样当关键词（不拆坏 <code>http://</code>）；搜索框 title 内置语法速查。',
+  steps: [
+    '在 <code>query.js</code> 之前加一层 parseSearch：识别 <code>key:value</code>，拼进结构化筛选，剩余文本继续走 FTS。',
+    '已知前缀映射到现有参数即可，<b>不需要改数据库</b>。',
+    '搜索框给出前缀提示与拼错兜底（未知前缀当普通文本）。'
+  ],
+  accept: ['三种前缀都能与关键词组合；未知前缀不报错。', '解析层有单测，不影响现有 FTS 行为。']
+});
+
+GAPS.push({
+  id: 'EAGLE-12', p: 'p2', title: '标签别名 / 同义词', effort: '0.5 人日', tags: ['检索质量'],
+  eagle: '标签可设别名，搜「ui」「界面」都能命中同一个标签。',
+  now: '<span class="ok">● 已实现</span>。<code>tag_alias(alias, tag)</code> 表 + <code>/api/tags/aliases</code>；别名只用于搜索展开，不改 <code>images.tags</code>；改标签名 / 合并 / 删除时自动迁移，合并还会把旧名写成目标标签的别名；设置 → 标签与别名可增删。',
+  steps: [
+    '加 <code>tag_alias</code> 表（alias → tag，唯一约束），或给 <code>tag_meta</code> 加一段 JSON 数组。',
+    '搜索时先把别名展开成正式标签再进 FTS；标签云只显示正式名。',
+    '合并标签时同步迁移别名，别留悬空。'
+  ],
+  accept: ['用别名搜索命中率与正式名一致；别名冲突被拒绝。']
+});
+
+GAPS.push({
+  id: 'EAGLE-13', p: 'p2', title: '文件夹监控自动导入', effort: '1 人日', tags: ['工作流'],
+  eagle: '指定「监视文件夹」，往里丢文件就自动入库（截图、下载目录）。',
+  now: '<span class="ok">● 已实现</span>。<code>importer.js</code> 对素材文件夹递归 <code>fs.watch</code>，2 秒防抖后自动登记新文件 / 同步改名 / 进回收站；跳过回收站、缩略图、<code>.gemvault</code>、<code>.library</code>。命中后经 <code>liveBus</code> + SSE 通知前端自动刷新；设置 → 数据与维护可开关（<code>watchEnabled</code>）。',
+  steps: [
+    '用 <code>fs.watch</code> 递归（或 chokidar）监听，加防抖与稳定期（文件写完再导，避免半截文件）。',
+    '复用现有导入管线与 <code>jobs</code>，只加「来源=监视目录」的标记。',
+    '跳过目录沿用 <code>lib/skip-dirs.js</code>，别把 node_modules 扫进来。'
+  ],
+  accept: ['拷贝大文件过程中不产生坏条目；重复文件按现有判重策略处理。', '关闭监控后不残留 watcher。']
+});
+
+GAPS.push({
+  id: 'EAGLE-14', p: 'p2', title: '局域网 / 手机投送（扫码传图）', effort: '3–5 人日', tags: ['可选'],
+  eagle: '手机与电脑同 Wi-Fi，扫码打开网页即可把相册图片传进库（Eagle 社区常用玩法）。',
+  now: '<span class="bad">○ 缺失</span>。证据：服务端只监听本机；<code>/api/extension/ingest</code> 是给浏览器扩展用的，没有面向手机的页面。',
+  steps: [
+    '仅局域网绑定一个独立端口，出一次性二维码 token（短时效），页面只做上传，不做浏览。',
+    '上传复用导入管线，落「来源=手机」标记。',
+    '<b>默认关闭</b>，开启时明确提示「同网段可见」；防火墙失败要有清晰报错。'
+  ],
+  accept: ['token 过期即拒绝；关闭开关后端口不再监听。', '上传中途断网不留半截文件。']
+});
+
+/* ---------- 渲染 ---------- */
+const KEY = 'gemvault.eagle.gaps.v1';
+let state = {};
+try { state = JSON.parse(localStorage.getItem(KEY) || '{}') || {}; } catch (e) { state = {}; }
+
+const list = document.getElementById('gapList');
+
+function cardHtml(g) {
+  const tags = (g.tags || []).map(t => '<span class="tag blue">' + t + '</span>').join('');
+  const steps = g.steps.map(s => '<li>' + s + '</li>').join('');
+  const accept = g.accept.map(s => '<li>' + s + '</li>').join('');
+  return '<div class="gap" data-p="' + g.p + '" data-id="' + g.id + '">' +
+    '<div class="head">' +
+      '<input type="checkbox" id="cb-' + g.id + '" aria-label="标记 ' + g.id + ' 完成">' +
+      '<div><div class="gid">' + g.id + ' <span class="doneFlag">已补齐</span></div>' +
+      '<p class="title">' + g.title + '</p></div>' +
+      '<div class="meta"><span class="pill ' + g.p + '">' + g.p.toUpperCase() + '</span>' +
+        '<span class="tag">' + g.effort + '</span>' + tags + '</div>' +
+    '</div>' +
+    '<div class="body">' +
+      '<div class="row"><b>Eagle 怎么做：</b>' + g.eagle + '</div>' +
+      '<div class="row"><b>我现在的状况：</b>' + g.now + '</div>' +
+      '<div class="row"><b>怎么补：</b><ol class="steps">' + steps + '</ol></div>' +
+      '<div class="row"><b>验收：</b><ul class="accept">' + accept + '</ul></div>' +
+    '</div></div>';
+}
+
+list.innerHTML = GAPS.map(cardHtml).join('');
+
+const cards = Array.prototype.slice.call(list.querySelectorAll('.gap'));
+const p0Todo = () => cards.filter(c => c.dataset.p === 'p0' && !c.classList.contains('done')).length;
+
+function sync() {
+  let done = 0, p0 = 0;
+  cards.forEach(c => {
+    const box = c.querySelector('input[type=checkbox]');
+    const on = !!state[c.dataset.id];
+    box.checked = on;
+    c.classList.toggle('done', on);
+    if (on) done++;
+    else if (c.dataset.p === 'p0') p0++;
+  });
+  document.getElementById('kpiTotal').textContent = String(cards.length);
+  document.getElementById('kpiDone').textContent = String(done);
+  document.getElementById('kpiP0').textContent = String(p0);
+  document.getElementById('progressBar').style.width = (cards.length ? (done / cards.length * 100) : 0) + '%';
+}
+
+cards.forEach(c => {
+  const box = c.querySelector('input[type=checkbox]');
+  box.addEventListener('change', () => {
+    state[c.dataset.id] = box.checked;
+    try { localStorage.setItem(KEY, JSON.stringify(state)); } catch (e) {}
+    sync();
+  });
+});
+
+let filter = 'all';
+document.querySelectorAll('.toolbar [data-filter]').forEach(btn => {
+  btn.addEventListener('click', () => {
+    filter = btn.dataset.filter;
+    document.querySelectorAll('.toolbar [data-filter]').forEach(b => b.classList.toggle('on', b === btn));
+    cards.forEach(c => {
+      const done = c.classList.contains('done');
+      let show = true;
+      if (filter === 'todo') show = !done;
+      else if (filter === 'done') show = done;
+      else if (filter === 'p0' || filter === 'p1' || filter === 'p2') show = c.dataset.p === filter;
+      c.hidden = !show;
+    });
+  });
+});
+
+document.getElementById('btnCopy').addEventListener('click', () => {
+  const todo = cards.filter(c => !c.classList.contains('done'))
+    .map(c => '[' + c.dataset.p.toUpperCase() + '] ' + c.querySelector('.title').textContent);
+  const text = todo.length ? 'GemVault · Eagle 缺口未完成：\n' + todo.join('\n') : '全部已补齐 🎉';
+  const hint = document.getElementById('copyHint');
+  navigator.clipboard.writeText(text).then(
+    () => { hint.textContent = '已复制 ' + todo.length + ' 条'; },
+    () => { hint.textContent = '复制失败，请手动选中'; }
+  );
+});
+
+document.getElementById('btnReset').addEventListener('click', () => {
+  if (!confirm('清空所有勾选进度？')) return;
+  state = {};
+  try { localStorage.removeItem(KEY); } catch (e) {}
+  sync();
+});
+
+sync();
+</script>
+</body>
+</html>

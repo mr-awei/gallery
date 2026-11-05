@@ -414,13 +414,19 @@ export function register(app, ctx) {
   app.post(
     '/api/library/relocate-missing',
     asyncRoute(async (_req, res) => {
-      res.json({ ok: true, ...relocateMissing() });
+      res.json({ ok: true, ...(await relocateMissing()) });
     })
   );
 
   /* --------------------------------- 回收站 --------------------------------- */
 
-  app.get('/api/trash', (_req, res) => res.json(lib.listTrash()));
+  app.get('/api/trash', (req, res) => {
+    const limit = Number(req.query.limit || 0);
+    if (!limit) return res.json(lib.listTrash());
+    return res.json(
+      lib.listTrash({ limit, offset: Number(req.query.offset || 0), q: String(req.query.q || '') })
+    );
+  });
 
   app.post(
     '/api/trash/:id/restore',

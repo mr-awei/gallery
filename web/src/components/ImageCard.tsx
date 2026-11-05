@@ -1,7 +1,8 @@
 import React, { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import type { ImageItem } from '../types';
-import { BASE, SOURCE_LABELS, api, desktop, revealFile } from '../api';
+import { BASE, SOURCE_LABELS, api, copyText, desktop, formatSize as fmtSize, revealFile } from '../api';
+import { confirmDialog, promptDialog } from './Dialogs';
 import { fontFrameDataUrl, imageFrameDataUrl, videoElementDataUrl, videoFrameDataUrl } from '../lib/coverFrame';
 import { IconDownload, IconExpand, IconHeart } from './Icons';
 
@@ -15,7 +16,7 @@ interface Props {
   onToggleFavorite: (item: ImageItem) => void;
   onDownload: (item: ImageItem) => void;
   /** 右键菜单 / 拖拽等操作的提示（可选；未传则静默） */
-  onToast?: (msg: string) => void;
+  onToast?: (msg: string, kind?: 'info' | 'error') => void;
   /** 旋转 / 编辑标签后父组件用新数据替换（未传时操作后不更新列表，仅提示） */
   onUpdateItem?: (item: ImageItem) => void;
   /** 移入回收站后父组件从列表移除（未传则不显示删除菜单项） */
@@ -77,18 +78,6 @@ function fmtDuration(sec: number) {
   return `${m}:${String(r).padStart(2, '0')}`;
 }
 
-function fmtSize(bytes: number) {
-  if (!bytes || bytes <= 0) return '';
-  const units = ['B', 'KB', 'MB', 'GB', 'TB'];
-  let v = bytes;
-  let i = 0;
-  while (v >= 1024 && i < units.length - 1) {
-    v /= 1024;
-    i++;
-  }
-  return `${v >= 10 || i === 0 ? Math.round(v) : v.toFixed(1)} ${units[i]}`;
-}
-
 function extOfPath(p: string) {
   const m = /\.([a-z0-9]+)(?:\?|#|$)/i.exec(p || '');
   return m ? m[1].toUpperCase() : '';
@@ -144,24 +133,6 @@ function VideoThumb({
  */
 const autoCoverTried = new Set<number>();
 
-/** 音频波形（用种子生成稳定的假波形，不解析音频数据） */
-function WaveBars({ seed }: { seed: number }) {
-  const bars = useMemo(() => {
-    let x = Math.abs(seed || 1) * 9301 + 49297;
-    return Array.from({ length: 32 }, () => {
-      x = (x * 9301 + 49297) % 233280;
-      return 16 + (x / 233280) * 84;
-    });
-  }, [seed]);
-  return (
-    <div className="media-wave" aria-hidden>
-      {bars.map((h, i) => (
-        <i key={i} style={{ height: `${h}%` }} />
-      ))}
-    </div>
-  );
-}
-
 /** 字体卡：运行时把字体文件挂进 document.fonts，用自己的字形预览 */
 function FontThumb({ url, title }: { url: string; title: string }) {
   const [family, setFamily] = useState('');
@@ -205,20 +176,22 @@ function FontThumb({ url, title }: { url: string; title: string }) {
   );
 }
 
-/** 无缩略图的素材统一用图标卡（音频/字体/PDF/Office/3D/其他） */
+/**
+ * 无缩略图的素材统一用图标卡（音频/字体/PDF/Office/3D/其他）。
+ * 音频卡以前画的是「按 id 随机生成的假波形」，看着像声波其实与音频无关；
+ * 卡片上不放假的图，真要波形要点开预览（那边是解码出来的真波形）。
+ */
 function MediaGlyph({
   kind,
   size,
   title,
   label,
-  seed = 1,
   duration = 0,
 }: {
   kind: string;
   size: number;
   title: string;
   label: string;
-  seed?: number;
   duration?: number;
 }) {
   return (
@@ -226,7 +199,6 @@ function MediaGlyph({
       <div className="media-glyph-icon">{KIND_GLYPH[kind] || KIND_GLYPH.other}</div>
       <div className="media-glyph-kind">{label || KIND_LABEL[kind] || '文件'}</div>
       {title && <div className="media-glyph-title">{title}</div>}
-      {kind === 'audio' && <WaveBars seed={seed} />}
       <div className="media-glyph-meta">
         {duration > 0 && <span>{fmtDuration(duration)}</span>}
         {size > 0 && <span>{fmtSize(size)}</span>}
@@ -418,7 +390,6 @@ const ImageCard = React.memo(function ImageCard({
           size={item.sizeBytes}
           title=""
           label={[kindLabel, extOfPath(item.path || item.url)].filter(Boolean).join(' · ')}
-          seed={item.id}
           duration={item.duration}
         />
       );
@@ -491,12 +462,8 @@ const ImageCard = React.memo(function ImageCard({
   };
 
   const copyLink = async () => {
-    try {
-      await navigator.clipboard.writeText(fullUrl);
-      onToast?.('图片链接已复制');
-    } catch {
-      onToast?.('复制失败：浏览器拒绝了剪贴板访问');
-    }
+    const ok = await copyText(fullUrl);
+    onToast?.(ok ? '图片链接已复制' : '复制失败：浏览器拒绝了剪贴板访问', ok ? 'info' : 'error');
   };
 
   const setWall = async () => {
@@ -552,7 +519,7 @@ const ImageCard = React.memo(function ImageCard({
   };
 
   const editTags = async () => {
-    const input = window.prompt('标签（用逗号分隔，留空清除全部标签）', (item.tags || []).join(', '));
+    const input = await promptDialog('标签（用逗号分隔，留空清除全部标签）', (item.tags || []).join(', '));
     if (input === null) return; // 取消
     const list = input.split(/[,，]/).map((t) => t.trim()).filter(Boolean);
     try {
@@ -565,12 +532,8 @@ const ImageCard = React.memo(function ImageCard({
   };
 
   const copyPath = async () => {
-    try {
-      await navigator.clipboard.writeText(item.path);
-      onToast?.('文件路径已复制');
-    } catch {
-      onToast?.('复制失败：浏览器拒绝了剪贴板访问');
-    }
+    const ok = await copyText(item.path);
+    onToast?.(ok ? '文件路径已复制' : '复制失败：浏览器拒绝了剪贴板访问', ok ? 'info' : 'error');
   };
 
   const reveal = async () => {
@@ -582,7 +545,7 @@ const ImageCard = React.memo(function ImageCard({
   };
 
   const moveToTrash = async () => {
-    if (!window.confirm('把这张图片移入回收站？可在「设置 → 数据维护 → 回收站」恢复。')) return;
+    if (!(await confirmDialog('把这张图片移入回收站？可在「设置 → 数据维护 → 回收站」恢复。'))) return;
     try {
       await api.remove(item.id);
       onDeleteItem?.(item);

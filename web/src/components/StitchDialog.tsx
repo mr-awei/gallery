@@ -6,7 +6,7 @@ import { IconClose, IconDownload } from './Icons';
 interface Props {
   items: ImageItem[];
   onClose: () => void;
-  onToast?: (m: string) => void;
+  onToast?: (m: string, kind?: 'info' | 'error') => void;
 }
 
 /**
@@ -124,7 +124,7 @@ export default function StitchDialog({ items, onClose, onToast }: Props) {
                 <div className="st-picked">
                   {items.slice(0, 24).map((it, i) => (
                     <span className="st-pick" key={it.id} title={it.title}>
-                      <img src={it.thumbUrl} alt="" />
+                      <img src={it.thumbUrl} alt="" loading="lazy" decoding="async" />
                       <i>{i + 1}</i>
                     </span>
                   ))}

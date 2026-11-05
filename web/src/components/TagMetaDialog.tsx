@@ -13,7 +13,7 @@ interface Props {
   tags: TagNode[];
   onClose: () => void;
   onSaved: (r: { tags: TagNode[]; groups: string[] }) => void;
-  onToast: (msg: string) => void;
+  onToast: (msg: string, kind?: 'info' | 'error') => void;
 }
 
 const PRESET_COLORS = [
@@ -62,7 +62,7 @@ export default function TagMetaDialog({ tag, tags, onClose, onSaved, onToast }: 
       onSaved({ tags: r.tags, groups: r.groups });
       onToast('标签设置已保存');
     } catch (err) {
-      onToast((err as Error).message);
+      onToast((err as Error).message, 'error');
       setBusy(false);
     }
   };

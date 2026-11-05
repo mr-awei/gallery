@@ -7,6 +7,7 @@ import crypto from 'node:crypto';
 import { spawn, execFile, execFileSync } from 'node:child_process';
 import sharp from 'sharp';
 import { DATA_DIR } from './config.js';
+import { httpFetch } from './http.js';
 
 /**
  * 真·AI 超分：Real-ESRGAN（ncnn + Vulkan 版，免 Python / 免 CUDA）
@@ -204,7 +205,13 @@ export async function installCuganRuntime() {
   try {
     await fsp.mkdir(TMP_DIR, { recursive: true });
     const zip = path.join(TMP_DIR, 'realcugan.zip');
-    await download(CUGAN_RELEASE_URL, zip, (p) => {
+    await download(CUGAN_RELEASE_URL, zip, (p, bytes) => {
+      if (p == null) {
+        // 拿不到总体积：只报已下载体积，不编百分比（progress = -1 表示未知）
+        installState.progress = -1;
+        installState.message = `下载中（已下载 ${(Number(bytes || 0) / 1048576).toFixed(1)} MB）`;
+        return;
+      }
       installState.progress = Math.round(p * 88);
       installState.message = `下载中 ${installState.progress}%`;
     });
@@ -277,7 +284,7 @@ const ZIP_SIZE_HINT = {
 /** 通过 HEAD 请求拿真实体积；拿不到就回落到内置估算 */
 async function remoteSize(url) {
   try {
-    const res = await fetch(url, { method: 'HEAD', redirect: 'follow', signal: AbortSignal.timeout(15000) });
+    const res = await httpFetch(url, { method: 'HEAD', signal: AbortSignal.timeout(15000) });
     const len = Number(res.headers.get('content-length') || 0);
     if (res.ok && len > 1_000_000) return len;
   } catch {
@@ -348,7 +355,7 @@ async function verifyDownloaded(dest, url) {
 
 /** 直连下载（Node fetch，能拿到精确进度，但不走系统代理） */
 async function downloadDirect(url, dest, onProgress) {
-  const res = await fetch(url, { redirect: 'follow' });
+  const res = await httpFetch(url, {});
   if (!res.ok) throw new Error(`下载失败 HTTP ${res.status}`);
   const total = Number(res.headers.get('content-length') || 0);
   const file = fs.createWriteStream(dest);
@@ -391,9 +398,9 @@ function downloadViaPowerShell(url, dest, onProgress, expectedBytes = 0) {
     const tick = setInterval(() => {
       try {
         const size = fs.statSync(dest).size;
-        // 不知道总体积时只给「已下载 MB」，而不是编一个假百分比
-        if (expectedBytes > 0) onProgress(Math.min(0.95, size / expectedBytes));
-        else onProgress(Math.min(0.95, size / (45 * 1024 * 1024)));
+        // 不知道总体积时只报「已下载体积」（p = null），绝不按固定总大小编百分比
+        if (expectedBytes > 0) onProgress(Math.min(0.95, size / expectedBytes), size);
+        else onProgress(null, size);
       } catch {
         /* 还没开始写 */
       }
@@ -453,7 +460,7 @@ async function downloadFile(url, dest) {
   const errors = [];
   for (const mirror of GH_MIRRORS) {
     try {
-      const res = await fetch(mirror + url, { redirect: 'follow', signal: AbortSignal.timeout(60000) });
+      const res = await httpFetch(mirror + url, { signal: AbortSignal.timeout(60000) });
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
       await fsp.writeFile(dest, Buffer.from(await res.arrayBuffer()));
       await verifyDownloaded(dest, url);
@@ -463,7 +470,7 @@ async function downloadFile(url, dest) {
     }
   }
   try {
-    const res = await fetch(url, { redirect: 'follow', signal: AbortSignal.timeout(60000) });
+    const res = await httpFetch(url, { signal: AbortSignal.timeout(60000) });
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
     await fsp.writeFile(dest, Buffer.from(await res.arrayBuffer()));
     await verifyDownloaded(dest, url);
@@ -522,7 +529,12 @@ export async function installRuntime() {
   try {
     await fsp.mkdir(TMP_DIR, { recursive: true });
     const zip = path.join(TMP_DIR, 'realesrgan.zip');
-    await download(RELEASE_URL, zip, (p) => {
+    await download(RELEASE_URL, zip, (p, bytes) => {
+      if (p == null) {
+        installState.progress = -1;
+        installState.message = `下载中（已下载 ${(Number(bytes || 0) / 1048576).toFixed(1)} MB）`;
+        return;
+      }
       installState.progress = Math.round(p * 88);
       installState.message = `下载中 ${installState.progress}%`;
     });

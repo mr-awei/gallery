@@ -3,6 +3,7 @@ import fs from 'node:fs';
 import { globalDb, openLibrary, setActiveLibrary, getActiveLibrary, getSettings, saveSettings } from './db.js';
 import { resetPrivacy } from './lib/privacy.js';
 import { DATA_DIR } from './config.js';
+import { assertWritableDir } from './lib/safe-path.js';
 import { watchStorageDir, cancelLocalImport } from './importer.js';
 import { initPhashIndex } from './library.js';
 import { clearThumbQueue } from './lib/thumb-queue.js';
@@ -45,7 +46,11 @@ export function createLibrary({ name, rootPath, libFolder }) {
   // 默认：数据库 / 缩略图落在 <素材文件夹>/.tuku/ 里。
   // 以前建库要用户填「库数据目录」+「素材根目录」两个路径，可这两件事在用户脑子里
   // 就是同一个问题（我的图放哪），只有实现者才需要区分。
-  const dataBase = libDir ? path.resolve(libDir) : path.join(path.resolve(root), '.tuku');
+  // 两个目录都可能来自请求体：统一校验（拒相对路径、盘符根、系统目录、启动目录）
+  const safeRoot = root ? assertWritableDir(root, '素材文件夹') : '';
+  const dataBase = libDir
+    ? assertWritableDir(libDir, '库数据目录')
+    : path.join(safeRoot, '.tuku');
   // 库目录用 ASCII 名（node:sqlite 在 Windows 中文路径下有句柄泄漏 bug，中文库目录无法删除）。
   // 显示名 name 仍为中文；目录名 = 库名中的 ASCII 字符 + 时间戳，保证唯一且可整体删除。
   const asciiBase = libName.replace(/[^a-zA-Z0-9_-]/g, '') || 'lib';

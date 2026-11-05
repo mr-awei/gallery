@@ -41,7 +41,7 @@ interface Props {
     aiAnalysis: string;
     learn: boolean;
   }) => void;
-  onToast: (msg: string) => void;
+  onToast: (msg: string, kind?: 'info' | 'error') => void;
 }
 
 export default function DeleteReasonDialog({ item, onCancel, onConfirm, onToast }: Props) {
@@ -71,7 +71,7 @@ export default function DeleteReasonDialog({ item, onCancel, onConfirm, onToast 
       }
       onToast('AI 已看完这张图');
     } catch (err) {
-      onToast((err as Error).message);
+      onToast((err as Error).message, 'error');
     } finally {
       setAnalyzing(false);
     }
@@ -90,7 +90,7 @@ export default function DeleteReasonDialog({ item, onCancel, onConfirm, onToast 
         </div>
 
         <div className="modal-body">
-          <img src={item.thumbUrl} alt={item.title} />
+          <img src={item.thumbUrl} alt={item.title} loading="lazy" decoding="async" />
           <div style={{ flex: 1, minWidth: 220 }}>
             <div style={{ fontSize: 12.5, color: 'var(--muted)', lineHeight: 1.9 }}>
               {item.width}×{item.height} · {formatSize(item.sizeBytes)} · 来源 {item.source}

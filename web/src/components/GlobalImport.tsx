@@ -4,7 +4,7 @@ import { UPLOAD_HINT, filesFromDataTransfer, importFiles, type ImportProgress } 
 interface Props {
   /** 有文件成功入库后回调，父级据此刷新列表与统计 */
   onImported: (count: number) => void;
-  onToast?: (msg: string) => void;
+  onToast?: (msg: string, kind?: 'info' | 'error') => void;
 }
 
 /**

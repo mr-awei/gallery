@@ -351,7 +351,7 @@ function bumpFsMtime(row) {
 /** 把 Buffer 写回原文件，复用增强后的元数据更新逻辑 */
 async function writeEnhancedBuffer(id, row, data, info) {
   // 覆盖前留原件，支持撤销（增强同样不可逆）
-  pushEditBackup(row, 'enhance');
+  await pushEditBackup(row, 'enhance');
   await writeFileAtomic(row.abs_path, data);
   const newHash = await computePHash(data).catch(() => '');
   db.prepare(
@@ -426,7 +426,9 @@ async function callRemoteService(service, buf, mime) {
     body = mp.body;
   }
 
-  const up = await httpFetch(service.uploadUrl, { method, headers, body });
+  // 线上增强服务常是用户自建的（本机 / 局域网），这条通道显式允许私网地址；
+  // 其余出站请求仍然默认拒绝，避免把「用户可控 URL」变成内网探测器。
+  const up = await httpFetch(service.uploadUrl, { method, headers, body }, { allowPrivate: true });
   const status = up.status;
   if (!up.ok) {
     const text = await up.text().catch(() => '');
@@ -448,9 +450,11 @@ async function callRemoteService(service, buf, mime) {
       ? getByPath(json, service.resultUrlPath)
       : json.url || json.result || json.output || json.output_url;
     if (!url) throw new Error(`未找到结果地址（可在服务配置里指定字段路径）：${text.slice(0, 240)}`);
-    const dl = await httpFetch(String(url), {
-      headers: service.apiKey ? { Authorization: `Bearer ${service.apiKey}` } : {},
-    });
+    const dl = await httpFetch(
+      String(url),
+      { headers: service.apiKey ? { Authorization: `Bearer ${service.apiKey}` } : {} },
+      { allowPrivate: true }
+    );
     if (!dl.ok) throw new Error(`下载结果失败（HTTP ${dl.status}）`);
     resultBuf = Buffer.from(await dl.arrayBuffer());
   }

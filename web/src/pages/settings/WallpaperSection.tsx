@@ -17,7 +17,7 @@ import AppUpdateCard from './AppUpdateCard';
 interface Props {
   settings: SettingsType;
   patch: (p: Partial<SettingsType>) => void;
-  onToast: (m: string) => void;
+  onToast: (m: string, kind?: 'info' | 'error') => void;
 }
 
 const REASON_LABELS: Record<string, string> = {
@@ -55,8 +55,8 @@ export default function WallpaperSection({ settings, patch, onToast }: Props) {
   // 主进程重注册快捷键后会广播实际生效的键位：直接更新提示，
   // 不用等用户重开设置页（以前改了开关，页面上的键位说明还是旧的）
   useEffect(() => {
-    const off = desktop?.onHotkeysChanged?.((hotkeys) => {
-      setAppInfo((prev) => (prev ? { ...prev, hotkeys } : prev));
+    const off = desktop?.onHotkeysChanged?.((p) => {
+      setAppInfo((prev) => (prev ? { ...prev, hotkeys: p.hotkeys, failedHotkeys: p.failed } : prev));
     });
     return () => off?.();
   }, []);
@@ -81,7 +81,7 @@ export default function WallpaperSection({ settings, patch, onToast }: Props) {
         onToast('已保存（桌面端中打开才会真正显示）');
       }
     } catch (err) {
-      onToast((err as Error).message);
+      onToast((err as Error).message, 'error');
     }
   };
 
@@ -92,7 +92,7 @@ export default function WallpaperSection({ settings, patch, onToast }: Props) {
       setAutoStatus(status);
       onToast('已保存');
     } catch (err) {
-      onToast(`保存失败：${(err as Error).message}`);
+      onToast(`保存失败：${(err as Error).message}`, 'error');
     }
   };
 
@@ -103,7 +103,7 @@ export default function WallpaperSection({ settings, patch, onToast }: Props) {
       loadAuto();
       setWallpaperHistory(await api.wallpaperHistory());
     } catch (err) {
-      onToast((err as Error).message);
+      onToast((err as Error).message, 'error');
     }
   };
 
@@ -201,9 +201,24 @@ export default function WallpaperSection({ settings, patch, onToast }: Props) {
                     {appInfo?.hotkeys?.next && appInfo.hotkeys.next !== 'CommandOrControl+Alt+W' && (
                       <span style={{ color: 'var(--warn)' }}>（默认键被其它软件占用，已自动换备用键）</span>
                     )}
+                    {appInfo?.failedHotkeys?.next && (
+                      <span style={{ color: 'var(--warn)' }}>
+                        （注册失败：{appInfo.failedHotkeys.next} 都被其它程序占用）
+                      </span>
+                    )}
                     ，任何窗口下都生效
                     <br />· 收藏当前壁纸：<b>{prettyHotkey(appInfo?.hotkeys?.favorite) || '未生效'}</b>
+                    {appInfo?.failedHotkeys?.favorite && (
+                      <span style={{ color: 'var(--warn)' }}>
+                        （注册失败：{appInfo.failedHotkeys.favorite} 都被其它程序占用）
+                      </span>
+                    )}
                     <br />· 唤出主窗口：<b>{prettyHotkey(appInfo?.hotkeys?.window) || '未生效'}</b>
+                    {appInfo?.failedHotkeys?.window && (
+                      <span style={{ color: 'var(--warn)' }}>
+                        （注册失败：{appInfo.failedHotkeys.window} 都被其它程序占用）
+                      </span>
+                    )}
                     <br />· 托盘图标：左键打开窗口，右键可换壁纸 / 收藏 / 不喜欢（排除该图并换下一张）/ 暂停定时切换 / 框选截图
                     <br />· 「不喜欢」会自动归因（暗了 / 糊了 / 有噪点 / 闭眼了 / 动作变形…），只针对该原因学习，不会连坐整个来源或关键词
                     {isDesktop && !appInfo?.shortcutEnabled && (
@@ -227,7 +242,7 @@ export default function WallpaperSection({ settings, patch, onToast }: Props) {
                           const r = await api.favoriteCurrentWallpaper();
                           onToast(`已收藏当前壁纸：${r.title || r.imageId}`);
                         } catch (err) {
-                          onToast((err as Error).message);
+                          onToast((err as Error).message, 'error');
                         }
                       }}
                     >
@@ -242,7 +257,7 @@ export default function WallpaperSection({ settings, patch, onToast }: Props) {
                           onToast(`已排除并换了一张${why}`);
                           loadAuto();
                         } catch (err) {
-                          onToast((err as Error).message);
+                          onToast((err as Error).message, 'error');
                         }
                       }}
                     >
@@ -384,7 +399,7 @@ export default function WallpaperSection({ settings, patch, onToast }: Props) {
                                 ]);
                                 if (p) applyLive({ videoPath: p });
                               } catch (err) {
-                                onToast((err as Error).message);
+                                onToast((err as Error).message, 'error');
                               }
                             }}
                           >
@@ -658,7 +673,7 @@ export default function WallpaperSection({ settings, patch, onToast }: Props) {
                         const r = await api.scanWallpaperFit(120, true);
                         onToast(`已补算 ${r.done} 张壁纸适配度，剩余 ${r.remain} 张`);
                       } catch (err) {
-                        onToast((err as Error).message);
+                        onToast((err as Error).message, 'error');
                       }
                     }}
                     title="提前算好候选图的适配度，切换时更快"

@@ -15,7 +15,7 @@ import Card from './Card';
 interface Props {
   settings: SettingsType;
   patch: (p: Partial<SettingsType>) => void;
-  onToast: (m: string) => void;
+  onToast: (m: string, kind?: 'info' | 'error') => void;
 }
 
 /** 常用免费线上增强服务预设（一键添加后可自行微调，再用「测试服务」验证） */
@@ -154,7 +154,7 @@ export default function EnhanceSection({ settings, patch, onToast }: Props) {
       .catch((err) => {
         const msg = (err as Error).message;
         setModelsErr(msg);
-        onToast(`增强模型列表刷新失败：${msg}`);
+        onToast(`增强模型列表刷新失败：${msg}`, 'error');
       });
   }, [onToast]);
 
@@ -337,9 +337,11 @@ export default function EnhanceSection({ settings, patch, onToast }: Props) {
 
       {aiUp?.downloading && (
         <>
-          <div className="enh-progress" style={{ marginTop: 10 }}>
-            <div style={{ width: `${aiUp.progress}%` }} />
-          </div>
+          {aiUp.progress >= 0 && (
+            <div className="enh-progress" style={{ marginTop: 10 }}>
+              <div style={{ width: `${aiUp.progress}%` }} />
+            </div>
+          )}
           <div className="hint" style={{ marginTop: 6 }}>{aiUp.message}</div>
         </>
       )}
@@ -360,12 +362,14 @@ export default function EnhanceSection({ settings, patch, onToast }: Props) {
               setAiUp(await api.aiUpscaleStatus());
               onToast('已开始下载（约 43MB），可在下方查看进度');
             } catch (err) {
-              onToast((err as Error).message);
+              onToast((err as Error).message, 'error');
             }
           }}
         >
           {aiUp?.downloading
-            ? `下载中 ${aiUp.progress}%`
+            ? aiUp.progress >= 0
+              ? `下载中 ${aiUp.progress}%`
+              : '下载中…'
             : aiUp?.installed
               ? '重新安装 / 修复'
               : '下载并安装运行库'}
@@ -379,7 +383,7 @@ export default function EnhanceSection({ settings, patch, onToast }: Props) {
               setAiUp(await api.aiUpscaleStatus());
               onToast(r.gpu ? `自检通过，AI 加速：${r.gpu}` : `自检失败：${r.error}`);
             } catch (err) {
-              onToast((err as Error).message);
+              onToast((err as Error).message, 'error');
             }
           }}
         >
@@ -416,7 +420,7 @@ export default function EnhanceSection({ settings, patch, onToast }: Props) {
                 setEnhanceModels(await api.enhanceModels());
                 onToast(`已安装模型：${m.label}`);
               } catch (err) {
-                onToast((err as Error).message);
+                onToast((err as Error).message, 'error');
               }
             }}
             title={m.desc}
@@ -438,7 +442,7 @@ export default function EnhanceSection({ settings, patch, onToast }: Props) {
               setEnhanceModels(await api.enhanceModels());
               onToast('Real-CUGAN 运行库安装完成');
             } catch (err) {
-              onToast((err as Error).message);
+              onToast((err as Error).message, 'error');
             }
           }}
         >
@@ -470,7 +474,7 @@ export default function EnhanceSection({ settings, patch, onToast }: Props) {
               setMatting(await api.mattingStatus());
               onToast('已开始后台下载去背景模型');
             } catch (err) {
-              onToast((err as Error).message);
+              onToast((err as Error).message, 'error');
             }
           }}
         >
@@ -489,7 +493,7 @@ export default function EnhanceSection({ settings, patch, onToast }: Props) {
                 onToast('已取消下载');
                 setMatting(await api.mattingStatus());
               } catch (err) {
-                onToast((err as Error).message);
+                onToast((err as Error).message, 'error');
               }
             }}
           >
@@ -524,7 +528,7 @@ export default function EnhanceSection({ settings, patch, onToast }: Props) {
                   : r.message || '训练失败'
               );
             } catch (err) {
-              onToast((err as Error).message);
+              onToast((err as Error).message, 'error');
             }
           }}
         >
@@ -569,7 +573,7 @@ export default function EnhanceSection({ settings, patch, onToast }: Props) {
               setEnhanceModels(await api.enhanceModels());
               onToast(`${m.label}：${m.downloaded ? '已就绪' : '下载并加载完成'}`);
             } catch (err) {
-              onToast((err as Error).message);
+              onToast((err as Error).message, 'error');
             }
           }}
           title={m.desc}

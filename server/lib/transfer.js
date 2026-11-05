@@ -6,9 +6,10 @@
 // 用户也能直接把这个文件夹丢进网盘。想压缩自己右键压缩即可。
 import fs from 'node:fs';
 import path from 'node:path';
+import { assertWritableDir } from './safe-path.js';
 import * as lib from '../library.js';
 import { DatabaseSync } from 'node:sqlite';
-import { db, getSettings } from '../db.js';
+import { db, getSettings, globalDb } from '../db.js';
 import { createLibrary, getActiveLibrary, getLibrary } from '../libraries.js';
 import { addImagesToFolder, createVirtualFolder } from '../folders.js';
 
@@ -79,7 +80,7 @@ function collectMeta() {
 
 /** 备份当前资源库到目标文件夹下的一个新目录，返回清单 */
 export function backupLibrary({ targetDir, includeThumbs = true } = {}) {
-  const dir = String(targetDir || '').trim();
+  const dir = assertWritableDir(targetDir, '备份位置');
   if (!dir) throw new Error('请先选择备份位置');
   if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
   const active = getActiveLibrary();
@@ -206,9 +207,45 @@ export function exportMetadataCsv() {
   return '\ufeff' + lines.join('\r\n');
 }
 
+/** 备份格式版本：改结构时递增；恢复时拒绝「比当前应用更新」的备份 */
+const BACKUP_SCHEMA = 1;
+
+/**
+ * 只读打开备份里的 gallery.db 做完整性检查。
+ * 必须在覆盖任何现有数据**之前**做：坏包一旦写进去，得到的是一个打不开、
+ * 又已经在库列表里登记好的半成品库。
+ */
+function assertBackupDbUsable(file) {
+  let conn = null;
+  try {
+    conn = new DatabaseSync(file, { readOnly: true });
+    const check = conn.prepare('PRAGMA integrity_check').get() || {};
+    const value = String(Object.values(check)[0] ?? '').toLowerCase();
+    if (value !== 'ok') throw new Error(`备份数据库损坏（${value || '未知原因'}）`);
+    const images = conn
+      .prepare("SELECT name FROM sqlite_master WHERE type = 'table' AND name = 'images'")
+      .get();
+    if (!images) throw new Error('备份里没有 images 表，不像是图库数据库');
+  } catch (err) {
+    if (/损坏|images 表/.test(String(err?.message))) throw err;
+    throw new Error(`备份数据库无法打开：${err?.message || err}`, { cause: err });
+  } finally {
+    try {
+      conn?.close();
+    } catch {
+      /* 只读连接关不掉不影响结论 */
+    }
+  }
+}
+
 /**
  * 从备份目录恢复成一个「新资源库」（不动当前库）。
  * 素材根目录变了的话，按备份里记录的 rootPath 做前缀重映射。
+ *
+ * 三道保护：
+ * 1. 恢复到新库之前校验版本号与 PRAGMA integrity_check；
+ * 2. 任何一步失败都回滚（删注册表行 + 删目录），不留半成品；
+ * 3. 路径重映射放在事务里，失败整体回滚。
  */
 export function restoreLibrary({ sourceDir, name, rootPath } = {}) {
   const src = String(sourceDir || '').trim();
@@ -216,70 +253,100 @@ export function restoreLibrary({ sourceDir, name, rootPath } = {}) {
   const dbFile = path.join(src, 'gallery.db');
   const metaFile = path.join(src, 'library.json');
   if (!fs.existsSync(dbFile)) throw new Error('这个文件夹里没有 gallery.db，不像是图库备份');
+
   let meta = {};
   if (fs.existsSync(metaFile)) {
     try {
       meta = JSON.parse(fs.readFileSync(metaFile, 'utf8'));
     } catch {
-      meta = {};
+      throw new Error('library.json 已损坏，无法确认备份来源与版本');
     }
   }
-  const root = String(rootPath || meta.rootPath || '').trim();
-  if (!root) throw new Error('请指定新库的素材文件夹（备份里没有记录原路径）');
+  const schema = Number(meta.schema || 0);
+  if (schema > BACKUP_SCHEMA) {
+    throw new Error(`这个备份来自更新的版本（格式 ${schema}），请先升级应用再恢复`);
+  }
+  assertBackupDbUsable(dbFile);
+
+  const root = assertWritableDir(String(rootPath || meta.rootPath || '').trim(), '素材文件夹');
   if (!fs.existsSync(root)) fs.mkdirSync(root, { recursive: true });
 
   const libName = String(name || meta.name || '恢复的图库').trim();
   const id = createLibrary({ name: libName, rootPath: root });
   const created = getLibrary(id);
-  const targetDb = path.join(created.path, 'gallery.db');
-  // createLibrary 只是建了空库并关了连接，这里用备份覆盖它
-  fs.copyFileSync(dbFile, targetDb);
-  for (const f of ['gallery.db-wal', 'gallery.db-shm']) fs.rmSync(path.join(created.path, f), { force: true });
 
-  let thumbs = 0;
-  const thumbsSrc = path.join(src, 'thumbs');
-  if (fs.existsSync(thumbsSrc)) {
-    fs.cpSync(thumbsSrc, created.thumb_dir, { recursive: true });
-    thumbs = dirSize(created.thumb_dir);
-  }
-
-  // 素材根目录换过（换机器/换盘符）时，把库里的绝对路径前缀整体重映射，
-  // 否则恢复出来的库每张图都指向旧机器上的路径。
-  const oldRoot = String(meta.rootPath || '').trim();
-  let remapped = 0;
-  let missing = 0;
-  if (oldRoot && path.resolve(oldRoot) !== path.resolve(root)) {
-    const conn = new DatabaseSync(targetDb);
-    try {
-      const rows = conn.prepare('SELECT id, abs_path FROM images').all();
-      const upd = conn.prepare('UPDATE images SET abs_path = ? WHERE id = ?');
-      conn.exec('BEGIN');
-      for (const r of rows) {
-        const p = String(r.abs_path || '');
-        if (!p.startsWith(oldRoot)) continue;
-        const next = path.join(root, p.slice(oldRoot.length).replace(/^[\\/]+/, ''));
-        upd.run(next, r.id);
-        remapped += 1;
-        if (!fs.existsSync(next)) missing += 1;
-      }
-      conn.exec('COMMIT');
-    } finally {
-      conn.close();
+  try {
+    const targetDb = path.join(created.path, 'gallery.db');
+    // createLibrary 只是建了空库并关了连接，这里用备份覆盖它
+    fs.copyFileSync(dbFile, targetDb);
+    for (const f of ['gallery.db-wal', 'gallery.db-shm']) {
+      fs.rmSync(path.join(created.path, f), { force: true });
     }
-  }
 
-  return {
-    ok: true,
-    id,
-    name: libName,
-    rootPath: root,
-    dbPath: targetDb,
-    thumbsBytes: thumbs,
-    counts: meta.counts || null,
-    remapped,
-    missing,
-    note: '已作为新资源库登记；切换过去即可使用。原图需位于素材文件夹中',
-  };
+    let thumbs = 0;
+    const thumbsSrc = path.join(src, 'thumbs');
+    if (fs.existsSync(thumbsSrc)) {
+      fs.cpSync(thumbsSrc, created.thumb_dir, { recursive: true });
+      thumbs = dirSize(created.thumb_dir);
+    }
+
+    // 素材根目录换过（换机器/换盘符）时，把库里的绝对路径前缀整体重映射，
+    // 否则恢复出来的库每张图都指向旧机器上的路径。
+    const oldRoot = String(meta.rootPath || '').trim();
+    let remapped = 0;
+    let missing = 0;
+    if (oldRoot && path.resolve(oldRoot) !== path.resolve(root)) {
+      const conn = new DatabaseSync(targetDb);
+      try {
+        const rows = conn.prepare('SELECT id, abs_path FROM images').all();
+        const upd = conn.prepare('UPDATE images SET abs_path = ? WHERE id = ?');
+        conn.exec('BEGIN');
+        try {
+          for (const r of rows) {
+            const p = String(r.abs_path || '');
+            if (!p.startsWith(oldRoot)) continue;
+            const next = path.join(root, p.slice(oldRoot.length).replace(/^[\\/]+/, ''));
+            upd.run(next, r.id);
+            remapped += 1;
+            if (!fs.existsSync(next)) missing += 1;
+          }
+          conn.exec('COMMIT');
+        } catch (err) {
+          try {
+            conn.exec('ROLLBACK');
+          } catch {
+            /* 事务可能已经结束 */
+          }
+          throw err;
+        }
+      } finally {
+        conn.close();
+      }
+    }
+
+    return {
+      ok: true,
+      id,
+      name: libName,
+      rootPath: root,
+      dbPath: targetDb,
+      thumbsBytes: thumbs,
+      counts: meta.counts || null,
+      remapped,
+      missing,
+      schema,
+      note: '已作为新资源库登记；切换过去即可使用。原图需位于素材文件夹中',
+    };
+  } catch (err) {
+    // 回滚：注册表行与目录一起清掉，避免留下「打不开也删不掉」的库
+    try {
+      globalDb.prepare('DELETE FROM libraries WHERE id = ?').run(id);
+      fs.rmSync(created.path, { recursive: true, force: true });
+    } catch (cleanupErr) {
+      console.error('[restore] 回滚半成品库失败', id, cleanupErr?.message || cleanupErr);
+    }
+    throw err;
+  }
 }
 
 /** 读 JSON 文件，坏了就返回兜底值（Eagle 的 metadata 偶尔会写一半） */

@@ -3,7 +3,7 @@ import type { ImageItem } from '../types';
 
 interface Props {
   item: ImageItem;
-  onToast?: (msg: string) => void;
+  onToast?: (msg: string, kind?: 'info' | 'error') => void;
 }
 
 const extOf = (name: string) => (name.match(/\.([a-z0-9]+)$/i)?.[1] || '').toLowerCase();

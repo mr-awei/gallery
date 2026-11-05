@@ -1,7 +1,7 @@
 {
   "name": "tuku-gallery",
   "productName": "TuKu",
-  "version": "1.1.1",
+  "version": "1.1.2",
   "private": true,
   "description": "通用图片管理与壁纸工具 — 多源采集 / pHash 去重 / 暗色图片库",
   "author": "图库",
@@ -134,6 +134,50 @@
         }
       ],
       "icon": "build/icon.ico",
+      "fileAssociations": [
+        {
+          "ext": [
+            "jpg",
+            "jpeg",
+            "png",
+            "gif",
+            "webp",
+            "bmp",
+            "avif",
+            "svg",
+            "tif",
+            "tiff",
+            "heic"
+          ],
+          "name": "图片",
+          "description": "用图库打开图片",
+          "role": "Viewer"
+        },
+        {
+          "ext": [
+            "mp4",
+            "webm",
+            "mov",
+            "mkv",
+            "avi"
+          ],
+          "name": "视频",
+          "description": "用图库打开视频",
+          "role": "Viewer"
+        },
+        {
+          "ext": [
+            "mp3",
+            "wav",
+            "flac",
+            "ogg",
+            "m4a"
+          ],
+          "name": "音频",
+          "description": "用图库打开音频",
+          "role": "Viewer"
+        }
+      ],
       "signtoolOptions": {
         "signingHashAlgorithms": [
           "sha256"

@@ -82,6 +82,35 @@ const TIGHT_DIST = 0.03;    // “几乎完全一致”的 OKLab 距离上限
  * 距离用 OKLab 感知均匀空间（非 RGB 欧氏），中性色（黑/白/灰）不会蹭进彩色查询。
  * tol 为 UI 滑块 0..160，映射到 OKLab 截止距离 ~0..0.5（≈0 几乎同色，越大越宽松）。
  */
+/**
+ * 「调色板字符串 → OKLab 颜色」缓存。
+ * 颜色筛选每次请求都要把全库 palette JSON 解析一遍再做 RGB→OKLab 转换，
+ * 而这些值只在入库/重新分析时变化。按 dominant|palette 串缓存，重复查询基本零解析。
+ * 上限 2 万条（约十几 MB），超出按插入顺序淘汰最早的一条。
+ */
+const paletteLabCache = new Map();
+const PALETTE_CACHE_MAX = 20000;
+
+function paletteLabs(dominant, palette) {
+  const key = `${dominant || ''}#${palette || ''}`;
+  const hit = paletteLabCache.get(key);
+  if (hit) return hit;
+  const pal = parsePalette(palette);
+  const raw = pal.length ? pal : dominant ? [{ hex: dominant, pop: 1 }] : [];
+  const out = [];
+  for (const c of raw) {
+    const lab = rgbToOklab(c.hex);
+    if (!lab) continue;
+    out.push({ hex: c.hex, pop: c.pop, lab, chroma: oklabChroma(lab) });
+  }
+  if (paletteLabCache.size >= PALETTE_CACHE_MAX) {
+    const first = paletteLabCache.keys().next().value;
+    if (first !== undefined) paletteLabCache.delete(first);
+  }
+  paletteLabCache.set(key, out);
+  return out;
+}
+
 export function scoreByColor(hex, tol = 48) {
   const t = rgbToOklab(hex);
   if (!t) throw new Error('无效的颜色值，请用 #rrggbb');
@@ -95,13 +124,10 @@ export function scoreByColor(hex, tol = 48) {
     .all();
   const scored = [];
   for (const r of rows) {
-    const pal = parsePalette(r.palette);
-    const colors = pal.length ? pal : r.dominant ? [{ hex: r.dominant, pop: 1 }] : [];
+    const colors = paletteLabs(r.dominant, r.palette);
     let best = null;
     for (const c of colors) {
-      const lab = rgbToOklab(c.hex);
-      if (!lab) continue;
-      const chroma = oklabChroma(lab);
+      const { lab, chroma } = c;
       if (targetNeutral) {
         // 查询是黑/白/灰：只与同样中性的颜色匹配，并以其占比加权
         if (chroma >= OKLAB_NEUTRAL_CHROMA && lab.L >= 0.02 && lab.L <= 0.98) continue;
@@ -190,16 +216,27 @@ export async function searchByImageBuffer(buffer, { limit = 24, maxHamming = 10 
   // 查询图信息量过低（纯色/纯黑屏截图等）时，pHash 距离不可信
   const weakQuery = hashPopcount(phash) <= 6 || hashPopcount(phash) >= 58;
 
-  const rows = db.prepare("SELECT * FROM images WHERE phash <> ''").all();
+  // 走内存分桶索引取候选，不再把全表（含大文本列）读进内存逐个比
+  const near = lib.findSimilarByPhash(phash, maxHamming, Math.max(240, limit * 8));
   const scored = [];
-  for (const r of rows) {
-    const d = hammingHex(phash, r.phash);
-    if (d > maxHamming) continue;
-    // 候选图自身哈希退化，且不是几乎完全相同 → 大概率是暗色图撞哈希，直接丢弃
-    if (!weakQuery && (hashPopcount(r.phash) <= 6 || hashPopcount(r.phash) >= 58) && d > 2) continue;
-    scored.push({ row: r, dist: d });
+  if (near.length) {
+    const byId = new Map();
+    for (let i = 0; i < near.length; i += 400) {
+      const ids = near.slice(i, i + 400).map((n) => n.id);
+      const rows = db
+        .prepare(`SELECT * FROM images WHERE id IN (${ids.map(() => '?').join(',')})`)
+        .all(...ids);
+      for (const r of rows) byId.set(r.id, r);
+    }
+    for (const n of near) {
+      const r = byId.get(n.id);
+      if (!r) continue;
+      // 候选图自身哈希退化，且不是几乎完全相同 → 大概率是暗色图撞哈希，直接丢弃
+      if (!weakQuery && (hashPopcount(r.phash) <= 6 || hashPopcount(r.phash) >= 58) && n.dist > 2) continue;
+      scored.push({ row: r, dist: n.dist });
+    }
+    scored.sort((a, b) => a.dist - b.dist);
   }
-  scored.sort((a, b) => a.dist - b.dist);
 
   // 第二重校验：只对头部候选重算 dHash（读原图，本地库里几十张的开销可以接受）
   const dhashLimit = Math.max(12, maxHamming + 2);

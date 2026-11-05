@@ -15,7 +15,7 @@ interface Props {
   /** 当前选中项（有值时提供「只导出选中」） */
   selectedIds?: number[];
   onClose: () => void;
-  onToast: (msg: string) => void;
+  onToast: (msg: string, kind?: 'info' | 'error') => void;
 }
 
 type Scope = 'all' | 'folder' | 'selection';

@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { api, desktop, downloadFile, isDesktop, openFolder, quiet } from './api';
+import { api, desktop, downloadFile, isDesktop, onApiError, openFolder, quiet } from './api';
 import { subscribeEvents } from './events';
 import type { Filters, ImageItem, Stats, Library, FolderNode, TagNode, View } from './types';
 import Dashboard from './pages/Dashboard';
@@ -99,6 +99,14 @@ export default function App() {
   // 「缩略图加载失败」的残留状态（否则卡片复用实例，刷新也无法恢复显示）
   const [refreshSeq, setRefreshSeq] = useState(0);
   const [refreshing, setRefreshing] = useState(false);
+  /**
+   * 后台请求失败（api.quiet 上报）。
+   * 以前这类失败只写 console，界面照常渲染「暂无内容」，看起来像图库空了；
+   * 现在收成一个可关闭的错误条，并给一次重试。
+   */
+  const [loadError, setLoadError] = useState('');
+  /** 主进程在重启本地服务：遮住界面，别让用户对着必然失败的请求点来点去 */
+  const [serviceRestarting, setServiceRestarting] = useState(false);
   const totalRef = useRef(0);
   // 上一次统计到的全库张数：library 推送后若库变大（导入/采集），自动重载列表
   const libTotalRef = useRef(-1);
@@ -259,6 +267,18 @@ const importingRef = useRef(false);
     importingRef.current = importing;
   }, [importing]);
 
+  // 后台请求失败统一收口：同一条错误只显示一次，用户关掉后不再反复弹
+  useEffect(() => onApiError((err) => setLoadError((prev) => prev || err.message)), []);
+
+  // 本地服务重启：先遮住，恢复后主进程会重载页面，遮罩自然消失
+  useEffect(() => {
+    if (!desktop?.onServiceState) return;
+    return desktop.onServiceState((s) => {
+      setServiceRestarting(!!s.restarting);
+      if (s.error) setLoadError(`本地服务重启失败：${s.error}`);
+    });
+  }, []);
+
   const load = useCallback(async (page: number, reset: boolean) => {
     const id = ++reqId.current;
     // 切筛选 / 翻页时取消上一个还在路上的列表请求，避免旧结果占用连接与状态
@@ -338,6 +358,25 @@ const importingRef = useRef(false);
     api.pending().then(setPendingCounts).catch(quiet);
     api.missingFiles().then((m) => setMissingCount(m.count)).catch(quiet);
   }, [load, showToast]);
+
+  /** 只重取标签/分组：智能文件夹页改名、合并、删除后要让侧栏同步，不必重拉统计 */
+  const reloadTags = useCallback(() => {
+    api
+      .tags()
+      .then((r) => {
+        setTags(r.tags);
+        setTagGroups(r.groups);
+      })
+      .catch(quiet);
+  }, []);
+
+  /** 错误条上的「重试」：把统计、标签、列表这几条主链路重跑一遍 */
+  const retryFailedLoad = useCallback(() => {
+    setLoadError('');
+    setRefreshSeq((n) => n + 1);
+    refreshStats();
+    void load(1, true);
+  }, [load, refreshStats]);
 
   /* 卡片角标与「待整理」数字：换库 / 手动刷新时重取（标注 & MD5 重复都是低频变更） */
   useEffect(() => {
@@ -1659,12 +1698,41 @@ const importingRef = useRef(false);
       />
 
       <main className="main">
+        {/* 后台请求失败：明确说「没加载出来」而不是让界面装作「没有数据」 */}
+        {loadError && (
+          <div
+            role="status"
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: 10,
+              margin: '10px 16px 0',
+              padding: '8px 12px',
+              borderRadius: 8,
+              background: 'rgba(255, 107, 107, 0.12)',
+              border: '1px solid rgba(255, 107, 107, 0.35)',
+              color: '#ffb4b4',
+              fontSize: 12.5,
+            }}
+          >
+            <span style={{ flex: 1, minWidth: 0, wordBreak: 'break-all' }}>
+              有数据没能加载出来：{loadError}
+            </span>
+            <button className="btn sm" onClick={retryFailedLoad}>
+              重试
+            </button>
+            <button className="icon-btn" title="关闭" onClick={() => setLoadError('')}>
+              ×
+            </button>
+          </div>
+        )}
         <div className="content" ref={contentRef}>
           {/* 页面级错误边界：单个页面渲染崩了只影响内容区，不会整窗白屏 */}
           <ErrorBoundary resetKey={view}>
           {view === 'dashboard' && (
             <Dashboard
               stats={stats}
+              error={loadError}
               onOpen={(item, pool) => openItem(item, pool)}
               onNavigate={(v) => setView(v as View)}
             />
@@ -1772,7 +1840,9 @@ const importingRef = useRef(false);
 
           {view === 'search' && <Search onToast={showToast} onOpenItem={(item, pool) => openItem(item, pool, true)} />}
 
-          {view === 'smart' && <Smart onToast={showToast} onOpenItem={openItem} />}
+          {view === 'smart' && (
+            <Smart onToast={showToast} onOpenItem={openItem} onTagsChanged={reloadTags} />
+          )}
 
           {view === 'enhance' && (
             <EnhancePage
@@ -1937,6 +2007,32 @@ const importingRef = useRef(false);
 
       {/* 应用内 prompt/confirm 对话框（替代原生弹窗，全局唯一挂载点） */}
       <DialogHost />
+
+      {/* 本地服务重启中：端口可能变，界面此刻的请求都会失败，先遮住再重载 */}
+      {serviceRestarting && (
+        <div
+          style={{
+            position: 'fixed',
+            inset: 0,
+            zIndex: 9998,
+            display: 'flex',
+            flexDirection: 'column',
+            alignItems: 'center',
+            justifyContent: 'center',
+            gap: 14,
+            background: 'rgba(10, 12, 18, 0.72)',
+            backdropFilter: 'blur(3px)',
+            color: '#e8ecf5',
+            fontSize: 13.5,
+          }}
+          role="alertdialog"
+          aria-label="本地服务正在重启"
+        >
+          <span className="spinner" />
+          <div>本地服务正在重启，请稍候…</div>
+          <div style={{ color: 'var(--muted)', fontSize: 12 }}>正在进行的上传/导入会被中断，完成后自动恢复。</div>
+        </div>
+      )}
 
       {/* 强制更新：确认有新版本后全屏接管，装完才允许继续用 */}
       <ForcedUpdateOverlay />

@@ -379,14 +379,20 @@ export function rescoreAll() {
   const rows = db.prepare('SELECT * FROM images').all();
   const update = db.prepare('UPDATE images SET score = ?, score_reason = ? WHERE id = ?');
   let low = 0;
+  let written = 0;
   withTransaction(() => {
     for (const row of rows) {
       const { score, reasons } = scoreImage(row, rules, descs.get(row.id) || '');
-      update.run(score, reasons.join('；'), row.id);
       if (score < threshold) low++;
+      const reason = reasons.join('；');
+      // 分数没变就不写：以前每次反馈/改规则都把全库每一行 UPDATE 一遍
+      if (row.score !== score || String(row.score_reason || '') !== reason) {
+        update.run(score, reason, row.id);
+        written++;
+      }
     }
   });
-  return { updated: rows.length, low };
+  return { updated: rows.length, written, low };
 }
 
 /* -------------------------------- AI 归纳 -------------------------------- */

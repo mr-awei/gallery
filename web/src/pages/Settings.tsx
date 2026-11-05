@@ -1,5 +1,6 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { api, desktop, isDesktop, openFolder, pickFolder } from '../api';
+import { confirmDialog } from '../components/Dialogs';
 import type { SourceInfo } from '../api';
 import CrawlSection from './settings/CrawlSection';
 import { subscribeEvents } from '../events';
@@ -262,7 +263,7 @@ export default function Settings({
       if (dirChanged) onLibraryChanged(); // 立即刷新图库，不用手动点刷新
       onToast(dirChanged ? '设置已保存，正在扫描新素材文件夹…' : '设置已保存');
     } catch (err) {
-      onToast(`保存失败：${(err as Error).message}`);
+      onToast(`保存失败：${(err as Error).message}`, 'error');
     }
   };
 
@@ -274,7 +275,7 @@ export default function Settings({
       setWbCookieDraft('');
       onToast('已清除微博 Cookie');
     } catch (err) {
-      onToast((err as Error).message);
+      onToast((err as Error).message, 'error');
     }
   };
 
@@ -286,7 +287,7 @@ export default function Settings({
       setAiKeyDraft('');
       onToast('已清除 AI API Key');
     } catch (err) {
-      onToast((err as Error).message);
+      onToast((err as Error).message, 'error');
     }
   };
 
@@ -312,7 +313,7 @@ export default function Settings({
         onToast(res.msg);
       }
     } catch (err) {
-      onToast((err as Error).message);
+      onToast((err as Error).message, 'error');
     } finally {
       setWbLogin(false);
     }
@@ -326,7 +327,7 @@ export default function Settings({
       setKeywords(res.keywords);
       setNewKw('');
     } catch (err) {
-      onToast(`添加失败：${(err as Error).message}`);
+      onToast(`添加失败：${(err as Error).message}`, 'error');
     }
   };
 
@@ -335,7 +336,7 @@ export default function Settings({
       const res = await api.updateKeyword(k.id, { enabled: k.enabled ? 0 : 1 });
       setKeywords(res.keywords);
     } catch (err) {
-      onToast(`更新失败：${(err as Error).message}`);
+      onToast(`更新失败：${(err as Error).message}`, 'error');
     }
   };
 
@@ -344,7 +345,7 @@ export default function Settings({
       const res = await api.deleteKeyword(id);
       setKeywords(res.keywords);
     } catch (err) {
-      onToast(`删除失败：${(err as Error).message}`);
+      onToast(`删除失败：${(err as Error).message}`, 'error');
     }
   };
 
@@ -365,18 +366,18 @@ export default function Settings({
       // 失败必须立刻解锁：旧代码没有 catch，按钮一直显示「导入中」，只能等 15 分钟兜底
       importingRef.current = false;
       setImporting(false);
-      onToast(`导入失败：${(err as Error).message}`);
+      onToast(`导入失败：${(err as Error).message}`, 'error');
     }
   };
 
   const clearAll = async () => {
-    if (!window.confirm('确定清空整个图库？图片文件也会一并删除（收藏与标签将丢失）。')) return;
+    if (!(await confirmDialog('确定清空整个图库？图片文件也会一并删除（收藏与标签将丢失）。'))) return;
     try {
       const res = await api.clearLibrary();
       onToast(`已清空 ${res.removed} 张图片`);
       onLibraryChanged();
     } catch (err) {
-      onToast(`清空失败：${(err as Error).message}`);
+      onToast(`清空失败：${(err as Error).message}`, 'error');
     }
   };
 

@@ -7,7 +7,7 @@ interface Props {
   imageId: number;
   onCount?: (n: number) => void;
   onClose: () => void;
-  onToast?: (msg: string) => void;
+  onToast?: (msg: string, kind?: 'info' | 'error') => void;
 }
 
 export default function CommentsPanel({ imageId, onCount, onClose, onToast }: Props) {

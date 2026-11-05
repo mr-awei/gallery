@@ -203,7 +203,9 @@ export async function findLargerSource(row, { minGain = 1.1 } = {}) {
   for (const url of enlargeCandidates(row.source_url)) {
     let probe;
     try {
-      probe = await probeCandidate(url, row.page_url || '');
+      // images 表没有 page_url 列（历史上也没写入过），referer 一律留空：
+      // 以前读 row.page_url 永远是 undefined，等于给源站递了个空 Referer，纯属噪音
+      probe = await probeCandidate(url, '');
     } catch (err) {
       tried.push({ url, error: err.message });
       continue;

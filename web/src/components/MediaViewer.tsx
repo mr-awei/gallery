@@ -17,22 +17,29 @@ import type { ImageItem } from '../types';
 interface Props {
   item: ImageItem;
   onReplaceItem?: (item: ImageItem) => void;
-  onToast?: (msg: string) => void;
+  onToast?: (msg: string, kind?: 'info' | 'error') => void;
 }
 
 /**
  * 真实波形：把音频解码后按峰值分桶，得到与声音对得上的柱状图（Eagle 的音频预览同款）。
  * 用 OfflineAudioContext 解码——不需要用户手势，也不会真的出声。
+ * 解不出来就如实说「解析失败」，绝不拿一条正弦曲线冒充声波。
  */
 function useWaveform(url: string, bars = 80) {
   const [peaks, setPeaks] = useState<number[]>([]);
+  const [status, setStatus] = useState<'idle' | 'loading' | 'ready' | 'failed'>('idle');
   useEffect(() => {
-    if (!url) return;
+    if (!url) {
+      setPeaks([]);
+      setStatus('idle');
+      return;
+    }
     let cancelled = false;
+    setStatus('loading');
     (async () => {
       try {
         const res = await fetch(url);
-        if (!res.ok) return;
+        if (!res.ok) throw new Error(`音频读取失败（${res.status}）`);
         const buf = await res.arrayBuffer();
         const AC: typeof OfflineAudioContext =
           window.OfflineAudioContext || (window as unknown as { webkitOfflineAudioContext: typeof OfflineAudioContext }).webkitOfflineAudioContext;
@@ -51,16 +58,22 @@ function useWaveform(url: string, bars = 80) {
           out.push(peak);
         }
         const max = Math.max(...out, 0.0001);
-        if (!cancelled) setPeaks(out.map((p) => Math.max(0.07, p / max)));
+        if (!cancelled) {
+          setPeaks(out.map((p) => Math.max(0.07, p / max)));
+          setStatus('ready');
+        }
       } catch {
-        /* 解码失败（编码不支持）时保留占位波形 */
+        if (!cancelled) {
+          setPeaks([]);
+          setStatus('failed');
+        }
       }
     })();
     return () => {
       cancelled = true;
     };
   }, [url, bars]);
-  return peaks;
+  return { peaks, status };
 }
 
 function useFontFamily(url: string) {
@@ -102,7 +115,7 @@ function useFontFamily(url: string) {
  * - 翻页靠 iframe 的 #page=N 锚点，Chrome/Electron 内建阅读器会跟着跳；
  * - 缩略图位置只放页码按钮——浏览器内建阅读器不暴露逐页渲染接口，硬造封面会变成假功能。
  */
-function PdfViewer({ item, onToast }: { item: ImageItem; onToast?: (m: string) => void }) {
+function PdfViewer({ item, onToast }: { item: ImageItem; onToast?: (m: string, kind?: 'info' | 'error') => void }) {
   const [pages, setPages] = useState(0);
   const [page, setPage] = useState(1);
   const [note, setNote] = useState('');
@@ -362,7 +375,8 @@ export default function MediaViewer({ item, onReplaceItem, onToast }: Props) {
   }
 
   if (kind === 'audio') {
-    const bars = wave.length ? wave : Array.from({ length: 80 }, (_, i) => 0.18 + Math.abs(Math.sin(i * 0.7)) * 0.7);
+    // 还没解出波形时给一条平直的灰条（仅作点击定位用），不伪造起伏
+    const bars = wave.peaks.length ? wave.peaks : Array.from({ length: 80 }, () => 0.12);
     const seekByClick = (e: ReactMouseEvent<HTMLDivElement>) => {
       const a = audioRef.current;
       if (!a || !Number.isFinite(a.duration) || a.duration <= 0) return;
@@ -392,6 +406,11 @@ export default function MediaViewer({ item, onReplaceItem, onToast }: Props) {
               />
             ))}
           </div>
+          {wave.status === 'failed' && (
+            <div className="hint" style={{ margin: '4px 0 0' }}>
+              这段音频的波形解析不了（编码可能不受支持），进度以播放器为准。
+            </div>
+          )}
           <audio
             ref={audioRef}
             src={item.url}

@@ -16,6 +16,8 @@ import crypto from 'node:crypto';
 import sharp from 'sharp';
 import { db, getThumbDir } from './db.js';
 import { getImage, setCustomThumb, setNote, setTags, toDTO } from './library.js';
+import { httpFetch } from './http.js';
+import { readBodyLimited } from './lib/safe-url.js';
 
 const UA =
   'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0 Safari/537.36';
@@ -110,8 +112,8 @@ export async function saveBookmark({ url, tags = [], note = '', keyword = '' } =
 
   let res;
   try {
-    res = await fetch(target, {
-      redirect: 'follow',
+    // 走统一出口：拒本机/内网地址，且重定向逐跳校验（书签 URL 完全由用户输入）
+    res = await httpFetch(target, {
       signal: AbortSignal.timeout(20000),
       headers: {
         'user-agent': UA,
@@ -143,13 +145,14 @@ export async function saveBookmark({ url, tags = [], note = '', keyword = '' } =
   let cover = null;
   if (meta.image) {
     try {
-      const r = await fetch(meta.image, {
+      const r = await httpFetch(meta.image, {
         headers: { 'user-agent': UA, referer: finalUrl },
         signal: AbortSignal.timeout(12000),
       });
       if (r.ok) {
-        const buf = Buffer.from(await r.arrayBuffer());
-        if (buf.length && buf.length < 15 * 1024 * 1024) {
+        // 边读边限流：先 arrayBuffer() 再判断大小，等于让远端决定我们吃多少内存
+        const buf = await readBodyLimited(r, 15 * 1024 * 1024);
+        if (buf.length) {
           cover = await sharp(buf, { failOn: 'none' })
             .rotate()
             .resize(640, 640, { fit: 'inside', withoutEnlargement: true })

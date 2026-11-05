@@ -6,7 +6,7 @@ import type { ImageItem } from '../types';
 
 interface Props {
   item: ImageItem;
-  onToast?: (msg: string) => void;
+  onToast?: (msg: string, kind?: 'info' | 'error') => void;
 }
 
 const MAX_ROWS = 300;

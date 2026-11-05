@@ -1,5 +1,6 @@
 import { useEffect, useState, type DragEvent } from 'react';
 import { api } from '../api';
+import { confirmDialog, promptDialog } from './Dialogs';
 import type { TagNode } from '../types';
 
 interface Props {
@@ -13,7 +14,7 @@ interface Props {
   onOpenTag: (tag: string) => void;
   onEditTag: (t: TagNode) => void;
   onChanged: (r: { tags: TagNode[]; groups: string[] }) => void;
-  onToast?: (msg: string) => void;
+  onToast?: (msg: string, kind?: 'info' | 'error') => void;
 }
 
 type DropPos = 'before' | 'after' | 'child';
@@ -145,7 +146,7 @@ export default function TagPanel({
 
   const renameGroup = async (group: string) => {
     setMenu(null);
-    const next = window.prompt(`重命名分组「${group}」为：`, group);
+    const next = await promptDialog(`重命名分组「${group}」为：`, group);
     if (next === null) return;
     const name = next.trim();
     if (!name || name === group) return;
@@ -161,7 +162,7 @@ export default function TagPanel({
 
   const deleteGroup = async (group: string) => {
     setMenu(null);
-    if (!window.confirm(`删除分组「${group}」？组内标签会退回「未分组」，标签和图片都不受影响。`)) return;
+    if (!(await confirmDialog(`删除分组「${group}」？组内标签会退回「未分组」，标签和图片都不受影响。`))) return;
     try {
       const r = await api.deleteTagGroup(group);
       onChanged({ tags: r.tags, groups: r.groups });

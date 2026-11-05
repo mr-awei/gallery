@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { api, downloadFile } from '../api';
+import { api, downloadFile, exportZipUrl } from '../api';
 import type { ImageItem } from '../types';
 import ImageCard from '../components/ImageCard';
 import ColorPad from '../components/ColorPad';
@@ -8,7 +8,7 @@ import MasonryGrid from '../components/MasonryGrid';
 type Mode = 'color' | 'ai' | 'image';
 
 interface Props {
-  onToast: (msg: string) => void;
+  onToast: (msg: string, kind?: 'info' | 'error') => void;
   /** 打开大图预览（App 级 Lightbox，可在结果间左右导航） */
   onOpenItem?: (item: ImageItem, pool?: ImageItem[]) => void;
 }
@@ -32,7 +32,7 @@ export default function Search({ onToast, onOpenItem }: Props) {
       try {
         await fn();
       } catch (err) {
-        onToast((err as Error).message);
+        onToast((err as Error).message, 'error');
       } finally {
         setLoading(false);
       }
@@ -56,7 +56,7 @@ export default function Search({ onToast, onOpenItem }: Props) {
         setItems(r.items);
         setTotal(r.total);
       } catch (err) {
-        if (colorSeq.current === my) onToast((err as Error).message);
+        if (colorSeq.current === my) onToast((err as Error).message, 'error');
       } finally {
         if (colorSeq.current === my) setLoading(false);
       }
@@ -144,7 +144,7 @@ export default function Search({ onToast, onOpenItem }: Props) {
       }
       onToast(`已收藏 ${targets.length} 张`);
     } catch (err) {
-      onToast((err as Error).message);
+      onToast((err as Error).message, 'error');
     }
   };
 
@@ -275,7 +275,7 @@ export default function Search({ onToast, onOpenItem }: Props) {
             </button>
             <button
               className="btn sm"
-              onClick={() => downloadFile(`/api/download/zip?ids=${[...selected].join(',')}`)}
+              onClick={() => downloadFile(exportZipUrl([...selected]))}
             >
               打包下载 ZIP
             </button>

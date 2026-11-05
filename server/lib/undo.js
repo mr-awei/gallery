@@ -1,4 +1,5 @@
 import fs from 'node:fs';
+import fsp from 'node:fs/promises';
 import path from 'node:path';
 import { db } from '../db.js';
 import { DATA_DIR } from '../config.js';
@@ -52,13 +53,14 @@ function prune() {
  * 写回前调用：备份当前文件 + 记录可回滚的元数据。
  * 备份失败不阻断编辑本身（宁可允许编辑，也不要因为占盘/权限失败把功能锁死）。
  */
-export function pushEditBackup(row, kind = 'edit') {
+export async function pushEditBackup(row, kind = 'edit') {
   try {
-    if (!row?.abs_path || !fs.existsSync(row.abs_path)) return;
+    if (!row?.abs_path) return;
     ensureDir();
     const ext = path.extname(row.abs_path) || '.bin';
     const file = path.join(BACKUP_DIR, `${Date.now()}-${row.id}${ext}`);
-    fs.copyFileSync(row.abs_path, file);
+    // 异步复制：几十 MB 的相机原图用 copyFileSync 会把整个服务的事件循环按住
+    await fsp.copyFile(row.abs_path, file);
     db.prepare(
       `INSERT INTO edit_history
          (image_id, backup_path, kind, prev_width, prev_height, prev_size, prev_phash, prev_obj_phash, created_at)
@@ -112,10 +114,11 @@ export async function undoLastEdit(imageId) {
   }
 
   // 先把备份复制回原位置（用 copy 而不是 rename：跨盘/权限场景下 rename 会失败）
-  fs.copyFileSync(h.backup_path, img.abs_path);
+  await fsp.copyFile(h.backup_path, img.abs_path);
   let fsMtime = Number(img.fs_mtime || 0) + 1;
   try {
-    fsMtime = Math.max(Math.round(fs.statSync(img.abs_path).mtimeMs / 1000), fsMtime);
+    const st = await fsp.stat(img.abs_path);
+    fsMtime = Math.max(Math.round(st.mtimeMs / 1000), fsMtime);
   } catch {
     /* 用递增兜底 */
   }

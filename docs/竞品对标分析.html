@@ -1,0 +1,366 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>动态壁纸 / 图片管理软件 · 竞品对标分析报告</title>
+<style>
+  :root{
+    --bg:#0f1117; --panel:#171a23; --panel2:#1e2230; --line:#2a2f3e;
+    --txt:#e6e9ef; --muted:#9aa3b2; --accent:#5b8cff; --accent2:#ff6b9d;
+    --ok:#3ecf8e; --warn:#ffcc55; --bad:#ff6b6b;
+    --chip:#222838;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:linear-gradient(180deg,#0c0e14,#0f1117 240px);color:var(--txt);
+    font-family:-apple-system,"Segoe UI","PingFang SC","Microsoft YaHei",Roboto,sans-serif;
+    line-height:1.65;font-size:15px}
+  header{padding:48px 32px 28px;max-width:1180px;margin:0 auto}
+  h1{font-size:30px;margin:0 0 8px;letter-spacing:.5px}
+  .sub{color:var(--muted);font-size:15px}
+  .wrap{max-width:1180px;margin:0 auto;padding:0 32px 80px}
+  section{background:var(--panel);border:1px solid var(--line);border-radius:16px;
+    padding:26px 28px;margin:22px 0;box-shadow:0 8px 30px rgba(0,0,0,.25)}
+  h2{font-size:21px;margin:0 0 6px;display:flex;align-items:center;gap:10px}
+  h2 .n{background:linear-gradient(135deg,var(--accent),var(--accent2));color:#0b0d12;
+    width:30px;height:30px;border-radius:9px;display:inline-flex;align-items:center;justify-content:center;
+    font-size:15px;font-weight:700}
+  h3{font-size:17px;margin:22px 0 8px;color:#cdd5e3}
+  p{color:#d6dbe6}
+  .muted{color:var(--muted)}
+  .grid{display:grid;gap:16px;grid-template-columns:repeat(auto-fit,minmax(260px,1fr))}
+  .card{background:var(--panel2);border:1px solid var(--line);border-radius:12px;padding:18px}
+  .card h4{margin:0 0 6px;font-size:16px;color:#fff}
+  .tag{display:inline-block;background:var(--chip);color:var(--muted);border:1px solid var(--line);
+    border-radius:999px;padding:2px 10px;font-size:12px;margin:3px 4px 3px 0}
+  .tag.blue{color:var(--accent);border-color:#2c3a63}
+  .tag.pink{color:var(--accent2);border-color:#5a2c44}
+  table{border-collapse:collapse;width:100%;margin:14px 0;font-size:13.5px}
+  th,td{border:1px solid var(--line);padding:9px 11px;text-align:left;vertical-align:top}
+  th{background:var(--panel2);color:#fff;font-weight:600;position:sticky;top:0}
+  tr:nth-child(even) td{background:rgba(255,255,255,.02)}
+  td.c{text-align:center}
+  .ok{color:var(--ok);font-weight:700}
+  .warn{color:var(--warn);font-weight:700}
+  .bad{color:var(--bad);font-weight:700}
+  .na{color:var(--muted)}
+  .pill{display:inline-block;padding:2px 9px;border-radius:6px;font-size:12px;font-weight:700}
+  .p0{background:#3a1722;color:#ff8aa6;border:1px solid #5a2535}
+  .p1{background:#2c2a17;color:#ffd479;border:1px solid #5a4e25}
+  .p2{background:#172a3a;color:#7fc0ff;border:1px solid #254a5a}
+  .matrix-scroll{overflow-x:auto}
+  .legend{display:flex;gap:18px;flex-wrap:wrap;margin:6px 0 0;font-size:13px;color:var(--muted)}
+  .legend span b{font-style:normal}
+  .okc{color:var(--ok)} .warnc{color:var(--warn)} .badc{color:var(--bad)}
+  ul{margin:8px 0 8px 2px;padding-left:20px}
+  li{margin:5px 0}
+  .kpi{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:14px;margin:8px 0}
+  .kpi .box{background:var(--panel2);border:1px solid var(--line);border-radius:12px;padding:16px}
+  .kpi .num{font-size:26px;font-weight:800;color:#fff}
+  .kpi .lab{color:var(--muted);font-size:13px}
+  .note{background:#14182499;border-left:3px solid var(--accent);padding:10px 14px;border-radius:8px;
+    color:#c7cee0;font-size:13.5px;margin:12px 0}
+  .bar{height:8px;border-radius:6px;background:var(--line);overflow:hidden;margin:4px 0 10px}
+  .bar > i{display:block;height:100%;background:linear-gradient(90deg,var(--accent),var(--accent2))}
+  footer{color:var(--muted);font-size:12.5px;text-align:center;padding:24px}
+  a{color:var(--accent)}
+  code{background:#0c0e14;border:1px solid var(--line);border-radius:5px;padding:1px 6px;font-size:12.5px}
+</style>
+</head>
+<body>
+<header>
+  <h1>动态壁纸 / 图片管理软件 · 竞品对标分析报告</h1>
+  <div class="sub">对标对象：Wallpaper Engine（Steam）· Lively Wallpaper（开源）· Eagle（图片管理）· wayper（AI 原生壁纸）· 多款 GitHub 开源壁纸管理器 ｜ 生成日期：2026-09-27</div>
+</header>
+<div class="wrap">
+
+<!-- 摘要 -->
+<section>
+  <h2><span class="n">0</span>执行摘要</h2>
+  <p>本报告面向 <b>F:\邓紫棋</b> 桌面应用（Electron + C# 服务端，邓紫棋主题壁纸 / 图片管理 + AI 知识库），从
+  <b>壁纸体验、桌面集成、图片管理、AI 能力、社区分享、工程健壮性</b> 六个维度，对 5 类共 10+ 款竞品做逐项深挖，
+  并据此给出你项目的能力盘点、差距分析与分阶段扩展路线图。</p>
+  <div class="kpi">
+    <div class="box"><div class="num">10+</div><div class="lab">对标产品</div></div>
+    <div class="box"><div class="num">6</div><div class="lab">对比维度</div></div>
+    <div class="box"><div class="num">3</div><div class="lab">扩展阶段(P0/P1/P2)</div></div>
+    <div class="box"><div class="num">2</div><div class="lab">核心差异化机会(MCP+主题)</div></div>
+  </div>
+  <div class="note">核心结论：你项目在 <b>「动态壁纸挂载桌面层 + 本地落盘 + AI 知识库」</b> 上已有扎实基础，最大缺口在
+  <b>图片管理深度（标签/智能文件夹/以图搜图/重复检测）</b> 与 <b>AI 与壁纸的闭环（MCP 控制、偏好模型）</b>；
+  最值得优先投入的是 <b>MCP 原生壁纸控制 + 标签/智能文件夹 + 多显示器</b> 三项。</div>
+</section>
+
+<!-- 1. 竞品深挖 -->
+<section>
+  <h2><span class="n">1</span>竞品逐款深挖</h2>
+
+  <h3>1.1 Wallpaper Engine（Steam，商业）—「动态壁纸标杆」</h3>
+  <div class="grid">
+    <div class="card"><h4>壁纸形态</h4>
+      <span class="tag blue">2D/3D 动画</span><span class="tag blue">视频</span><span class="tag blue">网页/HTML</span>
+      <span class="tag blue">创意工坊 UGC</span><p class="muted" style="margin-top:8px">内置编辑器，用户自制个性化壁纸，兼容多格式。</p></div>
+    <div class="card"><h4>生态与设备</h4>
+      <span class="tag pink">Steam 创意工坊</span><span class="tag pink">Android 无线投送</span>
+      <span class="tag">Razer/Corsair RGB 同步</span><p class="muted" style="margin-top:8px">壁纸合集可无线传到手机；灯效联动。</p></div>
+    <div class="card"><h4>桌面与性能</h4>
+      <span class="tag">多显示器</span><span class="tag">播放列表</span><span class="tag">全屏暂停省电</span>
+      <span class="tag">低占用</span><p class="muted" style="margin-top:8px">前台全屏游戏/应用时自动暂停，资源接近 0%。</p></div>
+    <div class="card"><h4>商业模型</h4>
+      <p>一次性买断（Steam 约 ¥19），无订阅；强社区驱动。</p></div>
+  </div>
+
+  <h3>1.2 Lively Wallpaper（GitHub 开源，rocksdanister）—「开源动态壁纸标杆」</h3>
+  <div class="grid">
+    <div class="card"><h4>支持的壁纸类型</h4>
+      <span class="tag blue">视频</span><span class="tag blue">GIF</span><span class="tag blue">网页/URL</span>
+      <span class="tag blue">着色器/GLSL</span><span class="tag blue">游戏引擎(Unity/Godot)</span>
+      <p class="muted" style="margin-top:8px">任何壁纸均可作为屏幕保护程序。</p></div>
+    <div class="card"><h4>交互自定义（"IT'S MAGIC"）</h4>
+      <span class="tag">Size</span><span class="tag">Intensity</span><span class="tag">Speed</span><span class="tag">Depth</span>
+      <span class="tag">Plane</span><span class="tag">Sun</span><span class="tag">CRT</span><span class="tag">Scale</span>
+      <span class="tag">Density Color</span><span class="tag">Fog Color/Intensity</span>
+      <p class="muted" style="margin-top:8px">可视化滑块实时调参，可换背景+后处理。</p></div>
+    <div class="card"><h4>性能与集成</h4>
+      <span class="tag">全屏暂停 ~0%</span><span class="tag">多显示器/超宽屏</span><span class="tag">系统托盘常驻</span>
+      <span class="tag">WinUI 3 / Win10-11</span></div>
+    <div class="card"><h4>扩展能力</h4>
+      <span class="tag pink">开发工具</span><span class="tag pink">音乐可视化</span><span class="tag pink">小组件</span>
+      <p class="muted" style="margin-top:8px">FOSS、社区驱动，Microsoft Store / GitHub 分发。</p></div>
+  </div>
+
+  <h3>1.3 Eagle（PC 图片/素材管理，商业）—「设计师素材管理标杆」</h3>
+  <div class="grid">
+    <div class="card"><h4>标签与组织</h4>
+      <span class="tag blue">基础标签</span><span class="tag blue">自动标签</span><span class="tag blue">文件夹标签继承</span>
+      <span class="tag blue">标签管理</span><span class="tag">层级文件夹</span><span class="tag">智能文件夹(按条件自动归类)</span></div>
+    <div class="card"><h4>AI 能力（v4.0 重点）</h4>
+      <span class="tag pink">AI 搜索(视觉/语义/跨源)</span><span class="tag pink">AI 动作(自动命名/打标工作流)</span>
+      <span class="tag pink">AI 模型中枢</span><span class="tag pink">Eagle MCP/Skill</span>
+      <span class="tag pink">AI 插件(去背景/放大/擦除)</span></div>
+    <div class="card"><h4>检索与过滤</h4>
+      <span class="tag">关键词搜索</span><span class="tag">以图搜图</span><span class="tag">颜色搜索(调色板)</span>
+      <span class="tag">随机探索</span><span class="tag">多维过滤</span><span class="tag">重复项检测</span></div>
+    <div class="card"><h4>采集与协作</h4>
+      <span class="tag">浏览器插件(拖拽/批量/截图)</span><span class="tag">一键高清下载</span><span class="tag">Alt+右键绕过限制</span>
+      <span class="tag">云同步(Google Drive 等)</span><span class="tag">注释/评分/密码保护</span><span class="tag">多布局浏览</span></div>
+  </div>
+
+  <h3>1.4 wayper（GitHub 开源，AI 原生壁纸）—「AI 驱动壁纸新物种」</h3>
+  <div class="grid">
+    <div class="card"><h4>壁纸源集成</h4>
+      <span class="tag blue">Wallhaven 官方客户端</span><span class="tag">规则/模型策略控制</span>
+      <span class="tag">GUI 浏览搜索</span><span class="tag">账号同步(Cloudflare 登录回退)</span>
+      <span class="tag">元数据断点续传 backfill</span></div>
+    <div class="card"><h4>AI / MCP 原生</h4>
+      <span class="tag pink">首个原生 MCP server</span><span class="tag pink">AI 助手直接控制壁纸</span>
+      <span class="tag pink">本地轻量模型训练(用元数据而非像素)</span>
+      <p class="muted" style="margin-top:8px">暴露 <code>next_wallpaper</code>/<code>fav</code>/<code>tag_stats_top</code>/<code>wallpaper_info</code> 等工具。</p></div>
+    <div class="card"><h4>偏好学习闭环</h4>
+      <span class="tag">显式反馈(dislike/ban)</span><span class="tag">本地模型个性化排序</span>
+      <span class="tag">Review 审核模块</span><span class="tag">收藏/黑名单/历史</span>
+      <p class="muted" style="margin-top:8px">元数据与嵌入仅留本地，保护隐私。</p></div>
+    <div class="card"><h4>交互形态</h4>
+      <span class="tag">全键盘驱动 GUI</span><span class="tag">网格/灯箱快捷键</span><span class="tag">后台驻留(托盘+CLI)</span></div>
+  </div>
+
+  <h3>1.5 其他 GitHub 开源壁纸管理器（横向补充）</h3>
+  <table>
+    <tr><th>项目</th><th>亮点</th><th>可借鉴点</th></tr>
+    <tr><td><b>bigzhuodan/wallpaper-manager</b></td><td>免费开源，每显示器独立壁纸</td><td class="muted">多显示器独立壁纸的轻量实现思路</td></tr>
+    <tr><td><b>Varietywalls</b></td><td>高效灵活的壁纸管理系统</td><td class="muted">多元化的来源聚合与切换策略</td></tr>
+    <tr><td><b>paprwall (PyPI)</b></td><td>后台服务、登出后仍自动轮播</td><td class="muted">服务化常驻、与 GUI 解耦的架构</td></tr>
+    <tr><td><b>dynamic-wallpaper</b> 类</td><td>随时间/天文变化的动态壁纸</td><td class="muted">按时间/场景自动切换的玩法</td></tr>
+    <tr><td><b>Wallpaper Changer / Desktop Nexus / Wallpaper Zen</b></td><td>SourceForge 开源壁纸应用</td><td class="muted">轻量、低门槛的基础能力参考</td></tr>
+  </table>
+</section>
+
+<!-- 2. 功能对比矩阵 -->
+<section>
+  <h2><span class="n">2</span>功能对比矩阵</h2>
+  <p class="muted">图例：
+    <span class="okc">●</span> 已具备 / 强　<span class="warnc">◐</span> 部分 / 弱　<span class="badc">○</span> 缺失 / 无　
+    <span class="na">—</span> 不适用。最后两列对照 <b>你项目（推断）</b> 与 <b>建议目标态</b>。</p>
+  <div class="matrix-scroll">
+  <table>
+    <tr>
+      <th>能力维度 / 功能点</th>
+      <th class="c">Wallpaper<br>Engine</th>
+      <th class="c">Lively</th>
+      <th class="c">Eagle</th>
+      <th class="c">wayper</th>
+      <th class="c">你项目<br>(现状)</th>
+      <th class="c">建议<br>目标态</th>
+    </tr>
+    <tr><td colspan="7" style="background:#1b2030;color:#fff;font-weight:700">一、壁纸形态</td></tr>
+    <tr><td>图片幻灯片（ken burns）</td><td class="c ok">●</td><td class="c ok">●</td><td class="c na">—</td><td class="c ok">●</td><td class="c ok">●</td><td class="c ok">●</td></tr>
+    <tr><td>视频壁纸（mp4/webm…）</td><td class="c ok">●</td><td class="c ok">●</td><td class="c na">—</td><td class="c ok">●</td><td class="c ok">●</td><td class="c ok">●</td></tr>
+    <tr><td>GIF 壁纸</td><td class="c ok">●</td><td class="c ok">●</td><td class="c na">—</td><td class="c warn">◐</td><td class="c bad">○</td><td class="c ok">●</td></tr>
+    <tr><td>网页 / HTML 壁纸</td><td class="c ok">●</td><td class="c ok">●</td><td class="c na">—</td><td class="c warn">◐</td><td class="c bad">○</td><td class="c ok">●</td></tr>
+    <tr><td>着色器 / GLSL 壁纸</td><td class="c warn">◐</td><td class="c ok">●</td><td class="c na">—</td><td class="c bad">○</td><td class="c bad">○</td><td class="c warn">◐</td></tr>
+    <tr><td>游戏引擎 / 交互式壁纸</td><td class="c warn">◐</td><td class="c ok">●</td><td class="c na">—</td><td class="c bad">○</td><td class="c bad">○</td><td class="c bad">○</td></tr>
+    <tr><td>音频可视化（音乐律动）</td><td class="c warn">◐</td><td class="c ok">●</td><td class="c na">—</td><td class="c bad">○</td><td class="c bad">○</td><td class="c warn">◐</td></tr>
+    <tr><td colspan="7" style="background:#1b2030;color:#fff;font-weight:700">二、桌面集成</td></tr>
+    <tr><td>挂载到桌面 WorkerW 层</td><td class="c ok">●</td><td class="c ok">●</td><td class="c na">—</td><td class="c ok">●</td><td class="c ok">●</td><td class="c ok">●</td></tr>
+    <tr><td>多显示器独立壁纸</td><td class="c ok">●</td><td class="c ok">●</td><td class="c na">—</td><td class="c ok">●</td><td class="c warn">◐</td><td class="c ok">●</td></tr>
+    <tr><td>屏幕保护程序模式</td><td class="c ok">●</td><td class="c ok">●</td><td class="c na">—</td><td class="c bad">○</td><td class="c bad">○</td><td class="c ok">●</td></tr>
+    <tr><td>系统托盘常驻 + 快速切换</td><td class="c ok">●</td><td class="c ok">●</td><td class="c ok">●</td><td class="c ok">●</td><td class="c warn">◐</td><td class="c ok">●</td></tr>
+    <tr><td>全屏暂停省电</td><td class="c ok">●</td><td class="c ok">●</td><td class="c na">—</td><td class="c ok">●</td><td class="c ok">●</td><td class="c ok">●</td></tr>
+    <tr><td>锁屏 / 电池 / GPU 占用 暂停</td><td class="c warn">◐</td><td class="c bad">○</td><td class="c na">—</td><td class="c warn">◐</td><td class="c bad">○</td><td class="c ok">●</td></tr>
+    <tr><td>低占用 / 资源优化</td><td class="c ok">●</td><td class="c ok">●</td><td class="c ok">●</td><td class="c ok">●</td><td class="c warn">◐</td><td class="c ok">●</td></tr>
+    <tr><td>参数交互（亮度/速度/强度…）</td><td class="c ok">●</td><td class="c ok">●</td><td class="c na">—</td><td class="c warn">◐</td><td class="c bad">○</td><td class="c ok">●</td></tr>
+    <tr><td colspan="7" style="background:#1b2030;color:#fff;font-weight:700">三、图片 / 素材管理</td></tr>
+    <tr><td>标签 / 自动标签 / 标签管理</td><td class="c na">—</td><td class="c na">—</td><td class="c ok">●</td><td class="c warn">◐</td><td class="c bad">○</td><td class="c ok">●</td></tr>
+    <tr><td>智能文件夹（条件自动归类）</td><td class="c na">—</td><td class="c na">—</td><td class="c ok">●</td><td class="c bad">○</td><td class="c bad">○</td><td class="c ok">●</td></tr>
+    <tr><td>以图搜图</td><td class="c na">—</td><td class="c na">—</td><td class="c ok">●</td><td class="c bad">○</td><td class="c bad">○</td><td class="c ok">●</td></tr>
+    <tr><td>颜色搜索（调色板）</td><td class="c na">—</td><td class="c na">—</td><td class="c ok">●</td><td class="c bad">○</td><td class="c bad">○</td><td class="c ok">●</td></tr>
+    <tr><td>AI 语义 / 视觉搜索</td><td class="c na">—</td><td class="c na">—</td><td class="c ok">●</td><td class="c bad">○</td><td class="c warn">◐</td><td class="c ok">●</td></tr>
+    <tr><td>重复项检测</td><td class="c na">—</td><td class="c na">—</td><td class="c ok">●</td><td class="c bad">○</td><td class="c bad">○</td><td class="c ok">●</td></tr>
+    <tr><td>评分 / 收藏 / 注释</td><td class="c ok">●</td><td class="c ok">●</td><td class="c ok">●</td><td class="c ok">●</td><td class="c warn">◐</td><td class="c ok">●</td></tr>
+    <tr><td>浏览器插件采集（拖拽/批量/截图）</td><td class="c na">—</td><td class="c na">—</td><td class="c ok">●</td><td class="c bad">○</td><td class="c warn">◐</td><td class="c ok">●</td></tr>
+    <tr><td colspan="7" style="background:#1b2030;color:#fff;font-weight:700">四、AI 能力</td></tr>
+    <tr><td>AI 知识库（问答）</td><td class="c bad">○</td><td class="c bad">○</td><td class="c warn">◐</td><td class="c bad">○</td><td class="c ok">●</td><td class="c ok">●</td></tr>
+    <tr><td>MCP 原生控制（AI 直接换壁纸）</td><td class="c bad">○</td><td class="c bad">○</td><td class="c warn">◐</td><td class="c ok">●</td><td class="c bad">○</td><td class="c ok">●</td></tr>
+    <tr><td>本地偏好模型（个性化推荐）</td><td class="c bad">○</td><td class="c bad">○</td><td class="c bad">○</td><td class="c ok">●</td><td class="c bad">○</td><td class="c ok">●</td></tr>
+    <tr><td>AI 自动打标 / 分类</td><td class="c bad">○</td><td class="c bad">○</td><td class="c ok">●</td><td class="c bad">○</td><td class="c bad">○</td><td class="c ok">●</td></tr>
+    <tr><td>AI 插件（去背景 / 超分 / 擦除）</td><td class="c bad">○</td><td class="c bad">○</td><td class="c ok">●</td><td class="c bad">○</td><td class="c bad">○</td><td class="c warn">◐</td></tr>
+    <tr><td colspan="7" style="background:#1b2030;color:#fff;font-weight:700">五、社区 / 分享</td></tr>
+    <tr><td>创意工坊 / 主题包分享</td><td class="c ok">●</td><td class="c bad">○</td><td class="c warn">◐</td><td class="c ok">●</td><td class="c bad">○</td><td class="c ok">●</td></tr>
+    <tr><td>云同步 / 多端</td><td class="c ok">●</td><td class="c bad">○</td><td class="c ok">●</td><td class="c bad">○</td><td class="c bad">○</td><td class="c warn">◐</td></tr>
+    <tr><td>在线壁纸源集成（Wallhaven 等）</td><td class="c ok">●</td><td class="c warn">◐</td><td class="c na">—</td><td class="c ok">●</td><td class="c warn">◐</td><td class="c ok">●</td></tr>
+    <tr><td colspan="7" style="background:#1b2030;color:#fff;font-weight:700">六、工程健壮性</td></tr>
+    <tr><td>开源 / 可审计</td><td class="c bad">○</td><td class="c ok">●</td><td class="c bad">○</td><td class="c ok">●</td><td class="c warn">◐</td><td class="c ok">●</td></tr>
+    <tr><td>跨平台（Win/Mac/Linux）</td><td class="c ok">●</td><td class="c bad">○</td><td class="c ok">●</td><td class="c ok">●</td><td class="c bad">○</td><td class="c bad">○</td></tr>
+    <tr><td>崩溃自恢复 / 挂载守护</td><td class="c ok">●</td><td class="c ok">●</td><td class="c ok">●</td><td class="c warn">◐</td><td class="c bad">○</td><td class="c ok">●</td></tr>
+  </table>
+  </div>
+  <div class="note">注：「你项目(现状)」列是基于项目记忆（壁纸库落盘、AI 知识库、采集源、动态壁纸挂载、回收站、打分规则等）的<b>推断</b>，
+  非逐一代码核实，落地前建议以实际功能核对。</div>
+</section>
+
+<!-- 3. 项目现状盘点 -->
+<section>
+  <h2><span class="n">3</span>你项目现状盘点（推断）</h2>
+  <div class="grid">
+    <div class="card"><h4>✅ 已具备（优势）</h4>
+      <ul>
+        <li>Electron 桌面端 + 图片落盘本地 <code>F:\邓紫棋</code></li>
+        <li>动态壁纸挂载桌面 WorkerW 层（幻灯片/视频/ken burns）</li>
+        <li>全屏检测暂停（<code>fscheck</code>）</li>
+        <li>AI 知识库（OpenAI 兼容）</li>
+        <li>采集源（堆糖免登录、360 分页、微博需 Cookie）</li>
+        <li>应用内回收站删除 + 打分降权规则 + 采集过滤</li>
+        <li><code>SWP_NOSENDCHANGING</code> 一次性稳定挂载（已修父窗口翻转）</li>
+      </ul>
+    </div>
+    <div class="card"><h4>⚠️ 部分 / 待补强</h4>
+      <ul>
+        <li>多显示器：按主屏分辨率挂载，未见每屏独立逻辑</li>
+        <li>系统托盘 / 快速切换 UI：偏弱</li>
+        <li>浏览器采集：以服务端爬虫为主，缺前端插件式采集</li>
+        <li>AI：偏问答形态，未与壁纸推荐/控制打通</li>
+        <li>低占用/资源优化：未系统量化</li>
+        <li>挂载守护：看门狗已移除，缺崩溃自恢复</li>
+      </ul>
+    </div>
+    <div class="card"><h4>○ 明显缺失</h4>
+      <ul>
+        <li>标签体系 / 智能文件夹</li>
+        <li>以图搜图 / 颜色搜索 / 重复检测</li>
+        <li>网页/着色器/GIF/音频可视化壁纸</li>
+        <li>交互参数滑块</li>
+        <li>屏保模式</li>
+        <li>MCP 控制 / 本地偏好模型</li>
+        <li>云同步 / 主题包分享</li>
+        <li>评分/收藏/注释的完整体验</li>
+      </ul>
+    </div>
+  </div>
+</section>
+
+<!-- 4. 差距分析 -->
+<section>
+  <h2><span class="n">4</span>差距分析（能力覆盖率）</h2>
+  <p class="muted">基于矩阵加权估算的「相对竞品标杆」覆盖率（满分 100）。</p>
+  <table>
+    <tr><th>维度</th><th class="c">你项目现状</th><th class="c">建议目标态</th><th>差距说明</th></tr>
+    <tr><td>壁纸形态</td><td class="c">35%</td><td class="c">80%</td><td>缺网页/着色器/GIF/音频可视化</td></tr>
+    <tr><td>桌面集成</td><td class="c">55%</td><td class="c">90%</td><td>缺多屏独立、屏保、参数交互、丰富暂停策略</td></tr>
+    <tr><td>图片管理</td><td class="c">15%</td><td class="c">90%</td><td>最大短板：标签/智能文件夹/搜图/去重全缺</td></tr>
+    <tr><td>AI 能力</td><td class="c">30%</td><td class="c">85%</td><td>有知识库但未闭环到控制与推荐</td></tr>
+    <tr><td>社区/分享</td><td class="c">10%</td><td class="c">70%</td><td>缺主题包/云同步/在线源聚合</td></tr>
+    <tr><td>工程健壮性</td><td class="c">40%</td><td class="c">85%</td><td>缺崩溃自恢复与挂载守护</td></tr>
+  </table>
+  <h3>综合覆盖：现状 ≈ 31% → 目标 ≈ 84%</h3>
+  <div class="bar"><i style="width:31%"></i></div>
+  <div class="bar"><i style="width:84%"></i></div>
+  <p class="muted">（上条=现状，下条=目标；示意，非精确测量）</p>
+</section>
+
+<!-- 5. 路线图 -->
+<section>
+  <h2><span class="n">5</span>功能扩展路线图</h2>
+
+  <h3><span class="pill p0">P0</span> 高优先级（差异化、投入产出比最高）</h3>
+  <ul>
+    <li><b>MCP 原生壁纸控制</b>：把壁纸/图库操作暴露成 MCP server，让 AI 助手直接"换张邓紫棋的 live 图""切到有山的壁纸"。你已有 OpenAI 兼容 AI，这是最独特的差异化入口（对标 wayper，但叠加粉丝主题）。</li>
+    <li><b>标签 + 智能文件夹</b>：基础标签、文件夹标签继承、按条件自动归类。补齐图片管理最大短板（对标 Eagle）。</li>
+    <li><b>多显示器独立壁纸</b>：每块屏不同壁纸/播放列表（对标 Lively / bigzhuodan）。</li>
+  </ul>
+
+  <h3><span class="pill p1">P1</span> 中优先级（体验完整度）</h3>
+  <ul>
+    <li><b>检索增强</b>：以图搜图、颜色搜索、AI 语义/视觉搜索（复用现有 AI）。</li>
+    <li><b>屏保模式 + 系统托盘常驻 + 快速切换/暂停</b>。</li>
+    <li><b>交互参数滑块</b>：亮度/速度/强度/景深（Lively "IT'S MAGIC"）。</li>
+    <li><b>壁纸类型扩展</b>：网页/HTML、GIF、音频可视化（音乐律动）。</li>
+    <li><b>重复项检测 + 评分/收藏/注释完整体验</b>。</li>
+    <li><b>本地偏好模型</b>：用标签/评分/收藏训练个性化推荐，dislike/ban 反馈闭环（对标 wayper）。</li>
+  </ul>
+
+  <h3><span class="pill p2">P2</span> 低优先级（生态与长尾）</h3>
+  <ul>
+    <li><b>着色器/GLSL 壁纸、游戏引擎壁纸</b>。</li>
+    <li><b>浏览器插件采集</b>（拖拽/批量/截图/一键高清）。</li>
+    <li><b>主题包导出导入 + 粉丝社区分享</b>（邓紫棋主题包很适合做卖点）。</li>
+    <li><b>云同步 / 多端</b>（Google Drive 等）。</li>
+    <li><b>AI 插件</b>（去背景/超分/擦除）。</li>
+    <li><b>挂载守护 + 崩溃自恢复</b>（补回看门狗的健壮版，避免父窗口翻转）。</li>
+    <li><b>丰富暂停策略</b>：锁屏/电池/GPU 占用阈值/指定 App 前台。</li>
+  </ul>
+</section>
+
+<!-- 6. 不足清单 -->
+<section>
+  <h2><span class="n">6</span>现有不足清单（按严重度）</h2>
+  <table>
+    <tr><th>严重度</th><th>不足</th><th>影响</th></tr>
+    <tr><td class="bad">高</td><td>图片管理深度不足：无标签/智能文件夹/以图搜图/颜色搜索/重复检测</td><td>作为"图片管理软件"核心能力缺失，弱于 Eagle</td></tr>
+    <tr><td class="bad">高</td><td>AI 未与壁纸闭环：知识库偏问答，无 MCP 控制/偏好模型</td><td>浪费已有 AI 基建，错失差异化</td></tr>
+    <tr><td class="warn">中</td><td>壁纸类型单一：仅幻灯片/视频/ken burns</td><td>弱于 Lively 的网页/着色器/GIF/音频可视化</td></tr>
+    <tr><td class="warn">中</td><td>多显示器仅主屏、无屏保、无托盘快速切换</td><td>桌面集成体验不完整</td></tr>
+    <tr><td class="warn">中</td><td>采集源受限（微博需 Cookie、豆瓣/贴吧/Wikimedia 不可用）</td><td>图源覆盖窄，依赖少量站点</td></tr>
+    <tr><td class="warn">中</td><td>缺崩溃自恢复 / 挂载守护</td><td>异常后需手动重启，健壮性弱</td></tr>
+    <tr><td class="bad">低</td><td>缺社区/云同步/主题包分享</td><td>无传播与留存飞轮</td></tr>
+    <tr><td class="bad">低</td><td>缺交互参数、评分类体验未闭环</td><td>个性化与精致度不足</td></tr>
+  </table>
+</section>
+
+<!-- 7. 结论 -->
+<section>
+  <h2><span class="n">7</span>结论与建议</h2>
+  <p>你项目在 <b>「动态壁纸挂桌面层 + 本地落盘 + AI 知识库」</b> 上已建立护城河；与 Wallpaper Engine / Lively / Eagle / wayper 相比，
+  最大洼地是 <b>图片管理深度</b> 与 <b>AI→壁纸的闭环</b>。</p>
+  <p><b>建议行动顺序</b>：</p>
+  <ol>
+    <li><b>先做 P0 三项</b>（MCP 控制 + 标签/智能文件夹 + 多显示器）——它们彼此独立、见效快、且能形成"AI 驱动的主题壁纸管理器"独特定位。</li>
+    <li><b>再补 P1 体验</b>（搜图/屏保/托盘/参数滑块/偏好模型），把"能用"变成"好用"。</li>
+    <li><b>最后做 P2 生态</b>（主题包/云同步/着色器/守护进程），构建传播与留存。</li>
+  </ol>
+  <div class="note">差异化一句话：<b>「会听你说话、懂邓紫棋、能自己挑图的桌面壁纸」</b> —— 这是 Wallpaper Engine 与 Eagle 都做不到的组合。</div>
+</section>
+
+<footer>本报告由竞品调研（Wallpaper Engine / Lively / Eagle / wayper / 多款 GitHub 开源项目）与本项目的记忆上下文综合生成 · 2026-09-27 · 数据来源含官网与 GitHub 公开页面，功能以各产品当前公开描述为准。</footer>
+</div>
+</body>
+</html>

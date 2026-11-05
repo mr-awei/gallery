@@ -11,7 +11,7 @@ interface Props {
   folder: FolderNode;
   onClose: () => void;
   onSaved: (folders: FolderNode[], msg: string) => void;
-  onToast: (msg: string) => void;
+  onToast: (msg: string, kind?: 'info' | 'error') => void;
 }
 
 export default function FolderCoverDialog({ folder, onClose, onSaved, onToast }: Props) {
@@ -43,7 +43,7 @@ export default function FolderCoverDialog({ folder, onClose, onSaved, onToast }:
       onSaved(r.folders, imageId ? '已设为文件夹封面' : '已恢复自动封面（夹内最新一张）');
       onClose();
     } catch (err) {
-      onToast((err as Error).message);
+      onToast((err as Error).message, 'error');
       setBusy(false);
     }
   };

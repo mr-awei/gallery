@@ -30,7 +30,7 @@ interface Props {
   imageUrl?: string;
   frame: { left: number; top: number; width: number; height: number };
   onCount?: (n: number) => void;
-  onToast?: (msg: string) => void;
+  onToast?: (msg: string, kind?: 'info' | 'error') => void;
 }
 
 const TOOLS: { key: Tool; label: string; icon: string }[] = [

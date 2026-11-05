@@ -10,7 +10,19 @@ import { ingestMedia, isMediaPath } from '../lib/media.js';
 export function register(app, ctx) {
   const { asyncRoute } = ctx;
 
-  const raw = express.raw({ type: '*/*', limit: '512mb' });
+  /**
+   * 上传体上限必须按「当前设置」决定，而且要在读请求体之前就拒绝。
+   * 以前的顺序是 raw({limit:'512mb'}) 先按 512MB 把整个请求读进内存，
+   * 业务里再拿 maxFileSize（默认 25MB）判一次 —— 一个 500MB 的请求先把内存吃掉才被拒。
+   */
+  const raw = (req, res, next) => {
+    const maxBytes = Math.max(1, Number(getSettings().maxFileSize || 50)) * 1024 * 1024;
+    const declared = Number(req.headers['content-length'] || 0);
+    if (declared && declared > maxBytes + 1024 * 1024) {
+      return res.status(413).json({ error: `文件超过大小上限（${Math.round(maxBytes / 1024 / 1024)}MB）` });
+    }
+    return express.raw({ type: '*/*', limit: maxBytes + 1024 * 1024 })(req, res, next);
+  };
 
   app.post(
     '/api/import/upload',

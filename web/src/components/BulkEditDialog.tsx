@@ -52,7 +52,7 @@ interface Props {
   /** 缩略图条：当前页里被选中的图片，点缩略图只换预览对象，参数仍对整批一致 */
   films?: FilmstripItem[];
   onClose: () => void;
-  onToast?: (msg: string) => void;
+  onToast?: (msg: string, kind?: 'info' | 'error') => void;
   /** 任务结束回调（刷新列表，让卡片拿到新尺寸/新缩略图） */
   onDone?: () => void;
 }

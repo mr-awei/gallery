@@ -2,17 +2,19 @@ import React, { useCallback, useEffect, useState } from 'react';
 import { api, downloadFile, type SmartFolder } from '../api';
 import type { ImageItem } from '../types';
 import ImageCard from '../components/ImageCard';
-import { promptDialog } from '../components/Dialogs';
+import { confirmDialog, promptDialog } from '../components/Dialogs';
 import MasonryGrid from '../components/MasonryGrid';
 import SmartFolderEditor from '../components/SmartFolderEditor';
 
 interface Props {
-  onToast: (msg: string) => void;
+  onToast: (msg: string, kind?: 'info' | 'error') => void;
+  /** 标签改名/删除/合并后通知上层：侧栏 TagPanel 用的是 App 那份 tags，不能只更新本页 */
+  onTagsChanged?: () => void;
   /** 打开大图预览（App 级 Lightbox，可在预览列表间导航） */
   onOpenItem?: (item: ImageItem, pool?: ImageItem[]) => void;
 }
 
-export default function Smart({ onToast, onOpenItem }: Props) {
+export default function Smart({ onToast, onTagsChanged, onOpenItem }: Props) {
   const [tags, setTags] = useState<{ tag: string; count: number }[]>([]);
   const [folders, setFolders] = useState<SmartFolder[]>([]);
   const [previewItems, setPreviewItems] = useState<ImageItem[] | null>(null);
@@ -33,7 +35,7 @@ export default function Smart({ onToast, onOpenItem }: Props) {
       setTags(t.tags);
       setFolders(f);
     } catch (err) {
-      onToast((err as Error).message);
+      onToast((err as Error).message, 'error');
     }
   }, [onToast]);
 
@@ -41,7 +43,11 @@ export default function Smart({ onToast, onOpenItem }: Props) {
     load();
   }, [load]);
 
-  const refreshTags = (r: { tags: { tag: string; count: number }[] }) => setTags(r.tags);
+  /** 标签变更后：本页用自己的副本渲染，同时通知 App 刷新侧栏用的那份 */
+  const refreshTags = (r: { tags: { tag: string; count: number }[] }) => {
+    setTags(r.tags);
+    onTagsChanged?.();
+  };
 
   const renameTag = async (oldName: string) => {
     const nn = await promptDialog('重命名为：', oldName);
@@ -50,16 +56,16 @@ export default function Smart({ onToast, onOpenItem }: Props) {
       refreshTags(await api.renameTag(oldName, nn));
       onToast(`已重命名 ${oldName} → ${nn}`);
     } catch (err) {
-      onToast((err as Error).message);
+      onToast((err as Error).message, 'error');
     }
   };
   const deleteTag = async (t: string) => {
-    if (!window.confirm(`删除标签「${t}」（会从所有图片上摘除）？`)) return;
+    if (!(await confirmDialog(`删除标签「${t}」（会从所有图片上摘除）？`))) return;
     try {
       refreshTags(await api.deleteTag(t));
       onToast(`已删除标签 ${t}`);
     } catch (err) {
-      onToast((err as Error).message);
+      onToast((err as Error).message, 'error');
     }
   };
   const mergeTag = async (from: string) => {
@@ -69,32 +75,36 @@ export default function Smart({ onToast, onOpenItem }: Props) {
       refreshTags(await api.mergeTags(from, to));
       onToast(`已合并 ${from} → ${to}`);
     } catch (err) {
-      onToast((err as Error).message);
+      onToast((err as Error).message, 'error');
     }
   };
 
   /** 新建 / 编辑共用：以前只有新建，建完规则就再也改不了 */
   const saveFolder = async (payload: { name: string; rules: Record<string, unknown>; autoTags: string[] }) => {
-    if (editing) {
-      const r = await api.updateSmartFolder(editing.id, payload);
-      setFolders(r.folders);
-      onToast(`已更新「${payload.name}」`);
-    } else {
-      const r = await api.createSmartFolder(payload);
-      setFolders(r.folders);
-      onToast('已创建智能文件夹');
+    try {
+      if (editing) {
+        const r = await api.updateSmartFolder(editing.id, payload);
+        setFolders(r.folders);
+        onToast(`已更新「${payload.name}」`);
+      } else {
+        const r = await api.createSmartFolder(payload);
+        setFolders(r.folders);
+        onToast('已创建智能文件夹');
+      }
+      // 成功才关编辑器：失败时用户填的条件不能被清掉
+      setEditing(undefined);
+    } catch (err) {
+      onToast(`保存智能文件夹失败：${(err as Error).message}`, 'error');
     }
-    setEditing(undefined);
   };
 
   const applyTags = async (id: number, fname: string) => {
     try {
       const r = await api.applySmartFolderTags(id);
-      setTags(r.tags);
+      refreshTags(r);
       onToast(`已把「${fname}」的标签继承到 ${r.changed} 张图`);
-      load();
     } catch (err) {
-      onToast((err as Error).message);
+      onToast((err as Error).message, 'error');
     }
   };
 
@@ -108,7 +118,7 @@ export default function Smart({ onToast, onOpenItem }: Props) {
       setPreviewTotal(r.total);
       setPreviewName(f.name);
     } catch (err) {
-      onToast((err as Error).message);
+      onToast((err as Error).message, 'error');
     } finally {
       setPreviewLoading(false);
     }
@@ -128,7 +138,7 @@ export default function Smart({ onToast, onOpenItem }: Props) {
       });
       setPreviewTotal(r.total);
     } catch (err) {
-      onToast((err as Error).message);
+      onToast((err as Error).message, 'error');
     } finally {
       setPreviewLoading(false);
     }
@@ -141,17 +151,18 @@ export default function Smart({ onToast, onOpenItem }: Props) {
       setPreviewItems((prev) => (prev ? prev.map((x) => (x.id === updated.id ? updated : x)) : prev));
       onToast(updated.favorite ? '已加入收藏' : '已取消收藏');
     } catch (err) {
-      onToast((err as Error).message);
+      onToast((err as Error).message, 'error');
     }
   };
 
   const delFolder = async (id: number) => {
-    if (!window.confirm('删除该智能文件夹？')) return;
+    if (!(await confirmDialog('删除该智能文件夹？'))) return;
     try {
       const r = await api.deleteSmartFolder(id);
       setFolders(r.folders);
+      onToast('已删除智能文件夹');
     } catch (err) {
-      onToast((err as Error).message);
+      onToast(`删除失败：${(err as Error).message}`, 'error');
     }
   };
 
@@ -259,7 +270,12 @@ export default function Smart({ onToast, onOpenItem }: Props) {
                   已显示 {previewItems.length} / {previewTotal} 张
                 </span>
                 {previewItems.length < previewTotal && (
-                  <button className="btn sm" disabled={previewLoading} onClick={loadMorePreview}>
+                  <button
+                    className="btn sm"
+                    disabled={previewLoading}
+                    title={previewLoading ? '上一页还在加载' : '继续加载这个智能文件夹里的图片'}
+                    onClick={loadMorePreview}
+                  >
                     {previewLoading ? '加载中…' : '加载更多'}
                   </button>
                 )}

@@ -15,7 +15,7 @@ interface Props {
   /** 批量导出时的图片 id 列表（优先于 item） */
   ids?: number[];
   onClose: () => void;
-  onToast?: (msg: string) => void;
+  onToast?: (msg: string, kind?: 'info' | 'error') => void;
 }
 
 const FORMATS = [
@@ -88,7 +88,7 @@ export default function ExportDialog({ item, ids, onClose, onToast }: Props) {
               <span>张</span>
             </div>
           ) : (
-            item && <img src={item.thumbUrl || item.url} alt="" />
+            item && <img src={item.thumbUrl || item.url} alt="" loading="lazy" decoding="async" />
           )}
           <div className="exp-form">
             <div className="exp-field">

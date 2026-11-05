@@ -5,6 +5,8 @@ import { BUCKET_LABELS, ORIENTATION_LABELS, SOURCE_LABELS, formatSize } from '..
 
 interface Props {
   stats: Stats | null;
+  /** 统计接口失败的原因：有值就说明加载态是假象，得如实告诉用户失败了 */
+  error?: string;
   /** pool 传入同一批图片，预览时才可左右切换 / 滚轮翻图 */
   onOpen: (item: ImageItem, pool?: ImageItem[]) => void;
   onNavigate: (view: string) => void;
@@ -12,12 +14,23 @@ interface Props {
 
 const BUCKET_ORDER = ['sd', 'fhd', '2k', '4k'];
 
-export default function Dashboard({ stats, onOpen, onNavigate }: Props) {
+export default function Dashboard({ stats, error, onOpen, onNavigate }: Props) {
   if (!stats) {
     return (
       <div className="empty">
-        <span className="spinner" />
-        <p style={{ marginTop: 14 }}>加载中…</p>
+        {error ? (
+          <>
+            <div className="big">⚠️</div>
+            <h3>统计没能加载出来</h3>
+            <p>{error}</p>
+            <p style={{ color: 'var(--muted)' }}>用顶部错误条上的「重试」再拉一次；持续失败请查看日志。</p>
+          </>
+        ) : (
+          <>
+            <span className="spinner" />
+            <p style={{ marginTop: 14 }}>加载中…</p>
+          </>
+        )}
       </div>
     );
   }

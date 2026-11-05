@@ -10,6 +10,8 @@
  *   - 心跳检测：事件循环被卡死（进程还在但不响应）也要重启
  */
 import { EventEmitter } from 'node:events';
+import { spawn } from 'node:child_process';
+import { restartDelay } from './lib/pure.js';
 
 const READY_TIMEOUT = 30_000;
 const PING_TIMEOUT = 8_000;
@@ -45,8 +47,21 @@ export class ServerHost extends EventEmitter {
     return !!this.child && !this.stopping;
   }
 
-  /** 拉起子进程并等待 ready；失败抛出可读错误（不含堆栈刷屏） */
+  /**
+   * 拉起子进程并等待 ready；失败抛出可读错误（不含堆栈刷屏）。
+   * Promise 级互斥：崩溃重启、心跳超时、托盘手动重启可能交叉进入这个方法，
+   * 以前会 fork 出两个服务进程抢同一个 SQLite（后者覆盖前者，前者成为孤儿）。
+   */
   async start() {
+    if (this.running) return this.info();
+    if (this._starting) return this._starting;
+    this._starting = this._start().finally(() => {
+      this._starting = null;
+    });
+    return this._starting;
+  }
+
+  async _start() {
     if (this.running) return this.info();
     this.stopping = false;
     const { utilityProcess } = await import('electron');
@@ -156,7 +171,16 @@ export class ServerHost extends EventEmitter {
   }
 
   /** 崩溃重启：退避 + 时间窗内次数上限；成功后广播新端口（可能变了） */
-  async _restart(reason) {
+  _restart(reason) {
+    // 串行化：exit 与心跳超时可能同时触发，重复走一遍会白白多杀一次进程
+    if (this._restartChain) return this._restartChain;
+    this._restartChain = this._doRestart(reason).finally(() => {
+      this._restartChain = null;
+    });
+    return this._restartChain;
+  }
+
+  async _doRestart(reason) {
     const now = Date.now();
     this.restarts = this.restarts.filter((t) => now - t < RESTART_WINDOW);
     if (this.restarts.length >= MAX_RESTARTS) {
@@ -164,12 +188,12 @@ export class ServerHost extends EventEmitter {
       return;
     }
     this.restarts.push(now);
-    const delay = [500, 1500, 3000][Math.min(this.restarts.length - 1, 2)];
+    const delay = restartDelay(this.restarts.length);
     await new Promise((r) => setTimeout(r, delay));
     if (this.stopping) return;
     try {
       const info = await this.start();
-      console.log('[api] 服务进程已重启，端口', info.port);
+      console.info('[api] 服务进程已重启，端口', info.port);
       this.emit('restarted', info);
     } catch (err) {
       console.error('[api] 重启失败：', err.message);
@@ -211,8 +235,29 @@ export class ServerHost extends EventEmitter {
   _killChild() {
     const child = this.child;
     this.child = null;
+    if (!child) return;
+    // Windows 上 child.kill() 只杀这一个进程，它拉起的子孙进程会残留并继续持有
+    // gallery.db —— 下次启动就撞锁（standalone 里「上次异常退出」的提示就是这个场景）。
+    // 没有 Job Object 可用时，taskkill /T 是最接近的进程树回收手段。
+    if (process.platform === 'win32' && child.pid) {
+      try {
+        spawn('taskkill', ['/pid', String(child.pid), '/T', '/F'], {
+          windowsHide: true,
+          stdio: 'ignore',
+        }).on('error', () => {
+          try {
+            child.kill();
+          } catch {
+            /* 已退出 */
+          }
+        });
+        return;
+      } catch {
+        /* 落到下面的普通 kill */
+      }
+    }
     try {
-      child?.kill();
+      child.kill();
     } catch {
       /* 已退出 */
     }
@@ -220,6 +265,8 @@ export class ServerHost extends EventEmitter {
 
   async stop() {
     this.stopping = true;
+    // 正在 fork 的话等它落地，否则刚 start 出来的 child 没人收
+    if (this._starting) await this._starting.catch(() => {});
     this._stopHealthLoop();
     const child = this.child;
     if (!child) return;

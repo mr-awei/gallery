@@ -45,9 +45,19 @@ for (const f of files) {
   const debug = lines.filter((l) => /^\s*console\.log\(/.test(l)).length;
   // verify-* 是 npm run verify 的报告输出脚本，console.log 是本职，不按调试残留告警
   const isReportScript = /^scripts[\\/](manual[\\/])?verify-[^\\/]*\.mjs$/.test(rel);
-  if (debug > 8 && !isReportScript) {
-    warned++;
-    console.warn(`[lint] ${rel}: ${debug} 处 console.log（调试残留？）`);
+  // electron/ 严格为 0：生命周期日志统一走 console.info（logger 已接管，会落盘），
+  // console.log 只可能是临时调试残留。server/ 与 scripts/ 放宽到 8，
+  // 它们跑在子进程里，stdout 会被主进程按行转发，console.log 是正常输出手段。
+  const strict = /^electron[\\/]/.test(rel);
+  const limit = strict ? 0 : 8;
+  if (debug > limit && !isReportScript) {
+    if (strict) {
+      failed++;
+      console.error(`[lint] ${rel}: ${debug} 处 console.log（electron 里请改用 console.info）`);
+    } else {
+      warned++;
+      console.warn(`[lint] ${rel}: ${debug} 处 console.log（调试残留？）`);
+    }
   }
 }
 

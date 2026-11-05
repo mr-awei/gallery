@@ -1,3 +1,4 @@
+import fs from 'node:fs';
 import path from 'node:path';
 import { DatabaseSync } from 'node:sqlite';
 import { DB_FILE, GLOBAL_DB_FILE, DATA_DIR, THUMB_DIR, DEFAULT_STORAGE_DIR } from './config.js';
@@ -100,8 +101,72 @@ CREATE TABLE IF NOT EXISTS libraries (
 /* ------------------------------- 库连接 ------------------------------- */
 
 /** 库内建表 + 触发器 + 结构迁移。对每个打开的库连接执行一遍。 */
+/**
+ * 单调迁移列表：每项 { version, note, run(conn) }。
+ * - 只在「真的改表结构」时追加新版本，版本号必须严格递增；
+ * - run 必须幂等（迁移中途失败后重跑不会把库改坏）；
+ * - 老库的「逐列探测 + 补列」仍留在下面的 reconcile 段里（它本身就是幂等的），
+ *   这里只负责记版本、跑增量步骤、失败回滚。
+ *
+ * 以前没有任何版本号：迁移全靠 PRAGMA table_info 猜测，失败既不回滚也不留痕，
+ * 降级安装或绿色版/安装版共用一个 userData 时，跨版本 schema 混用只能靠运气。
+ */
+const MIGRATIONS = [
+  { version: 1, note: '引入 schema 版本表（基线；结构由幂等 reconcile 对齐）', run() {} },
+];
+
+const SCHEMA_VERSION = MIGRATIONS[MIGRATIONS.length - 1].version;
+
+/** 升级前留一份一致性快照：VACUUM INTO 会带上 WAL 里已提交但还没合并的数据 */
+function backupBeforeUpgrade(conn, fromVersion) {
+  let file;
+  try {
+    file = String(conn.prepare('PRAGMA database_list').get()?.file || '');
+  } catch {
+    return;
+  }
+  if (!file) return;
+  const stamp = new Date().toISOString().slice(0, 10);
+  const dest = `${file}.bak-v${fromVersion || 'legacy'}-${stamp}`;
+  if (fs.existsSync(dest)) return; // 今天已经备份过，别每次切库都复制一份
+  try {
+    // VACUUM INTO 不接受参数绑定，路径里的单引号必须自己转义
+    conn.exec(`VACUUM INTO '${dest.replace(/'/g, "''")}'`);
+    console.info('[db] 升级前已备份到', dest);
+  } catch (err) {
+    console.warn('[db] 升级前备份失败（继续迁移）：', err?.message || err);
+  }
+}
+
 function initLibrarySchema(conn) {
-  conn.exec(`
+  // ---- 版本化迁移：先建版本表，老库没有它 = 0 ----
+  conn.exec('CREATE TABLE IF NOT EXISTS schema_migrations (version INTEGER PRIMARY KEY, applied_at TEXT NOT NULL)');
+  const fromVersion = Number(conn.prepare('SELECT MAX(version) AS v FROM schema_migrations').get()?.v) || 0;
+  if (fromVersion > SCHEMA_VERSION) {
+    // 降级安装：新库里有本版本不认识的列/表。幂等 reconcile 不会删东西，
+    // 但写进去的数据旧代码可能读不懂 —— 至少留一份备份并明确告警。
+    console.error(
+      `[db] 这个库由更高版本创建（v${fromVersion} > v${SCHEMA_VERSION}），请升级应用后再使用；已自动备份。`
+    );
+    backupBeforeUpgrade(conn, `newer-${fromVersion}`);
+  } else if (fromVersion > 0 && fromVersion < SCHEMA_VERSION) {
+    // 只在「真的要跑结构迁移」时备份：
+    // 老库（fromVersion = 0）走的仍是幂等 reconcile（只补列/建索引，不删不改），
+    // 对它做 VACUUM INTO 等于在启动路径上复制一整个可能几个 GB 的库，得不偿失。
+    backupBeforeUpgrade(conn, fromVersion);
+  }
+
+  conn.exec('BEGIN');
+  try {
+    for (const m of MIGRATIONS) {
+      if (m.version <= fromVersion) continue;
+      m.run(conn);
+      conn
+        .prepare('INSERT OR IGNORE INTO schema_migrations(version, applied_at) VALUES (?, ?)')
+        .run(m.version, new Date().toISOString());
+    }
+
+    conn.exec(`
 -- 库内设置表：除应用级键（主题/首次引导/自启/更新源，见 GLOBAL_SETTING_KEYS）外的
 -- 所有设置都存在这里——每个资源库一套独立的采集源、AI、壁纸、网络配置
 CREATE TABLE IF NOT EXISTS settings (
@@ -487,6 +552,15 @@ END;
   ensureColumn('images', 'eagle_id', "eagle_id TEXT NOT NULL DEFAULT ''");
   conn.exec('CREATE INDEX IF NOT EXISTS idx_images_eagle ON images(eagle_id)');
 
+  // abs_path 唯一索引：watch 防抖回调与手动 rescan 可能同时进入，两边都判「不存在」就各插一条。
+  // 老库里若已经有重复路径，唯一索引建不起来（会抛错）——这里只告警、不阻断启动，
+  // 用去重面板清掉重复后再重启即可自动补上。
+  try {
+    conn.exec('CREATE UNIQUE INDEX IF NOT EXISTS idx_images_path_unique ON images(abs_path)');
+  } catch (err) {
+    console.warn('[db] abs_path 存在重复记录，唯一索引暂未建立：', err?.message || err);
+  }
+
   // hue 由单列整数改为多值文本（逗号分隔，最多 3 个色系；空串 = 黑白灰）。
   {
     const hueCol = conn.prepare("SELECT name, type FROM pragma_table_info('images') WHERE name='hue'").get();
@@ -572,6 +646,24 @@ END;`);
     }
   } catch (err) {
     console.error('[fts] FTS5 初始化失败（搜索退回 LIKE）:', err?.message || err);
+  }
+
+    conn
+      .prepare('INSERT OR IGNORE INTO schema_migrations(version, applied_at) VALUES (?, ?)')
+      .run(SCHEMA_VERSION, new Date().toISOString());
+    conn.exec('COMMIT');
+  } catch (err) {
+    // SQLite 的 DDL 也在事务里：中途失败就整体回滚，库还是迁移前的样子，
+    // 不会留下「加了一半列」的半成品（以前失败只抛错，状态未知）。
+    try {
+      conn.exec('ROLLBACK');
+    } catch {
+      /* 事务可能已经被 SQLite 自己回滚 */
+    }
+    throw new Error(
+      `库结构迁移失败（v${fromVersion} → v${SCHEMA_VERSION}）：${err?.message || err}`,
+      { cause: err }
+    );
   }
 }
 
@@ -822,7 +914,6 @@ export const DEFAULT_SETTINGS = {
 };
 
 // 默认不预置任何采集关键词——软件是通用图库，搜什么由用户在「采集」页自己填。
-const DEFAULT_KEYWORDS = [];
 
 let settingsCache = null;
 
@@ -1030,12 +1121,7 @@ export function listEnabledKeywords() {
   return db.prepare('SELECT * FROM keywords WHERE enabled = 1 ORDER BY id ASC').all();
 }
 
-export function seedDefaults() {
-  const count = db.prepare('SELECT COUNT(*) AS c FROM keywords').get().c;
-  if (count === 0) {
-    for (const kw of DEFAULT_KEYWORDS) addKeyword(kw);
-  }
-}
+// seedDefaults() 已删除：DEFAULT_KEYWORDS 是空数组，这个函数永远是空操作。
 
 /* ------------------------------- 启动初始化 ------------------------------- */
 
@@ -1063,4 +1149,3 @@ ensureDefaultLibrary();
   }
   if (active) activeLibrary = active;
 }
-seedDefaults();

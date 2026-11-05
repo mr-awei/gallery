@@ -3,7 +3,7 @@ import { api, desktop } from '../api';
 
 interface Props {
   onImported: (count: number) => void;
-  onToast?: (msg: string) => void;
+  onToast?: (msg: string, kind?: 'info' | 'error') => void;
 }
 
 interface Rect {

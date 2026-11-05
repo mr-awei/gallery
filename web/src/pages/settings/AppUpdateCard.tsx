@@ -7,7 +7,7 @@ import Card from './Card';
 interface Props {
   appInfo: AppInfo | null;
   patch: (p: Partial<SettingsType>) => void;
-  onToast: (msg: string) => void;
+  onToast: (msg: string, kind?: 'info' | 'error') => void;
 }
 
 const EMPTY_STATE: UpdateState = {
@@ -94,7 +94,7 @@ export default function AppUpdateCard({ appInfo, patch, onToast }: Props) {
   return (
     <Card
       title="应用与更新"
-      desc="随系统启动；安装版每次启动都会向 GitHub Releases 查询新版本，确认有更新后自动下载并重启安装（更新完成前不可使用）。"
+      desc="随系统启动；安装版每次启动都会在后台静默向 GitHub Releases 查询并下载新版本，这期间可以照常使用。只有更新包下载完成、可以立刻安装时才会提示重启安装。"
     >
       {desktop && (
         <div className="switch-row">

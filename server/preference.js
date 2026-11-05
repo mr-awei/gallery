@@ -11,7 +11,7 @@
  *
  * 训练结果写回 images.pref（0-100），供「推荐排序」与壁纸挑选使用。
  */
-import { db, getSettings, saveSettings } from './db.js';
+import { db, getSettings, saveSettings, withTransaction } from './db.js';
 
 /** AI 描述里的问题词 → 特征（与 kb 的原因体系一致） */
 const TERMS = ['模糊', '噪点', '闭眼', '表情', '动作', '扭曲', '水印', 'Logo', '过曝', '光线', '构图', '背景', '修图', '低清'];
@@ -149,25 +149,24 @@ export function trainPreference() {
   const model = trainSgd(samples, feats.names.length);
   const wArr = Float64Array.from(model.w);
 
-  // 给全库打分写回
-  const rows = db.prepare('SELECT * FROM images').all();
+  // 给全库打分写回：只取特征需要的列（SELECT * 会把备注/AI 描述等大字段全读进内存），
+  // 且分数没变就不写 —— 百万级库逐行 UPDATE 本身就是主要耗时。
+  const rows = db
+    .prepare('SELECT id, source, keyword, width, height, hue, pref FROM images')
+    .all();
   const descMap = new Map(db.prepare('SELECT image_id, description, issues FROM ai_desc').all().map((r) => [r.image_id, `${r.description || ''} ${r.issues || ''}`]));
   const fitMap = new Map(db.prepare('SELECT image_id, brightness FROM wallpaper_fit').all().map((r) => [r.image_id, r.brightness]));
   const sharpMap = new Map(db.prepare('SELECT image_id, sharpness FROM image_quality').all().map((r) => [r.image_id, r.sharpness]));
   const upd = db.prepare('UPDATE images SET pref = ? WHERE id = ?');
-  db.exec('BEGIN');
-  try {
+  withTransaction(() => {
     for (const row of rows) {
       const x = vectorOf(row, descMap.get(row.id) || '', fitMap.get(row.id), sharpMap.get(row.id), feats);
       let z = model.b;
       for (let i = 0; i < x.length; i++) z += wArr[i] * x[i];
-      upd.run(Math.round(sigmoid(z) * 100), row.id);
+      const next = Math.round(sigmoid(z) * 100);
+      if (row.pref !== next) upd.run(next, row.id);
     }
-    db.exec('COMMIT');
-  } catch (err) {
-    db.exec('ROLLBACK');
-    throw err;
-  }
+  });
 
   saveSettings({
     prefModel: {

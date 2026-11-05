@@ -80,15 +80,29 @@ async function main() {
     started = await startServer(wantPort, { desktop: isDesktop });
   } catch (err) {
     if (err?.code === 'EADDRINUSE') {
-      console.error(
-        `\n  端口 ${wantPort} 已被占用：可能已有一个图库实例在运行（或上次异常退出留下的残留进程）。\n` +
-          '  处理办法：结束已运行的 node 进程后重试；或换端口启动：\n' +
-          '    PowerShell:  $env:PORT=3002; npm start\n' +
-          '    CMD:         set PORT=3002&& npm start\n'
-      );
-      process.exit(1);
+      // 桌面端：端口被别的程序抢走时不能让整个服务退出（主进程重试几次就会进 dead，
+      // 表现是「界面开着但所有接口 404」）。直接回退到系统分配的随机端口，
+      // 把新端口放在 ready 消息里回传，主进程据此重载窗口。
+      if (isDesktop) {
+        console.warn(`[server] 端口 ${wantPort} 已被占用，改用系统分配的随机端口`);
+        try {
+          started = await startServer(0, { desktop: isDesktop });
+        } catch (err2) {
+          fatal('listen', err2);
+          return;
+        }
+      } else {
+        console.error(
+          `\n  端口 ${wantPort} 已被占用：可能已有一个图库实例在运行（或上次异常退出留下的残留进程）。\n` +
+            '  处理办法：结束已运行的 node 进程后重试；或换端口启动：\n' +
+            '    PowerShell:  $env:PORT=3002; npm start\n' +
+            '    CMD:         set PORT=3002&& npm start\n'
+        );
+        process.exit(1);
+      }
+    } else {
+      throw err;
     }
-    throw err;
   }
   const { server, port } = started;
   serverRef = server;
