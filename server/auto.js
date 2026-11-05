@@ -206,7 +206,11 @@ export async function applyNow(scopeOverride = null, playlistIdOverride = null) 
     playlistId: playlistIdOverride ?? current.playlistId,
   };
   const imageId = await pickImage(cfg);
-  if (!imageId) throw new Error('该范围内没有可用图片');
+  if (!imageId) {
+    throw new Error(
+      '该范围内没有可用图片，请到「设置 → 壁纸」切换挑选范围，或先往图库里添加图片'
+    );
+  }
 
   // 闭环：抽到的图低于画质标准时，先自动增强再设为壁纸（可选开关）
   if (cfg.autoEnhance === true) {

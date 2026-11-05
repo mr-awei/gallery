@@ -299,8 +299,8 @@ npm run dist        # Windows 安装包 → release-build/TuKu-Setup-<version>.e
 
 ```bash
 npm version patch --no-git-tag-version   # 或手动改 package.json
-git commit -am "chore: 发布 v1.1.1"
-git tag v1.1.1 && git push origin main --tags
+git commit -am "chore: 发布 v1.2.0"
+git tag v1.2.0 && git push origin main --tags
 ```
 
 标签推送后 CI 会构建并把安装包挂到正式 Release；安装版客户端下次启动就会强制升级到该版本。
