@@ -10,7 +10,7 @@ export async function md5File(file) {
     const stream = fs.createReadStream(file);
     stream.on('data', (chunk) => hash.update(chunk));
     stream.on('error', reject);
-    stream.on('end', resolve);
+    stream.on('end', () => resolve());
   });
   return hash.digest('hex');
 }

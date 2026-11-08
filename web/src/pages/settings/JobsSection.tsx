@@ -3,6 +3,7 @@ import { api, quiet } from '../../api';
 import type { JobItem, OpLogItem } from '../../api';
 import Card from './Card';
 import { usePollWhenVisible } from '../../hooks/usePollWhenVisible';
+import { subscribeEvents } from '../../events';
 
 interface Props {
   onToast: (msg: string, kind?: 'info' | 'error') => void;
@@ -59,8 +60,20 @@ export default function JobsSection({ onToast }: Props) {
   useEffect(() => {
     refresh();
   }, [refresh]);
-  // 任务历史没有专门的 SSE 事件，只在页面可见时低频兜底；隐藏时 0 请求
-  usePollWhenVisible(refresh, 5000);
+  // 任务态变化走已有 job SSE（快照含批量编辑/采集/增强），合并 400ms 内多次变化只拉一次；
+  // 轮询退化成「连续收不到推送」时的兜底，页面隐藏时 0 请求。
+  useEffect(() => {
+    let timer: number | undefined;
+    const off = subscribeEvents('job', () => {
+      if (timer) window.clearTimeout(timer);
+      timer = window.setTimeout(refresh, 400);
+    });
+    return () => {
+      off();
+      if (timer) window.clearTimeout(timer);
+    };
+  }, [refresh]);
+  usePollWhenVisible(refresh, 15000);
 
   const cancel = async (job: JobItem) => {
     setBusy(true);

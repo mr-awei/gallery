@@ -13,28 +13,50 @@ function isMissingTable(err) {
 }
 
 
-/** 只看「当前可见」的素材的标签：隐私夹里的图不能通过标签云/筛选把名字漏出来 */
-function visibleTagRows() {
+/** 标签计数的聚合缓存：key 是「库文件 + 本连接累计写入行数」，任何写都会自然失效 */
+let aggCache = { key: '', rows: null };
+
+function changesKey() {
+  const file = String(
+    db
+      .prepare('PRAGMA database_list')
+      .all()
+      ?.find((r) => r.name === 'main')?.file || ''
+  );
+  const n = Number(db.prepare('SELECT total_changes() AS n').get()?.n || 0);
+  return `${file}|${n}`;
+}
+
+/** 聚合 SQL 的公共部分：始终 join images（隐私锁 + 堆叠口径都要用），item_tags 按 tag 走索引 */
+function aggBase() {
   const hidden = hiddenImagesClause();
-  // 堆叠成员默认不在列表里出现：只挂在成员上的标签不能进标签云，
-  // 否则点进去是 0 张（计数与结果对不上）
-  const stack = ' AND (stack_id = 0 OR stack_id = id)';
-  const sql = `SELECT tags FROM images WHERE tags <> ''${stack}${hidden ? ` AND ${hidden.sql}` : ''}`;
-  return db.prepare(sql).all(...(hidden ? hidden.params : []));
+  const conds = `(images.stack_id = 0 OR images.stack_id = images.id)${hidden ? ` AND ${hidden.sql}` : ''}`;
+  return { conds, params: hidden ? [...hidden.params] : [] };
+}
+
+/** 标签 → 张数（带缓存）。force=true 跳过缓存重算，给 ?fresh=1 用 */
+function tagCounts({ force = false } = {}) {
+  const { conds, params } = aggBase();
+  // 缓存 key 必须带上隐私条件：解锁 / 加锁某个文件夹不一定写库，
+  // 只按「写入行数」判断会把锁定文件夹的标签名从缓存里漏出去
+  const key = `${changesKey()}|${conds}`;
+  if (!force && aggCache.key === key && aggCache.rows) return aggCache.rows;
+  const rows = db
+    .prepare(
+      `SELECT t.tag AS tag, COUNT(*) AS count FROM item_tags t JOIN images ON images.id = t.image_id
+        WHERE ${conds} GROUP BY t.tag`
+    )
+    .all(...params);
+  aggCache = { key, rows };
+  return rows;
 }
 
 /** 列出所有标签及出现次数（用于标签云 / 筛选） */
 export function listTags() {
-  const counter = new Map();
-  for (const row of visibleTagRows()) {
-    for (const tag of String(row.tags).split(',')) {
-      const t = tag.trim();
-      if (t) counter.set(t, (counter.get(t) || 0) + 1);
-    }
-  }
-  return [...counter.entries()]
-    .map(([tag, count]) => ({ tag, count }))
-    .sort((a, b) => b.count - a.count);
+  // 百万行的 tags 串不再拉进 Node 逐条 split：聚合下推到 item_tags 倒排表
+  return tagCounts()
+    .slice()
+    .sort((a, b) => b.count - a.count || a.tag.localeCompare(b.tag, 'zh-Hans-CN'));
 }
 
 /* ------------------------------ 标签元数据 ------------------------------ */
@@ -56,15 +78,12 @@ function metaMap() {
  * 层级用 parent（父标签名）表达 —— 标签本体仍是逗号串，层级只影响展示与筛选，
  * 所以「父标签」不必真实存在于某张图上，也可以只是一个分类节点。
  */
-export function listTagsRich() {
+export function listTagsRich({ fresh = false } = {}) {
   const meta = metaMap();
+  // 以前把整库 tags 串拉进 Node 逐条 split：百万行时单次调用 800ms 且吃掉几十 MB。
+  // 现在聚合下推到 item_tags（tag 是主键前缀，GROUP BY 可走索引），结果按写入指纹缓存。
   const counter = new Map();
-  for (const row of visibleTagRows()) {
-    for (const tag of String(row.tags).split(',')) {
-      const t = tag.trim();
-      if (t) counter.set(t, (counter.get(t) || 0) + 1);
-    }
-  }
+  for (const row of tagCounts({ force: fresh })) counter.set(row.tag, row.count);
   // 只作为父节点存在、自身没有挂图的分类节点也要出现在树里（Eagle 允许空分组）
   for (const m of meta.values()) if (!counter.has(m.tag)) counter.set(m.tag, 0);
   const list = [...counter.entries()].map(([tag, count]) => {

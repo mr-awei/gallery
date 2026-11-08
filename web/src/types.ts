@@ -598,6 +598,18 @@ export interface LanStatus {
   note: string;
 }
 
+/** 只读分享链接：只能浏览 / 搜索，不能上传；令牌只存服务端内存，重启失效 */
+export interface LanShare {
+  token: string;
+  /** ISO 时间 */
+  expiresAt: string;
+  /** ISO 时间 */
+  createdAt: string;
+  urls: string[];
+  /** 仅创建响应带：有效分钟数 */
+  minutes?: number;
+}
+
 /** 已安装的插件（/api/plugins 下发；宿主不回传 entry / 绝对路径细节） */
 export interface PluginInfo {
   id: string;

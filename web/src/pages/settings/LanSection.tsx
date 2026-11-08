@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { api, withToken } from '../../api';
-import type { LanStatus } from '../../types';
+import type { LanShare, LanStatus } from '../../types';
 import Card from './Card';
 
 interface Props {
@@ -12,12 +12,16 @@ export default function LanSection({ onToast }: Props) {
   const [status, setStatus] = useState<LanStatus | null>(null);
   const [qrUrl, setQrUrl] = useState('');
   const [busy, setBusy] = useState(false);
+  const [shares, setShares] = useState<LanShare[]>([]);
+  const [shareMinutes, setShareMinutes] = useState(60);
 
   const load = async () => {
     try {
       const s = await api.lanStatus();
       setStatus(s);
       setQrUrl(s.enabled ? await withToken('/api/lan/qrcode.svg') : '');
+      if (s.enabled) setShares((await api.lanShares()).shares || []);
+      else setShares([]);
     } catch (err) {
       onToast(`读取投送状态失败：${(err as Error).message}`, 'error');
     }
@@ -99,6 +103,88 @@ export default function LanSection({ onToast }: Props) {
                     重新生成
                   </button>
                 </div>
+              </div>
+              <div className="field" style={{ marginTop: 12, borderTop: '1px solid var(--border)', paddingTop: 12 }}>
+                <label>只读分享链接（手机 / 另一台设备浏览当前库，不能上传、看不到设置）</label>
+                <div style={{ display: 'flex', gap: 6, alignItems: 'center', flexWrap: 'wrap' }}>
+                  <select
+                    value={shareMinutes}
+                    onChange={(e) => setShareMinutes(Number(e.target.value))}
+                    style={{ padding: '6px 8px', borderRadius: 8 }}
+                  >
+                    <option value={30}>30 分钟</option>
+                    <option value={60}>1 小时</option>
+                    <option value={180}>3 小时</option>
+                    <option value={1440}>1 天</option>
+                  </select>
+                  <button
+                    className="btn sm"
+                    disabled={busy}
+                    onClick={() =>
+                      void (async () => {
+                        setBusy(true);
+                        try {
+                          const r = await api.createLanShare(shareMinutes);
+                          await load();
+                          onToast(`已生成只读链接，${r.minutes} 分钟后失效`);
+                        } catch (err) {
+                          onToast(`生成失败：${(err as Error).message}`, 'error');
+                        } finally {
+                          setBusy(false);
+                        }
+                      })()
+                    }
+                  >
+                    生成链接
+                  </button>
+                  {shares.length > 0 && (
+                    <button
+                      className="btn sm ghost"
+                      disabled={busy}
+                      onClick={() =>
+                        void (async () => {
+                          setBusy(true);
+                          try {
+                            const r = await api.revokeLanShares();
+                            await load();
+                            onToast(`已撤销 ${r.revoked} 条只读链接`);
+                          } catch (err) {
+                            onToast(`撤销失败：${(err as Error).message}`, 'error');
+                          } finally {
+                            setBusy(false);
+                          }
+                        })()
+                      }
+                    >
+                      全部撤销（{shares.length}）
+                    </button>
+                  )}
+                </div>
+                <div className="hint">
+                  令牌只存在服务端内存里：重启应用或点「全部撤销」立即失效。链接里的人只能浏览、搜索，不能上传。
+                </div>
+                {shares.map((s) => {
+                  const url = s.urls[0] || '';
+                  return (
+                    <div key={s.token} style={{ display: 'flex', gap: 6, alignItems: 'center', marginTop: 6 }}>
+                      <input className="input" readOnly value={url} onFocus={(e) => e.currentTarget.select()} />
+                      <span className="hint" style={{ whiteSpace: 'nowrap' }}>
+                        {new Date(s.expiresAt).toLocaleString()}
+                      </span>
+                      <button
+                        className="btn sm ghost"
+                        onClick={() =>
+                          void navigator.clipboard
+                            ?.writeText(url)
+                            .then(() => onToast('链接已复制'))
+                            .catch(() => onToast('复制失败，请手动选中', 'error'))
+                        }
+                      >
+                        复制
+                      </button>
+                    </div>
+                  );
+                })}
               </div>
             </>
           ) : (

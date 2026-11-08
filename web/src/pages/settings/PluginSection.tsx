@@ -79,26 +79,39 @@ export default function PluginSection({ onToast }: Props) {
           </button>
         </div>
 
-        {!plugins.length && <div className="hint">还没有插件。内置的示例插件目录为 plugins/tag-prefix，可复制后修改。</div>}
-        {plugins.map((p) => (
-          <div key={p.id} className="field" style={{ borderTop: '1px solid var(--border)', paddingTop: 12 }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', gap: 8, alignItems: 'center' }}>
-              <div>
-                <b>{p.name}</b>{' '}
-                <span style={{ color: 'var(--muted)', fontSize: 12 }}>
-                  {p.id} · v{p.version} · {p.builtin ? '内置' : '用户安装'}
-                </span>
+        {!plugins.length && <div className="hint">还没有插件。内置官方插件随安装包分发，用户插件放到用户插件目录即可。</div>}
+        {[
+          { key: 'official', label: '官方插件（随安装包分发）', list: plugins.filter((p) => p.builtin) },
+          { key: 'user', label: '用户插件（自己放进去的）', list: plugins.filter((p) => !p.builtin) },
+        ].map(
+          (group) =>
+            group.list.length > 0 && (
+              <div key={group.key} style={{ marginTop: 12 }}>
+                <div style={{ fontSize: 12, color: 'var(--muted)', marginBottom: 4 }}>
+                  {group.label} · {group.list.length} 个
+                </div>
+                {group.list.map((p) => (
+                  <div key={p.id} className="field" style={{ borderTop: '1px solid var(--border)', paddingTop: 12 }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', gap: 8, alignItems: 'center' }}>
+                      <div>
+                        <b>{p.name}</b>{' '}
+                        <span style={{ color: 'var(--muted)', fontSize: 12 }}>
+                          {p.id} · v{p.version}
+                        </span>
+                      </div>
+                      <button className="btn sm" disabled={!!running} onClick={() => void run(p.id)}>
+                        {running === p.id ? '运行中…' : '试运行（不写库）'}
+                      </button>
+                    </div>
+                    <div className="hint">{p.description}</div>
+                    <div className="hint">
+                      权限：{p.permissions.join(', ') || '无'} · 动作：{p.actions.join(', ')}
+                    </div>
+                  </div>
+                ))}
               </div>
-              <button className="btn sm" disabled={!!running} onClick={() => void run(p.id)}>
-                {running === p.id ? '运行中…' : '试运行（不写库）'}
-              </button>
-            </div>
-            <div className="hint">{p.description}</div>
-            <div className="hint">
-              权限：{p.permissions.join(', ') || '无'} · 动作：{p.actions.join(', ')}
-            </div>
-          </div>
-        ))}
+            )
+        )}
         {result && (
           <div className="hint" style={{ marginTop: 10, color: 'var(--ok)' }}>
             ✔ {result.plugin} → logs: {result.logs.join(' / ') || '（无）'}；写回字段：

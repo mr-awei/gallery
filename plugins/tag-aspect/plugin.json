@@ -1,0 +1,9 @@
+{
+  "id": "tag-aspect",
+  "name": "按画幅与分辨率打标",
+  "version": "1.0.0",
+  "entry": "index.js",
+  "permissions": ["image:read", "image:write", "log"],
+  "actions": ["run"],
+  "description": "官方插件：按宽高比追加「横图 / 竖图 / 方图」，按长边追加「1K / 2K / 4K」档位标签。只追加，不覆盖已有标签；重复运行不会产生重复标签。"
+}

@@ -43,8 +43,10 @@ for (const f of files) {
   }
   const lines = fs.readFileSync(f, 'utf8').split('\n');
   const debug = lines.filter((l) => /^\s*console\.log\(/.test(l)).length;
-  // verify-* 是 npm run verify 的报告输出脚本，console.log 是本职，不按调试残留告警
-  const isReportScript = /^scripts[\\/](manual[\\/])?verify-[^\\/]*\.mjs$/.test(rel);
+  // verify-* / bench-* 是报告输出脚本（verify 的校验报告、性能基准的 p50/p95 表格），
+  // console.log 就是它的产出，不按调试残留告警
+  const isReportScript =
+    /^scripts[\\/](manual[\\/])?verify-[^\\/]*\.mjs$/.test(rel) || /^scripts[\\/]bench[^\\/]*\.mjs$/.test(rel);
   // electron/ 严格为 0：生命周期日志统一走 console.info（logger 已接管，会落盘），
   // console.log 只可能是临时调试残留。server/ 与 scripts/ 放宽到 8，
   // 它们跑在子进程里，stdout 会被主进程按行转发，console.log 是正常输出手段。

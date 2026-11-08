@@ -8,8 +8,8 @@ import path from 'node:path';
 const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'tuku-lan-'));
 process.env.TUKU_USER_DATA = tmp;
 const {
-  buildLanApp, lanIpv4List, lanUrls, readOrCreateLanToken, resetLanTokenCache, rotateLanToken,
-  startLanServer, stopLanServer,
+  buildLanApp, createShareToken, lanIpv4List, lanUrls, listShareTokens, readOrCreateLanToken,
+  resetLanTokenCache, revokeShareTokens, rotateLanToken, shareUrls, startLanServer, stopLanServer,
 } = await import('../server/lib/lan.js');
 
 let server = null;
@@ -119,4 +119,39 @@ test('独立投送 app：只暴露投送路径，且必须带独立令牌', asyn
     body: Buffer.alloc(0),
   });
   assert.equal(badUpload.status, 400, '空上传要说明原因，不能静默成功');
+});
+
+test('只读分享令牌：能浏览、不能上传、可撤销、带过期时间', async () => {
+  const share = createShareToken(5);
+  assert.ok(share.token.length >= 20);
+  assert.ok(share.expiresAt > Date.now());
+  assert.equal(listShareTokens().length, 1);
+  // 分享链接带 mode=read，扫码进来直接落在浏览标签
+  const urls = shareUrls(server.address().port, share.token);
+  for (const u of urls) assert.ok(u.includes('mode=read'));
+
+  // 页面：只读令牌打开后不出现上传入口
+  const page = await fetch(`${base}/?token=${encodeURIComponent(share.token)}`);
+  assert.equal(page.status, 200);
+  const html = await page.text();
+  assert.ok(html.includes('只读'), '只读链接的页面要明说不能上传');
+
+  // 浏览接口可用（空库也应是 200 + 空列表，而不是 403）
+  const list = await fetch(`${base}/api/lan/images?token=${encodeURIComponent(share.token)}`);
+  assert.equal(list.status, 200);
+  const listJson = await list.json();
+  assert.equal(listJson.ok, true);
+  assert.ok(Array.isArray(listJson.items));
+
+  // 上传必须被拒绝
+  const up = await fetch(`${base}/api/lan/upload?filename=x.jpg&token=${encodeURIComponent(share.token)}`, {
+    method: 'POST',
+    body: Buffer.from([0xff, 0xd8, 0xff, 0xd9]),
+  });
+  assert.equal(up.status, 403, '只读令牌不能上传');
+
+  // 撤销后立即失效
+  assert.equal(revokeShareTokens(), 1);
+  const gone = await fetch(`${base}/api/lan/images?token=${encodeURIComponent(share.token)}`);
+  assert.equal(gone.status, 401);
 });

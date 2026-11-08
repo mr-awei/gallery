@@ -19,6 +19,19 @@
     "electron/lib/stale-process.js",
     "server/sanitize.js",
     "server/lib/clip-scan.js",
-    "server/lib/clip-index.js"
+    "server/lib/clip-index.js",
+    "server/lib/watermark-styles.js",
+    "server/lib/settings-bus.js",
+    "server/lib/hash.js",
+    "server/lib/geo.js",
+    "server/lib/api-audit.js",
+    "server/lib/skip-dirs.js",
+    "server/lib/oklab.js",
+    "server/lib/platform.js",
+    "server/lib/api-scopes.js",
+    "server/lib/safe-path.js",
+    "server/lib/site-parsers.js",
+    "server/lib/plugin-manifest.js",
+    "server/lib/applescript.js"
   ]
 }

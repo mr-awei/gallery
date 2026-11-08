@@ -44,6 +44,7 @@ import type {
   LiveWallpaperConfig,
   PluginInfo,
   PluginRunResult,
+  LanShare,
   LanStatus,
 } from './types';
 
@@ -1181,6 +1182,10 @@ export const api = {
   setLanAccess: (enabled: boolean) =>
     request<LanStatus>('/api/lan/toggle', { method: 'PUT', body: JSON.stringify({ enabled }) }),
   rotateLanToken: () => request<LanStatus>('/api/lan/rotate-token', { method: 'POST' }),
+  createLanShare: (minutes: number) =>
+    request<LanShare>('/api/lan/share', { method: 'POST', body: JSON.stringify({ minutes }) }),
+  lanShares: () => request<{ ok: boolean; shares: LanShare[] }>('/api/lan/shares'),
+  revokeLanShares: () => request<{ ok: boolean; revoked: number }>('/api/lan/share', { method: 'DELETE' }),
 
   settings: () => request<Settings>('/api/settings'),
   saveSettings: (patch: Partial<Settings>) =>

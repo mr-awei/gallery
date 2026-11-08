@@ -4,6 +4,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { promisify } from 'node:util';
+import { setWallpaperScript, trashFileScript } from './lib/applescript.js';
 
 const execFileAsync = promisify(execFile);
 
@@ -516,7 +517,8 @@ export async function moveToTrash(p) {
     return true;
   }
   if (platform === 'darwin') {
-    await execFileAsync('osascript', ['-e', `tell application "Finder" to delete POSIX file "${p}"`]);
+    // 路径里可能有引号/反斜杠：统一走 applescript.js 的转义，别直接拼字符串
+    await execFileAsync('osascript', ['-e', trashFileScript(p)]);
     return true;
   }
   await execFileAsync('gio', ['trash', p]);
@@ -562,10 +564,7 @@ export async function setWallpaper(p) {
     return true;
   }
   if (platform === 'darwin') {
-    await execFileAsync('osascript', [
-      '-e',
-      `tell application "Finder" to set desktop picture to POSIX file "${p}"`,
-    ]);
+    await execFileAsync('osascript', ['-e', setWallpaperScript(p)]);
     return true;
   }
   // Linux 没有统一接口：按桌面环境依次尝试，全失败要说清原因，而不是假装设置成功
