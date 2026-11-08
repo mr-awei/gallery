@@ -1,0 +1,865 @@
+/* 应用骨架：顶栏 / 侧栏 / 主区 / 状态栏（参考 Eagle：侧栏只放内容导航，低频工具收进顶栏） */
+
+/* ------------------------------- 布局骨架 ------------------------------- */
+
+.app {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+}
+
+/* 顶栏之下：侧栏 + 主区横向排布 */
+.app-body {
+  display: flex;
+  flex: 1;
+  min-height: 0;
+}
+
+/* ------------------------------- 顶栏 ------------------------------- */
+
+.topbar {
+  flex: 0 0 auto;
+  position: relative;
+  /* 顶栏的 backdrop-filter 会形成 z-index:auto 的层叠上下文，
+     若不显式抬高，主区内容会按 DOM 顺序绘制在顶栏（含工具下拉）之上 */
+  z-index: 50;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 10px 16px;
+  border-bottom: 1px solid var(--border);
+  background: var(--surface-side);
+  backdrop-filter: blur(18px);
+}
+.topbar-brand {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+}
+.topbar-title {
+  display: flex;
+  flex-direction: column;
+  line-height: 1.25;
+}
+.topbar-title b {
+  font-size: 15px;
+  background: var(--gradient);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
+.topbar-title span {
+  font-size: 11px;
+  color: var(--muted);
+  max-width: 220px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.topbar-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+/* 工具箱下拉（低频功能聚合入口） */
+.tools-wrap {
+  position: relative;
+}
+.tools-btn .tools-chev {
+  font-size: 10px;
+  color: var(--muted);
+}
+.tools-btn-active {
+  background: linear-gradient(90deg, rgba(255, 77, 141, 0.18), rgba(168, 85, 247, 0.12));
+  color: var(--text);
+}
+.tools-menu {
+  position: absolute;
+  top: calc(100% + 8px);
+  right: 0;
+  min-width: 200px;
+  padding: 6px;
+  border-radius: 12px;
+  border: 1px solid var(--border);
+  background: var(--bg-soft);
+  box-shadow: 0 18px 48px rgba(0, 0, 0, 0.35);
+  z-index: 80;
+}
+.tools-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  padding: 9px 10px;
+  border: none;
+  border-radius: 9px;
+  background: transparent;
+  color: var(--muted);
+  font-size: 13.5px;
+  text-align: left;
+  cursor: pointer;
+  transition: background 0.15s ease, color 0.15s ease;
+}
+.tools-item:hover {
+  background: var(--panel);
+  color: var(--text);
+}
+.tools-item.active {
+  background: linear-gradient(90deg, rgba(255, 77, 141, 0.18), rgba(168, 85, 247, 0.12));
+  color: var(--text);
+}
+
+/* 顶栏图标按钮（设置 / 主题切换） */
+.icon-btn {
+  display: grid;
+  place-items: center;
+  width: 34px;
+  height: 34px;
+  border-radius: 10px;
+  border: 1px solid transparent;
+  background: transparent;
+  color: var(--muted);
+  cursor: pointer;
+  transition: all 0.16s ease;
+}
+.icon-btn:hover {
+  background: var(--panel-strong);
+  color: var(--text);
+}
+.icon-btn-active {
+  background: linear-gradient(90deg, rgba(255, 77, 141, 0.18), rgba(168, 85, 247, 0.12));
+  color: var(--text);
+}
+
+.sidebar {
+  position: relative; /* 锚定右缘拖拽把手 */
+  width: var(--sidebar-w);
+  flex: 0 0 var(--sidebar-w);
+  display: flex;
+  flex-direction: column;
+  background: var(--surface-side);
+  backdrop-filter: blur(18px);
+  border-right: 1px solid var(--border);
+  padding: 14px 12px;
+  gap: 6px;
+  /* 文件夹树加入后内容可能超出视口：整体滚动（Eagle 同款），大窗口时 footer 仍贴底 */
+  overflow-y: auto;
+  overflow-x: hidden;
+}
+
+/* 侧栏右缘拖拽把手：按住横向拖动调宽（200–440px），双击恢复默认 */
+.sidebar-resizer {
+  position: absolute;
+  top: 0;
+  right: -4px;
+  width: 9px;
+  height: 100%;
+  cursor: col-resize;
+  z-index: 40;
+  touch-action: none;
+}
+.sidebar-resizer::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 4px;
+  width: 1px;
+  background: transparent;
+  transition: background 0.15s;
+}
+.sidebar-resizer:hover::after,
+body.sidebar-resizing .sidebar-resizer::after {
+  background: #ff4d8d;
+}
+/* 拖拽中禁用文本选中，光标全程保持 col-resize（滑出把手也不闪） */
+body.sidebar-resizing {
+  cursor: col-resize;
+  user-select: none;
+}
+body.sidebar-resizing iframe {
+  pointer-events: none;
+}
+
+.logo-mark {
+  flex: 0 0 auto;
+  width: 36px;
+  height: 36px;
+  border-radius: 11px;
+  background: var(--gradient);
+  display: grid;
+  place-items: center;
+  font-weight: 800;
+  font-size: 15px;
+  color: #fff;
+  box-shadow: 0 8px 24px rgba(255, 77, 141, 0.32);
+}
+
+/* 侧栏分组小标题（资源库 / 文件夹） */
+.side-section-title {
+  font-size: 11px;
+  color: var(--muted);
+  padding: 2px 10px 4px;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.nav-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 12px;
+  border-radius: 11px;
+  color: var(--muted);
+  background: transparent;
+  border: none;
+  font-size: 14px;
+  text-align: left;
+  transition: all 0.18s ease;
+  position: relative;
+}
+.nav-item:hover {
+  background: var(--panel);
+  color: var(--text);
+}
+.nav-item.active {
+  background: linear-gradient(90deg, rgba(255, 77, 141, 0.18), rgba(168, 85, 247, 0.12));
+  color: #fff;
+}
+.nav-item.active::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 22%;
+  bottom: 22%;
+  width: 3px;
+  border-radius: 3px;
+  background: var(--gradient);
+}
+.nav-item .badge {
+  margin-left: auto;
+  font-size: 11px;
+  padding: 2px 7px;
+  border-radius: 20px;
+  background: var(--panel-strong);
+  color: var(--muted);
+}
+
+/* ------------------ 待整理（Eagle 智能视图） ------------------ */
+.nav-item.pending {
+  padding-left: 14px;
+  font-size: 13px;
+}
+.nav-item.pending .pending-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  flex: none;
+  background: var(--muted);
+  opacity: 0.55;
+}
+.nav-item.pending.active .pending-dot {
+  background: var(--accent);
+  opacity: 1;
+  box-shadow: 0 0 0 3px rgba(255, 77, 141, 0.18);
+}
+
+/* ------------------ 标签面板（分组 / 颜色 / 层级） ------------------ */
+.tag-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  /* 侧栏是 flex 列，标签多时会被压成几像素：固定不参与收缩，超出就在面板内滚动 */
+  flex: 0 0 auto;
+  max-height: 38vh;
+  overflow-y: auto;
+  padding: 0 2px 4px;
+}
+.tag-group {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+.tag-group + .tag-group {
+  margin-top: 4px;
+}
+.tag-group-name {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  padding: 4px 8px 2px;
+  border-radius: 6px;
+  font-size: 10.5px;
+  letter-spacing: 0.05em;
+  color: var(--muted);
+  opacity: 0.75;
+  text-transform: uppercase;
+  cursor: pointer;
+  user-select: none;
+  transition: background 0.14s ease, opacity 0.14s ease;
+}
+.tag-group-name:hover {
+  opacity: 1;
+  background: var(--panel);
+}
+.tag-group-name.drop-target {
+  opacity: 1;
+  color: var(--text);
+  background: rgba(255, 77, 141, 0.16);
+  box-shadow: inset 0 0 0 1px rgba(255, 77, 141, 0.5);
+}
+.tag-caret {
+  width: 9px;
+  flex: none;
+  font-size: 9px;
+  line-height: 1;
+  opacity: 0.8;
+}
+.tag-group-title {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.tag-group-count {
+  font-size: 10px;
+  opacity: 0.6;
+  font-variant-numeric: tabular-nums;
+}
+.tag-node {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+.tag-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  padding: 5px 10px;
+  border: none;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--muted);
+  font-size: 12.5px;
+  text-align: left;
+  cursor: pointer;
+  transition: background 0.14s ease, color 0.14s ease, box-shadow 0.12s ease;
+}
+.tag-row.drop-before {
+  box-shadow: inset 0 2px 0 var(--accent);
+}
+.tag-row.drop-after {
+  box-shadow: inset 0 -2px 0 var(--accent);
+}
+.tag-row.drop-child {
+  background: rgba(255, 77, 141, 0.18);
+  box-shadow: inset 0 0 0 1px rgba(255, 77, 141, 0.55);
+}
+.tag-group-menu {
+  position: fixed;
+  z-index: 3000;
+  min-width: 168px;
+  padding: 5px;
+  border-radius: 10px;
+  border: 1px solid var(--border-strong, rgba(255, 255, 255, 0.16));
+  background: var(--solid-panel, #141420);
+  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.45);
+}
+.tag-group-menu button {
+  display: block;
+  width: 100%;
+  padding: 7px 10px;
+  border: none;
+  border-radius: 7px;
+  background: transparent;
+  color: var(--text);
+  font-size: 12.5px;
+  text-align: left;
+  cursor: pointer;
+}
+.tag-group-menu button:hover {
+  background: rgba(255, 255, 255, 0.08);
+}
+.tag-group-menu button.danger {
+  color: #ff6b81;
+}
+.tag-group-menu button.danger:hover {
+  background: rgba(255, 77, 109, 0.16);
+}
+.tag-group-menu-note {
+  padding: 5px 10px 3px;
+  font-size: 10.5px;
+  line-height: 1.5;
+  color: var(--muted);
+  opacity: 0.75;
+}
+.tag-row:hover {
+  background: var(--panel);
+  color: var(--text);
+}
+.tag-row.active {
+  background: rgba(255, 77, 141, 0.14);
+  color: #fff;
+}
+.tag-row.child {
+  padding-left: 24px;
+  font-size: 12px;
+}
+.tag-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  flex: none;
+  background: rgba(255, 255, 255, 0.28);
+}
+.tag-name {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.tag-count {
+  font-size: 10.5px;
+  opacity: 0.6;
+  font-variant-numeric: tabular-nums;
+}
+.tag-empty {
+  font-size: 11.5px;
+  color: var(--muted);
+  opacity: 0.7;
+  padding: 4px 10px;
+  line-height: 1.6;
+}
+.tag-color-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+.tag-color-chip {
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  border: 2px solid transparent;
+  background: rgba(255, 255, 255, 0.1);
+  color: var(--muted);
+  font-size: 11px;
+  cursor: pointer;
+  transition: transform 0.12s ease, border-color 0.12s ease;
+}
+.tag-color-chip:hover {
+  transform: scale(1.1);
+}
+.tag-color-chip.active {
+  border-color: #fff;
+  box-shadow: 0 0 0 2px rgba(255, 255, 255, 0.18);
+}
+
+/* --------------------- Eagle 式资源库切换器 --------------------- */
+.lib-switcher-wrap {
+  position: relative;
+  margin: 0 0 4px;
+}
+.lib-trigger {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  padding: 9px 10px;
+  border-radius: 10px;
+  border: 1px solid var(--border);
+  background: var(--panel);
+  color: var(--text);
+  font-size: 13px;
+  cursor: pointer;
+  transition: border-color 0.15s ease, background 0.15s ease;
+}
+.lib-trigger:hover {
+  border-color: var(--muted);
+}
+.lib-trigger-name {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  text-align: left;
+  font-weight: 600;
+}
+.lib-trigger-caret {
+  flex: 0 0 auto;
+  color: var(--muted);
+  font-size: 10px;
+}
+.lib-panel {
+  position: fixed;
+  z-index: 90;
+  min-width: 240px;
+  max-width: 320px;
+  border-radius: 12px;
+  border: 1px solid var(--border);
+  background: var(--solid-panel);
+  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.28);
+  overflow: hidden;
+  animation: lib-panel-in 0.12s ease;
+}
+@keyframes lib-panel-in {
+  from {
+    opacity: 0;
+    transform: translateY(-4px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+.lib-panel-head {
+  padding: 8px 12px 4px;
+  font-size: 11px;
+  color: var(--muted);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+.lib-panel-list {
+  max-height: 320px;
+  overflow-y: auto;
+  padding: 2px 6px 6px;
+}
+.lib-row {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 7px 8px;
+  border-radius: 8px;
+  cursor: pointer;
+  font-size: 13px;
+  color: var(--text);
+  transition: background 0.12s ease;
+}
+.lib-row:hover {
+  background: var(--panel);
+}
+.lib-row.active {
+  background: linear-gradient(90deg, rgba(255, 77, 141, 0.18), rgba(168, 85, 247, 0.12));
+}
+.lib-row-icon {
+  display: grid;
+  place-items: center;
+  flex: 0 0 auto;
+  color: var(--muted);
+}
+.lib-row-icon svg {
+  width: 15px;
+  height: 15px;
+}
+.lib-row-name {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.lib-row-check {
+  flex: 0 0 auto;
+  color: var(--accent);
+  font-size: 12px;
+}
+.lib-row-more {
+  flex: 0 0 auto;
+  display: none;
+  place-items: center;
+  width: 22px;
+  height: 22px;
+  border: none;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--muted);
+  font-size: 14px;
+  line-height: 1;
+  cursor: pointer;
+}
+.lib-row:hover .lib-row-more,
+.lib-row-more:focus {
+  display: grid;
+}
+.lib-row-more:hover {
+  background: var(--panel-strong);
+  color: var(--text);
+}
+.lib-menu {
+  position: fixed;
+  z-index: 95;
+  min-width: 170px;
+  padding: 4px;
+  border-radius: 10px;
+  border: 1px solid var(--border);
+  background: var(--solid-panel);
+  box-shadow: 0 10px 26px rgba(0, 0, 0, 0.3);
+  display: flex;
+  flex-direction: column;
+  animation: lib-panel-in 0.12s ease;
+}
+.lib-menu button {
+  border: none;
+  background: transparent;
+  color: var(--text);
+  font-size: 13px;
+  text-align: left;
+  padding: 8px 10px;
+  border-radius: 7px;
+  cursor: pointer;
+}
+.lib-menu button:hover:not(:disabled) {
+  background: var(--panel);
+}
+.lib-menu button:disabled {
+  color: var(--muted);
+  cursor: not-allowed;
+  opacity: 0.7;
+}
+.lib-menu button.danger:hover:not(:disabled) {
+  background: rgba(239, 68, 68, 0.14);
+  color: #ef4444;
+}
+.lib-panel-create {
+  width: 100%;
+  border: none;
+  border-top: 1px solid var(--border);
+  background: transparent;
+  color: var(--text);
+  font-size: 13px;
+  padding: 10px 12px;
+  cursor: pointer;
+  text-align: left;
+  transition: background 0.12s ease;
+}
+.lib-panel-create:hover {
+  background: var(--panel);
+}
+
+.folders-panel {
+  margin-top: 6px;
+  display: flex;
+  flex-direction: column;
+}
+.folders-title {
+  font-size: 11px;
+  color: var(--muted);
+  padding: 0 10px 6px;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+.folder-tree {
+  padding-bottom: 8px;
+}
+.folder-tree-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 8px 6px 10px;
+  font-size: 11px;
+  color: var(--muted);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+.folder-add-btn {
+  display: grid;
+  place-items: center;
+  width: 20px;
+  height: 20px;
+  border: none;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--muted);
+  font-size: 14px;
+  line-height: 1;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+.folder-add-btn:hover {
+  background: var(--panel-strong);
+  color: var(--text);
+}
+.folder-node {
+  display: block;
+}
+.folder-row {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+}
+.folder-item {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  flex: 1 1 auto;
+  min-width: 0;
+  padding: 5px 8px;
+  border: none;
+  background: transparent;
+  color: var(--muted);
+  font-size: 13px;
+  border-radius: 8px;
+  text-align: left;
+  cursor: pointer;
+  transition: background 0.15s ease, color 0.15s ease;
+}
+.folder-actions {
+  display: none;
+  gap: 2px;
+  flex: 0 0 auto;
+  padding-right: 4px;
+}
+.folder-row:hover .folder-actions {
+  display: flex;
+}
+/* 拖素材卡到文件夹上：整行高亮，提示松手即归类 */
+.folder-row.drop-target {
+  border-radius: 7px;
+  background: rgba(255, 77, 141, 0.16);
+  box-shadow: inset 0 0 0 1px rgba(255, 77, 141, 0.55);
+}
+.folder-actions button {
+  display: grid;
+  place-items: center;
+  width: 20px;
+  height: 20px;
+  border: none;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--muted);
+  font-size: 11px;
+  line-height: 1;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+.folder-actions button:hover {
+  background: var(--panel-strong);
+  color: var(--text);
+}
+.folder-item:hover {
+  background: var(--panel);
+  color: var(--text);
+}
+.folder-item.active {
+  background: linear-gradient(90deg, rgba(255, 77, 141, 0.18), rgba(168, 85, 247, 0.12));
+  color: var(--text);
+}
+/* 根素材文件夹：树的顶层锚点（当前库素材根），视觉上与普通子夹区分 */
+.folder-root-row {
+  margin: 0 0 2px;
+}
+.folder-item.folder-root {
+  font-weight: 600;
+}
+.folder-chevron {
+  width: 18px;
+  flex: 0 0 18px;
+  text-align: center;
+  color: var(--muted);
+  font-size: 13px;
+  line-height: 1;
+}
+/* 折叠箭头可点击区域要够大（18px），hover 提示可交互 */
+.folder-chevron:not(.placeholder):hover {
+  color: var(--text);
+}
+.folder-chevron.placeholder {
+  visibility: hidden;
+}
+/* 文件夹封面缩略图：只占 16px，不挤压名字；没有封面时不占位 */
+.folder-cover {
+  width: 16px;
+  height: 16px;
+  flex: 0 0 16px;
+  border-radius: 4px;
+  object-fit: cover;
+  background: var(--panel-strong);
+}
+.folder-name {
+  flex: 1 1 auto;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.folder-count {
+  font-size: 11px;
+  color: var(--muted);
+  padding: 0 4px;
+}
+/* 隐私空间：锁形标记（解锁后降透明度，提示「现在能看见」） */
+.folder-lock {
+  font-size: 11px;
+  padding: 0 2px;
+  opacity: 0.9;
+}
+.folder-lock + .folder-count {
+  display: none;
+}
+
+/* 侧栏底部留白（原 footer 已移除：主题/设置入口收进顶栏） */
+.sidebar::after {
+  content: '';
+  flex: 0 0 6px;
+}
+
+.main {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.content {
+  flex: 1;
+  overflow-y: auto;
+  padding: 22px 26px 30px;
+  scroll-behavior: smooth;
+}
+
+.statusbar {
+  flex: 0 0 34px;
+  display: flex;
+  align-items: center;
+  gap: 18px;
+  padding: 0 20px;
+  border-top: 1px solid var(--border);
+  background: var(--surface-status);
+  backdrop-filter: blur(12px);
+  font-size: 12px;
+  color: var(--muted);
+}
+.statusbar .dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--ok);
+  display: inline-block;
+  margin-right: 6px;
+}
+.statusbar .dot.busy {
+  background: var(--warn);
+  animation: pulse 1.2s infinite;
+}
+.statusbar .spacer {
+  margin-left: auto;
+}
+
+@keyframes pulse {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.3;
+  }
+}

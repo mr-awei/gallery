@@ -1,0 +1,220 @@
+{
+  "name": "tuku-gallery",
+  "productName": "TuKu",
+  "version": "1.1.4",
+  "private": true,
+  "description": "通用图片管理与壁纸工具 — 多源采集 / pHash 去重 / 暗色图片库",
+  "author": "图库",
+  "main": "electron/main.js",
+  "type": "module",
+  "engines": {
+    "node": ">=22.5.0"
+  },
+  "scripts": {
+    "dev": "concurrently -n server,web,app -c magenta,cyan,green \"node server/index.js\" \"vite\" \"electron . --dev-url=http://localhost:5173\"",
+    "dev:web": "concurrently -n server,web -c magenta,cyan \"node server/index.js\" \"vite\"",
+    "dev:server": "node server/index.js",
+    "build": "vite build",
+    "start": "node server/index.js",
+    "desktop": "vite build && electron .",
+    "desktop:dev": "electron .",
+    "desktop:hmr": "electron . --dev-url=http://localhost:5173",
+    "mcp": "node server/mcp-server.mjs",
+    "import": "node server/scripts/import-local.js",
+    "dist": "vite build && electron-builder",
+    "dist:dir": "vite build && electron-builder --dir",
+    "typecheck": "tsc --noEmit -p tsconfig.json && tsc --noEmit -p tsconfig.node.json && tsc --noEmit -p tsconfig.lib.json",
+    "lint": "eslint . && node scripts/lint.mjs",
+    "lint:fix": "eslint . --fix",
+    "pin-models": "node scripts/pin-models.mjs",
+    "smoke": "node --import ./test/support/ts-ext.mjs scripts/smoke.mjs",
+    "unit": "node --import ./test/support/ts-ext.mjs --test --test-concurrency=1 \"test/**/*.test.mjs\"",
+    "verify": "npm run lint && npm run typecheck && npm run unit && npm run smoke && npm run verify:manual",
+    "verify:manual": "node scripts/verify-manual.mjs",
+    "test": "npm run verify"
+  },
+  "dependencies": {
+    "@huggingface/transformers": "^3.8.1",
+    "@webtoon/psd": "^0.4.0",
+    "archiver": "^7.0.1",
+    "archiver-utils": "^5.0.2",
+    "call-bind-apply-helpers": "^1.0.2",
+    "decompress-tar": "^4.1.1",
+    "decompress-tarbz2": "^4.1.1",
+    "decompress-targz": "^4.1.1",
+    "decompress-unzip": "^4.0.1",
+    "electron-updater": "^6.8.11",
+    "express": "^5.1.0",
+    "jpegtran-bin": "^7.0.0",
+    "jszip": "^3.10.2",
+    "libheif-js": "^1.23.5",
+    "lru-cache": "^11.2.2",
+    "mammoth": "^1.13.0",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1",
+    "semver": "^7.7.3",
+    "sharp": "^0.34.2",
+    "side-channel-list": "^1.0.0",
+    "side-channel-map": "^1.0.1",
+    "side-channel-weakmap": "^1.0.2",
+    "three": "^0.187.0",
+    "xlsx": "^0.18.5",
+    "yallist": "^5.0.0"
+  },
+  "devDependencies": {
+    "@eslint/js": "^10.0.1",
+    "@types/node": "^22.10.2",
+    "@types/react": "^18.3.17",
+    "@types/react-dom": "^18.3.5",
+    "@types/three": "^0.186.0",
+    "@vitejs/plugin-react": "^4.3.4",
+    "concurrently": "^9.1.2",
+    "electron": "^44.4.5",
+    "electron-builder": "^26.0.12",
+    "eslint": "^10.14.0",
+    "typescript": "^5.7.2",
+    "vite": "^6.0.7"
+  },
+  "build": {
+    "appId": "com.tuku.gallery",
+    "productName": "TuKu",
+    "directories": {
+      "output": "release-build",
+      "buildResources": "build"
+    },
+    "files": [
+      "electron/**/*",
+      "server/**/*",
+      "plugins/**/*",
+      "dist/web/**/*",
+      "package.json",
+      "build/icon.ico",
+      "!node_modules/react/**",
+      "!node_modules/react-dom/**",
+      "!node_modules/scheduler/**"
+    ],
+    "extraResources": [
+      {
+        "from": "extension",
+        "to": "extension",
+        "filter": [
+          "**/*"
+        ]
+      },
+      {
+        "from": "assets/samples",
+        "to": "samples",
+        "filter": [
+          "**/*"
+        ]
+      }
+    ],
+    "asarUnpack": [
+      "plugins/**",
+      "server/plugin-runtime.js",
+      "**/node_modules/sharp/**",
+      "**/node_modules/@img/**",
+      "**/node_modules/jpegtran-bin/**",
+      "**/node_modules/onnxruntime-node/**",
+      "**/node_modules/onnxruntime-common/**",
+      "**/node_modules/@huggingface/**",
+      "**/node_modules/semver/**",
+      "**/node_modules/detect-libc/**"
+    ],
+    "compression": "maximum",
+    "forceCodeSigning": false,
+    "publish": [
+      {
+        "provider": "github",
+        "owner": "mr-awei",
+        "repo": "gallery"
+      }
+    ],
+    "win": {
+      "target": [
+        {
+          "target": "nsis",
+          "arch": [
+            "x64"
+          ]
+        }
+      ],
+      "icon": "build/icon.ico",
+      "fileAssociations": [
+        {
+          "ext": [
+            "jpg",
+            "jpeg",
+            "png",
+            "gif",
+            "webp",
+            "bmp",
+            "avif",
+            "svg",
+            "tif",
+            "tiff",
+            "heic"
+          ],
+          "name": "图片",
+          "description": "用图库打开图片",
+          "role": "Viewer"
+        },
+        {
+          "ext": [
+            "mp4",
+            "webm",
+            "mov",
+            "mkv",
+            "avi"
+          ],
+          "name": "视频",
+          "description": "用图库打开视频",
+          "role": "Viewer"
+        },
+        {
+          "ext": [
+            "mp3",
+            "wav",
+            "flac",
+            "ogg",
+            "m4a"
+          ],
+          "name": "音频",
+          "description": "用图库打开音频",
+          "role": "Viewer"
+        }
+      ],
+      "signtoolOptions": {
+        "signingHashAlgorithms": [
+          "sha256"
+        ],
+        "rfc3161TimeStampServer": "http://timestamp.digicert.com"
+      }
+    },
+    "mac": {
+      "target": [
+        "dmg",
+        "zip"
+      ],
+      "category": "public.app-category.photography",
+      "artifactName": "TuKu-${version}-${arch}.${ext}"
+    },
+    "linux": {
+      "target": [
+        "AppImage",
+        "deb"
+      ],
+      "category": "Graphics;Photography;Viewer",
+      "artifactName": "TuKu-${version}-${arch}.${ext}"
+    },
+    "nsis": {
+      "oneClick": false,
+      "perMachine": false,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true,
+      "shortcutName": "图库",
+      "artifactName": "TuKu-Setup-${version}.exe"
+    }
+  }
+}

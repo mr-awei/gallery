@@ -1,0 +1,147 @@
+/* 整理页（相似对比 / 星级 / 色块） —— 自 styles.css 机械拆分（原第 1831–1933 行）；import 顺序见 styles.css 入口 */
+
+/* ------------------------------- 整理页 ------------------------------- */
+
+/* 长任务横幅：相似扫描 / 主色补算 / AI 打标动辄几分钟，
+ * 只靠按钮文字变「扫描中…」形同假死 —— sticky 顶部横幅 + 动画 + 计时给出活的反馈 */
+.job-banner {
+  position: sticky;
+  top: 0;
+  z-index: 20;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 11px 15px;
+  margin-bottom: 14px;
+  border-radius: var(--radius);
+  border: 1px solid rgba(255, 77, 141, 0.45);
+  background: linear-gradient(90deg, rgba(255, 77, 141, 0.16), rgba(168, 85, 247, 0.1));
+  color: var(--text);
+  font-size: 13.5px;
+  font-weight: 600;
+  box-shadow: 0 6px 18px rgba(255, 77, 141, 0.18);
+  backdrop-filter: blur(6px);
+}
+.job-banner .spin {
+  flex: 0 0 auto;
+  width: 15px;
+  height: 15px;
+  border: 2px solid rgba(255, 77, 141, 0.3);
+  border-top-color: var(--accent);
+  border-radius: 50%;
+  animation: job-banner-spin 0.8s linear infinite;
+}
+.job-banner .job-meta {
+  margin-left: auto;
+  font-weight: 600;
+  color: var(--accent);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+@keyframes job-banner-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.similar-row {
+  display: flex;
+  gap: 12px;
+  overflow-x: auto;
+  padding-bottom: 4px;
+}
+.similar-item {
+  flex: none;
+  width: 176px;
+  border: 2px solid var(--border);
+  border-radius: 12px;
+  overflow: hidden;
+  cursor: pointer;
+  background: var(--panel);
+  transition: all 0.16s ease;
+}
+.similar-item.on {
+  border-color: var(--accent);
+  box-shadow: 0 8px 22px rgba(255, 77, 141, 0.25);
+}
+.similar-item img {
+  width: 100%;
+  height: 148px;
+  object-fit: cover;
+  display: block;
+  background: rgba(0, 0, 0, 0.22);
+}
+.similar-item input[type='radio'] {
+  margin: 8px 0 0 8px;
+  accent-color: var(--accent);
+}
+.similar-meta {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 6px 9px 9px;
+  font-size: 11.5px;
+  color: var(--muted);
+}
+
+/* 星级评分 */
+.stars {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+}
+.star {
+  border: none;
+  background: none;
+  padding: 0 1px;
+  font-size: 16px;
+  line-height: 1;
+  color: rgba(140, 140, 170, 0.55);
+  cursor: pointer;
+  transition: color 0.12s ease, transform 0.12s ease;
+}
+.star:hover {
+  color: #ffd166;
+  transform: scale(1.12);
+}
+.star.on {
+  color: #ffc93c;
+}
+.star-clear {
+  margin-left: 6px;
+  border: none;
+  background: none;
+  color: var(--muted);
+  font-size: 11.5px;
+  cursor: pointer;
+}
+
+/* 主色小色块 */
+.color-chip {
+  display: inline-block;
+  width: 16px;
+  height: 16px;
+  border-radius: 5px;
+  border: 1px solid rgba(255, 255, 255, 0.25);
+  box-shadow: inset 0 0 0 1px rgba(0, 0, 0, 0.2);
+}
+
+/* 色系圆点 */
+.hue-dot {
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  padding: 0;
+  border: 2px solid transparent;
+  opacity: 0.55;
+  transition: all 0.14s ease;
+}
+.hue-dot:hover {
+  opacity: 0.9;
+  transform: scale(1.12);
+}
+.hue-dot.on {
+  opacity: 1;
+  border-color: #fff;
+  box-shadow: 0 0 0 2px rgba(255, 77, 141, 0.6);
+}

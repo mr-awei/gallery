@@ -1,0 +1,36 @@
+node_modules/
+
+# 构建与打包产物（可随时重新生成）
+dist/
+release-build*/
+release-out/
+.electron-dist/
+build-out*/
+
+# 本地运行时数据（dev 环境的库与素材，别提交）
+data/
+storage/
+
+# 密钥与运行时状态
+.api-token
+.port
+*.pid
+e_pid.txt
+
+# 日志与临时输出
+logs/
+*.log
+*.log.*
+*.old
+*.err
+tsconfig.tsbuildinfo
+
+# 本地工具状态
+.codebuddy/
+
+# 环境变量与系统文件
+.env
+.env.*
+*.local
+.DS_Store
+Thumbs.db

@@ -1,0 +1,127 @@
+name: Build Windows Installer
+
+on:
+  push:
+    branches: [main]
+    tags: ['v*']
+  # PR 只跑校验，不打包（打包慢且没有产物价值）
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: write # 打 tag 时创建 Release；失败时推送 ci-logs 分支
+
+jobs:
+  # 先验证再打包：以前 CI 只会 npm run dist，lint/类型/单测/冒烟全靠本地自觉，
+  # 红了的提交照样能出安装包。
+  verify:
+    runs-on: windows-latest
+    env:
+      # 校验不需要 Electron 二进制（150MB+）：服务端在纯 Node 下不会去碰它
+      ELECTRON_SKIP_BINARY_DOWNLOAD: '1'
+      # 冒烟只测接口行为，别为了入库查重去下 CLIP 模型（加载与否会让结论随机变）
+      TUKU_CLIP: 'off'
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      # dist/ 不入库，不构建的话冒烟只能测到「前端尚未构建」兜底页，
+      # 首页与 CSP 这些就变成对着占位页断言了
+      - name: Build web
+        run: npm run build
+
+      - name: Verify (lint + typecheck + unit + smoke)
+        run: npm run verify
+
+  build:
+    needs: verify
+    if: github.event_name != 'pull_request'
+    runs-on: windows-latest
+    # 两次 push 挨得近时，两个运行会同时往同一个滚动 Release 传 exe：
+    # 后传的覆盖先传的，删旧资产那步还会互相踩。串行排队，不取消（取消等于白构建）。
+    concurrency:
+      group: release-${{ github.ref_name }}
+      cancel-in-progress: false
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build installer
+        run: |
+          npm run dist -- --publish never *> build-out.txt
+          exit $LASTEXITCODE
+        env:
+          CSC_IDENTITY_AUTO_DISCOVERY: 'false'
+          DEBUG: electron-builder,electron-builder:npm
+
+      - name: Push build log to ci-logs branch (failure only)
+        if: failure()
+        run: |
+          git config user.name "ci-log"
+          git config user.email "ci@example.com"
+          git checkout --orphan ci-logs
+          git add -f build-out.txt
+          git commit -m "CI build log"
+          git push -f origin ci-logs
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: windows-installer
+          path: |
+            release-build/*.exe
+            release-build/*.blockmap
+            release-build/latest.yml
+          retention-days: 14
+          if-no-files-found: error
+
+      # 每次构建都更新 Release：tag 推送 → v1.0.1 正式版（占据 latest）；
+      # main / 手动触发 → 固定 tag "rolling" 的预发布，每次都重建。
+      # 预发布不会被 /releases/latest 选中，所以客户端自动更新不会把开发版推给用户。
+      - name: Reset rolling release
+        if: ${{ !startsWith(github.ref, 'refs/tags/v') }}
+        # 清理失败最多是旧资产残留，别让它连累后面的发布
+        continue-on-error: true
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          # 删掉整个滚动 Release 再让它重建：产物名带版本号（TuKu-Setup-1.0.2.exe），
+          # 逐个删旧资产既啰嗦又容易漏；顺带让 tag 指向本次提交（action-gh-release 不会挪已存在的 tag）。
+          # 首次构建时 rolling 还不存在，gh 会返回非零 —— 别让它把这一步判成失败。
+          $PSNativeCommandUseErrorActionPreference = $false
+          $ErrorActionPreference = 'Continue'
+          gh release delete rolling --cleanup-tag --yes
+          Write-Host "previous rolling release cleaned (exit=$LASTEXITCODE)"
+
+      - name: Publish release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ startsWith(github.ref, 'refs/tags/v') && github.ref_name || 'rolling' }}
+          name: ${{ startsWith(github.ref, 'refs/tags/v') && github.ref_name || '滚动构建（main 最新）' }}
+          prerelease: ${{ !startsWith(github.ref, 'refs/tags/v') }}
+          make_latest: ${{ startsWith(github.ref, 'refs/tags/v') && 'true' || 'false' }}
+          body: |
+            提交：${{ github.sha }}
+            触发：${{ github.event_name }} / ${{ github.ref_name }}
+            ${{ github.event.head_commit.message || '（手动触发）' }}
+          files: |
+            release-build/*.exe
+            release-build/*.blockmap
+            release-build/latest.yml
+          # 产物没生成就别装作成功
+          fail_on_unmatched_files: true

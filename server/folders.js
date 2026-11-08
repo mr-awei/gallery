@@ -1,0 +1,357 @@
+import path from 'node:path';
+import { db, getSettings, withTransaction } from './db.js';
+import { isFolderVisible, lockedFolders } from './lib/privacy.js';
+
+/**
+ * 文件夹树：Eagle 式「虚拟树 + 一图多夹」，但导入时按磁盘真实目录自动建树。
+ * - folders.path 是物化路径（含自身 id，如 '/1/5/9/'），点父夹聚合后代用前缀 LIKE
+ * - anchor_path 记该节点对应的磁盘相对目录（未来供 fs.watch 同步）；纯虚拟夹为空
+ * - 一张图可挂到多个文件夹（image_folders 多对多）
+ */
+
+/** 相对目录（'白底图/2508季'）→ find-or-create 层级节点，返回叶子 folder id */
+export function ensureFolderByRelDir(relDir) {
+  if (!relDir) return null;
+  const parts = String(relDir).split(/[\\/]+/).filter(Boolean);
+  if (!parts.length) return null;
+  let parentId = null;
+  let parentPath = '/';
+  let leaf = null;
+  const now = new Date().toISOString();
+  const find = db.prepare('SELECT id, path FROM folders WHERE name = ? AND parent_id IS ?');
+  const insert = db.prepare(
+    'INSERT INTO folders(name, parent_id, path, sort_order, anchor_path, created_at, updated_at) VALUES (?, ?, ?, 0, ?, ?, ?)'
+  );
+  const setPath = db.prepare('UPDATE folders SET path = ? WHERE id = ?');
+  for (const name of parts) {
+    const row = find.get(name, parentId);
+    if (row) {
+      leaf = row.id;
+      parentPath = row.path;
+      parentId = row.id;
+      continue;
+    }
+    const ins = insert.run(name, parentId, '', '', now, now);
+    const id = Number(ins.lastInsertRowid);
+    const selfPath = parentPath + id + '/';
+    setPath.run(selfPath, id);
+    leaf = id;
+    parentId = id;
+    parentPath = selfPath;
+  }
+  return leaf;
+}
+
+export function linkImageToFolder(imageId, folderId) {
+  if (!imageId || !folderId) return;
+  db.prepare('INSERT OR IGNORE INTO image_folders(image_id, folder_id) VALUES (?, ?)').run(imageId, folderId);
+}
+
+/** 按图片绝对路径归入文件夹树（相对当前库 root 的目录层级） */
+export function linkImageByPath(imageId, absPath, rootPath = getSettings().storageDir) {
+  if (!imageId || !absPath || !rootPath) return null;
+  const rel = path.relative(rootPath, path.dirname(absPath));
+  // 不在 root 下（跨盘 / 采集到别处）→ 归入根，不建子夹
+  if (!rel || rel.startsWith('..') || path.isAbsolute(rel)) return null;
+  // .library 是外部 Eagle 式资产目录（*.info 里是资产副本与软件预览图），
+  // 树里只呈现真实目录——不为它建夹、不挂图（与扫描/监听排除保持一致）
+  if (rel.toLowerCase().split(/[\\/]+/).some((p) => p.endsWith('.library'))) return null;
+  const folderId = ensureFolderByRelDir(rel);
+  if (folderId) linkImageToFolder(imageId, folderId);
+  return folderId;
+}
+
+/** 返回全部文件夹（含每个夹直接图片数 count 与含后代聚合数 total），前端按 parent_id 组装树。
+ *  聚合数在 JS 里按 path 深度自底向上累加（O(n)），避免每夹一条 LIKE 聚合的树深倍查询。 */
+export function listFolderTree() {
+  const folders = db
+    .prepare(
+      `SELECT id, name, parent_id, path, anchor_path, cover_image_id, tags, (lock_hash <> '') AS locked
+         FROM folders ORDER BY name ASC`
+    )
+    .all();
+  // 隐私空间：锁着且本次会话没解锁的夹（含其后代）不露图片数与封面
+  const lockedInfo = lockedFolders();
+  const unlockedIds = new Set(lockedInfo.filter((f) => f.unlocked).map((f) => f.id));
+  const hiddenPrefixes = lockedInfo.filter((f) => !f.unlocked).map((f) => f.path);
+  const isHiddenPath = (p) => hiddenPrefixes.some((pre) => String(p).startsWith(pre));
+  const counts = db.prepare('SELECT folder_id, COUNT(*) AS c FROM image_folders GROUP BY folder_id').all();
+  const countMap = new Map(counts.map((r) => [r.folder_id, r.c]));
+  // 封面：手动指定优先；没指定就用夹内最新的一张（MAX(image_id) 一条 GROUP BY 拿全库，不做逐夹子查询）
+  const latest = new Map(
+    db.prepare('SELECT folder_id, MAX(image_id) AS image_id FROM image_folders GROUP BY folder_id').all()
+      .map((r) => [r.folder_id, r.image_id])
+  );
+  const coverIds = new Set();
+  for (const f of folders) {
+    const cid = f.cover_image_id || latest.get(f.id);
+    if (cid) coverIds.add(cid);
+  }
+  const coverRows = coverIds.size
+    ? db
+        .prepare(
+          `SELECT id, fs_mtime, cover_ver, media_kind FROM images WHERE id IN (${[...coverIds].map(() => '?').join(',')})`
+        )
+        .all(...coverIds)
+    : [];
+  const coverMeta = new Map(coverRows.map((r) => [r.id, r]));
+  const nodes = folders.map((f) => {
+    const hidden = isHiddenPath(f.path);
+    // 指定的那张被删掉了（或不再属于这个夹）→ 退回自动封面
+    const cid = hidden
+      ? null
+      : [f.cover_image_id, latest.get(f.id)].find((id) => id && coverMeta.has(id)) || null;
+    const meta = cid ? coverMeta.get(cid) : null;
+    return {
+      ...f,
+      locked: !!f.locked,
+      unlocked: unlockedIds.has(f.id),
+      count: hidden ? 0 : countMap.get(f.id) || 0,
+      total: hidden ? 0 : countMap.get(f.id) || 0,
+      cover: meta
+        ? {
+            imageId: cid,
+            manual: !!f.cover_image_id && cid === f.cover_image_id,
+            thumbUrl: `/api/images/${cid}/thumb?v=${Number(meta.fs_mtime) || 0}-${Number(meta.cover_ver) || 0}`,
+            kind: meta.media_kind || 'image',
+          }
+        : null,
+    };
+  });
+  // path 形如 '/1/5/9/'，深度 = path.split('/').length；越深越先处理，把 total 上滚给父链
+  const byId = new Map(nodes.map((n) => [n.id, n]));
+  const ordered = [...nodes].sort((a, b) => b.path.split('/').length - a.path.split('/').length);
+  for (const n of ordered) {
+    if (n.total && n.parent_id != null) {
+      const p = byId.get(n.parent_id);
+      if (p) p.total += n.total;
+    }
+  }
+  return nodes;
+}
+
+/** 查某文件夹（含全部后代）的图片行（原始行，由调用方转 DTO）。
+ *  子夹 id 全部内联进 IN 会在大树上超 SQLite 变量上限（32766）；
+ *  改为让子查询直接用 path 前缀 LIKE（idx_folders_path 走索引）。 */
+export function folderImageRows(folderId, { page = 1, pageSize = 48 } = {}) {
+  const folder = db.prepare('SELECT path FROM folders WHERE id = ?').get(folderId);
+  if (!folder) return { rows: [], total: 0, hasMore: false };
+  // 隐私空间：没解锁就别想用「按文件夹浏览」绕过列表筛选
+  if (!isFolderVisible(folderId)) {
+    const err = new Error('该文件夹已加锁，请先输入密码');
+    err.statusCode = 403;
+    throw err;
+  }
+  const sub = `SELECT f.image_id FROM image_folders f JOIN folders d ON d.id = f.folder_id WHERE d.path LIKE ?`;
+  const like = folder.path + '%';
+  const where = `id IN (${sub})`;
+  const total = db.prepare(`SELECT COUNT(*) AS c FROM images WHERE ${where}`).get(like).c;
+  const rows = db
+    .prepare(`SELECT * FROM images WHERE ${where} ORDER BY created_at DESC, id DESC LIMIT ? OFFSET ?`)
+    .all(like, pageSize, (page - 1) * pageSize);
+  return { rows, total, hasMore: page * pageSize < total };
+}
+
+/** 一次性回填：为库中已有图片按磁盘目录建树（folders 为空但有图时执行）。
+ *  按 id 游标分批（5000/批）扫图，百万库不全表一把梭进内存。 */
+export function backfillFolders(rootPath = getSettings().storageDir) {
+  const folderCount = db.prepare('SELECT COUNT(*) AS c FROM folders').get().c;
+  const imageCount = db.prepare('SELECT COUNT(*) AS c FROM images').get().c;
+  if (folderCount > 0 || imageCount === 0) return { folders: folderCount, linked: 0 };
+  const batch = db.prepare('SELECT id, abs_path FROM images WHERE id > ? ORDER BY id LIMIT 5000');
+  let linked = 0;
+  let lastId = 0;
+  withTransaction(() => {
+    for (;;) {
+      const rows = batch.all(lastId);
+      if (!rows.length) break;
+      for (const r of rows) {
+        if (linkImageByPath(r.id, r.abs_path, rootPath)) linked++;
+      }
+      lastId = rows[rows.length - 1].id;
+    }
+  });
+  return { folders: db.prepare('SELECT COUNT(*) AS c FROM folders').get().c, linked };
+}
+
+/**
+ * 补齐「已登记但没挂任何文件夹」的行。
+ *
+ * 为什么需要：早期版本对非图片素材（RAW / 视频 / 音频 / 字体 / PDF / 3D）走
+ * ingestMedia 登记，却漏了 image_folders 关联 —— 这些素材在任何文件夹视图里都
+ * 看不到，只有「图库」全量视图能找到（用户以为原片没导入）。backfillFolders 只在
+ * folders 表为空时跑，修不了这种「已有文件夹但部分行漏挂」的情况，所以单独补。
+ *
+ * 分页处理且只扫无关联的行，百万库也不会一把梭进内存；重复执行幂等。
+ */
+export function backfillMissingFolderLinks(rootPath = getSettings().storageDir, { pageSize = 5000 } = {}) {
+  if (!rootPath) return 0;
+  const pick = db.prepare(
+    `SELECT i.id, i.abs_path FROM images i
+      WHERE i.id NOT IN (SELECT image_id FROM image_folders)
+      ORDER BY i.id LIMIT ?`
+  );
+  let linked = 0;
+  for (;;) {
+    const rows = pick.all(pageSize);
+    if (!rows.length) break;
+    let changed = 0;
+    withTransaction(() => {
+      for (const r of rows) if (linkImageByPath(r.id, r.abs_path, rootPath)) changed++;
+    });
+    linked += changed;
+    // 这一批没有一条能挂上（不在 root 下 / 已排除目录）：再查还是同样一批，必须停
+    if (!changed || rows.length < pageSize) break;
+  }
+  return linked;
+}
+
+/* ------------------------- 虚拟文件夹管理（Eagle 式，不碰磁盘） ------------------------- */
+/* 磁盘目录同步产生的夹有 anchor_path；纯虚拟夹 anchor_path 为空。二者在树里共存，
+ * 一张图可同时归属多个文件夹（image_folders 多对多），删除文件夹不删除图片。 */
+
+/** 新建虚拟文件夹，parentId 为 null 表示根级。返回新夹 id */
+export function createVirtualFolder(name, parentId = null) {
+  const nm = String(name || '').trim();
+  if (!nm) throw new Error('文件夹名称不能为空');
+  const now = new Date().toISOString();
+  let parentPath = '/';
+  if (parentId != null) {
+    const p = db.prepare('SELECT path FROM folders WHERE id = ?').get(parentId);
+    if (!p) throw new Error('父文件夹不存在');
+    parentPath = p.path;
+  }
+  const ins = db
+    .prepare(
+      'INSERT INTO folders(name, parent_id, path, sort_order, anchor_path, created_at, updated_at) VALUES (?, ?, ?, 0, ?, ?, ?)'
+    )
+    .run(nm, parentId ?? null, '', '', now, now);
+  const id = Number(ins.lastInsertRowid);
+  db.prepare('UPDATE folders SET path = ? WHERE id = ?').run(parentPath + id + '/', id);
+  return id;
+}
+
+/**
+ * 设置文件夹标签（Eagle：夹上打标签，夹内素材自动带上）。
+ * 只存逗号串，不做物化 —— 删掉文件夹标签时素材立刻就不再带它。
+ * 也顺手写一份到 tag_meta，让标签云/筛选面板能直接列出这些「只在文件夹上出现过」的标签。
+ */
+export function setFolderTags(folderId, tags) {
+  const f = db.prepare('SELECT id FROM folders WHERE id = ?').get(Number(folderId));
+  if (!f) throw new Error('文件夹不存在');
+  const list = (Array.isArray(tags) ? tags : String(tags || '').split(','))
+    .map((s) => String(s).trim())
+    .filter((s) => s && !s.includes(','))
+    .filter((s, i, a) => a.indexOf(s) === i)
+    .slice(0, 50);
+  const now = new Date().toISOString();
+  db.prepare('UPDATE folders SET tags = ?, updated_at = ? WHERE id = ?').run(list.join(','), now, f.id);
+  try {
+    for (const t of list) {
+      db.prepare('INSERT OR IGNORE INTO tag_meta (tag, updated_at) VALUES (?, ?)').run(t, now);
+    }
+  } catch {
+    /* 老库无 tag_meta 时忽略：继承筛选本身不依赖它 */
+  }
+  return { id: f.id, tags: list };
+}
+
+/**
+ * 文件夹内手动排序：按传入的 id 顺序写入 sort_order（步长 1024，留插入余量）。
+ * 只更新「本来就在这个夹里」的行，避免把别的夹的素材偷偷挂进来。
+ */
+export function reorderFolderImages(folderId, imageIds) {
+  const fid = Number(folderId);
+  if (!fid) throw new Error('文件夹不能为空');
+  if (!Array.isArray(imageIds) || !imageIds.length) throw new Error('排序列表不能为空');
+  const exists = db.prepare('SELECT 1 AS ok FROM image_folders WHERE folder_id = ? AND image_id = ?');
+  const upd = db.prepare('UPDATE image_folders SET sort_order = ? WHERE folder_id = ? AND image_id = ?');
+  let n = 0;
+  withTransaction(() => {
+    imageIds.forEach((id, i) => {
+      const imgId = Number(id);
+      if (!imgId || !exists.get(fid, imgId)) return;
+      upd.run((i + 1) * 1024, fid, imgId);
+      n++;
+    });
+  });
+  return { folderId: fid, updated: n };
+}
+
+/** 设置 / 清除文件夹封面。imageId 传 null / 0 = 恢复自动（夹内最新一张） */
+export function setFolderCover(folderId, imageId = null) {
+  const f = db.prepare('SELECT id FROM folders WHERE id = ?').get(folderId);
+  if (!f) throw new Error('文件夹不存在');
+  let iid = null;
+  if (imageId) {
+    const img = db.prepare('SELECT id FROM images WHERE id = ?').get(Number(imageId));
+    if (!img) throw new Error('图片不存在');
+    iid = Number(imageId);
+  }
+  db.prepare('UPDATE folders SET cover_image_id = ?, updated_at = ? WHERE id = ?').run(
+    iid,
+    new Date().toISOString(),
+    folderId
+  );
+  return iid;
+}
+
+/** 重命名文件夹（虚拟夹与磁盘夹均可） */
+export function renameFolder(id, name) {
+  const nm = String(name || '').trim();
+  if (!nm) throw new Error('文件夹名称不能为空');
+  const r = db.prepare('UPDATE folders SET name = ?, updated_at = ? WHERE id = ?').run(nm, new Date().toISOString(), id);
+  if (!r.changes) throw new Error('文件夹不存在');
+}
+
+/** LIKE 通配符转义：配合 `ESCAPE '\'` 把 % _ \ 变成字面量 */
+function escapeLike(s) {
+  return String(s).replace(/[\\%_]/g, (c) => '\\' + c);
+}
+
+/** 删除文件夹及其全部子夹（级联），不删除任何图片，只解除关联 */
+export function deleteFolder(id) {
+  const f = db.prepare('SELECT path FROM folders WHERE id = ?').get(id);
+  if (!f) throw new Error('文件夹不存在');
+  // 大树（几千个子夹）时把 id 全捞出来内联进 IN 会超变量上限；直接用 path 前缀删。
+  // path 由 id 拼成（不含用户输入），仍统一转义 + ESCAPE：一旦以后 path 里带上名字，
+  // 未转义的 _ 会变成单字符通配符，误删同级兄弟文件夹。
+  const like = escapeLike(f.path) + '%';
+  // 关联表与 folders 的两次 DELETE 必须同进同退，否则中断会留下指向已删文件夹的悬挂关联
+  return withTransaction(() => {
+    const count = db
+      .prepare("SELECT COUNT(*) AS c FROM folders WHERE path LIKE ? ESCAPE '\\'")
+      .get(like).c;
+    db.prepare(
+      "DELETE FROM image_folders WHERE folder_id IN (SELECT id FROM folders WHERE path LIKE ? ESCAPE '\\')"
+    ).run(like);
+    db.prepare("DELETE FROM folders WHERE path LIKE ? ESCAPE '\\'").run(like);
+    return count;
+  });
+}
+
+/** 把一批图片加入某个文件夹（一图可多夹；返回实际新增的关联数） */
+export function addImagesToFolder(folderId, imageIds = []) {
+  const f = db.prepare('SELECT id FROM folders WHERE id = ?').get(folderId);
+  if (!f) throw new Error('文件夹不存在');
+  const ins = db.prepare('INSERT OR IGNORE INTO image_folders(image_id, folder_id) VALUES (?, ?)');
+  let added = 0;
+  withTransaction(() => {
+    for (const iid of imageIds) {
+      if (ins.run(Number(iid), folderId).changes) added++;
+    }
+  });
+  return added;
+}
+
+/** 把一批图片从某个文件夹移除（不影响图片本身，也不影响其他文件夹归属） */
+export function removeImagesFromFolder(folderId, imageIds = []) {
+  const del = db.prepare('DELETE FROM image_folders WHERE folder_id = ? AND image_id = ?');
+  let removed = 0;
+  withTransaction(() => {
+    for (const iid of imageIds) {
+      removed += del.run(folderId, Number(iid)).changes;
+    }
+  });
+  return removed;
+}

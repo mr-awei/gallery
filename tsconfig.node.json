@@ -1,0 +1,19 @@
+{
+  // 服务端 / Electron / 脚本 的 JS 语法级检查（tsc --noEmit）。
+  // checkJs 不开：JS 侧类型噪音太大，这里只抓语法 / 引用结构错误；
+  // 语义检查靠 scripts/lint.mjs 的 node --check 与冒烟脚本兜底。
+  "compilerOptions": {
+    "target": "ES2022",
+    "module": "ESNext",
+    "moduleResolution": "bundler",
+    "allowJs": true,
+    "checkJs": false,
+    "noEmit": true,
+    // scripts/smoke.mjs 会 import 前端的调色预览实现来做逐像素比对，那边写的是 '../types.ts'
+    "allowImportingTsExtensions": true,
+    "skipLibCheck": true,
+    "resolveJsonModule": true,
+    "types": ["node"]
+  },
+  "include": ["server/**/*.js", "server/**/*.mjs", "electron/**/*.js", "electron/**/*.cjs", "scripts/**/*.mjs", "scripts/**/*.cjs"]
+}

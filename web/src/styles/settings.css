@@ -1,0 +1,173 @@
+/* 设置页 —— 自 styles.css 机械拆分（原第 1518–1657 行）；import 顺序见 styles.css 入口 */
+
+/* ------------------------------- 设置页面 ------------------------------- */
+
+.settings-layout {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+  gap: 14px;
+  align-items: start;
+}
+
+/* GitHub 式设置：左分类导航 + 右单栏面板 */
+.settings-shell {
+  display: grid;
+  grid-template-columns: 208px minmax(0, 1fr);
+  gap: 16px;
+  align-items: start;
+}
+.settings-nav {
+  position: sticky;
+  top: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  padding: 10px;
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+}
+.settings-nav .nav-label {
+  font-size: 11px;
+  color: #6f6f8c;
+  padding: 4px 12px 8px;
+  letter-spacing: 0.08em;
+}
+.settings-nav button {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  padding: 9px 12px;
+  border: none;
+  border-radius: 9px;
+  background: transparent;
+  color: var(--muted);
+  font-size: 13.5px;
+  text-align: left;
+  transition: background 0.15s, color 0.15s;
+}
+.settings-nav button:hover {
+  background: var(--panel-strong);
+  color: var(--text);
+}
+.settings-nav button.active {
+  background: rgba(255, 77, 141, 0.16);
+  color: var(--text);
+}
+.settings-nav button.active svg {
+  color: var(--accent);
+}
+.settings-panel {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+.settings-desc {
+  font-size: 12.5px;
+  color: var(--muted);
+  margin: -6px 0 14px;
+  line-height: 1.6;
+}
+.settings-subtitle {
+  font-size: 12px;
+  color: #6f6f8c;
+  margin: 18px 0 10px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+}
+@media (max-width: 980px) {
+  .settings-shell {
+    grid-template-columns: 1fr;
+  }
+  .settings-nav {
+    position: static;
+    flex-direction: row;
+    flex-wrap: wrap;
+  }
+  .settings-nav .nav-label {
+    width: 100%;
+  }
+  .settings-nav button {
+    width: auto;
+  }
+}
+.field {
+  margin-bottom: 14px;
+}
+.field label {
+  display: block;
+  font-size: 12.5px;
+  color: var(--muted);
+  margin-bottom: 6px;
+}
+.field .input {
+  width: 100%;
+}
+.field .hint {
+  font-size: 11.5px;
+  color: #6f6f8c;
+  margin-top: 5px;
+}
+.switch-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 0;
+  border-bottom: 1px solid var(--border);
+}
+.switch-row:last-child {
+  border-bottom: none;
+}
+/* 采集源「需配置」标记（如微博需要登录 Cookie） */
+.src-hint {
+  margin-left: 8px;
+  padding: 1px 7px;
+  border-radius: 20px;
+  font-size: 10.5px;
+  color: var(--warn);
+  background: rgba(251, 191, 36, 0.14);
+  border: 1px solid rgba(251, 191, 36, 0.3);
+  white-space: nowrap;
+}
+.section-title {
+  font-size: 14px;
+  font-weight: 600;
+  margin: 0 0 14px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+/* ------------------------------ 维护工具卡片 ------------------------------ */
+.maint-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(112px, 1fr));
+  gap: 8px;
+}
+.maint-grid > div {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 8px 10px;
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+}
+.maint-grid > div b {
+  font-size: 15px;
+  font-variant-numeric: tabular-nums;
+}
+.maint-grid > div span {
+  font-size: 11px;
+  color: var(--muted);
+}
+.maint-grid > div.warn b {
+  color: var(--warn);
+}
+.maint-missing {
+  margin-top: 14px;
+  padding-top: 12px;
+  border-top: 1px dashed var(--border);
+}

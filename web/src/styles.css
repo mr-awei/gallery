@@ -1,0 +1,24 @@
+/* 图库主样式入口。
+ *
+ * 样式按区块拆分在 styles/ 目录（2026-09-28 自原 2800 行单文件机械拆分，
+ * 内容逐字节保持一致）。@import 顺序即级联顺序，**勿随意调换**：
+ * theme-light.css 依赖前面各区块的选择器顺序，smart.css 必须最后。
+ * 亮/暗双主题共用的外壳底色收敛为 --surface-* / --solid-* / --overlay 变量：
+ * 暗色取值在 styles/base.css 的 :root，亮色取值在 styles/theme-light.css。
+ */
+@import './styles/base.css';
+@import './styles/layout.css';
+@import './styles/components.css';
+@import './styles/grid.css';
+@import './styles/dashboard.css';
+@import './styles/lightbox.css';
+@import './styles/enhance.css';
+@import './styles/crawl.css';
+@import './styles/settings.css';
+@import './styles/bulkbar.css';
+@import './styles/modal.css';
+@import './styles/tidy.css';
+@import './styles/batchcrop.css';
+@import './styles/theme-light.css';
+@import './styles/smart.css';
+@import './styles/toolkit.css';

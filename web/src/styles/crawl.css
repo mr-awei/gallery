@@ -1,0 +1,327 @@
+/* 采集页与知识库规则 —— 自 styles.css 机械拆分（原第 1192–1517 行）；import 顺序见 styles.css 入口 */
+
+/* ------------------------------- 采集页面 ------------------------------- */
+
+.crawl-layout {
+  display: grid;
+  grid-template-columns: 340px 1fr;
+  gap: 16px;
+  align-items: start;
+}
+@media (max-width: 1100px) {
+  .crawl-layout {
+    grid-template-columns: 1fr;
+  }
+}
+
+.kw-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  max-height: 260px;
+  overflow-y: auto;
+  margin: 12px 0;
+}
+.kw-row {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  padding: 8px 10px;
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid transparent;
+  transition: all 0.16s ease;
+}
+.kw-row:hover {
+  background: rgba(255, 255, 255, 0.06);
+  border-color: var(--border);
+}
+.kw-row span {
+  flex: 1;
+  font-size: 13px;
+}
+.kw-row .del {
+  background: none;
+  border: none;
+  color: var(--muted);
+  font-size: 15px;
+  padding: 0 2px;
+}
+.kw-row .del:hover {
+  color: var(--err);
+}
+
+input[type='checkbox'] {
+  accent-color: var(--accent);
+  width: 15px;
+  height: 15px;
+}
+
+/* ------------- 知识库规则列表：紧凑行式（参考 GitHub Rulesets / Gmail 过滤器） ------------- */
+.rule-list {
+  display: flex;
+  flex-direction: column;
+}
+.rule-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-height: 42px;
+  padding: 4px 10px;
+  border-bottom: 1px solid var(--border);
+  transition: background 0.12s ease;
+}
+.rule-row:first-child {
+  border-top: 1px solid var(--border);
+}
+.rule-row:hover {
+  background: rgba(255, 255, 255, 0.035);
+}
+.rule-row.off .rule-main,
+.rule-row.off .rule-type {
+  opacity: 0.4;
+}
+
+.rule-type {
+  flex: none;
+  min-width: 66px;
+  text-align: center;
+  padding: 2px 8px;
+  border-radius: 6px;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.3px;
+  background: rgba(255, 255, 255, 0.06);
+  color: var(--muted);
+  border: 1px solid var(--border);
+}
+.rule-type.t-keyword {
+  color: #ff8ab0;
+  background: rgba(255, 77, 141, 0.1);
+  border-color: rgba(255, 77, 141, 0.3);
+}
+.rule-type.t-ai_term {
+  color: #c084fc;
+  background: rgba(168, 85, 247, 0.1);
+  border-color: rgba(168, 85, 247, 0.3);
+}
+.rule-type.t-source {
+  color: #7dd3fc;
+  background: rgba(56, 189, 248, 0.1);
+  border-color: rgba(56, 189, 248, 0.3);
+}
+.rule-type.t-resolution {
+  color: #86efac;
+  background: rgba(74, 222, 128, 0.1);
+  border-color: rgba(74, 222, 128, 0.3);
+}
+.rule-type.t-aspect {
+  color: #5eead4;
+  background: rgba(45, 212, 191, 0.1);
+  border-color: rgba(45, 212, 191, 0.3);
+}
+.rule-type.t-tag {
+  color: #fcd34d;
+  background: rgba(251, 191, 36, 0.1);
+  border-color: rgba(251, 191, 36, 0.3);
+}
+.rule-type.t-phash {
+  color: #fda4af;
+  background: rgba(244, 63, 94, 0.1);
+  border-color: rgba(244, 63, 94, 0.3);
+}
+
+.rule-main {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+.rule-label {
+  font-size: 13px;
+  font-weight: 500;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.rule-meta {
+  font-size: 11.5px;
+  color: var(--muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.rule-value {
+  opacity: 0.85;
+}
+
+.rule-weight {
+  flex: none;
+  display: flex;
+  align-items: center;
+  gap: 2px;
+}
+.rule-weight b {
+  min-width: 28px;
+  text-align: center;
+  font-size: 12.5px;
+  padding: 2px 0;
+  border-radius: 6px;
+  background: rgba(255, 255, 255, 0.06);
+}
+.w-btn {
+  width: 20px;
+  height: 20px;
+  padding: 0;
+  border: none;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--muted);
+  font-size: 14px;
+  line-height: 1;
+  visibility: hidden;
+}
+.w-btn:hover {
+  background: rgba(255, 255, 255, 0.08);
+  color: var(--text);
+}
+.rule-row:hover .w-btn {
+  visibility: visible;
+}
+
+.rule-switch {
+  flex: none;
+  position: relative;
+  width: 30px;
+  height: 17px;
+  padding: 0;
+  border: none;
+  border-radius: 17px;
+  background: rgba(255, 255, 255, 0.16);
+  transition: background 0.15s ease;
+}
+.rule-switch::after {
+  content: '';
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  width: 13px;
+  height: 13px;
+  border-radius: 50%;
+  background: #fff;
+  transition: transform 0.15s ease;
+}
+.rule-switch.on {
+  background: var(--accent);
+}
+.rule-switch.on::after {
+  transform: translateX(13px);
+}
+
+.rule-del {
+  flex: none;
+  width: 26px;
+  height: 26px;
+  padding: 0;
+  border: none;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--muted);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  visibility: hidden;
+}
+.rule-del:hover {
+  color: var(--err);
+  background: rgba(248, 113, 113, 0.1);
+}
+.rule-row:hover .rule-del {
+  visibility: visible;
+}
+
+.progress-track {
+  height: 8px;
+  border-radius: 6px;
+  background: rgba(255, 255, 255, 0.08);
+  overflow: hidden;
+  margin: 14px 0 10px;
+}
+.progress-fill {
+  height: 100%;
+  background: var(--gradient);
+  border-radius: 6px;
+  transition: width 0.4s ease;
+  position: relative;
+}
+.progress-fill::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.35), transparent);
+  animation: shimmer 1.4s infinite;
+}
+@keyframes shimmer {
+  from {
+    transform: translateX(-100%);
+  }
+  to {
+    transform: translateX(100%);
+  }
+}
+
+.counter-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(96px, 1fr));
+  gap: 10px;
+  margin-bottom: 12px;
+}
+.counter {
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid var(--border);
+  border-radius: 11px;
+  padding: 10px 12px;
+}
+.counter .k {
+  font-size: 11px;
+  color: var(--muted);
+}
+.counter .v {
+  font-size: 19px;
+  font-weight: 700;
+  margin-top: 3px;
+}
+
+.log-panel {
+  background: rgba(0, 0, 0, 0.32);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 12px;
+  height: 380px;
+  overflow-y: auto;
+  font-family: 'Cascadia Code', Consolas, 'SF Mono', Menlo, monospace;
+  font-size: 12px;
+  line-height: 1.75;
+}
+.log-line {
+  display: flex;
+  gap: 9px;
+  padding: 1px 0;
+}
+.log-line .time {
+  color: #5c5c78;
+  flex: 0 0 62px;
+}
+.log-line.info {
+  color: #b9b9d0;
+}
+.log-line.success {
+  color: var(--ok);
+}
+.log-line.warn {
+  color: var(--warn);
+}
+.log-line.error {
+  color: var(--err);
+}
