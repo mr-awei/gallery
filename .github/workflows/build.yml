@@ -22,6 +22,9 @@ jobs:
       ELECTRON_SKIP_BINARY_DOWNLOAD: '1'
       # 冒烟只测接口行为，别为了入库查重去下 CLIP 模型（加载与否会让结论随机变）
       TUKU_CLIP: 'off'
+      # node:sqlite 的 ExperimentalWarning 纯属噪声。GitHub Actions 的 PowerShell
+      # 用 $ErrorActionPreference=stop，原生子进程的 stderr 会被当成失败，别让它误报红灯
+      NODE_NO_WARNINGS: '1'
     steps:
       - uses: actions/checkout@v4
 
@@ -38,8 +41,36 @@ jobs:
       - name: Build web
         run: npm run build
 
-      - name: Verify (lint + typecheck + unit + smoke)
-        run: npm run verify
+      - name: Verify (lint + typecheck + unit + smoke + bench)
+        run: |
+          $ErrorActionPreference = 'Continue'
+          $PSNativeCommandUseErrorActionPreference = $false
+          npm run verify *> verify-out.txt
+          $code = $LASTEXITCODE
+          Get-Content verify-out.txt -Tail 160
+          exit $code
+
+      # verify 失败时 build 会被跳过，产物日志也没有。匿名 API 读不到 Actions 日志
+      # （403 Must have admin rights），所以像 build-out.txt 一样回传到独立分支。
+      - name: Push verify log to ci-logs-verify branch (failure only)
+        if: failure()
+        run: |
+          git config user.name "ci-log"
+          git config user.email "ci@example.com"
+          git checkout --orphan ci-logs-verify
+          # --orphan 会把当前 HEAD 的整棵树带进暂存区；只留日志，别把整个仓库推到公开分支
+          git rm -r --cached . --quiet
+          git add -f verify-out.txt
+          git commit -m "CI verify log"
+          git push -f origin ci-logs-verify
+
+      - name: Upload verify log (failure only)
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: verify-out
+          path: verify-out.txt
+          if-no-files-found: ignore
 
   build:
     needs: verify
@@ -101,6 +132,8 @@ jobs:
           git config user.name "ci-log"
           git config user.email "ci@example.com"
           git checkout --orphan ci-logs
+          # --orphan 会把当前 HEAD 的整棵树带进暂存区；只留日志，别把整个仓库推到公开分支
+          git rm -r --cached . --quiet
           git add -f build-out.txt
           git commit -m "CI build log"
           git push -f origin ci-logs

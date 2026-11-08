@@ -46,6 +46,10 @@ const pct = (arr, p) => {
   return sorted[idx];
 };
 const ms = (n) => `${n.toFixed(0)}ms`;
+// GitHub Actions 是共享 runner，单核性能浮动可达数倍：调色预览这类纯 CPU 门槛
+// 在本机 p95 已贴近 25ms/80ms，换台慢机器就会假红。CI 放宽 3 倍并显式打印，
+// 仍能拦住数量级回退；严格门槛请在受控机器上跑不带 CI 的 npm run bench*。
+const CI_GATE_FACTOR = process.env.CI === 'true' ? 3 : 1;
 
 let server = null;
 let db = null;
@@ -164,9 +168,11 @@ const rowsOut = [];
 function report(name, samples, gateMs) {
   const p50 = pct(samples, 50);
   const p95 = pct(samples, 95);
-  const ok = gateMs == null || p95 <= gateMs;
-  rowsOut.push({ name, p50, p95, gateMs, ok });
-  const gateTxt = gateMs == null ? '仅记录' : ms(gateMs);
+  const gate = gateMs == null ? null : gateMs * CI_GATE_FACTOR;
+  const ok = gate == null || p95 <= gate;
+  rowsOut.push({ name, p50, p95, gateMs: gate, ok });
+  const gateTxt =
+    gate == null ? '仅记录' : ms(gate) + (CI_GATE_FACTOR > 1 ? `（CI×${CI_GATE_FACTOR}）` : '');
   console.log(
     `  ${ok ? '✓' : '✗'} ${name.padEnd(26)} p50 ${ms(p50).padStart(6)}  p95 ${ms(p95).padStart(6)}  门槛 ${gateTxt}`
   );
@@ -339,6 +345,11 @@ async function benchClip() {
 }
 
 try {
+  if (CI_GATE_FACTOR > 1) {
+    console.log(
+      `[bench] CI 环境：绝对时延门槛放宽 ${CI_GATE_FACTOR}×（共享 runner 波动大）；本地运行仍按原门槛严格判定`
+    );
+  }
   fs.mkdirSync(libraryRoot, { recursive: true });
   if (!(await startServer())) {
     console.error('[bench] 服务没起来：\n' + serverLog.slice(-2000));

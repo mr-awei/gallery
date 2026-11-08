@@ -422,6 +422,8 @@ docs/              项目总览.html（唯一权威文档）
 
 `npm run verify` 是发版前的唯一准绳，CI 跑同一套脚本。
 
+> **CI 门槛口径**：GitHub Actions 是共享 runner，单核时延波动大，绝对 p95 门槛在 CI 中放宽 3 倍（输出里会标 `CI×3`），用来拦数量级回退；本地与专用压测机仍按原门槛严格判定。CI 失败时，`verify-out.txt` 会推到 `ci-logs-verify` 分支，`build-out.txt` 推到 `ci-logs` 分支，本地 `git fetch origin <分支> && git show origin/<分支>:<文件>` 即可取日志（匿名 API 读不到 Actions 日志）。
+>
 > 已知口径：`tsconfig.node.json` 的 `include` 已覆盖 `server/**`，但 `checkJs` 仍为 `false`，服务端只做语法与引用结构检查，安全关键纯函数另有语义闸。后续路线图已列入「真开 checkJs」。
 
 ---
