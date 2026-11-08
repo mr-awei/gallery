@@ -10,6 +10,11 @@ import {
   isNewer,
   isPathInsideAny,
   originAllowed,
+  parseExportPayload,
+  isSafeLiveUrl,
+  normalizePauseApps,
+  shouldPauseLive,
+  liveMountBroken,
 } from './lib/pure.js';
 import { ServerHost } from './server-host.js';
 import { getSettingsSnapshot, setSettingsCache } from './settings-cache.js';
@@ -23,6 +28,7 @@ import {
   onBeforeInstall,
   onInstallFailed,
   onUpdateReady,
+  resetUpdateFailures,
 } from './updater.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -331,8 +337,10 @@ function isWeiboOrigin(target) {
   }
 }
 
-/** 敏感权限白名单：只给自家页面，且只给真正需要的几项 */
-const ALLOWED_PERMISSIONS = new Set(['clipboard-sanitized-write', 'fullscreen', 'notifications']);
+/** 敏感权限白名单：只给自家页面，且只给真正需要的几项。
+ * 补 'media'：动态壁纸音频可视化（麦克风 / 系统音频回环）需要 getUserMedia，
+ * 但只放行自家 localhost 源（isTrustedOrigin 已把关），不波及远程 web 壁纸页。 */
+const ALLOWED_PERMISSIONS = new Set(['clipboard-sanitized-write', 'fullscreen', 'notifications', 'media']);
 
 /** 已装守卫的 session：微博登录窗/壁纸窗用的是各自 partition，全局布尔只护得住第一个窗口 */
 const guardedSessions = new WeakSet();
@@ -945,17 +953,17 @@ async function restartLocalServer() {
   broadcastServiceState({ restarting: true });
   try {
     await serverHost.stop().catch(() => {});
-    // 清空崩溃窗口内的失败计数，否则刚起来再崩一次又立刻进 dead
-    serverHost.restarts = [];
+    // 清空崩溃窗口内的失败计数与换端口兜底标记，否则刚起来再崩一次又立刻进 dead
+    serverHost.revive();
     const info = await serverHost.start();
     serverPort = info.port;
     apiToken = info.token || apiToken;
     setSettingsCache(info.settings || {});
-    broadcastServiceState({ restarting: false, port: serverPort });
+    broadcastServiceState({ restarting: false, dead: false, port: serverPort });
     reloadAllAppWindows();
     return true;
   } catch (err) {
-    broadcastServiceState({ restarting: false, error: String(err?.message || err) });
+    broadcastServiceState({ restarting: false, dead: true, error: String(err?.message || err) });
     dialog.showErrorBox(
       '重启本地服务失败',
       `${err?.message || err}\n\n请完全退出应用后重新打开。`
@@ -1519,6 +1527,143 @@ function virtualScreenBounds() {
   return { x: minX, y: minY, width: maxX - minX, height: maxY - minY };
 }
 
+/* ============ 动态壁纸增量更新 / 实时参数 / 屏幕保护 ============ */
+let liveMounted = false;
+let liveSignature = '';
+let saverWindow = null;
+let saverTimer = null;
+
+const LIVE_MODES = new Set(['slideshow', 'video', 'web', 'shader', 'interactive', 'audio']);
+const LIVE_PARAM_KEYS = ['brightness', 'speed', 'intensity', 'depth'];
+
+/** 只把数字参数推给已挂载的渲染页：拖滑块不重载页面、不重新挂载窗口 */
+function pushLiveParams(params) {
+  const safe = {};
+  for (const k of LIVE_PARAM_KEYS) {
+    const v = Number(params?.[k]);
+    if (Number.isFinite(v)) safe[k] = Math.max(0, Math.min(300, Math.round(v)));
+  }
+  if (!Object.keys(safe).length) return;
+  const js = `window.__live && window.__live.setParams && window.__live.setParams(${JSON.stringify(safe)})`;
+  for (const w of [liveWindow, saverWindow]) {
+    if (w && !w.isDestroyed()) w.webContents.executeJavaScript(js).catch(() => {});
+  }
+}
+
+/**
+ * 默认点击穿透；两种显式开启交互的情况才接收鼠标：
+ * ① 交互式粒子壁纸（interactive=true）② 网页壁纸且用户关掉了 clickThrough。
+ * Esc 一律把窗口恢复成穿透（见 createLiveWindow 的 before-input-event）。
+ */
+function applyLiveInteractive(cfg) {
+  if (!liveWindow || liveWindow.isDestroyed()) return;
+  const particle = cfg?.mode === 'interactive' && cfg?.interactive === true;
+  const web = cfg?.mode === 'web' && cfg?.clickThrough === false;
+  try {
+    liveWindow.setIgnoreMouseEvents(!(particle || web));
+  } catch {}
+}
+
+/** 内容签名：只有内容变了才让页面重建渲染器；单独改 params 不重建 */
+function liveSignatureOf(cfg, useWeb) {
+  return JSON.stringify({
+    mode: cfg?.mode,
+    webUrl: useWeb ? cfg?.webUrl : '',
+    scope: cfg?.scope,
+    playlistId: cfg?.playlistId,
+    intervalSec: cfg?.intervalSec,
+    videoPath: cfg?.videoPath,
+    shaderPreset: cfg?.shaderPreset,
+    shaderSource: cfg?.shaderSource,
+    audioPath: cfg?.audioPath,
+    audioSource: cfg?.audioSource,
+  });
+}
+
+function screensaverConfig() {
+  const c = getSettings()?.screensaver || {};
+  return {
+    enabled: c.enabled === true,
+    idleMinutes: Math.max(1, Math.min(180, Number(c.idleMinutes) || 10)),
+    mode: ['slideshow', 'shader', 'interactive', 'audio'].includes(c.mode) ? c.mode : 'slideshow',
+    showClock: c.showClock !== false,
+  };
+}
+
+async function showScreensaver() {
+  if (saverWindow && !saverWindow.isDestroyed()) return;
+  const c = screensaverConfig();
+  const b = virtualScreenBounds();
+  saverWindow = new BrowserWindow({
+    x: b.x, y: b.y, width: b.width, height: b.height,
+    frame: false, transparent: false, backgroundColor: '#000000',
+    show: false, skipTaskbar: true, fullscreen: true,
+    focusable: true, resizable: false, movable: false, hasShadow: false,
+    webPreferences: { contextIsolation: true, nodeIntegration: false },
+  });
+  saverWindow.setAlwaysOnTop(true, 'screen-saver');
+  saverWindow.setIgnoreMouseEvents(false); // 要能接收输入，让系统空闲计时归零
+  const url = `http://127.0.0.1:${serverPort}/live?screensaver=1&mode=${encodeURIComponent(c.mode)}&token=${encodeURIComponent(apiToken)}`;
+  try {
+    await saverWindow.loadURL(url);
+    saverWindow.show();
+    saverWindow.focus();
+    console.info('[screensaver] 已进入屏保');
+  } catch (err) {
+    console.warn('[screensaver] 加载屏保页失败：', err?.message || err);
+    hideScreensaver();
+  }
+}
+
+function hideScreensaver() {
+  if (saverWindow && !saverWindow.isDestroyed()) {
+    try {
+      saverWindow.destroy();
+    } catch {}
+  }
+  saverWindow = null;
+}
+
+/** 1 秒一次系统空闲检测：触发后全屏覆盖，用户一动键鼠立即退出 */
+function startScreensaverWatch() {
+  if (saverTimer) return;
+  saverTimer = setInterval(async () => {
+    const c = screensaverConfig();
+    // 屏保用的是 Electron 全屏窗口，不需要 Win32 桌面层，三平台都可用
+    if (!c.enabled || !serverPort) {
+      if (saverWindow) hideScreensaver();
+      return;
+    }
+    let idle;
+    try {
+      idle = powerMonitor.getSystemIdleTime();
+    } catch {
+      return;
+    }
+    if (saverWindow && !saverWindow.isDestroyed()) {
+      if (idle < 2) hideScreensaver();
+      return;
+    }
+    if (idle < c.idleMinutes * 60) return;
+    // 全屏应用/游戏时不打扰，和动态壁纸的性能规则保持一致
+    try {
+      if (desktopApi && (await desktopApi.isFullscreenAppRunning())) return;
+    } catch {
+      /* 检测失败不阻塞屏保 */
+    }
+    await showScreensaver();
+  }, 1000);
+  saverTimer.unref?.();
+}
+
+function stopScreensaverWatch() {
+  if (saverTimer) {
+    clearInterval(saverTimer);
+    saverTimer = null;
+  }
+  hideScreensaver();
+}
+
 function createLiveWindow() {
   if (liveWindow && !liveWindow.isDestroyed()) return liveWindow;
   const b = virtualScreenBounds();
@@ -1532,7 +1677,9 @@ function createLiveWindow() {
     transparent: false,
     show: false,
     skipTaskbar: true,
-    focusable: false,
+    // 交互壁纸要能收键盘（Esc 退出）：focusable=false 时 mounted 窗口拿不到按键。
+    // 默认仍 setIgnoreMouseEvents(true)，不会拦截桌面点击。
+    focusable: true,
     resizable: false,
     movable: false,
     fullscreenable: false,
@@ -1552,6 +1699,26 @@ function createLiveWindow() {
   liveWindow.setVisibleOnAllWorkspaces(true, { visibleOnFullScreen: true });
   // 点击穿透：壁纸不拦截桌面操作
   liveWindow.setIgnoreMouseEvents(true);
+  // Esc 是交互壁纸的统一逃生键：立即恢复点击穿透，并把配置落库，
+  // 这样重启后不会被一个「关不掉的交互桌面」困住。
+  liveWindow.webContents.on('before-input-event', (event, input) => {
+    if (input.type !== 'keyDown' || input.key !== 'Escape') return;
+    event.preventDefault();
+    if (!liveWindow || liveWindow.isDestroyed()) return;
+    try {
+      liveWindow.setIgnoreMouseEvents(true);
+    } catch {}
+    const s = getSettings()?.liveWallpaper || {};
+    const patch = {};
+    if (s.interactive === true) patch.interactive = false;
+    if (s.clickThrough === false) patch.clickThrough = true;
+    if (!Object.keys(patch).length || !serverPort) return;
+    fetchJson(
+      `http://127.0.0.1:${serverPort}/api/wallpaper/live`,
+      { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(patch) },
+      5000
+    ).catch(() => {});
+  });
   // 主窗口关闭时这个窗口不能阻止退出；单独 destroy 即可
   liveWindow.on('closed', () => {
     liveWindow = null;
@@ -1581,6 +1748,8 @@ function destroyLiveWindow() {
     } catch {}
   }
   liveWindow = null;
+  liveMounted = false;
+  liveSignature = '';
 }
 
 /** 把动态壁纸窗口挂到桌面层并铺满虚拟屏幕 */
@@ -1606,31 +1775,20 @@ async function mountLiveWindow() {
   return !!ok;
 }
 
-/**
- * 网页模式只允许公网 http(s)：这个窗口是「置顶、无边框、常驻」的，
- * 允许 file:// 或内网地址等于把应用变成一个任意页面容器。
- */
-function isSafeLiveUrl(raw) {
-  try {
-    const u = new URL(String(raw));
-    if (u.protocol !== 'http:' && u.protocol !== 'https:') return false;
-    const host = u.hostname.toLowerCase();
-    if (!host || host === 'localhost' || host === '0.0.0.0' || host === '::1' || host === '[::1]') return false;
-    if (/^127\./.test(host)) return false;
-    if (/^10\./.test(host)) return false;
-    if (/^192\.168\./.test(host)) return false;
-    if (/^172\.(1[6-9]|2\d|3[01])\./.test(host)) return false;
-    if (/^169\.254\./.test(host)) return false;
-    return true;
-  } catch {
-    return false;
-  }
-}
-
 /** 锁屏/休眠监听句柄：以前 stop 时不摘，开关十几次就触发 MaxListenersExceeded */
 let livePowerHandlers = null;
 
-/** 性能规则：全屏应用 / 笔记本用电池 / 锁屏 时自动暂停动态壁纸 */
+let livePowerLocked = false;
+let liveRemountMisses = 0;
+let liveLastRemount = 0;
+let liveLastPauseReasons = '';
+
+/**
+ * 性能规则 + 持续挂载守护（同一个 3 秒轮询，避免再起一个定时器）。
+ * 暂停信号一次采样拿齐：GPU 占用 / 前台进程名 / 全屏应用 / 电池 / 锁屏。
+ * 守护：资源管理器重建桌面层或 Chromium 重新认领父窗口时，连续两次检测到
+ * 父句柄 != WorkerW 才重挂，且两次重挂至少隔 15 秒，避免桌面层抖动期反复闪屏。
+ */
 function startLivePerfRules() {
   stopLivePerfRules();
   const pause = (on) =>
@@ -1640,22 +1798,60 @@ function startLivePerfRules() {
   livePerfTimer = setInterval(async () => {
     if (!liveWindow || liveWindow.isDestroyed()) return;
     const cfg = await getLiveCfg();
-    let shouldPause = false;
-    if (cfg.pauseOnBattery && powerMonitor && !powerMonitor.isOnAC) shouldPause = true;
-    if (cfg.pauseOnFullscreen && desktopApi) {
+    let snap = { gpu: -1, foreground: '', parent: 0, workerw: 0, fullscreen: false };
+    if (desktopApi?.livePerfSnapshot) {
       try {
-        if (await desktopApi.isFullscreenAppRunning()) shouldPause = true;
-      } catch {}
+        snap = await desktopApi.livePerfSnapshot(
+          nativeHandleDecimal(liveWindow),
+          liveBounds.width,
+          liveBounds.height
+        );
+      } catch (err) {
+        console.warn('[live] 性能采样失败：', err?.message || err);
+      }
     }
-    pause(shouldPause);
+    const decision = shouldPauseLive(cfg, {
+      onBattery: powerMonitor ? !powerMonitor.isOnAC : false,
+      fullscreen: !!snap.fullscreen,
+      gpu: Number(snap.gpu),
+      locked: livePowerLocked,
+      foreground: snap.foreground,
+    });
+    const reasons = decision.reasons.join(',');
+    if (reasons !== liveLastPauseReasons) {
+      console.info(`[live] 暂停=${decision.paused} 原因=${reasons || '无'}`);
+      liveLastPauseReasons = reasons;
+    }
+    pause(decision.paused);
+
+    if (liveMounted && liveMountBroken(snap)) {
+      liveRemountMisses += 1;
+      if (liveRemountMisses >= 2 && Date.now() - liveLastRemount > 15000) {
+        liveRemountMisses = 0;
+        liveLastRemount = Date.now();
+        console.info('[live] 父窗口被重新认领，自动重挂到桌面层');
+        const ok = await desktopApi?.attachLiveWindow(
+          nativeHandleDecimal(liveWindow),
+          liveBounds.width,
+          liveBounds.height
+        ).catch(() => false);
+        if (!ok) console.warn('[live] 自动重挂失败，下个守护周期再试');
+      }
+    } else {
+      liveRemountMisses = 0;
+    }
   }, 3000);
-  // 锁屏/休眠暂停，解锁后由轮询自动恢复
+  // 锁屏/休眠期间持续暂停；解锁/唤醒事件明确清除，不再让 3 秒轮询把它「恢复」回来
   livePowerHandlers = {
-    lock: () => pause(true),
-    suspend: () => pause(true),
+    lock: () => { livePowerLocked = true; pause(true); },
+    unlock: () => { livePowerLocked = false; },
+    suspend: () => { livePowerLocked = true; pause(true); },
+    resume: () => { livePowerLocked = false; },
   };
   powerMonitor?.on('lock-screen', livePowerHandlers.lock);
+  powerMonitor?.on('unlock-screen', livePowerHandlers.unlock);
   powerMonitor?.on('suspend', livePowerHandlers.suspend);
+  powerMonitor?.on('resume', livePowerHandlers.resume);
 }
 
 function stopLivePerfRules() {
@@ -1665,9 +1861,14 @@ function stopLivePerfRules() {
   }
   if (livePowerHandlers) {
     powerMonitor?.removeListener('lock-screen', livePowerHandlers.lock);
+    powerMonitor?.removeListener('unlock-screen', livePowerHandlers.unlock);
     powerMonitor?.removeListener('suspend', livePowerHandlers.suspend);
+    powerMonitor?.removeListener('resume', livePowerHandlers.resume);
     livePowerHandlers = null;
   }
+  livePowerLocked = false;
+  liveRemountMisses = 0;
+  liveLastPauseReasons = '';
 }
 
 /** 读最新动态壁纸配置（直接走本地接口，保证拿到刚保存的值） */
@@ -1680,15 +1881,37 @@ async function getLiveCfg() {
   }
 }
 
+/** 系统音频回环源：用 desktopCapturer 取主屏幕的 sourceId，渲染页据此 getUserMedia 捕获桌面音频。
+ * 结果缓存 30s，避免每次切配置都重新枚举屏幕（会闪一下采集提示）。 */
+let cachedSysAudioId = '';
+let cachedSysAudioAt = 0;
+async function getDesktopAudioSourceId() {
+  const now = Date.now();
+  if (cachedSysAudioId && now - cachedSysAudioAt < 30000) return cachedSysAudioId;
+  try {
+    const sources = await desktopCapturer.getSources({ types: ['screen'], fetchWindowAudio: false });
+    const id = sources[0]?.id || '';
+    cachedSysAudioId = id;
+    cachedSysAudioAt = now;
+    return id;
+  } catch (err) {
+    console.warn('[live] 枚举系统音频源失败：', err?.message || err);
+    return cachedSysAudioId;
+  }
+}
+
 /** 根据配置创建 / 销毁动态壁纸窗口，并加载对应内容 */
 async function applyLiveWallpaper() {
-  if (process.platform !== 'win32') {
-    console.info('[live] 动态壁纸目前仅支持 Windows，已跳过');
-    return;
-  }
   const cfg = await getLiveCfg();
   if (!cfg || cfg.enabled === false) {
     destroyLiveWindow();
+    return;
+  }
+  // 跨平台基础版：WorkerW 桌面层是 Windows 专有。Mac/Linux 不创建常驻窗口，
+  // 明确回滚开关（不让设置显示「已开启」而桌面没动静）；静态壁纸 / 屏保仍可用。
+  if (process.platform !== 'win32') {
+    console.info('[live] 当前平台没有桌面层挂载能力，动态壁纸降级为静态壁纸');
+    await rollbackLiveWallpaper('macOS / Linux 暂不支持桌面层挂载，请用「设为壁纸 / 定时自动切换」');
     return;
   }
   if (!liveWindow || liveWindow.isDestroyed()) {
@@ -1697,24 +1920,64 @@ async function applyLiveWallpaper() {
   // web 模式直接加载网址；其它模式用内置渲染页（/live 会按配置渲染）。
   // /live 页的 fetch 走 ?token= 传递鉴权（见 server/live-page.js）
   let useWeb = cfg.mode === 'web' && !!cfg.webUrl;
-  if (useWeb && !isSafeLiveUrl(cfg.webUrl)) {
-    console.warn('[live] 拒绝加载非公网 http(s) 的网页地址：', cfg.webUrl);
-    showToastBanner('动态壁纸网址被拒绝', '只允许公网 http(s) 地址，已改用内置壁纸页');
+  const urlOpts = {
+    allowLocalUrl: cfg.allowLocalUrl === true,
+    trustedDir: String(cfg.trustedDir || ''),
+  };
+  if (useWeb && !isSafeLiveUrl(cfg.webUrl, urlOpts)) {
+    console.warn('[live] 网页地址不在允许范围内：', cfg.webUrl);
+    showToastBanner(
+      '动态壁纸网址被拒绝',
+      urlOpts.allowLocalUrl
+        ? '只允许公网 http(s)、本机/内网 http(s)，以及可信目录内的 file:// 页面'
+        : '默认只允许公网 http(s)；本地/内网页面需先在设置里打开开关'
+    );
     useWeb = false;
   }
-  const url = useWeb
-    ? cfg.webUrl
-    : `http://127.0.0.1:${serverPort}/live?token=${encodeURIComponent(apiToken)}`;
+  let url;
+  if (useWeb) {
+    url = cfg.webUrl;
+  } else {
+    url = `http://127.0.0.1:${serverPort}/live?token=${encodeURIComponent(apiToken)}`;
+    // 系统音频回环：把桌面源 id 注入渲染页，渲染页用 getUserMedia(chromeMediaSource=desktop) 捕获桌面声音
+    if (cfg.audioSource === 'system') {
+      const sysAudioId = await getDesktopAudioSourceId();
+      if (sysAudioId) url += `&sysAudioId=${encodeURIComponent(sysAudioId)}`;
+    }
+  }
+  const signature = liveSignatureOf(cfg, useWeb);
+  const samePage =
+    liveMounted &&
+    !!liveWindow &&
+    !liveWindow.isDestroyed() &&
+    liveWindow.webContents.getURL() === url;
+  if (samePage) {
+    // 已挂到桌面层：只推参数 / 切交互穿透 / 必要时让页面自己重建渲染器。
+    // 绝不重新 loadURL + 等 1200ms + 重新 SetParent：拖一次滑块就重挂一次会闪屏甚至丢壁纸。
+    pushLiveParams(cfg.params || {});
+    applyLiveInteractive(cfg);
+    if (signature !== liveSignature) {
+      liveWindow.webContents
+        .executeJavaScript('window.__live && window.__live.apply && window.__live.apply()')
+        .catch(() => {});
+      liveSignature = signature;
+    }
+    return;
+  }
   try {
     if (liveWindow.webContents.getURL() !== url) await liveWindow.loadURL(url);
     // 页面加载后再挂载，避免挂载时还没渲染
     await new Promise((r) => setTimeout(r, 1200));
     const mounted = await mountLiveWindow();
+    liveMounted = !!mounted;
     if (!mounted) {
       // 挂载失败时以前只 hide 窗口：设置里还显示「已开启」、托盘也这么说，用户以为桌面在动
       await rollbackLiveWallpaper('系统没有允许把窗口挂到桌面层（可能不支持当前桌面环境）');
       return;
     }
+    liveSignature = signature;
+    applyLiveInteractive(cfg);
+    pushLiveParams(cfg.params || {});
     // 让页面立即按最新配置渲染（覆盖模式切换：slideshow ↔ video 无需整窗重载）
     liveWindow.webContents
       .executeJavaScript(`window.__live && window.__live.apply && window.__live.apply()`)
@@ -1914,12 +2177,20 @@ handleIpc('update-check', async () => {
     // 开发态没有安装包可替换：明确告诉界面「去发布页下载」，别让按钮静默无反应
     return { ok: false, supported: false, msg: '开发模式不支持应用内更新，请用「检查更新」跳转发布页' };
   }
+  // 用户主动点「检查更新」= 明确想再试一次：清掉连续失败计数，
+  // 重新允许走强制流程（再失败仍会在第 2 次自动降级）
+  resetUpdateFailures();
   return checkForUpdates({ repo: await updateRepoSetting() });
 });
 handleIpc('update-download', () => downloadUpdate());
 handleIpc('update-install', () => installUpdate());
 handleIpc('update-dismiss', () => dismissUpdate());
 handleIpc('update-state', () => updateState());
+/** 设置页「清零安装失败计数」：用户修好环境后主动恢复强制更新策略 */
+handleIpc('update-reset-failures', () => {
+  resetUpdateFailures();
+  return { ok: true };
+});
 
 /** 强制更新遮罩里的「退出应用」：装不上时至少让用户能关掉，而不是卡死在遮罩里 */
 handleIpc('app:quit', () => {
@@ -1928,16 +2199,89 @@ handleIpc('app:quit', () => {
   return { ok: true };
 });
 
-/** 动态壁纸配置里允许经 IPC 下发的字段（白名单）：渲染层被注入也改不了别的键，更写不进 file:// 地址 */
-const LIVE_PATCH_FIELDS = ['enabled', 'mode', 'webUrl', 'intervalMinutes', 'muted', 'pauseOnBattery', 'pauseOnFullscreen', 'opacity'];
+/**
+ * 视频片段导出（首尾裁剪 → GIF / WebM）：渲染进程在浏览器里完成编码，
+ * 主进程只负责弹「另存为」并写盘。data URL 必须严格匹配白名单 MIME，
+ * 文件名只允许单层文件名，避免渲染层被注入后变成「往任意路径写任意文件」。
+ */
+handleIpc('save-export', async (_e, payload) => {
+  const parsed = parseExportPayload(payload?.dataUrl, payload?.filename);
+  if (!parsed.ok) return { ok: false, error: parsed.error };
+  const { buffer, ext, isGif, filename } = parsed;
+  try {
+    const { canceled, filePath } = await dialog.showSaveDialog({
+      title: '保存视频片段',
+      defaultPath: path.join(app.getPath('downloads'), filename),
+      filters: [{ name: isGif ? 'GIF 动图' : 'WebM 视频', extensions: [ext] }],
+    });
+    if (canceled || !filePath) return { ok: false, error: '已取消保存' };
+    await fsp.writeFile(filePath, buffer);
+    console.info('[export] 视频片段已保存', filePath);
+    return { ok: true, path: filePath };
+  } catch (err) {
+    return { ok: false, error: String(err?.message || err) };
+  }
+});
 
-handleIpc('live-wallpaper-control', async (_e, patch) => {
+/** 动态壁纸配置里允许经 IPC 下发的字段（白名单）：渲染层被注入也改不了别的键，更写不进 file:// 地址 */
+const LIVE_PATCH_FIELDS = [
+  'enabled', 'mode', 'webUrl', 'intervalSec', 'videoPath', 'mute', 'volume',
+  'kenBurns', 'scope', 'playlistId', 'minScore', 'pauseOnBattery', 'pauseOnFullscreen',
+  'params', 'shaderPreset', 'shaderSource', 'interactive', 'audioPath', 'audioSource',
+  'pauseOnGpu', 'gpuThreshold', 'pauseApps', 'allowLocalUrl', 'trustedDir', 'clickThrough',
+];
+
+/** 收敛渲染层传来的配置：白名单 + 类型/长度/数值夹取，避免把任意对象写进设置 */
+function safeLivePatch(patch) {
   const safe = {};
   for (const k of LIVE_PATCH_FIELDS) {
     if (patch && Object.prototype.hasOwnProperty.call(patch, k)) safe[k] = patch[k];
   }
-  if (typeof safe.webUrl === 'string' && safe.webUrl && !isSafeLiveUrl(safe.webUrl)) {
-    return { ok: false, error: '网页模式只支持公网 http(s) 地址（不能用 file:// 或内网地址）' };
+  if (safe.mode !== undefined && !LIVE_MODES.has(String(safe.mode))) return { error: '未知的壁纸类型' };
+  for (const k of ['webUrl', 'videoPath', 'audioPath']) {
+    if (safe[k] !== undefined) safe[k] = String(safe[k]).slice(0, 1000);
+  }
+  if (safe.shaderSource !== undefined) safe.shaderSource = String(safe.shaderSource).slice(0, 12000);
+  if (safe.shaderPreset !== undefined) safe.shaderPreset = String(safe.shaderPreset).slice(0, 60);
+  if (safe.params !== undefined) {
+    const p = safe.params && typeof safe.params === 'object' ? safe.params : {};
+    const clean = {};
+    for (const k of LIVE_PARAM_KEYS) {
+      const v = Number(p[k]);
+      if (Number.isFinite(v)) clean[k] = Math.max(0, Math.min(300, Math.round(v)));
+    }
+    safe.params = clean;
+  }
+  if (safe.gpuThreshold !== undefined) {
+    const n = Number(safe.gpuThreshold);
+    safe.gpuThreshold = Math.max(1, Math.min(100, Math.round(Number.isFinite(n) ? n : 85)));
+  }
+  if (safe.pauseApps !== undefined) safe.pauseApps = normalizePauseApps(safe.pauseApps);
+  if (safe.trustedDir !== undefined) {
+    const raw = String(safe.trustedDir).slice(0, 500);
+    safe.trustedDir = raw && path.isAbsolute(raw) ? raw : '';
+  }
+  for (const k of ['pauseOnGpu', 'allowLocalUrl', 'clickThrough']) {
+    if (safe[k] !== undefined) safe[k] = safe[k] === true || safe[k] === 'true' || safe[k] === 1;
+  }
+  return { safe };
+}
+
+handleIpc('live-wallpaper-control', async (_e, patch) => {
+  const { safe, error } = safeLivePatch(patch);
+  if (error) return { ok: false, error };
+  if (typeof safe.webUrl === 'string' && safe.webUrl) {
+    const current = getSettings()?.liveWallpaper || {};
+    const allowLocalUrl = safe.allowLocalUrl ?? current.allowLocalUrl ?? false;
+    const trustedDir = String(safe.trustedDir ?? current.trustedDir ?? '');
+    if (!isSafeLiveUrl(safe.webUrl, { allowLocalUrl, trustedDir })) {
+      return {
+        ok: false,
+        error: allowLocalUrl
+          ? '网页地址只允许公网 / 本机 / 内网 http(s)，或可信目录内的 file:// 页面'
+          : '默认只允许公网 http(s)；要使用本地或内网页面，请先打开「允许本地 / 内网网页」',
+      };
+    }
   }
   // 失败也要如实回 ok:false：以前无论成功失败都返回 { ok: true }
   const r = await fetchJson(
@@ -1946,6 +2290,24 @@ handleIpc('live-wallpaper-control', async (_e, patch) => {
     5000
   ).catch((err) => ({ ok: false, error: String(err?.message || err) }));
   return r && r.ok === false ? { ok: false, error: r.error } : { ok: true };
+});
+
+/** 离线横幅的「立即重启」按钮：和托盘菜单走同一个重启函数，不新增第二套逻辑 */
+handleIpc('restart-service', async () => {
+  const ok = await restartLocalServer();
+  return { ok };
+});
+
+/** 参数滑块即时预览：不落库，直接推给已挂载的桌面层窗口 / 屏保窗口 */
+handleIpc('live-params', async (_e, patch) => {
+  const clean = {};
+  for (const k of LIVE_PARAM_KEYS) {
+    const v = Number(patch?.[k]);
+    if (Number.isFinite(v)) clean[k] = Math.max(0, Math.min(300, Math.round(v)));
+  }
+  if (!Object.keys(clean).length) return { ok: false, error: '参数不合法' };
+  pushLiveParams(clean);
+  return { ok: true };
 });
 
 /* --------------------------- 首装示例图播种 --------------------------- */
@@ -1999,8 +2361,13 @@ app.whenReady().then(async () => {
   if (!gotSingleInstanceLock) return;
 
   cleanupCrashDumps();
-  // 服务就绪前先把启动页亮出来：首建库/大迁移时最长十几秒，不能什么都不显示
-  showSplash();
+  // 屏保空闲检测常驻；内部会等 serverPort 就绪，并按设置开关自行启停覆盖窗口
+  startScreensaverWatch();
+  // 服务就绪前先把启动页亮出来：首建库/大迁移时最长十几秒，不能什么都不显示。
+  // 但开机自启（--hidden）不能弹：用户没有主动打开应用，开机后桌面上突然糊一个
+  // 「正在启动本地服务」的加载框（服务就绪前会停留十几秒），会被当成电脑出问题了。
+  // 自启时只在后台把服务拉起来，用户点托盘/快捷键时服务多半已就绪，直接开窗口。
+  if (!START_HIDDEN) showSplash();
 
   /* -------- 这些监听只能注册一次（以前写在 createWindow 里） --------
      session 级 / app 级监听挂在 createWindow 内部时，主窗口每被托盘、快捷键或
@@ -2110,10 +2477,23 @@ app.whenReady().then(async () => {
     });
     serverHost.on('dead', (msg) => {
       console.error('[desktop] 服务进程不可用：', msg);
-      dialog.showErrorBox(
-        '图库服务无法启动',
-        `${msg}\n\n可先在托盘图标右键选「重启本地服务」再试一次；仍不行请完全退出后重新打开。\n日志在应用数据目录的 desktop.log / server.log；若反复出现，请检查防火墙或安全软件是否拦截了本机监听。`
-      );
+      // 明确进入离线态：界面要显示横幅，不能「应用开着但接口全挂」还装作正常
+      broadcastServiceState({ restarting: false, dead: true, error: String(msg || '') });
+      void dialog
+        .showMessageBox({
+          type: 'error',
+          title: '图库服务无法启动',
+          message: msg,
+          detail:
+            '自动重启与换端口兜底都失败了。点「立即重启服务」再试一次；选择「继续用（离线）」仍可打开界面，但换壁纸、收藏、导入等接口暂时不可用。\n日志在应用数据目录的 desktop.log / server.log；若反复出现，请检查防火墙或安全软件是否拦截了本机监听。',
+          buttons: ['立即重启服务', '继续用（离线）'],
+          defaultId: 0,
+          cancelId: 1,
+        })
+        .then(({ response }) => {
+          if (response === 0) void restartLocalServer();
+        })
+        .catch((err) => console.error('[desktop] 服务不可用提示失败：', err?.message || err));
     });
 
     try {
@@ -2301,7 +2681,8 @@ app.whenReady().then(async () => {
     const absolute = /^https?:/i.test(url)
       ? new URL(url, `http://127.0.0.1:${serverPort}`).toString()
       : `http://127.0.0.1:${serverPort}${url.startsWith('/') ? '' : '/'}${url}`;
-    if (!isLocalApiUrl(absolute)) {
+    if (!isLocalApiUrl(absolute, serverPort)) {
+      // 必须带上实际端口：否则 127.0.0.1 上任意一个其它服务都能被渲染层借来下载文件
       console.warn('[ipc] download-file 拒绝非本机地址:', url);
       return false;
     }
@@ -2437,6 +2818,7 @@ app.on('will-quit', (e) => {
     trayTimer = null;
   }
   destroyLiveWindow();
+  stopScreensaverWatch();
   closeToast();
   // 日志缓冲可能还有最后几行：退出前同步落一次
   try {

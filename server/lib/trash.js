@@ -14,6 +14,26 @@ import {
   removePhash,
   toDTO,
 } from '../library.js';
+import { kindOfPath } from './media-kind.js';
+
+/** 删除前把整行 images 快照塞进回收站：恢复时才能还原全部列（见 restoreFromTrash） */
+function snapshotOf(row) {
+  try {
+    return JSON.stringify(row || {});
+  } catch {
+    return '';
+  }
+}
+
+function parseSnapshot(raw) {
+  if (!raw) return {};
+  try {
+    const obj = JSON.parse(raw);
+    return obj && typeof obj === 'object' ? obj : {};
+  } catch {
+    return {}; // 旧记录 / 损坏快照：退回按回收站表自身的字段恢复
+  }
+}
 
 /**
  * 回收站目录：放在被删文件「同目录下」的 trash 子文件夹，
@@ -95,8 +115,8 @@ async function moveToAppTrash(row, reason) {
     withTransaction(() => {
       db.prepare(
         `INSERT INTO trash(image_id, title, origin_path, trash_path, source, keyword, width, height,
-          size_bytes, mime, phash, tags, favorite, reason, deleted_at)
-         VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`
+          size_bytes, mime, phash, tags, favorite, reason, deleted_at, snapshot)
+         VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`
       ).run(
         row.id,
         row.title,
@@ -112,7 +132,8 @@ async function moveToAppTrash(row, reason) {
         row.tags,
         row.favorite,
         reason,
-        new Date().toISOString()
+        new Date().toISOString(),
+        snapshotOf(row)
       );
     });
   } catch (err) {
@@ -184,28 +205,38 @@ export async function restoreFromTrash(id) {
     // 入库与清回收站记录必须在同一个事务里：以前是先 rename 再 INSERT，
     // INSERT 一抛错文件已回原位、回收站行却还指着不存在的路径，第二次恢复必失败。
     newId = withTransaction(() => {
+      // 快照里带着删除前的整行（media_kind / duration / cover_ts / rating / note / md5…）。
+      // 只按回收站表的 15 个字段恢复，视频会变回 image、评分备注丢失、fs_mtime=0
+      // 让 ?v=0 的缩略图 URL 永远命中旧缓存。这里按「当前 images 表实际存在的列」取值，
+      // 旧回收站记录（没有 snapshot）仍走回收站表的字段兜底。
+      const snap = parseSnapshot(row.snapshot);
+      const tableCols = new Set(db.prepare('PRAGMA table_info(images)').all().map((c) => c.name));
+      const stat = fs.statSync(target);
+      const next = {
+        title: row.title,
+        source: row.source,
+        keyword: row.keyword,
+        width: row.width,
+        height: row.height,
+        size_bytes: row.size_bytes,
+        mime: row.mime,
+        phash: row.phash,
+        favorite: row.favorite,
+        tags: row.tags,
+        ...snap,
+        // 这三列必须按恢复现场定，不能照抄快照（id 由数据库重新分配）
+        abs_path: target,
+        thumb: null,
+        fs_mtime: Math.round(stat.mtimeMs / 1000),
+      };
+      if (!next.media_kind) next.media_kind = kindOfPath(target); // 老记录：按扩展名补回类型
+      if (!next.created_at) next.created_at = new Date().toISOString();
+      const cols = Object.keys(next).filter((k) => k !== 'id' && tableCols.has(k));
       const info = db
         .prepare(
-          `INSERT INTO images(title, abs_path, thumb, source, keyword, source_url, width, height,
-            size_bytes, mime, phash, favorite, tags, created_at)
-           VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)`
+          `INSERT INTO images(${cols.join(', ')}) VALUES (${cols.map(() => '?').join(',')})`
         )
-        .run(
-          row.title,
-          target,
-          null,
-          row.source,
-          row.keyword,
-          '',
-          row.width,
-          row.height,
-          row.size_bytes,
-          row.mime,
-          row.phash,
-          row.favorite,
-          row.tags,
-          new Date().toISOString()
-        );
+        .run(...cols.map((k) => next[k]));
       db.prepare('DELETE FROM trash WHERE id = ?').run(id);
       return Number(info.lastInsertRowid);
     });
@@ -266,8 +297,8 @@ export async function clearLibrary() {
   const settings = getSettings();
   const insert = db.prepare(
     `INSERT INTO trash(image_id, title, origin_path, trash_path, source, keyword, width, height,
-      size_bytes, mime, phash, tags, favorite, reason, deleted_at)
-     VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`
+      size_bytes, mime, phash, tags, favorite, reason, deleted_at, snapshot)
+     VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`
   );
   const del = db.prepare('DELETE FROM images WHERE id = ?');
   const cleared = [];
@@ -305,7 +336,8 @@ export async function clearLibrary() {
           row.tags,
           row.favorite,
           '清空图库',
-          now
+          now,
+          snapshotOf(row)
         );
       } catch (err) {
         console.error('[trash] 清空图库时移动失败', row.abs_path, err.message);

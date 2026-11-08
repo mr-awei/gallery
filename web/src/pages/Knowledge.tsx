@@ -15,6 +15,9 @@ const RULE_TYPE_LABELS: Record<string, string> = {
   ai_term: 'AI 描述词',
 };
 
+/** 规则列表每页条数：几千条规则时不把整表响应体一次灌进前端 */
+const RULE_PAGE = 50;
+
 export default function Knowledge({
   onToast,
   onLibraryChanged,
@@ -23,6 +26,8 @@ export default function Knowledge({
   onLibraryChanged: () => void;
 }) {
   const [rules, setRules] = useState<KbRule[]>([]);
+  const [ruleTotal, setRuleTotal] = useState(0);
+  const [loadingMore, setLoadingMore] = useState(false);
   const [feedback, setFeedback] = useState<FeedbackItem[]>([]);
   const [stats, setStats] = useState<KbStats | null>(null);
   const [aiStatus, setAiStatus] = useState<AiStatus | null>(null);
@@ -32,13 +37,34 @@ export default function Knowledge({
   /** 「AI 描述词」规则靠 ai_desc 匹配，库里没有 AI 看图数据时永远是死规则，默认折叠 */
   const [showDormant, setShowDormant] = useState(false);
 
+  const refreshRules = useCallback(async () => {
+    const page = await api.kbRulesPaged({ limit: RULE_PAGE, offset: 0 });
+    setRules(page.items);
+    setRuleTotal(page.total);
+  }, []);
+
+  const loadMore = async () => {
+    if (loadingMore || rules.length >= ruleTotal) return;
+    setLoadingMore(true);
+    try {
+      const page = await api.kbRulesPaged({ limit: RULE_PAGE, offset: rules.length });
+      setRuleTotal(page.total);
+      setRules((prev) => {
+        const seen = new Set(prev.map((r) => r.id));
+        return [...prev, ...page.items.filter((r) => !seen.has(r.id))];
+      });
+    } finally {
+      setLoadingMore(false);
+    }
+  };
+
   const refresh = useCallback(() => {
-    api.kbRules().then(setRules).catch(quiet);
+    refreshRules().catch(quiet);
     api.kbFeedback().then(setFeedback).catch(quiet);
     api.kbStats().then(setStats).catch(quiet);
     api.aiStatus().then(setAiStatus).catch(quiet);
     api.aiPresets().then(setPresets).catch(quiet);
-  }, []);
+  }, [refreshRules]);
 
   useEffect(refresh, [refresh]);
 
@@ -88,19 +114,19 @@ export default function Knowledge({
   };
 
   const toggleRule = async (rule: KbRule) => {
-    const res = await api.kbUpdateRule(rule.id, { enabled: rule.enabled ? 0 : 1 });
-    setRules(res.rules);
+    await api.kbUpdateRule(rule.id, { enabled: rule.enabled ? 0 : 1 });
+    await refreshRules();
     onLibraryChanged();
   };
 
   const changeWeight = async (rule: KbRule, delta: number) => {
-    const res = await api.kbUpdateRule(rule.id, { weight: Math.max(0, Math.min(45, rule.weight + delta)) });
-    setRules(res.rules);
+    await api.kbUpdateRule(rule.id, { weight: Math.max(0, Math.min(45, rule.weight + delta)) });
+    await refreshRules();
   };
 
   const removeRule = async (id: number) => {
-    const res = await api.kbDeleteRule(id);
-    setRules(res.rules);
+    await api.kbDeleteRule(id);
+    await refreshRules();
     onLibraryChanged();
   };
 
@@ -212,6 +238,11 @@ export default function Knowledge({
               );
             })}
           </div>
+        )}
+        {ruleTotal > rules.length && (
+          <button className="btn ghost sm" style={{ marginTop: 10 }} onClick={loadMore} disabled={loadingMore}>
+            {loadingMore ? '加载中…' : `加载更多规则（已显示 ${rules.length} / ${ruleTotal}）`}
+          </button>
         )}
         {dormantRules.length > 0 && (
           <div className="hint" style={{ marginTop: 10, lineHeight: 1.9 }}>

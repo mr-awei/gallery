@@ -1,6 +1,7 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { api, type GeoProvince, type WatermarkOptions, type WatermarkParams } from '../api';
+import { useJobProgress } from '../hooks/useJobProgress';
 import type { EditJobStatus, ImageItem, WatermarkPreset } from '../types';
 import Select, { type SelectOption } from './Select';
 import SaveModeBlock, { SAVE_MODE_DEFAULT, type SaveModeState } from './SaveModeBlock';
@@ -482,30 +483,35 @@ export default function WatermarkStudio({ open, ids, onClose, onToast, onDone }:
     []
   );
 
-  /* 批量进度轮询（与批量裁切/调色同一套任务）：只在真的提交过批量任务时才开 */
-  useEffect(() => {
-    if (!open || !polling) return;
-    const timer = window.setInterval(async () => {
-      try {
-        const s = await api.editJob();
-        errCount.current = 0;
-        setPollErr('');
-        setJob(s);
-        if (!s.running) {
-          setPolling(false);
-          setApplying(false);
-          onDone?.();
-          onToast?.(`水印完成：成功 ${s.done} 张${s.failed ? `，失败 ${s.failed} 张` : ''}`);
-          onClose();
-        }
-      } catch (pollFailure) {
-        // 连续读不到进度说明服务可能断了，别让面板一直假装在跑
-        errCount.current += 1;
-        if (errCount.current >= 3) setPollErr((pollFailure as Error).message || '无法连接服务');
+  /* 批量进度走 SSE job 快照（与裁切/调色同一套任务）；SSE 断了才低频兜底 */
+  const applyStatus = useCallback(
+    (s: EditJobStatus) => {
+      errCount.current = 0;
+      setPollErr('');
+      setJob(s);
+      if (!s.running) {
+        setPolling(false);
+        setApplying(false);
+        onDone?.();
+        onToast?.(`水印完成：成功 ${s.done} 张${s.failed ? `，失败 ${s.failed} 张` : ''}`);
+        onClose();
       }
-    }, 800);
-    return () => window.clearInterval(timer);
-  }, [open, polling, onDone, onToast, onClose]);
+    },
+    [onDone, onToast, onClose]
+  );
+
+  const pollOnce = useCallback(async () => {
+    try {
+      applyStatus(await api.editJob());
+    } catch (pollFailure) {
+      errCount.current += 1;
+      if (errCount.current >= 3) setPollErr((pollFailure as Error).message || '无法连接服务');
+    }
+  }, [applyStatus]);
+
+  useJobProgress((d) => {
+    if (d?.edit) applyStatus(d.edit as EditJobStatus);
+  }, pollOnce, open && polling);
 
   useEffect(() => {
     if (!open) return;

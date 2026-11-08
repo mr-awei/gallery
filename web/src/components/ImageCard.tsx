@@ -323,11 +323,30 @@ const ImageCard = React.memo(function ImageCard({
    *   - 连续多次拿不到（broken）：才当真的缺失，显示「文件缺失」
    * 以前一律立刻重试一次，赶上首屏几十张缺图时又要排队打满 CPU，反而更慢。
    */
+  /**
+   * 重试节奏：以前只给两次（1.2s、3s）就判「文件缺失」。
+   * 但整库补图时（比如把上万个缺缩略图的老库接进来）服务端是排队一张张生成的，
+   * 屏幕上一批卡片根本等不到自己那一张，4 秒后全部变「文件缺失」，看着就像图丢了。
+   * 这里改成逐步退避、总共约 2.5 分钟：补图轮到它就自己出现，真的缺文件也只是晚一点报。
+   */
+  /** 缩略图加载成功：清掉待生成态与退避预算（偶发失败不该永久耗尽重试次数） */
+  const onThumbLoad = () => {
+    failedEverRef.current = false;
+    retryCountRef.current = 0;
+    if (retryTimerRef.current) {
+      window.clearTimeout(retryTimerRef.current);
+      retryTimerRef.current = 0;
+    }
+    setThumbPending(false);
+    setBroken(false);
+  };
+
+  const RETRY_DELAYS = [1200, 2500, 4000, 6000, 10000, 15000, 20000, 30000, 45000];
   const onThumbError = () => {
     failedEverRef.current = true;
     const next = retryCountRef.current + 1;
     retryCountRef.current = next;
-    if (next > 2) {
+    if (next > RETRY_DELAYS.length) {
       setThumbPending(false);
       setBroken(true);
       return;
@@ -337,28 +356,51 @@ const ImageCard = React.memo(function ImageCard({
     retryTimerRef.current = window.setTimeout(() => {
       retryTimerRef.current = 0;
       setRetryTick((t) => t + 1);
-    }, next === 1 ? 1200 : 3000);
+    }, RETRY_DELAYS[next - 1]);
   };
 
   const renderMedia = () => {
     if (broken) {
+      // RAW / 设计稿本来就没有浏览器能直接显示的位图：拿不到内嵌预览时说「暂无预览」，
+      // 说「文件缺失」会让用户以为照片丢了（文件其实好好在磁盘上）
+      const noPreview = kind === 'raw' || kind === 'design';
+      const ext = (item.title.split('.').pop() || '').toUpperCase();
       return (
-        <div className="card-broken" title={`${item.title}（缩略图加载失败，可点「刷新」重试；文件确实丢失时到设置 → 数据维护清理）`}>
-          <span>⚠</span>
-          文件缺失
-          <small>
-            {item.width}×{item.height}
-          </small>
+        <div
+          className="card-broken"
+          title={
+            noPreview
+              ? `${item.title}（${KIND_LABEL[kind] || '该格式'}没有内嵌预览图；文件本身正常，可用原软件打开）`
+              : `${item.title}（缩略图加载失败，可点「刷新」重试；文件确实丢失时到设置 → 数据维护清理）`
+          }
+        >
+          <span>{noPreview ? KIND_GLYPH[kind] || '⚠' : '⚠'}</span>
+          {noPreview ? '暂无预览' : '文件缺失'}
+          <small>{noPreview ? `${ext}${item.width ? ` · ${item.width}×${item.height}` : ''}` : `${item.width}×${item.height}`}</small>
         </div>
       );
     }
     if (thumbPending) {
       return (
-        <div className="card-broken pending" title={`${item.title}（缩略图正在后台生成，稍后自动出现）`}>
-          <span className="card-thumb-spin" aria-hidden />
-          <small>
-            {item.width}×{item.height}
-          </small>
+        <div className="card-thumb-pending">
+          <div className="card-broken pending" title={`${item.title}（缩略图正在后台生成，稍后自动出现）`}>
+            <span className="card-thumb-spin" aria-hidden />
+            <small>
+              {item.width}×{item.height}
+            </small>
+          </div>
+          {/* 关键：<img> 必须保持挂载。以前这里是直接 return 占位、把 <img> 卸载掉，
+              退避定时器改完 URL 已没有任何元素能再触发 onError/onLoad，
+              thumbPending 永远为 true → 卡片永久转圈，「文件缺失」也永远不出现。
+              这里用透明探针叠在占位之上：维持卡片高度，同时让重试链路活着。 */}
+          <img
+            className="card-thumb-probe"
+            src={thumbSrc}
+            alt=""
+            aria-hidden
+            onError={onThumbError}
+            onLoad={onThumbLoad}
+          />
         </div>
       );
     }
@@ -378,7 +420,9 @@ const ImageCard = React.memo(function ImageCard({
     // 设计文件 / RAW / 网页书签：入库时已经备好了画面（PSD 合成图、Sketch 的
     // preview.png、RAW 内嵌 JPEG、网页 og:image），直接当缩略图用
     if (kind === 'design' || kind === 'raw' || kind === 'bookmark') {
-      return <img src={thumbSrc} alt={item.title} loading="lazy" decoding="async" onError={() => setBroken(true)} />;
+      // 不能一次 onError 就判死：补图/换盘/首次打开时后台可能还没生成好，
+      // 走统一的重试链路（URL 带 tick 变化，绕开可能被缓存的 404），多次拿不到才显示「暂无预览」。
+      return <img src={thumbSrc} alt={item.title} loading="lazy" decoding="async" onError={onThumbError} onLoad={onThumbLoad} />;
     }
     if (kind === 'font') {
       return <FontThumb url={fullUrl} title={item.title} />;
@@ -401,6 +445,7 @@ const ImageCard = React.memo(function ImageCard({
         loading="lazy"
         decoding="async"
         onError={onThumbError}
+        onLoad={onThumbLoad}
       />
     );
   };
@@ -591,6 +636,9 @@ const ImageCard = React.memo(function ImageCard({
       onClick={() => onOpen(item)}
       onContextMenu={(e) => {
         e.preventDefault();
+        // 阻止冒泡：页面的右键菜单（撤销/刷新/清理缺失…）只处理空白区域，
+        // 右键卡片时只弹卡片自己的菜单，不要两个菜单一起冒出来。
+        e.stopPropagation();
         // 记录光标位置；视口收拢在渲染后按菜单实际尺寸做（见 useLayoutEffect）
         setMenu({ x: e.clientX, y: e.clientY });
       }}

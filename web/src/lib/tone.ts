@@ -1,6 +1,6 @@
 // 带 .ts 扩展名：Node 直接跑单测时能解析（Vite 与 allowImportingTsExtensions 同样支持）
-import type { AdjustParams, CurvePoint, CurveSet } from '../types.ts';
-import { CURVES_DEFAULTS, hasAnyCurve } from '../types.ts';
+import type { AdjustParams, CurvePoint, CurveSet } from '../types';
+import { CURVES_DEFAULTS, hasAnyCurve } from '../types';
 
 /**
  * 影调 / 曲线 / 白平衡的**共用公式**（预览与后端同一套常量）。

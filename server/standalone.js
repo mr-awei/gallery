@@ -139,8 +139,16 @@ async function main() {
     console.error('[server] 回填文件夹树失败', err.message);
   }
 
+  // 上次退出前开着局域网投送：启动即恢复，不让用户每次重开应用都要再点一次
+  const { syncLanSetting } = await import('./lib/lan.js');
+  await syncLanSetting(snapshot()).catch((err) => console.error('[lan] 恢复投送开关失败', err?.message || err));
+
   // 主进程需要「设置 / 动态壁纸」这两类本地能力才能跟上服务端状态
-  settingsBus.on('changed', (settings) => channel.send({ type: 'settings', settings }));
+  settingsBus.on('changed', (settings) => {
+    channel.send({ type: 'settings', settings });
+    // toggle 路由也会调一次，syncLanSetting 是幂等的
+    syncLanSetting(settings).catch((err) => console.error('[lan] 同步投送开关失败', err?.message || err));
+  });
   liveBus.on('changed', (cfg) => channel.send({ type: 'live', cfg }));
 
   channel.onMessage((msg) => {
@@ -160,6 +168,13 @@ async function shutdown(reason) {
   const timer = setTimeout(done, 4000);
   timer.unref?.();
   try {
+    // 独立端口的投送服务必须一起关，否则进程退出了端口还挂着（下次启动换端口，二维码全失效）
+    try {
+      const { stopLanServer } = await import('./lib/lan.js');
+      await stopLanServer();
+    } catch (err) {
+      console.error('[lan] 关闭投送服务失败', err?.message || err);
+    }
     if (serverRef) await new Promise((resolve) => serverRef.close(resolve));
     const { db } = await import('./db.js');
     try {

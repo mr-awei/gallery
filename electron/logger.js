@@ -13,6 +13,10 @@ import path from 'node:path';
 const MAX_LOG_SIZE = 5 * 1024 * 1024;
 const FLUSH_INTERVAL = 800;
 const FLUSH_THRESHOLD = 200;
+/** 同一天最多保留多少份轮转日志；超过按名字（含时间戳）从新到旧删 */
+const MAX_ROTATED_FILES = 10;
+/** 日志保留天数：每天一个 app-YYYY-MM-DD.log，过期整组删掉 */
+const MAX_LOG_AGE_DAYS = 7;
 
 let logDir = '';
 let inited = false;
@@ -41,11 +45,45 @@ function flush(sync = false) {
   void rotateIfNeeded();
 }
 
+/** 清理过期日志与超出配额的轮转份（启动时 + 每次轮转后各跑一次） */
+async function pruneLogs() {
+  if (!logDir) return;
+  let names;
+  try {
+    names = await fsp.readdir(logDir);
+  } catch {
+    return;
+  }
+  const cutoff = Date.now() - MAX_LOG_AGE_DAYS * 24 * 60 * 60 * 1000;
+  const rotated = [];
+  for (const name of names) {
+    const m = /^app-(\d{4}-\d{2}-\d{2})\.log(?:\..+)?$/.exec(name);
+    if (!m) continue;
+    const full = path.join(logDir, name);
+    const day = Date.parse(`${m[1]}T00:00:00Z`);
+    if (Number.isFinite(day) && day < cutoff) {
+      await fsp.rm(full, { force: true }).catch(() => {});
+      continue;
+    }
+    if (!name.endsWith('.log')) rotated.push({ name, full });
+  }
+  // 名字里带 ISO 时间戳，字典序 = 时间序
+  rotated.sort((a, b) => b.name.localeCompare(a.name));
+  for (const extra of rotated.slice(MAX_ROTATED_FILES)) {
+    await fsp.rm(extra.full, { force: true }).catch(() => {});
+  }
+}
+
 async function rotateIfNeeded() {
   try {
     const file = currentFile();
     const st = await fsp.stat(file);
-    if (st.size > MAX_LOG_SIZE) await fsp.rename(file, `${file}.old`);
+    if (st.size <= MAX_LOG_SIZE) return;
+    // 以前固定 rename 成 .old，第二次轮转就把上一份覆盖掉 —— 只剩最近两片。
+    // 带时间戳就不会互相覆盖，再由 pruneLogs 按天数和份数收敛。
+    const stamp = new Date().toISOString().replace(/[:.]/g, '-');
+    await fsp.rename(file, `${file}.${stamp}.old`);
+    await pruneLogs();
   } catch {
     /* 文件还没建出来 / 被占用：下次再说 */
   }
@@ -104,6 +142,8 @@ export function initLogger(userDataDir) {
       if (logDir) append(fmt(level, args));
     };
   }
+  // 启动就清一次：上次运行留下的过期日志不必等到下一次轮转才被清掉
+  void pruneLogs();
   // 退出前把缓冲区落盘（此时只能同步写；量很小，不会拖垮退出）
   process.on('exit', () => flush(true));
 }

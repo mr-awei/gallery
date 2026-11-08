@@ -15,6 +15,10 @@ contextBridge.exposeInMainWorld('desktopAPI', {
   controlLiveWallpaper: (patch) => ipcRenderer.invoke('live-wallpaper-control', patch),
   // 选择单个文件（如动态壁纸视频）
   pickFile: (filters) => ipcRenderer.invoke('pick-file', filters),
+  // 视频片段导出：渲染进程编码出 data URL，主进程弹「另存为」写盘
+  saveExport: (payload) => ipcRenderer.invoke('save-export', payload),
+  // 壁纸参数实时预览：拖滑块时即时推给桌面层窗口，不重开窗口
+  setLiveParams: (params) => ipcRenderer.invoke('live-params', params),
   // 微博 Cookie：打开内置登录窗口，登录成功后自动回传整段 Cookie
   weiboLogin: () => ipcRenderer.invoke('weibo-login'),
   // 同步原生控件（下拉弹层等）主题：dark / light / system
@@ -70,6 +74,9 @@ contextBridge.exposeInMainWorld('desktopAPI', {
     ipcRenderer.on('service-state', handler);
     return () => ipcRenderer.removeListener('service-state', handler);
   },
+  // 离线横幅上的「立即重启」：与托盘菜单共用主进程的重启流程
+  restartService: () => ipcRenderer.invoke('restart-service'),
+  updateResetFailures: () => ipcRenderer.invoke('update-reset-failures'),
   // 强制更新遮罩的兜底出口：下载/安装反复失败时让用户能退出应用
   quit: () => ipcRenderer.invoke('app:quit'),
 });

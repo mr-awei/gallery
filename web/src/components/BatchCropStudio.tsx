@@ -2,6 +2,7 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { createPortal } from 'react-dom';
 import type { EditJobStatus } from '../types';
 import { api } from '../api';
+import { useJobProgress } from '../hooks/useJobProgress';
 import CropOverlay, { initialRect, type CropRect } from './CropOverlay';
 import CropSettings, { cropOutputSize, cropRatioStr, defaultCropControls, ratioWH, type CropControlState } from './CropSettings';
 import SaveModeBlock, { SAVE_MODE_DEFAULT, type SaveModeState } from './SaveModeBlock';
@@ -120,7 +121,6 @@ export default function BatchCropStudio({ items, onClose, onToast, onDone }: Pro
   const [save, setSave] = useState<SaveModeState>(SAVE_MODE_DEFAULT);
   const [job, setJob] = useState<EditJobStatus | null>(null);
   const [starting, setStarting] = useState(false);
-  const timer = useRef<number | null>(null);
   const startedRef = useRef(false);
   const errCount = useRef(0);
   const [pollErr, setPollErr] = useState('');
@@ -185,42 +185,37 @@ export default function BatchCropStudio({ items, onClose, onToast, onDone }: Pro
 
   const running = !!job?.running;
 
-  useEffect(() => {
-    if (!running) {
-      if (timer.current) {
-        window.clearInterval(timer.current);
-        timer.current = null;
+  // 进度走 SSE job 快照；连续 10s 收不到推送才低频兜底拉接口
+  const applyStatus = useCallback(
+    (s: EditJobStatus) => {
+      errCount.current = 0;
+      setPollErr('');
+      setJob(s);
+      if (!s.running && startedRef.current) {
+        startedRef.current = false;
+        onDone?.();
+        onToast?.(
+          s.cancelled
+            ? `批量裁切已取消（完成 ${s.done} 张，失败 ${s.failed} 张）`
+            : `批量裁切完成：成功 ${s.done} 张${s.failed ? `，失败 ${s.failed} 张` : ''}`
+        );
       }
-      return;
+    },
+    [onDone, onToast]
+  );
+
+  const pollOnce = useCallback(async () => {
+    try {
+      applyStatus(await api.editJob());
+    } catch (err) {
+      errCount.current += 1;
+      if (errCount.current >= 3) setPollErr((err as Error).message || '无法连接服务');
     }
-    timer.current = window.setInterval(async () => {
-      try {
-        const s = await api.editJob();
-        errCount.current = 0;
-        setPollErr('');
-        setJob(s);
-        if (!s.running && startedRef.current) {
-          startedRef.current = false;
-          onDone?.();
-          onToast?.(
-            s.cancelled
-              ? `批量裁切已取消（完成 ${s.done} 张，失败 ${s.failed} 张）`
-              : `批量裁切完成：成功 ${s.done} 张${s.failed ? `，失败 ${s.failed} 张` : ''}`
-          );
-        }
-      } catch (err) {
-        // 连续失败说明服务可能断了：不能一直装成「正在处理」
-        errCount.current += 1;
-        if (errCount.current >= 3) setPollErr((err as Error).message || '无法连接服务');
-      }
-    }, 800);
-    return () => {
-      if (timer.current) {
-        window.clearInterval(timer.current);
-        timer.current = null;
-      }
-    };
-  }, [running, onToast, onDone]);
+  }, [applyStatus]);
+
+  useJobProgress((d) => {
+    if (d?.edit) applyStatus(d.edit as EditJobStatus);
+  }, pollOnce, running);
 
   // Esc 关闭（任务运行中不关，避免以为停了）
   useEffect(() => {

@@ -164,7 +164,7 @@ export default function Crawl({ onToast }: { onToast: (msg: string, kind?: 'info
       <div className="page-head">
         <div>
           <h1 className="page-title">采集</h1>
-          <div className="page-sub">必应 / 百度 / 搜狗 / Wallhaven 并发抓取，边搜边下载，自动去重与画质过滤</div>
+          <div className="page-sub">必应 / 百度 / 搜狗 / Wallhaven / Wikimedia / 豆瓣 / 贴吧并发抓取，边搜边下载，自动去重与画质过滤</div>
         </div>
         <div style={{ display: 'flex', gap: 8 }}>
           {running ? (

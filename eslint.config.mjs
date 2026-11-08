@@ -73,7 +73,9 @@ export default [
   {
     ignores: [
       'dist/**',
-      'release-build/**',
+      // 打包产物目录按版本命名（release-build-1.1.3/），与 .gitignore 的 release-build*/ 对齐；
+      // 写成 release-build/** 时带版本号的目录会漏网，里面的扩展代码被当成 Node 代码报一堆 no-undef
+      'release-build*/**',
       'build-out*/**',
       'node_modules/**',
       '.codebuddy/**',

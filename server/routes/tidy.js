@@ -138,7 +138,14 @@ export function register(app, ctx) {
           // 打标后自动按智能文件夹规则归类（可被设置关闭）
           let folderChanges = 0;
           if (autoFolder) folderChanges = lib.applySmartFolderTags(r.id);
-          results.push({ id: r.id, ok: true, description: d.description, folderChanges });
+          results.push({
+            id: r.id,
+            ok: true,
+            description: d.description,
+            tags: d.tags || [],
+            tagsWritten: d.tagsWritten || 0,
+            folderChanges,
+          });
         } catch (err) {
           results.push({ id: r.id, ok: false, error: err.message });
           break; // AI 没配置好就不必继续

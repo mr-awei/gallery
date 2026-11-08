@@ -7,6 +7,46 @@
  */
 import path from 'node:path';
 
+/**
+ * 相机 RAW 扩展名。
+ *
+ * 覆盖原则：每一家能拿到的专有扩展名都列上（Honeyview / 快石这类看图软件也是这么做的）。
+ * 列进来不等于要解拜耳阵列 —— 缩略图统一走「抽文件自带的内嵌预览」
+ * （相当于 LibRaw 的 unpack_thumb / dcraw -e），所以新增一个扩展名的成本很低。
+ * 唯独没有放 bbRAW/裸 .raw 这类通用后缀：素材目录里一个随便命名的 .raw
+ * 会被当成相机原片，反而制造垃圾记录。
+ */
+export const RAW_EXTS = [
+  // Canon
+  'cr2', 'cr3', 'crw',
+  // Nikon
+  'nef', 'nrw',
+  // Sony
+  'arw', 'sr2', 'srf',
+  // Fujifilm
+  'raf',
+  // Olympus / OM System
+  'orf', 'ori',
+  // Panasonic / Leica
+  'rw2', 'rwl',
+  // Pentax
+  'pef',
+  // Samsung
+  'srw',
+  // Adobe DNG（含 iPhone ProRAW）
+  'dng',
+  // Hasselblad / Phase One / Leaf / Mamiya
+  '3fr', 'fff', 'iiq', 'mos', 'mef',
+  // Kodak / Epson / Minolta / Sigma / GoPro
+  'kdc', 'dcr', 'k25', 'erf', 'mrw', 'x3f', 'gpr',
+];
+
+/** 设计文件：sharp 读不了，但文件里自带预览（PSD 合成图 / Sketch 的 preview.png） */
+export const DESIGN_EXTS = ['psd', 'psb', 'ai', 'eps', 'sketch', 'xd', 'fig', 'indd', 'afdesign', 'afphoto', 'cdr'];
+
+/** HEIF 家族的扩展名：iPhone 默认拍照格式，sharp 自带的 libheif 没有 HEVC 解码器 */
+export const HEIF_EXTS = ['heic', 'heif', 'hif'];
+
 /** 扩展名 → 素材类型 */
 const KIND_BY_EXT = new Map();
 export const EXT_BY_KIND = {
@@ -20,10 +60,8 @@ export const EXT_BY_KIND = {
   // 缩略图是空白、点了也打不开，比不入库更难受。
   office: ['doc', 'docx', 'xls', 'xlsx', 'ppt', 'pptx', 'key', 'numbers', 'pages'],
   model: ['obj', 'fbx', 'glb', 'gltf', 'stl', 'blend', '3ds', 'dae', 'ply'],
-  // 设计文件：sharp 读不了，但文件里自带预览（PSD 合成图 / Sketch 的 preview.png /
-  // RAW 的内嵌 JPEG），缩略图由 lib/design-thumb.js 提取
-  design: ['psd', 'psb', 'ai', 'eps', 'sketch', 'xd', 'fig', 'indd', 'afdesign', 'afphoto', 'cdr'],
-  raw: ['cr2', 'cr3', 'nef', 'nrw', 'arw', 'sr2', 'dng', 'orf', 'raf', 'rw2', 'pef', 'srw', '3fr', 'kdc', 'mrw'],
+  design: DESIGN_EXTS,
+  raw: RAW_EXTS,
 };
 
 /**
@@ -41,7 +79,38 @@ for (const [kind, exts] of Object.entries(EXT_BY_KIND)) {
   for (const ext of exts) KIND_BY_EXT.set(ext, kind);
 }
 
-const IMAGE_EXTS = new Set(['jpg', 'jpeg', 'png', 'webp', 'avif', 'bmp', 'tif', 'tiff', 'svg', 'heic', 'ico']);
+const IMAGE_EXTS = new Set(['jpg', 'jpeg', 'png', 'webp', 'avif', 'bmp', 'tif', 'tiff', 'svg', 'ico', ...HEIF_EXTS]);
+
+/**
+ * 目录扫描 / 文件监听要收的图片扩展名。
+ *
+ * 之前这里是「jpg/jpeg/png/webp + 所有非图片素材」，等于 iPhone 拍的 HEIC
+ * 永远不会被扫进库（浏览器和 sharp 都解不了，就干脆当它不存在）。
+ * HEIC 现在由 lib/heif.js 用 WASM 解码，可以放心收。
+ */
+export const SCAN_IMAGE_EXTS = ['jpg', 'jpeg', 'png', 'webp', ...HEIF_EXTS];
+
+const RAW_SET = new Set(RAW_EXTS);
+const DESIGN_SET = new Set(DESIGN_EXTS);
+const HEIF_SET = new Set(HEIF_EXTS);
+
+export function isRawExt(ext) {
+  return RAW_SET.has(String(ext || '').toLowerCase());
+}
+
+export function isDesignExt(ext) {
+  return DESIGN_SET.has(String(ext || '').toLowerCase());
+}
+
+export function isHeifExt(ext) {
+  return HEIF_SET.has(String(ext || '').toLowerCase());
+}
+
+/** 需要走「抽内嵌预览」而不是 sharp 直接解码的格式 */
+export function isPreviewOnlyExt(ext) {
+  const e = String(ext || '').toLowerCase();
+  return RAW_SET.has(e) || DESIGN_SET.has(e) || HEIF_SET.has(e);
+}
 
 const MIME_BY_EXT = {
   mp4: 'video/mp4', webm: 'video/webm', mov: 'video/quicktime', m4v: 'video/x-m4v',
@@ -68,9 +137,18 @@ const MIME_BY_EXT = {
   sketch: 'application/x-sketch', xd: 'application/vnd.adobe.xd', fig: 'application/x-figma',
   indd: 'application/x-indesign', afdesign: 'application/x-affinity-designer',
   afphoto: 'application/x-affinity-photo', cdr: 'application/cdr',
-  cr2: 'image/x-canon-cr2', cr3: 'image/x-canon-cr3', nef: 'image/x-nikon-nef',
-  arw: 'image/x-sony-arw', dng: 'image/x-adobe-dng', orf: 'image/x-olympus-orf',
-  raf: 'image/x-fujifilm-raf', rw2: 'image/x-panasonic-rw2',
+  cr2: 'image/x-canon-cr2', cr3: 'image/x-canon-cr3', crw: 'image/x-canon-crw',
+  nef: 'image/x-nikon-nef', nrw: 'image/x-nikon-nrw',
+  arw: 'image/x-sony-arw', sr2: 'image/x-sony-sr2', srf: 'image/x-sony-srf',
+  dng: 'image/x-adobe-dng', orf: 'image/x-olympus-orf', ori: 'image/x-olympus-orf',
+  raf: 'image/x-fujifilm-raf', rw2: 'image/x-panasonic-rw2', rwl: 'image/x-leica-rwl',
+  pef: 'image/x-pentax-pef', srw: 'image/x-samsung-srw',
+  '3fr': 'image/x-hasselblad-3fr', fff: 'image/x-hasselblad-fff',
+  iiq: 'image/x-phaseone-iiq', mos: 'image/x-leaf-mos', mef: 'image/x-mamiya-mef',
+  kdc: 'image/x-kodak-kdc', dcr: 'image/x-kodak-dcr', k25: 'image/x-kodak-k25',
+  erf: 'image/x-epson-erf', mrw: 'image/x-minolta-mrw', x3f: 'image/x-sigma-x3f',
+  gpr: 'image/x-gopro-gpr',
+  heic: 'image/heic', heif: 'image/heif', hif: 'image/heif',
 };
 
 /** 媒体扩展名集合（不含图片） */

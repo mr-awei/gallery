@@ -12,6 +12,7 @@
 import { EventEmitter } from 'node:events';
 import { spawn } from 'node:child_process';
 import { restartDelay } from './lib/pure.js';
+import { cleanupStaleService, writePidRecord, removePidRecord } from './lib/stale-process.js';
 
 const READY_TIMEOUT = 30_000;
 const PING_TIMEOUT = 8_000;
@@ -41,6 +42,14 @@ export class ServerHost extends EventEmitter {
     this.health = null;
     this.readyWaiters = [];
     this.pendingPing = null;
+    /** 是否已经在 dead 前试过「换端口」兜底（每次崩溃窗口只试一次） */
+    this._portFallbackTried = false;
+  }
+
+  /** 用户手动重启：清空崩溃计数与兜底标记，给一次干净的重启机会 */
+  revive() {
+    this.restarts = [];
+    this._portFallbackTried = false;
   }
 
   get running() {
@@ -64,6 +73,16 @@ export class ServerHost extends EventEmitter {
   async _start() {
     if (this.running) return this.info();
     this.stopping = false;
+    // 主进程被强杀时 will-quit 不会触发，服务进程会变成持有 gallery.db 的孤儿。
+    // fork 之前先按 PID 记录 + 创建时间 + 命令行三重校验回收（见 lib/stale-process.js），
+    // 放在这里才能覆盖初次启动、崩溃重启、托盘重启、换端口兜底全部启动路径。
+    const userDataDir = process.env.TUKU_USER_DATA || '';
+    await cleanupStaleService({
+      userDataDir,
+      entry: this.entry,
+      selfPid: process.pid,
+      log: (msg) => console.info(`[api] ${msg}`),
+    });
     const { utilityProcess } = await import('electron');
     if (!utilityProcess) throw new Error('当前环境不支持 utilityProcess');
 
@@ -79,6 +98,12 @@ export class ServerHost extends EventEmitter {
       },
     });
     this.child = child;
+    writePidRecord(userDataDir, {
+      pid: child.pid,
+      startedAt: new Date().toISOString(),
+      entry: this.entry,
+      userDataDir,
+    });
 
     // 必须走 console.*（而不是 process.stdout.write）：主进程的 logger 只挂了 console，
     // 直接写 stdout 在打包版（无控制台）等于把服务端日志全丢了
@@ -184,7 +209,26 @@ export class ServerHost extends EventEmitter {
     const now = Date.now();
     this.restarts = this.restarts.filter((t) => now - t < RESTART_WINDOW);
     if (this.restarts.length >= MAX_RESTARTS) {
-      this.emit('dead', `服务进程连续异常（${reason}），已停止自动重启`);
+      // 进 dead 前再兜一次：换个端口重启。固定端口被残留进程 / 安全软件占住时，
+      // 反复重启到同一个端口必然再失败，而换端口能绕开这类最常见的死因。
+      if (!this._portFallbackTried) {
+        this._portFallbackTried = true;
+        const savedPort = this.port;
+        console.error(`[api] 连续 ${MAX_RESTARTS} 次重启失败，尝试换端口兜底（${reason}）`);
+        try {
+          this.port = 0; // standalone 会挑一个空闲端口并通过 ready 回报
+          const info = await this.start();
+          this.restarts = [];
+          this._portFallbackTried = false;
+          console.info('[api] 换端口兜底成功，端口', info.port);
+          this.emit('restarted', info);
+          return;
+        } catch (err) {
+          this.port = savedPort;
+          console.error('[api] 换端口兜底也失败：', err?.message || err);
+        }
+      }
+      this.emit('dead', `服务进程连续异常（${reason}），自动重启与换端口兜底均已失败`);
       return;
     }
     this.restarts.push(now);
@@ -193,6 +237,8 @@ export class ServerHost extends EventEmitter {
     if (this.stopping) return;
     try {
       const info = await this.start();
+      this.restarts = [];
+      this._portFallbackTried = false;
       console.info('[api] 服务进程已重启，端口', info.port);
       this.emit('restarted', info);
     } catch (err) {
@@ -238,7 +284,8 @@ export class ServerHost extends EventEmitter {
     if (!child) return;
     // Windows 上 child.kill() 只杀这一个进程，它拉起的子孙进程会残留并继续持有
     // gallery.db —— 下次启动就撞锁（standalone 里「上次异常退出」的提示就是这个场景）。
-    // 没有 Job Object 可用时，taskkill /T 是最接近的进程树回收手段。
+    // Electron 未暴露 Job Object 绑定，这里用「taskkill /T 进程树 + 启动前残留清理」
+    // 组合覆盖强杀主进程的场景（PID 记录见 lib/stale-process.js）。
     if (process.platform === 'win32' && child.pid) {
       try {
         spawn('taskkill', ['/pid', String(child.pid), '/T', '/F'], {
@@ -284,6 +331,9 @@ export class ServerHost extends EventEmitter {
       child.once('exit', () => {
         clearTimeout(timer);
         this.child = null;
+        // 只有确认进程真的退出了才删 PID 记录：超时强杀还留着它，
+        // 下次启动才能继续回收（这正是主进程被强杀场景的兜底）
+        removePidRecord(process.env.TUKU_USER_DATA || '');
         resolve();
       });
     });

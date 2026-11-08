@@ -15,6 +15,10 @@ interface Props {
   onEditTag: (t: TagNode) => void;
   onChanged: (r: { tags: TagNode[]; groups: string[] }) => void;
   onToast?: (msg: string, kind?: 'info' | 'error') => void;
+  /** 远端标签总数比已加载的多多少个（分页）：>0 时显示「加载更多」 */
+  remaining?: number;
+  /** 点击「加载更多」加载下一页标签 */
+  onLoadMore?: () => void;
 }
 
 type DropPos = 'before' | 'after' | 'child';
@@ -46,6 +50,8 @@ export default function TagPanel({
   onEditTag,
   onChanged,
   onToast,
+  remaining = 0,
+  onLoadMore,
 }: Props) {
   const [collapsed, setCollapsed] = useState<string[]>(readCollapsed);
   const [drag, setDrag] = useState('');
@@ -283,6 +289,12 @@ export default function TagPanel({
         );
       })}
       {!tags.length && <div className="tag-empty">还没有标签，给图片打上标签后会出现在这里</div>}
+
+      {remaining > 0 && onLoadMore && (
+        <button className="tag-load-more" onClick={onLoadMore}>
+          加载更多标签（还剩 {remaining} 个）
+        </button>
+      )}
 
       {menu && (
         <div

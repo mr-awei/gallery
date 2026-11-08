@@ -14,13 +14,16 @@ import {
   findDuplicateByPhash,
   toDTO,
   getImage,
+  ensureThumb,
   KEEP_REASONS,
   ALLOWED_FORMATS,
 } from './library.js';
 import { ensureFolderByRelDir, linkImageByPath } from './folders.js';
 import { ingestMedia, isMediaPath, MEDIA_EXTS } from './lib/media.js';
+import { SCAN_IMAGE_EXTS, mimeOfPath } from './lib/media-kind.js';
 import { shouldSkipDir } from './lib/skip-dirs.js';
 import { thumbPathFor } from './thumbs.js';
+import { mapLimit } from './lib/utils.js';
 import * as clip from './clip.js';
 
 /**
@@ -45,7 +48,7 @@ import * as clip from './clip.js';
  * 缩略图文件名是 `${id}.jpg`，所以必须先有 id —— 这也是必须分两阶段的原因。
  */
 
-const EXTS = new Set(['.jpg', '.jpeg', '.png', '.webp', ...[...MEDIA_EXTS].map((e) => `.${e}`)]);
+const EXTS = new Set([...SCAN_IMAGE_EXTS, ...MEDIA_EXTS].map((e) => `.${e}`));
 // 排除表（thumbs / .tuku / .library …）统一在 lib/skip-dirs.js，别再本地复制一份：
 // 之前这里和 importer.js 各有一份，加 .tuku 时漏掉了真正干活的那一份
 const DEFAULT_MAX_DEPTH = 4;
@@ -87,7 +90,11 @@ export async function sweepThumbTemp(thumbDir = getThumbDir()) {
         if (depth < 2) await sweep(full, depth + 1);
         continue;
       }
-      if (entry.name.includes('.tmp-')) await fsp.rm(full, { force: true }).catch(() => {});
+      // 旧命名是 `xxx.<pid>.<rand>.tmp`（预览图），新命名统一为 `.tmp-<pid>-<rand>`。
+      // 两种都要认，否则升级前留下的残片永远清不掉。
+      if (entry.name.includes('.tmp-') || entry.name.endsWith('.tmp')) {
+        await fsp.rm(full, { force: true }).catch(() => {});
+      }
     }
   };
   await sweep(thumbDir, 0);
@@ -370,20 +377,34 @@ export async function bulkImportLocal({
     // 0) 非图片素材（视频/音频/字体/PDF/Office/3D）不进 sharp 管线：
     //    直接登记，缩略图交给前端用 <video>/<audio>/@font-face 渲染
     const mediaFiles = chunk.filter((f) => isMediaPath(f));
-    for (const f of mediaFiles) {
+    // 并发 4：RAW 抠预览是「读文件 + 解一段 JPEG」，串行处理 1000 张 CR2 要十几分钟
+    await mapLimit(mediaFiles, 4, async (f) => {
       result.total++;
       try {
-        if (db.prepare('SELECT id FROM images WHERE abs_path = ?').get(f)) {
+        const row = db.prepare('SELECT id, thumb FROM images WHERE abs_path = ?').get(f);
+        if (row) {
+          // 已登记但没缩略图：RAW/PSD 早先没提取预览、或上次导入被中断。
+          // 以前这里一律算「没变化」，于是这些图永远修不好（卡片一直显示「文件缺失」）。
+          if (!row.thumb || !fs.existsSync(row.thumb)) {
+            await ensureThumb(row.id, f);
+          }
+          // 早期版本给非图片素材登记时漏了文件夹关联：任何文件夹视图都看不到它们
+          // （只有「图库」全量视图有）。这里顺手补齐，INSERT OR IGNORE 幂等。
+          const fid = folderOf(f);
+          if (fid) linkStmt.run(row.id, fid);
           result.unchanged++;
         } else {
           const r = await ingestMedia({ absPath: f, keyword: keyword || '壁纸库' });
-          if (r.ok) result.saved++;
-          else result.dropped++;
+          if (r.ok) {
+            const fid = folderOf(f);
+            if (fid && r.id) linkStmt.run(r.id, fid);
+            result.saved++;
+          } else result.dropped++;
         }
       } catch {
         result.errors++;
       }
-    }
+    });
     const images = mediaFiles.length ? chunk.filter((f) => !isMediaPath(f)) : chunk;
     if (!images.length) continue;
 
@@ -425,8 +446,10 @@ export async function bulkImportLocal({
       const sameSize = Number(row.size_bytes) === m.size;
       const sameMtime = Number(row.fs_mtime || 0) === m.mtime;
       // 上次导入被中断时行已登记但缩略图还没生成：指纹相同也要补派生，
-      // 否则这张图会永远没有缩略图（增量扫描会一直跳过它）
-      if (sameSize && sameMtime && row.thumb) {
+      // 否则这张图会永远没有缩略图（增量扫描会一直跳过它）。
+      // 同时要确认缩略图文件真的还在：缩略图目录被清理 / 换盘后 thumb 字段仍然非空，
+      // 只看字段会让这些图永久 404，而 thumbMissingCount()（按 thumb='' 统计）也发现不了。
+      if (sameSize && sameMtime && row.thumb && fs.existsSync(row.thumb)) {
         result.unchanged++; // 已登记且文件未变：跳过（增量扫描）
         continue;
       }
@@ -504,7 +527,8 @@ export async function bulkImportLocal({
               update: m.update, // 回滚清理时区分「新登记」与「重派生」（见 flush 的 catch）
               width,
               height,
-              mime: `image/${format === 'jpg' ? 'jpeg' : format || 'jpeg'}`,
+              // heic / heif 不能按容器名硬拼 mime：按扩展名判断（.heic → image/heic）
+              mime: format === 'heif' ? mimeOfPath(m.file) : `image/${format === 'jpg' ? 'jpeg' : format || 'jpeg'}`,
               thumb: res.thumb,
               phash: res.phash || '',
               dominant: res.dominant?.dominant || '',
@@ -686,8 +710,13 @@ export async function bulkIngestBuffers(items, { onEach = null, libGeneration = 
     });
     for (let i = writable.length - 1; i >= 0; i--) {
       if (!writable[i].id) {
+        const a = writable[i];
         writable.splice(i, 1);
-        result.duplicates = (result.duplicates || 0) + 1;
+        // 键名是 duplicate（初始化在 result 里）：以前写成 duplicates 会凭空造一个
+        // 新字段，汇总与任务日志里的「重复」永远是 0
+        result.duplicate++;
+        // 被 splice 掉的行以前不上报，crawler 的统计与失败清单里直接漏掉这几张
+        report(a.i, { ok: false, reason: KEEP_REASONS.duplicate });
       }
     }
   } catch (err) {

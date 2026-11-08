@@ -222,9 +222,34 @@ const VISION_SCHEMA = `输出严格 JSON（不要输出其他内容）：
   "subject": "画面主体（人物/多人/非人物/动物/风景/其他）",
   "scene": "场景简述（演出/写真/活动/街拍/日常/风景/其他）",
   "description": "60 字以内的客观描述",
+  "tags": ["3-5 个简短中文标签，客观描述主体/场景/色调，每个不超过 8 个字，不要人名、不要带逗号"],
   "issues": ["作为壁纸可能让人不满意的点，如：模糊、噪点多、分辨率低、有水印或平台 Logo、构图歪、截取不全、色调暗沉、主体不符预期、重复画面"],
   "quality": 0-100 的整数综合画质分
 }`;
+
+/**
+ * AI 产出的标签要收口：模型可能给出一长串、带分隔符或重复的词，
+ * 直接拼进 images.tags 会污染标签体系（还会被 item_tags 倒排表放大）。
+ * 这里限数量、限长度、去标点、去重，且不覆盖用户已有标签。
+ */
+function normalizeAiTags(raw) {
+  if (!Array.isArray(raw)) return [];
+  const seen = new Set();
+  const out = [];
+  for (const v of raw) {
+    const t = String(v ?? '')
+      .replace(/[,，;；/|]/g, ' ')
+      .replace(/\s+/g, ' ')
+      .trim()
+      .slice(0, 12)
+      .trim();
+    if (!t || seen.has(t.toLowerCase())) continue;
+    seen.add(t.toLowerCase());
+    out.push(t);
+    if (out.length >= 5) break;
+  }
+  return out;
+}
 
 /**
  * 画面主体的身份信息：标签 + 采集关键词（关键词每次采集必有，是最可靠的身份来源）。
@@ -304,6 +329,26 @@ export async function analyzeImage(imageId) {
   const description = [result.subject, result.scene, result.description].filter(Boolean).join(' · ');
   const issues = Array.isArray(result.issues) ? result.issues : [];
   const quality = Number(result.quality) || 0;
+  const aiTags = normalizeAiTags(result.tags);
+
+  // 「AI 看图打标」要真的写标签：以前只落 ai_desc 描述，界面叫打标却拿不到任何标签。
+  // 追加合并、不覆盖用户已有标签；images.tags 的触发器会自动同步 item_tags 倒排表。
+  // 允许用设置关掉（aiAutoTags=false），避免在不希望 AI 改标签的库里悄悄写入。
+  let writtenTags = 0;
+  if (aiTags.length && getSettings().aiAutoTags !== false) {
+    const existing = String(row.tags || '')
+      .split(/[,，]/)
+      .map((t) => t.trim())
+      .filter(Boolean);
+    const merged = existing.slice();
+    for (const t of aiTags) {
+      if (!merged.some((x) => x.toLowerCase() === t.toLowerCase())) merged.push(t);
+    }
+    writtenTags = merged.length - existing.length;
+    if (writtenTags > 0) {
+      db.prepare('UPDATE images SET tags = ? WHERE id = ?').run(merged.join(','), imageId);
+    }
+  }
 
   db.prepare(
     `INSERT INTO ai_desc(image_id, description, issues, quality, model, created_at)
@@ -313,7 +358,7 @@ export async function analyzeImage(imageId) {
        quality = excluded.quality, model = excluded.model, created_at = excluded.created_at`
   ).run(imageId, description, issues.join(','), quality, model, new Date().toISOString());
 
-  return { imageId, description, issues, quality, model };
+  return { imageId, description, issues, quality, model, tags: aiTags, tagsWritten: writtenTags };
 }
 
 export function getAiDesc(imageId) {

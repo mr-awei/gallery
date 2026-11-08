@@ -1,5 +1,6 @@
-import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { api, downloadFile, exportZipUrl, formatSize, quiet } from '../api';
+import React, { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
+import { api, downloadFile, exportZipUrl, formatSize, openFolder, quiet } from '../api';
 import { UPLOAD_HINT, importFiles } from '../lib/importer';
 import type { Filters, ImageItem, FolderNode, Playlist } from '../types';
 import FilterBar from '../components/FilterBar';
@@ -13,7 +14,7 @@ import MasonryGrid from '../components/MasonryGrid';
 import StitchDialog from '../components/StitchDialog';
 import CompareView from '../components/CompareView';
 import ActionsPanel from '../components/ActionsPanel';
-import { IconDownload, IconFolder, IconHeart, IconRefresh, IconTrash } from '../components/Icons';
+import { IconDownload, IconFolder, IconHeart, IconTrash } from '../components/Icons';
 import Select from '../components/Select';
 import ToolbarCustomizer from '../components/ToolbarCustomizer';
 import WatermarkStudio from '../components/WatermarkStudio';
@@ -144,7 +145,10 @@ const KIND_TEXT: Record<string, string> = {
   other: '文件',
 };
 
-export default function Gallery(props: Props) {
+// React.memo：App 里的 toast / 弹窗开关 / 统计数字变化时，
+// 只要传给本页的 props 不变就不该重渲染整页（勾一张图只应重渲染那张卡片）。
+// 前提见 App.tsx：所有回调 props 都必须是 useCallback/useMemo 稳定引用。
+function Gallery(props: Props) {
   const sentinel = useRef<HTMLDivElement | null>(null);
   /**
    * 可见区预览预热：把屏幕上这几张的预览图挪到服务端预取队首。
@@ -176,6 +180,35 @@ export default function Gallery(props: Props) {
   const [uploading, setUploading] = useState<{ done: number; total: number; saved: number; failed: number } | null>(
     null
   );
+  /** 页面级右键菜单：原顶部工具栏的撤销 / 刷新 / 清理缺失 / 去采集 / 重置筛选 */
+  const [pageMenu, setPageMenu] = useState<{ x: number; y: number } | null>(null);
+  const pageMenuRef = useRef<HTMLDivElement | null>(null);
+
+  // 页面右键菜单：点击/滚动/缩放/Esc 关闭；渲染后按实际尺寸把菜单收进视口
+  useEffect(() => {
+    if (!pageMenu) return;
+    const close = () => setPageMenu(null);
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setPageMenu(null);
+    };
+    window.addEventListener('click', close);
+    window.addEventListener('resize', close);
+    window.addEventListener('scroll', close, true);
+    window.addEventListener('keydown', onKey);
+    return () => {
+      window.removeEventListener('click', close);
+      window.removeEventListener('resize', close);
+      window.removeEventListener('scroll', close, true);
+      window.removeEventListener('keydown', onKey);
+    };
+  }, [pageMenu]);
+  useLayoutEffect(() => {
+    const el = pageMenuRef.current;
+    if (!pageMenu || !el) return;
+    const r = el.getBoundingClientRect();
+    el.style.left = `${Math.max(4, Math.min(pageMenu.x, window.innerWidth - r.width - 4))}px`;
+    el.style.top = `${Math.max(4, Math.min(pageMenu.y, window.innerHeight - r.height - 4))}px`;
+  }, [pageMenu]);
   const {
     items,
     hasMore,
@@ -189,9 +222,31 @@ export default function Gallery(props: Props) {
     total,
   } = props;
 
-  // 多选操作栏出现时拉取清单列表，供「加入清单」选择
+  // 多选操作栏出现时拉「清单 + 文件夹树」，供两个「加入…」下拉使用。
+  // 以前是两个各自依赖 [selected.size] 的 effect：每勾一张打 2 个接口，
+  // 连选 20 张就是 40 个请求，而且后返回的旧响应还会盖掉新状态。
+  // 合成一个 effect + 300ms 去抖后，同一串勾选只发最后一轮。
   useEffect(() => {
-    if (selected.size > 0) api.playlists().then(setPlaylists).catch(quiet);
+    if (selected.size === 0) return;
+    let alive = true;
+    const timer = window.setTimeout(() => {
+      api
+        .playlists()
+        .then((list) => {
+          if (alive) setPlaylists(list);
+        })
+        .catch(quiet);
+      api
+        .folders()
+        .then((r) => {
+          if (alive) setFolders(r.folders);
+        })
+        .catch(quiet);
+    }, 300);
+    return () => {
+      alive = false;
+      window.clearTimeout(timer);
+    };
   }, [selected.size]);
 
   // 取消全选后菜单别留着，下次多选时也不该自动弹开
@@ -199,11 +254,6 @@ export default function Gallery(props: Props) {
   useEffect(() => {
     if (nothingSelected) setBulkMore(false);
   }, [nothingSelected]);
-
-  // 多选时同步拉取文件夹树，供「加入文件夹」选择
-  useEffect(() => {
-    if (selected.size > 0) api.folders().then((r) => setFolders(r.folders)).catch(quiet);
-  }, [selected.size]);
 
   // 文件夹树按层级排序 + 深度映射（用于「加入文件夹」下拉缩进显示）
   const { sortedFolders, folderDepth } = useMemo(() => {
@@ -484,6 +534,16 @@ export default function Gallery(props: Props) {
 
   return (
     <div
+      onContextMenu={(e) => {
+        const t = e.target as HTMLElement;
+        if (!(t instanceof Element)) return;
+        // 输入框 / 下拉 / 已有菜单（卡片菜单、批量「更多」）里的右键交给它们自己
+        if (t.closest('input,textarea,select,[contenteditable="true"],.card-ctx,.bulk-more')) return;
+        // 卡片会自行 stopPropagation 打开自己的菜单（见 ImageCard），
+        // 能走到这里的右键 = 页面空白/标题区：弹出页面级操作
+        e.preventDefault();
+        setPageMenu({ x: e.clientX, y: e.clientY });
+      }}
       onDragEnter={(e) => {
         if (!Array.from(e.dataTransfer.types).includes('Files')) return;
         e.preventDefault();
@@ -508,43 +568,6 @@ export default function Gallery(props: Props) {
         <div>
           <h1 className="page-title">{props.title}</h1>
           <div className="page-sub">{props.subtitle}</div>
-        </div>
-        <div style={{ display: 'flex', gap: 8 }}>
-          <button
-            className="btn"
-            onClick={() => props.onUndo?.()}
-            title="撤销最近一次编辑（覆盖写回可用它还原，Ctrl+Z）"
-          >
-            撤销编辑
-          </button>
-          <button
-            className="btn"
-            onClick={props.onRefresh}
-            disabled={props.refreshing}
-            title="重新加载当前筛选下的图片"
-          >
-            <span className={props.refreshing ? 'spinning' : ''}>
-              <IconRefresh />
-            </span>{' '}
-            刷新
-          </button>
-          <button
-            className="btn"
-            onClick={() => props.onPurgeMissing?.()}
-            disabled={!props.missingCount}
-            title="把文件已丢失的图片记录从数据库中移除"
-          >
-            <IconTrash /> 清理缺失{props.missingCount ? `（${props.missingCount}）` : ''}
-          </button>
-          <button className="btn" onClick={props.onStartCrawl}>
-            去采集
-          </button>
-          <button
-            className="btn primary"
-            onClick={() => props.onFiltersChange(RESET_FILTERS)}
-          >
-            重置筛选
-          </button>
         </div>
       </div>
 
@@ -1066,6 +1089,94 @@ export default function Gallery(props: Props) {
           {uploading.failed ? ` · 失败 ${uploading.failed}` : ''}
         </div>
       )}
+
+      {pageMenu &&
+        createPortal(
+          <div
+            ref={pageMenuRef}
+            className="card-ctx"
+            style={{ left: pageMenu.x, top: pageMenu.y }}
+            onClick={(e) => e.stopPropagation()}
+            onContextMenu={(e) => e.preventDefault()}
+          >
+            <button
+              disabled={!props.onUndo}
+              title="撤销最近一次编辑（覆盖写回可用它还原，Ctrl+Z）"
+              onClick={() => {
+                setPageMenu(null);
+                props.onUndo?.();
+              }}
+            >
+              ↩ 撤销编辑
+            </button>
+            <button
+              disabled={props.refreshing}
+              title="重新加载当前筛选下的图片"
+              onClick={() => {
+                setPageMenu(null);
+                props.onRefresh();
+              }}
+            >
+              <span className={props.refreshing ? 'spinning' : ''}>⟳</span> {props.refreshing ? '刷新中…' : '刷新'}
+            </button>
+            <button
+              disabled={!props.missingCount}
+              title="把文件已丢失的图片记录从数据库中移除"
+              onClick={() => {
+                setPageMenu(null);
+                props.onPurgeMissing?.();
+              }}
+            >
+              🗑 清理缺失{props.missingCount ? `（${props.missingCount}）` : ''}
+            </button>
+            <button
+              onClick={() => {
+                setPageMenu(null);
+                props.onStartCrawl();
+              }}
+            >
+              🌐 去采集
+            </button>
+            <div className="card-ctx-sep" />
+            <button
+              title="在资源管理器中打开当前文件夹（全库视图打开素材根目录）"
+              onClick={() => {
+                setPageMenu(null);
+                // 文件夹视图：先按文件夹名在图片路径里定位真实目录（兼容父夹聚合视图）；
+                // 定位不到就用当前第一张图所在目录。其它视图直接打开当前库素材根目录。
+                let dir = '';
+                if (props.folderId != null) {
+                  const name = (props.title || '').toLowerCase();
+                  const hit = name ? props.items.find((x) => x.path && x.path.toLowerCase().includes(`\\${name}\\`)) : undefined;
+                  if (hit?.path) {
+                    const idx = hit.path.toLowerCase().indexOf(`\\${name}\\`);
+                    if (idx >= 0) dir = hit.path.slice(0, idx + name.length + 1);
+                  }
+                  if (!dir) {
+                    const first = props.items.find((x) => x.path);
+                    if (first?.path) dir = first.path.replace(/[\\/][^\\/]+$/, '');
+                  }
+                }
+                void openFolder(dir || undefined).catch(quiet);
+              }}
+            >
+              📂 打开所在位置
+            </button>
+            <div className="card-ctx-sep" />
+            <button
+              title="清空全部筛选条件，回到完整图库"
+              onClick={() => {
+                setPageMenu(null);
+                props.onFiltersChange(RESET_FILTERS);
+              }}
+            >
+              ✕ 重置筛选
+            </button>
+          </div>,
+          document.body
+        )}
     </div>
   );
 }
+
+export default React.memo(Gallery);

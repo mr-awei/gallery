@@ -32,6 +32,7 @@ import {
   setActiveRoot,
 } from '../libraries.js';
 import { watchStorageDir } from '../importer.js';
+import { autoMergeLegacy, refreshMergedRows } from '../lib/legacy-db.js';
 import { logOp } from '../oplog.js';
 import { db, getSettings, saveSettings, listKeywords, addKeyword, updateKeyword, deleteKeyword } from '../db.js';
 
@@ -116,6 +117,29 @@ export function register(app, ctx) {
     '/api/libraries/:id/activate',
     asyncRoute(async (req, res) => {
       const library = activateLibrary(Number(req.params.id));
+      // 升级自旧版：素材目录里可能还躺着单库时代的 <素材目录>/gallery.db，而新库是空的。
+      // 不处理的话用户升级后看到的就是「一张图都没有」（文件、标签其实都在老库里）。
+      // 只在目标库为空时自动合并；有数据的库交给用户决定，避免合并出重复记录。
+      let legacyMerged = 0;
+      if (library.root_path) {
+        const rowsNow = Number(db.prepare('SELECT COUNT(*) AS c FROM images').get()?.c || 0);
+        if (!rowsNow) {
+          try {
+            const merged = autoMergeLegacy(library.root_path, { backupParent: library.path });
+            if (merged?.ok && merged.images > 0) {
+              legacyMerged = merged.images;
+              console.info(`[library] 已自动合并旧库 ${merged.images} 张（备份：${merged.backup}）`);
+              // 老库的 thumbs 目录多半跟着旧版本一起没了：清失效路径 + 后台批量补图
+              void refreshMergedRows()
+                .then(() => ctx.scheduleThumbRebuild?.('旧库合并后补图'))
+                .catch(() => {});
+              sseBroadcast('library', { legacyMerged });
+            }
+          } catch (err) {
+            console.warn('[library] 旧库自动合并失败（不影响使用）:', err?.message || err);
+          }
+        }
+      }
       // 全量扫描只在「这个库确实还没数据」时做：
       //   - 新库首次打开（images 为空）
       //   - 上次扫描被打断（import_pending）
@@ -128,7 +152,7 @@ export function register(app, ctx) {
         setTimeout(() => startLocalImport('已切换到新资源库，正在后台扫描素材…'), 3000);
       }
       sseBroadcast('library', { path: req.path });
-      res.json({ ok: true, library });
+      res.json({ ok: true, library, legacyMerged });
     })
   );
 

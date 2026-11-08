@@ -1,3 +1,4 @@
+import type { ThemePackTheme } from './lib/theme-pack-vars';
 import type {
   AdjustParams,
   AnnotationItem,
@@ -39,7 +40,36 @@ import type {
   WallpaperMonitors,
   WallpaperResult,
   LiveWallpaperConfig,
+  PluginInfo,
+  PluginRunResult,
+  LanStatus,
 } from './types';
+
+export type { ThemePackTheme } from './lib/theme-pack-vars';
+
+export interface ThemePackBrief {
+  id: string;
+  name: string;
+  author: string;
+  createdAt: string;
+  base: 'dark' | 'light';
+  varCount: number;
+  settingKeys: string[];
+  assetNames: string[];
+  file: string;
+}
+
+export interface ThemePackFile {
+  kind: string;
+  version: number;
+  id: string;
+  name: string;
+  author: string;
+  createdAt: string;
+  theme: ThemePackTheme;
+  settings: Record<string, unknown>;
+  assets: { name: string; dataUrl: string }[];
+}
 
 export interface AppInfo {
   /** 实际生效的全局快捷键（被占用时会自动换备用键） */
@@ -67,6 +97,10 @@ interface DesktopAPI {
   dragOut?: (absPath: string) => void;
   appInfo?: () => Promise<AppInfo>;
   controlLiveWallpaper?: (patch: Partial<LiveWallpaperConfig>) => Promise<{ ok: boolean }>;
+  /** 视频片段导出：data URL 交给主进程弹「另存为」写盘 */
+  saveExport?: (p: { dataUrl: string; filename: string }) => Promise<{ ok: boolean; path?: string; error?: string }>;
+  /** 壁纸参数实时预览（拖动滑块即时生效，不重开窗口） */
+  setLiveParams?: (params: Record<string, number>) => Promise<{ ok: boolean }>;
   pickFile?: (filters?: { name: string; extensions: string[] }[]) => Promise<string | null>;
   /** 打开内置微博登录窗，登录成功自动回传整段 Cookie 与登录 UA（浏览器模式下为 undefined） */
   weiboLogin?: () => Promise<{ ok: boolean; cookie?: string; ua?: string; msg?: string }>;
@@ -100,9 +134,13 @@ interface DesktopAPI {
   updateState?: () => Promise<UpdateState>;
   onUpdateState?: (cb: (s: UpdateState) => void) => () => void;
   /** 本地服务重启中/已恢复（重启期间界面要遮住，避免用户对着失败请求操作） */
-  onServiceState?: (cb: (s: { restarting: boolean; port?: number; error?: string }) => void) => () => void;
+  onServiceState?: (cb: (s: { restarting: boolean; dead?: boolean; port?: number; error?: string }) => void) => () => void;
+  /** 离线横幅上的一键重启（dev 模式下没有子进程可重启，会返回 ok:false） */
+  restartService?: () => Promise<{ ok: boolean; error?: string }>;
   /** 忽略本次更新提示（安装失败时的出口） */
   updateDismiss?: () => Promise<{ ok: boolean }>;
+  /** 清零连续安装失败计数，恢复强制更新策略 */
+  updateResetFailures?: () => Promise<{ ok: boolean }>;
   /** 退出应用（强制更新失败时的兜底出口） */
   quit?: () => Promise<{ ok: boolean }>;
 }
@@ -175,6 +213,10 @@ export interface UpdateState {
   ready?: boolean;
   /** 用户选了「本次先继续用」，本次会话不再遮挡 */
   dismissed?: boolean;
+  /** 连续装不上、强制更新已自动降级为非强制 */
+  degraded?: boolean;
+  /** 记录下来的连续安装失败次数 */
+  installFailures?: number;
 }
 
 export const desktop = (window as unknown as { desktopAPI?: DesktopAPI }).desktopAPI;
@@ -821,11 +863,16 @@ export const api = {
       undoCount: number;
       sampleMissing: { id: number; path: string }[];
     }>('/api/maintenance/status'),
-  maintenanceRebuildThumbs: (limit = 300) =>
-    request<{ ok: boolean; rebuilt: number; skipped: number; failed: number }>(
+  maintenanceRebuildThumbs: (limit = 300, beforeId = 0) =>
+    request<{ ok: boolean; rebuilt: number; skipped: number; failed: number; nextBeforeId: number }>(
       '/api/maintenance/rebuild-thumbs',
-      { method: 'POST', body: JSON.stringify({ limit }) }
+      { method: 'POST', body: JSON.stringify({ limit, beforeId }) }
     ),
+  /** 后台补齐所有缺缩略图的记录（旧库合并 / 上次导入被打断后的自愈） */
+  maintenanceRebuildMissing: () =>
+    request<{ ok: boolean; started: boolean; total?: number; reason?: string }>('/api/maintenance/rebuild-missing', {
+      method: 'POST',
+    }),
   maintenanceOrphanThumbs: (dryRun = true) =>
     request<{ ok: boolean; dryRun: boolean; found: number; removed: number; sample: string[] }>(
       '/api/maintenance/orphan-thumbs',
@@ -878,7 +925,19 @@ export const api = {
       body: JSON.stringify({ ids, action, tag }),
     }),
   // 标签树：count + 分组 / 颜色 / 父标签（Eagle 的标签体系）
-  tags: () => request<{ tags: TagNode[]; groups: string[] }>('/api/tags'),
+  tags: (opts?: { limit?: number; offset?: number }) => {
+    const qs = new URLSearchParams();
+    if (opts?.limit) qs.set('limit', String(opts.limit));
+    if (opts?.offset) qs.set('offset', String(opts.offset));
+    const s = qs.toString();
+    return request<{
+      tags: TagNode[];
+      groups: string[];
+      total?: number;
+      limit?: number;
+      offset?: number;
+    }>(`/api/tags${s ? `?${s}` : ''}`);
+  },
   tagMeta: (payload: { tag: string; group?: string; color?: string; parent?: string; sortOrder?: number }) =>
     request<{ ok: boolean; meta: TagNode | null; tags: TagNode[]; groups: string[] }>('/api/tags/meta', {
       method: 'PUT',
@@ -956,7 +1015,10 @@ export const api = {
     }),
 
   /* --------------------------- 音视频元数据 / 封面 --------------------------- */
-  patchMedia: (id: number, patch: { duration?: number; width?: number; height?: number; coverTs?: number }) =>
+  patchMedia: (
+    id: number,
+    patch: { duration?: number; width?: number; height?: number; coverTs?: number; trimStart?: number; trimEnd?: number }
+  ) =>
     request<{ ok: boolean; image: ImageItem }>(`/api/images/${id}/media`, {
       method: 'PATCH',
       body: JSON.stringify(patch),
@@ -983,6 +1045,24 @@ export const api = {
       retries: 0,
     });
   },
+  // 插件 / 脚本宿主
+  plugins: () => request<{ ok: boolean; plugins: PluginInfo[]; permissions: string[] }>('/api/plugins'),
+  runPlugin: (
+    id: string,
+    payload: { action?: string; imageId?: number | null; args?: Record<string, unknown> }
+  ) =>
+    request<PluginRunResult>(`/api/plugins/${encodeURIComponent(id)}/run`, {
+      method: 'POST',
+      body: JSON.stringify(payload),
+    }),
+  openPluginDir: () => request<{ ok: boolean; dir: string }>('/api/plugins/open-folder', { method: 'POST' }),
+
+  // 局域网 / 手机扫码投送
+  lanStatus: () => request<LanStatus>('/api/lan/status'),
+  setLanAccess: (enabled: boolean) =>
+    request<LanStatus>('/api/lan/toggle', { method: 'PUT', body: JSON.stringify({ enabled }) }),
+  rotateLanToken: () => request<LanStatus>('/api/lan/rotate-token', { method: 'POST' }),
+
   settings: () => request<Settings>('/api/settings'),
   saveSettings: (patch: Partial<Settings>) =>
     request<Settings>('/api/settings', { method: 'PUT', body: JSON.stringify(patch) }),
@@ -1025,6 +1105,8 @@ export const api = {
       running: boolean;
       progress: number;
       message: string;
+      /** 扫描整体失败时的原因（和「完成 0 张」是两回事） */
+      error?: string;
       result?: {
         total?: number;
         saved?: number;
@@ -1072,6 +1154,10 @@ export const api = {
 
   // 知识库
   kbRules: () => request<KbRule[]>('/api/kb/rules'),
+  kbRulesPaged: (opts: { limit?: number; offset?: number } = {}) =>
+    request<{ items: KbRule[]; total: number; limit: number; offset: number }>(
+      `/api/kb/rules?limit=${Number(opts.limit) || 100}&offset=${Number(opts.offset) || 0}`
+    ),
   kbUpdateRule: (id: number, patch: Partial<KbRule>) =>
     request<{ ok: boolean; rules: KbRule[] }>(`/api/kb/rules/${id}`, {
       method: 'PUT',
@@ -1193,6 +1279,12 @@ export const api = {
       method: 'POST',
       body: JSON.stringify(params),
     }),
+  /** 擦除修复：mask 为画笔导出的 PNG data URL（白色 = 擦掉），走与调色相同的撤销链路 */
+  inpaintImage: (id: number, opts: { mask: string; strength?: number } & EditSaveOptions) =>
+    request<EditResult & { coverage: number }>(`/api/images/${id}/inpaint`, {
+      method: 'POST',
+      body: JSON.stringify(opts),
+    }),
   /* ------------------------ 水印 / 相框 ------------------------ */
   /** 23 款水印 + 20 款相框 + 可选信息项 + 品牌清单 + 本机字体（服务端是唯一来源） */
   watermarkOptions: () => request<WatermarkOptions>('/api/watermark/options'),
@@ -1284,6 +1376,91 @@ export const api = {
       method: 'POST',
     }),
   // 动态壁纸
+  platform: () =>
+    request<{
+      ok: boolean;
+      platform: string;
+      family: string;
+      liveWallpaper: boolean;
+      desktopLayer: boolean;
+      staticWallpaper: boolean;
+      screensaver: boolean;
+      gpuMeter: boolean;
+      foregroundApp: boolean;
+      summary: string;
+      notes: string[];
+    }>('/api/platform'),
+
+  /* ------------------------------ 多端同步 ------------------------------ */
+  syncStatus: () =>
+    request<{
+      ok: boolean;
+      enabled: boolean;
+      syncDir: string;
+      deviceId: string;
+      localRevision: number;
+      remoteRevision: number;
+      remoteDevice: string;
+      publishedAt: string;
+      libraryName: string;
+      dirty: boolean;
+      manifestError: string;
+      note: string;
+    }>('/api/sync/status'),
+  syncConfigure: (syncDir: string) =>
+    request<{ ok: boolean; enabled: boolean; syncDir?: string; note?: string }>('/api/sync/configure', {
+      method: 'POST',
+      body: JSON.stringify({ syncDir }),
+    }),
+  syncPublish: (force?: boolean) =>
+    request<{ ok: boolean; unchanged: boolean; revision: number; bytes?: number; note: string }>('/api/sync/publish', {
+      method: 'POST',
+      body: JSON.stringify({ force }),
+    }),
+  syncPull: (force?: boolean) =>
+    request<{
+      ok: boolean;
+      skipped: boolean;
+      revision: number;
+      reason?: string;
+      libraryId?: number;
+      libraryName?: string;
+      remapped?: number;
+      missing?: number;
+      note?: string;
+    }>('/api/sync/pull', { method: 'POST', body: JSON.stringify({ force }) }),
+
+  /* --------------------------- 创意工坊 / 主题包 --------------------------- */
+  workshopPacks: () =>
+    request<{ ok: boolean; items: ThemePackBrief[]; dir: string }>('/api/workshop/packs'),
+  workshopExport: (body: {
+    name: string;
+    author?: string;
+    theme: ThemePackTheme;
+    includeSettings?: boolean;
+    assets?: { name: string; dataUrl: string }[];
+  }) =>
+    request<{ ok: boolean; pack: ThemePackFile; file: string; skipped: string[] }>('/api/workshop/export', {
+      method: 'POST',
+      body: JSON.stringify(body),
+    }),
+  workshopImport: (data: string) =>
+    request<{
+      ok: boolean;
+      pack: ThemePackBrief;
+      theme: ThemePackTheme;
+      file: string;
+      assetPaths: string[];
+      appliedSettings: string[];
+      skipped: string[];
+    }>('/api/workshop/import', { method: 'POST', body: JSON.stringify({ data }) }),
+  workshopApply: (id: string) =>
+    request<{ ok: boolean; theme: ThemePackTheme; appliedSettings: string[]; skipped: string[] }>(
+      '/api/workshop/apply',
+      { method: 'POST', body: JSON.stringify({ id }) }
+    ),
+  workshopDelete: (id: string) => request<{ ok: boolean }>(`/api/workshop/packs/${id}`, { method: 'DELETE' }),
+  workshopDownload: (id: string) => `/api/workshop/packs/${id}/file`,
   liveWallpaper: () => request<LiveWallpaperConfig>('/api/wallpaper/live'),
   saveLiveWallpaper: (patch: Partial<LiveWallpaperConfig>) =>
     request<LiveWallpaperConfig>('/api/wallpaper/live', {
@@ -1784,6 +1961,9 @@ export const SOURCE_LABELS: Record<string, string> = {
   duitang: '堆糖',
   weibo: '微博',
   wallhaven: 'Wallhaven',
+  commons: 'Wikimedia',
+  douban: '豆瓣',
+  tieba: '贴吧',
   local: '本地素材',
 };
 

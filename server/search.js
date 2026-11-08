@@ -4,20 +4,9 @@ import { computePHash, computeDHash, hammingHex, hashPopcount } from './phash.js
 import * as lib from './library.js';
 import * as clip from './clip.js';
 import * as ai from './ai.js';
+import { rgbToOklab, oklabDist, oklabChroma } from './lib/oklab.js';
 
 /* ------------------------------- 颜色工具 ------------------------------- */
-
-function hexToRgb(hex) {
-  if (!hex) return null;
-  const h = String(hex).trim().replace('#', '');
-  const full = h.length === 3 ? h.split('').map((c) => c + c).join('') : h;
-  if (!/^[0-9a-fA-F]{6}$/.test(full)) return null;
-  return {
-    r: parseInt(full.slice(0, 2), 16),
-    g: parseInt(full.slice(2, 4), 16),
-    b: parseInt(full.slice(4, 6), 16),
-  };
-}
 
 function parsePalette(str) {
   const out = [];
@@ -43,32 +32,8 @@ function parsePalette(str) {
 
 /* 感知均匀颜色空间 OKLab（Björn Ottosson）。相比 CIELAB 更均匀、计算更轻，
  * 现代主色提取库（color-thief v3 / imagecolorpicker）已默认 OKLCH/OKLab 量化与匹配。
- * 这里用 OKLab 欧氏距离衡量“感知色差”——属于感知均匀度量，绝非 RGB 欧氏距离。 */
-function srgbToLinear(x) {
-  x /= 255;
-  return x <= 0.04045 ? x / 12.92 : Math.pow((x + 0.055) / 1.055, 2.4);
-}
-function rgbToOklab(hex) {
-  const c = hexToRgb(hex);
-  if (!c) return null;
-  const r = srgbToLinear(c.r), g = srgbToLinear(c.g), b = srgbToLinear(c.b);
-  const l_ = 0.4122214708 * r + 0.5363325363 * g + 0.0514459929 * b;
-  const m_ = 0.2119034982 * r + 0.6806995451 * g + 0.1073969566 * b;
-  const s_ = 0.0883024619 * r + 0.2817188376 * g + 0.6299787005 * b;
-  const l = Math.cbrt(l_), m = Math.cbrt(m_), s = Math.cbrt(s_);
-  return {
-    L: 0.2104542553 * l + 0.7936177850 * m - 0.0040720468 * s,
-    a: 1.9779984951 * l - 2.4285922050 * m + 0.4505937099 * s,
-    b: 0.0259040371 * l + 0.7827717662 * m - 0.8086757660 * s,
-  };
-}
-function oklabDist(c1, c2) {
-  const dl = c1.L - c2.L, da = c1.a - c2.a, db = c1.b - c2.b;
-  return Math.sqrt(dl * dl + da * da + db * db);
-}
-function oklabChroma(c) {
-  return Math.hypot(c.a, c.b);
-}
+ * 这里用 OKLab 欧氏距离衡量“感知色差”——属于感知均匀度量，绝非 RGB 欧氏距离。
+ * OKLab 相关换算统一在 ./lib/oklab.js（颜色搜索与查询共用同一实现）。 */
 
 const OKLAB_NEUTRAL_CHROMA = 0.022; // 低于此彩度的颜色视为中性（灰/黑/白）
 const MIN_POP = 0.04;       // 命中色至少要占画面 4% 才纳入结果
@@ -111,50 +76,77 @@ function paletteLabs(dominant, palette) {
   return out;
 }
 
-export function scoreByColor(hex, tol = 48) {
+const COLOR_SCAN_BATCH = 2000;
+
+/**
+ * 颜色打分：按 id 游标分批扫表，只保留质量最高的 topK 个命中。
+ * 旧实现 `.all()` 把全库 dominant/palette 一次性物化后再对全量排序，
+ * 百万级库一次颜色搜索就要几百 MB 常驻；现在常驻内存 = 一批 2000 行 + topK 结果。
+ * topK=0 时才保留全部命中（仅供离线分析用，HTTP 路径一律传 limit）。
+ */
+export function scoreByColor(hex, tol = 48, topK = 0) {
   const t = rgbToOklab(hex);
   if (!t) throw new Error('无效的颜色值，请用 #rrggbb');
   const tChroma = oklabChroma(t);
   const targetNeutral = tChroma < OKLAB_NEUTRAL_CHROMA || t.L < 0.02 || t.L > 0.98;
   const cutoff = Math.max(0.001, (Math.max(0, Math.min(160, tol)) / 160) * 0.5);
   const SCALE = 0.12; // 距离对质量的衰减尺度：越小越强调“颜色要近”
+  const cap = Math.max(0, Number(topK) || 0);
+  // SQL 粗筛 box：以目标 OKLab 为中心、半宽 = cutoff + 余量。半宽 ≥ cutoff 保证「精确球面 ⊂ box」，
+  // 主色命中的图绝不会被误删；余量覆盖画面内调色板相对主色的离散，避免把那些低质量召回丢掉。
+  // 未回填 / 空主色（dominant_l IS NULL）的行仍全量兜底，保证正确性。
+  const boxW = cutoff + 0.18;
+  const box = [t.L - boxW, t.L + boxW, t.a - boxW, t.a + boxW, t.b - boxW, t.b + boxW];
+  const stmt = db.prepare(
+    `SELECT id, dominant, palette FROM images
+     WHERE (dominant <> '' OR palette <> '')
+       AND (dominant_l BETWEEN ? AND ? AND dominant_a BETWEEN ? AND ? AND dominant_b BETWEEN ? AND ? OR dominant_l IS NULL)
+       AND id < ? ORDER BY id DESC LIMIT ?`
+  );
 
-  const rows = db
-    .prepare("SELECT id, dominant, palette FROM images WHERE dominant <> '' OR palette <> ''")
-    .all();
   const scored = [];
-  for (const r of rows) {
-    const colors = paletteLabs(r.dominant, r.palette);
-    let best = null;
-    for (const c of colors) {
-      const { lab, chroma } = c;
-      if (targetNeutral) {
-        // 查询是黑/白/灰：只与同样中性的颜色匹配，并以其占比加权
-        if (chroma >= OKLAB_NEUTRAL_CHROMA && lab.L >= 0.02 && lab.L <= 0.98) continue;
-      } else {
-        // 彩色查询：跳过中性色候选，避免灰图蹭进彩色结果
-        if (chroma < OKLAB_NEUTRAL_CHROMA || lab.L < 0.02 || lab.L > 0.98) continue;
+  let cursor = Number.MAX_SAFE_INTEGER;
+  for (;;) {
+    const rows = stmt.all(box[0], box[1], box[2], box[3], box[4], box[5], cursor, COLOR_SCAN_BATCH);
+    if (!rows.length) break;
+    cursor = rows[rows.length - 1].id;
+    for (const r of rows) {
+      const colors = paletteLabs(r.dominant, r.palette);
+      let best = null;
+      for (const c of colors) {
+        const { lab, chroma } = c;
+        if (targetNeutral) {
+          // 查询是黑/白/灰：只与同样中性的颜色匹配，并以其占比加权
+          if (chroma >= OKLAB_NEUTRAL_CHROMA && lab.L >= 0.02 && lab.L <= 0.98) continue;
+        } else {
+          // 彩色查询：跳过中性色候选，避免灰图蹭进彩色结果
+          if (chroma < OKLAB_NEUTRAL_CHROMA || lab.L < 0.02 || lab.L > 0.98) continue;
+        }
+        const d = oklabDist(t, lab);
+        if (d > cutoff) continue;
+        // 精度门槛：该颜色必须在画面里占到一定比例才算“有这种颜色”，
+        // 否则 0.03% 的红色噪点会把整张图拽进红色结果（召回变噪音）。
+        // 占比不足时，只有颜色几乎完全一致（d ≤ TIGHT_DIST）且至少 ~1% 存在感才放行。
+        if (c.pop < MIN_POP && !(c.pop >= MIN_POP_TIGHT && d <= TIGHT_DIST)) continue;
+        const pop = Math.max(0.01, c.pop);
+        // 质量 = 颜色占比 × 距离衰减：主色图优先，但远处小色块也保留为召回
+        const quality = pop * Math.exp(-d / SCALE);
+        if (!best || quality > best.quality) best = { quality, d, hex: c.hex, pop };
       }
-      const d = oklabDist(t, lab);
-      if (d > cutoff) continue;
-      // 精度门槛：该颜色必须在画面里占到一定比例才算“有这种颜色”，
-      // 否则 0.03% 的红色噪点会把整张图拽进红色结果（召回变噪音）。
-      // 占比不足时，只有颜色几乎完全一致（d ≤ TIGHT_DIST）且至少 ~1% 存在感才放行。
-      if (c.pop < MIN_POP && !(c.pop >= MIN_POP_TIGHT && d <= TIGHT_DIST)) continue;
-      const pop = Math.max(0.01, c.pop);
-      // 质量 = 颜色占比 × 距离衰减：主色图优先，但远处小色块也保留为召回
-      const quality = pop * Math.exp(-d / SCALE);
-      if (!best || quality > best.quality) best = { quality, d, hex: c.hex, pop };
+      if (best) scored.push({ id: r.id, ...best });
     }
-    if (best) scored.push({ id: r.id, ...best });
+    if (cap) {
+      scored.sort((a, b) => b.quality - a.quality);
+      if (scored.length > cap) scored.length = cap;
+    }
   }
   scored.sort((a, b) => b.quality - a.quality);
-  return scored;
+  return cap ? scored.slice(0, cap) : scored;
 }
 
 /** 颜色搜索：打分后取前 limit 个，回填完整 DTO 与命中信息 */
 export function searchByColor(hex, tol = 48, limit = 120) {
-  const scored = scoreByColor(hex, tol);
+  const scored = scoreByColor(hex, tol, limit);
   const ids = scored.slice(0, limit).map((s) => s.id);
   if (!ids.length) return [];
   const placeholders = ids.map(() => '?').join(',');

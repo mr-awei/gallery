@@ -1,0 +1,9 @@
+{
+  "_note": "随包可信哈希清单（只读资源，打包进 asar）。models 的键是 HuggingFace 仓库内路径，zips 的键是 release 下载 URL。用 npm run pin-models -- <已核对的本地文件> <键> 固化；提交前必须核对官方发布来源。运行时可用 TUKU_MODEL_SHA256_FILE 指向同结构 JSON 覆盖。",
+  "_source": "现有条目取自官方仓库 Xenova/clip-vit-base-patch32 的 q8 ONNX 权重：由 transformers.js 下载到本机模型缓存后按字节固化，随代码提交。发布前请用官方源重新下载比对，再执行 npm run pin-models 更新。清单在打包后不可修改；CLIP 加载前会核对缓存文件，替换权重会直接报错。zips 为空是因为两个 Real-ESRGAN/Real-CUGAN release 官方未提供 digest，发布前需自行核对后固化。",
+  "models": {
+    "Xenova/clip-vit-base-patch32/onnx/vision_model_quantized.onnx": "583fd1110a514667812fee7d684952aaf82a99b959760c8d7dca7e0ab9839299",
+    "Xenova/clip-vit-base-patch32/onnx/text_model_quantized.onnx": "73baab855d406190da9faa498cfedf65f15cf309f4cc7385b7b032e6d08e5c3a"
+  },
+  "zips": {}
+}

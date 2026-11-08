@@ -6,6 +6,10 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 
 process.env.API_TOKEN = 'unit-test-token';
+process.env.TUKU_API_SCOPE_TOKENS = JSON.stringify({
+  'unit-read-token': ['read'],
+  'unit-write-token': ['write'],
+});
 const { hasValidToken, apiAuth } = await import('../server/auth.js');
 
 const req = (patch = {}) => ({
@@ -52,6 +56,22 @@ test('query 令牌只对只读请求生效（写操作必须用 header）', () =
   assert.equal(hasValidToken(post), false);
   assert.equal(hasValidToken(req({ method: 'DELETE', query: { token: 'unit-test-token' } })), false);
   assert.equal(hasValidToken(req({ method: 'HEAD', query: { token: 'unit-test-token' } })), true);
+});
+
+test('只读附加令牌不能借主 /api/* 绕过写接口（scope 对全站生效）', () => {
+  const run = (patch) => {
+    const { res, out } = makeRes();
+    let nexted = false;
+    apiAuth(req(patch), res, () => { nexted = true; });
+    return { ...out, nexted };
+  };
+  const readPut = run({ method: 'PUT', path: '/api/settings', headers: { authorization: 'Bearer unit-read-token' } });
+  assert.equal(readPut.status, 403);
+  assert.equal(readPut.nexted, false);
+  assert.equal(readPut.body?.code, 'SCOPE_DENIED');
+  assert.equal(run({ method: 'GET', headers: { authorization: 'Bearer unit-read-token' } }).nexted, true);
+  assert.equal(run({ method: 'POST', headers: { authorization: 'Bearer unit-write-token' } }).nexted, true);
+  assert.equal(run({ method: 'DELETE', headers: { authorization: 'Bearer unit-test-token' } }).nexted, true);
 });
 
 test('令牌前缀不匹配也能正确拒绝（长度不同不走 timingSafeEqual）', () => {

@@ -13,8 +13,12 @@ import { assertWritableDir } from '../lib/safe-path.js';
 export function countPdfPages(absPath) {
   let pages = 0;
   let declared = 0;
+  /** 句柄必须在 finally 里关：fstatSync/readSync 任一抛错时，
+   *  以前会跳过 closeSync，Windows 上这个 PDF 就一直被占用（删不掉、改不了名），
+   *  而外层 catch 又把错误吞掉，用户完全看不到原因。 */
+  let fd = null;
   try {
-    const fd = fs.openSync(absPath, 'r');
+    fd = fs.openSync(absPath, 'r');
     const size = fs.fstatSync(fd).size;
     const headLen = Math.min(size, 6 * 1024 * 1024);
     const buf = Buffer.alloc(headLen);
@@ -25,7 +29,6 @@ export function countPdfPages(absPath) {
       tail = Buffer.alloc(tailLen);
       fs.readSync(fd, tail, 0, tailLen, size - tailLen);
     }
-    fs.closeSync(fd);
     const text = buf.toString('latin1') + '\n' + tail.toString('latin1');
     pages = (text.match(/\/Type\s*\/Page[^s]/g) || []).length;
     // 交叉引用表里的 /Count 常等于页数；有 ObjStm 时至少能给出这个估计值
@@ -33,6 +36,14 @@ export function countPdfPages(absPath) {
     declared = counts.length ? Math.max(...counts) : 0;
   } catch {
     /* 读不出来就当未知 */
+  } finally {
+    if (fd !== null) {
+      try {
+        fs.closeSync(fd);
+      } catch {
+        /* 句柄已失效：忽略，保留原始结果 */
+      }
+    }
   }
   const n = pages || declared;
   return { pages: Number.isFinite(n) && n > 0 && n < 20000 ? n : 0, exact: pages > 0 };

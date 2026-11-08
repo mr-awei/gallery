@@ -1,9 +1,9 @@
 // 带 .ts 扩展名：Node 直接跑单测时能解析（Vite 与 allowImportingTsExtensions 同样支持）
-import type { ColorMixerParams, CurvePoint, CurveSet } from '../types.ts';
-import { ADJUST_DEFAULTS, makeColorMixer } from '../types.ts';
-import { curveFn, wbFromRgb } from './tone.ts';
-import { renderPixels } from './adjust.ts';
-import { chooseLook, measureLook, subsampleRgb } from './auto-look.ts';
+import type { ColorMixerParams, CurvePoint, CurveSet } from '../types';
+import { ADJUST_DEFAULTS, makeColorMixer } from '../types';
+import { curveFn, wbFromRgb } from './tone';
+import { renderPixels } from './adjust';
+import { chooseLook, measureLook, subsampleRgb } from './auto-look';
 
 /**
  * 全自动调色（Auto Develop）。

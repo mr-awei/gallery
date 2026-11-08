@@ -1,4 +1,5 @@
 import sharp from 'sharp';
+import { rgbToOklab, oklabHue } from './lib/oklab.js';
 
 /**
  * 主色 / 色系 / 调色板（与图片库解耦，可在 worker 线程里独立使用）。
@@ -87,43 +88,6 @@ function medianCutQuantize(pixels, maxColors) {
       return { r: Math.round(r / n), g: Math.round(g / n), b: Math.round(b / n), pop: n };
     })
     .sort((a, b) => b.pop - a.pop);
-}
-
-/* 感知均匀颜色空间 OKLab（Björn Ottosson）。色相判断比 HSV 准得多：
- * HSV 会把棕红/褐色/肤色判进「红」（0-30°），而 OKLCH 里它们落在 40-76°（橙），
- * 与人眼一致；且与颜色搜索用的 OKLab 距离保持同一色彩空间。 */
-function srgbToLinear(x) {
-  x /= 255;
-  return x <= 0.04045 ? x / 12.92 : Math.pow((x + 0.055) / 1.055, 2.4);
-}
-function hexToRgb(hex) {
-  if (!hex) return null;
-  const h = String(hex).trim().replace('#', '');
-  const full = h.length === 3 ? h.split('').map((c) => c + c).join('') : h;
-  if (!/^[0-9a-fA-F]{6}$/.test(full)) return null;
-  return {
-    r: parseInt(full.slice(0, 2), 16),
-    g: parseInt(full.slice(2, 4), 16),
-    b: parseInt(full.slice(4, 6), 16),
-  };
-}
-function rgbToOklab(hex) {
-  const c = hexToRgb(hex);
-  if (!c) return null;
-  const r = srgbToLinear(c.r), g = srgbToLinear(c.g), b = srgbToLinear(c.b);
-  const l_ = 0.4122214708 * r + 0.5363325363 * g + 0.0514459929 * b;
-  const m_ = 0.2119034982 * r + 0.6806995451 * g + 0.1073969566 * b;
-  const s_ = 0.0883024619 * r + 0.2817188376 * g + 0.6299787005 * b;
-  const l = Math.cbrt(l_), m = Math.cbrt(m_), s = Math.cbrt(s_);
-  return {
-    L: 0.2104542553 * l + 0.7936177850 * m - 0.0040720468 * s,
-    a: 1.9779984951 * l - 2.4285922050 * m + 0.4505937099 * s,
-    b: 0.0259040371 * l + 0.7827717662 * m - 0.8086757660 * s,
-  };
-}
-function oklabHue(lab) {
-  const h = (Math.atan2(lab.b, lab.a) * 180) / Math.PI;
-  return h < 0 ? h + 360 : h;
 }
 
 /** 12 个色系的原型色（与 web/src/components/FilterBar.tsx 的 HUES 保持一致，0红..11玫粉） */

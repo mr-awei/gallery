@@ -3,6 +3,15 @@
 import { db, withTransaction } from '../db.js';
 import { hiddenImagesClause } from './privacy.js';
 
+/**
+ * 只把「老库还没建这张表」当成可忽略的兼容错误。
+ * 以前这里是裸 catch{}：BUSY、约束冲突、磁盘写满全被当成「没这张表」吞掉，
+ * 调用方拿到 ok:true，别名表却停在旧值上。
+ */
+function isMissingTable(err) {
+  return /no such table/i.test(String(err?.message || err));
+}
+
 
 /** 只看「当前可见」的素材的标签：隐私夹里的图不能通过标签云/筛选把名字漏出来 */
 function visibleTagRows() {
@@ -69,6 +78,46 @@ export function listTagsRich() {
   // 排序：手动 sort_order 优先，其次出现次数
   list.sort((a, b) => a.sortOrder - b.sortOrder || b.count - a.count || a.tag.localeCompare(b.tag, 'zh-Hans-CN'));
   return list;
+}
+
+/**
+ * 分页版标签列表：聚合下推到 item_tags 倒排表（走索引），LIMIT/OFFSET 在 SQL 里做。
+ * listTags / listTagsRich 会把整库 tags 拉进内存再切，标签涨到几千条时接口会线性变慢；
+ * 老接口保留给「写操作后返回完整树」等场景，新调用方用这个。
+ * @returns {{items:object[], total:number, limit:number, offset:number}}
+ */
+export function listTagsPaged({ limit = 200, offset = 0, rich = true } = {}) {
+  const lim = Math.max(1, Math.min(500, Number(limit) || 200));
+  const off = Math.max(0, Number(offset) || 0);
+  const hidden = hiddenImagesClause();
+  const where = hidden ? `WHERE ${hidden.sql}` : '';
+  const params = hidden ? [...hidden.params] : [];
+  const base = `FROM item_tags t JOIN images ON images.id = t.image_id ${where}`;
+  const total = Number(db.prepare(`SELECT COUNT(DISTINCT t.tag) AS c ${base}`).get(...params)?.c || 0);
+  const rows = db
+    .prepare(
+      `SELECT t.tag AS tag, COUNT(*) AS count ${base}
+       GROUP BY t.tag ORDER BY count DESC, t.tag LIMIT ? OFFSET ?`
+    )
+    .all(...params, lim, off);
+  if (!rich) return { items: rows, total, limit: lim, offset: off };
+  const meta = metaMap();
+  return {
+    items: rows.map((r) => {
+      const m = meta.get(r.tag);
+      return {
+        tag: r.tag,
+        count: r.count,
+        group: m?.tag_group || '',
+        color: m?.color || '',
+        parent: m?.parent || '',
+        sortOrder: m?.sort_order || 0,
+      };
+    }),
+    total,
+    limit: lim,
+    offset: off,
+  };
 }
 
 /** 列出所有分组名（含空分组） */
@@ -160,7 +209,7 @@ export function reorderTags(list) {
       else ins.run(t, i, now);
     });
   });
-  return listTagsRich();
+  return listTagsPaged({ limit: 500, rich: true }).items;
 }
 
 /** 分组改名：分组只是 tag_meta.tag_group 字符串，整体搬过去即可 */
@@ -204,8 +253,7 @@ export function renameTag(oldName, newName) {
     .prepare('SELECT id, tags FROM images WHERE id IN (SELECT image_id FROM item_tags WHERE tag = ?)')
     .all(o);
   const stmt = db.prepare('UPDATE images SET tags = ? WHERE id = ?');
-  db.exec('BEGIN');
-  try {
+  return withTransaction(() => {
     for (const r of rows) {
       const tags = String(r.tags)
         .split(',')
@@ -214,31 +262,29 @@ export function renameTag(oldName, newName) {
         .map((t) => (t === o ? n : t));
       stmt.run(tags.join(','), r.id);
     }
-  } catch (e) {
-    db.exec('ROLLBACK');
-    throw e;
-  }
-  db.exec('COMMIT');
-  // 元数据跟着标签走：目标标签已有元数据时保留目标的（避免覆盖用户设置）
-  try {
-    const src = db.prepare('SELECT * FROM tag_meta WHERE tag = ?').get(o);
-    if (src) {
-      const dst = db.prepare('SELECT tag FROM tag_meta WHERE tag = ?').get(n);
-      if (!dst) {
-        db.prepare('UPDATE tag_meta SET tag = ?, updated_at = ? WHERE tag = ?').run(n, new Date().toISOString(), o);
-      } else {
-        db.prepare('DELETE FROM tag_meta WHERE tag = ?').run(o);
+    // 元数据与别名和主表在同一个事务里：以前 COMMIT 之后才写，
+    // 中途失败会留下「图已改名、别名还指着旧名」的半完成状态。
+    try {
+      // 元数据跟着标签走：目标标签已有元数据时保留目标的（避免覆盖用户设置）
+      const src = db.prepare('SELECT * FROM tag_meta WHERE tag = ?').get(o);
+      if (src) {
+        const dst = db.prepare('SELECT tag FROM tag_meta WHERE tag = ?').get(n);
+        if (!dst) {
+          db.prepare('UPDATE tag_meta SET tag = ?, updated_at = ? WHERE tag = ?').run(n, new Date().toISOString(), o);
+        } else {
+          db.prepare('DELETE FROM tag_meta WHERE tag = ?').run(o);
+        }
       }
+      // 子标签的父子关系跟着改名
+      db.prepare('UPDATE tag_meta SET parent = ? WHERE parent = ?').run(n, o);
+      // 别名跟着走；别名正好等于新名（会和标签撞名）的那条丢掉
+      db.prepare('UPDATE tag_alias SET tag = ? WHERE tag = ?').run(n, o);
+      db.prepare('DELETE FROM tag_alias WHERE alias = ?').run(n);
+    } catch (err) {
+      if (!isMissingTable(err)) throw err; // 老库无 tag_meta/tag_alias 表才忽略
     }
-    // 子标签的父子关系跟着改名
-    db.prepare('UPDATE tag_meta SET parent = ? WHERE parent = ?').run(n, o);
-    // 别名跟着走；别名正好等于新名（会和标签撞名）的那条丢掉
-    db.prepare('UPDATE tag_alias SET tag = ? WHERE tag = ?').run(n, o);
-    db.prepare('DELETE FROM tag_alias WHERE alias = ?').run(n);
-  } catch {
-    /* 老库无 tag_meta 表时忽略 */
-  }
-  return rows.length;
+    return rows.length;
+  });
 }
 
 /** 删除标签（从所有图片上摘除） */
@@ -249,8 +295,7 @@ export function deleteTag(name) {
     .prepare('SELECT id, tags FROM images WHERE id IN (SELECT image_id FROM item_tags WHERE tag = ?)')
     .all(t);
   const stmt = db.prepare('UPDATE images SET tags = ? WHERE id = ?');
-  db.exec('BEGIN');
-  try {
+  return withTransaction(() => {
     for (const r of rows) {
       const tags = String(r.tags)
         .split(',')
@@ -259,21 +304,17 @@ export function deleteTag(name) {
         .filter((x) => x !== t);
       stmt.run(tags.join(','), r.id);
     }
-  } catch (e) {
-    db.exec('ROLLBACK');
-    throw e;
-  }
-  db.exec('COMMIT');
-  // 清掉被删标签的元数据，挂在它下面的子标签回到顶层，不留悬空 parent
-  try {
-    db.prepare('DELETE FROM tag_meta WHERE tag = ?').run(t);
-    db.prepare("UPDATE tag_meta SET parent = '' WHERE parent = ?").run(t);
-    // 标签没了，指向它的别名也必须清掉，否则搜索会把用户导向一个空标签
-    db.prepare('DELETE FROM tag_alias WHERE tag = ? OR alias = ?').run(t, t);
-  } catch {
-    /* 老库无 tag_meta 表时忽略 */
-  }
-  return rows.length;
+    // 清掉被删标签的元数据，挂在它下面的子标签回到顶层，不留悬空 parent
+    try {
+      db.prepare('DELETE FROM tag_meta WHERE tag = ?').run(t);
+      db.prepare("UPDATE tag_meta SET parent = '' WHERE parent = ?").run(t);
+      // 标签没了，指向它的别名也必须清掉，否则搜索会把用户导向一个空标签
+      db.prepare('DELETE FROM tag_alias WHERE tag = ? OR alias = ?').run(t, t);
+    } catch (err) {
+      if (!isMissingTable(err)) throw err;
+    }
+    return rows.length;
+  });
 }
 
 /* ------------------------------ 标签别名 / 同义词 ------------------------------ */
@@ -361,8 +402,7 @@ export function mergeTags(from, to) {
     .prepare('SELECT id, tags FROM images WHERE id IN (SELECT image_id FROM item_tags WHERE tag = ?)')
     .all(f);
   const stmt = db.prepare('UPDATE images SET tags = ? WHERE id = ?');
-  db.exec('BEGIN');
-  try {
+  return withTransaction(() => {
     for (const r of rows) {
       const set = new Set(
         String(r.tags)
@@ -374,36 +414,28 @@ export function mergeTags(from, to) {
       set.add(t);
       stmt.run([...set].join(','), r.id);
     }
-  } catch (e) {
-    db.exec('ROLLBACK');
-    throw e;
-  }
-  db.exec('COMMIT');
-  // 被合并掉的标签把元数据让给目标标签（目标没设置过时），子标签一并改挂
-  try {
-    const src = db.prepare('SELECT * FROM tag_meta WHERE tag = ?').get(f);
-    const dst = db.prepare('SELECT tag FROM tag_meta WHERE tag = ?').get(t);
-    if (src && !dst) {
-      db.prepare('UPDATE tag_meta SET tag = ?, updated_at = ? WHERE tag = ?').run(t, new Date().toISOString(), f);
-    } else if (src) {
-      db.prepare('DELETE FROM tag_meta WHERE tag = ?').run(f);
-    }
-    db.prepare('UPDATE tag_meta SET parent = ? WHERE parent = ?').run(t, f);
-    // 别名一起并过去：被合并标签的名字本身就变成目标标签的别名，老搜法仍然能命中
-    db.prepare('UPDATE tag_alias SET tag = ? WHERE tag = ?').run(t, f);
-    if (f !== t) {
-      try {
+    // 被合并掉的标签把元数据让给目标标签（目标没设置过时），子标签一并改挂
+    try {
+      const src = db.prepare('SELECT * FROM tag_meta WHERE tag = ?').get(f);
+      const dst = db.prepare('SELECT tag FROM tag_meta WHERE tag = ?').get(t);
+      if (src && !dst) {
+        db.prepare('UPDATE tag_meta SET tag = ?, updated_at = ? WHERE tag = ?').run(t, new Date().toISOString(), f);
+      } else if (src) {
+        db.prepare('DELETE FROM tag_meta WHERE tag = ?').run(f);
+      }
+      db.prepare('UPDATE tag_meta SET parent = ? WHERE parent = ?').run(t, f);
+      // 别名一起并过去：被合并标签的名字本身就变成目标标签的别名，老搜法仍然能命中
+      db.prepare('UPDATE tag_alias SET tag = ? WHERE tag = ?').run(t, f);
+      if (f !== t) {
         db.prepare(
           `INSERT INTO tag_alias (alias, tag, created_at) VALUES (?, ?, ?)
            ON CONFLICT(alias) DO UPDATE SET tag = excluded.tag`
         ).run(f, t, new Date().toISOString());
-      } catch {
-        /* 老库无别名表时忽略 */
       }
+      db.prepare('DELETE FROM tag_alias WHERE alias = ?').run(t);
+    } catch (err) {
+      if (!isMissingTable(err)) throw err;
     }
-    db.prepare('DELETE FROM tag_alias WHERE alias = ?').run(t);
-  } catch {
-    /* 老库无 tag_meta 表时忽略 */
-  }
-  return rows.length;
+    return rows.length;
+  });
 }

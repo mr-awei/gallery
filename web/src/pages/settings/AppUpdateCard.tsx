@@ -148,6 +148,26 @@ export default function AppUpdateCard({ appInfo, patch, onToast }: Props) {
       {supported && up.status === 'error' && up.error && (
         <div className="hint" style={{ color: 'var(--warn)' }}>更新失败：{up.error}</div>
       )}
+      {typeof up.installFailures === 'number' && up.installFailures > 0 && (
+        <div className="hint" style={{ marginTop: 8, lineHeight: 1.9, color: 'var(--warn)' }}>
+          已连续 {up.installFailures} 次安装失败：强制更新已自动降级为「可继续使用」，避免每次启动都被装不上的更新挡住。
+          <button
+            className="btn sm"
+            style={{ marginLeft: 8 }}
+            onClick={async () => {
+              try {
+                await desktop?.updateResetFailures?.();
+                setUp({ ...up, installFailures: 0 });
+                onToast('已清零安装失败计数，强制更新策略已恢复');
+              } catch {
+                onToast('清零失败，请重启应用后再试', 'error');
+              }
+            }}
+          >
+            清零计数
+          </button>
+        </div>
+      )}
       {msg && <div className="hint">{msg}</div>}
     </Card>
   );

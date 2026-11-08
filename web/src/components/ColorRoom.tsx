@@ -261,7 +261,10 @@ export default function ColorRoom({
 
   /* ---------------- 预览：逐像素渲染到 canvas（与后端同一套管线） ---------------- */
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
-  const baseRef = useRef<{ data: Uint8ClampedArray; w: number; h: number; src: string } | null>(null);
+  /** 停手后的全精度预览长边 / 拖动中的快速预览长边（像素量约 1:5） */
+  const FULL_MAX = 1600;
+  const DRAG_MAX = 720;
+  const baseRef = useRef<{ data: Uint8ClampedArray; w: number; h: number; src: string; max: number } | null>(null);
   /** 预览用的 ImageData 复用缓冲（尺寸变了才重建） */
   const frameRef = useRef<ImageData | null>(null);
 
@@ -277,14 +280,13 @@ export default function ColorRoom({
     cv.style.transform = img.style.transform;
   };
 
-  /** 原图降采样到最长边 1600，缓存在内存里（换图或尺寸变化才重建） */
-  const buildBase = (): boolean => {
+  /** 原图降采样后缓存在内存里（换图/换档才重建）；自动分析一律用 FULL_MAX */
+  const buildBase = (max = FULL_MAX): boolean => {
     const img = imgRef.current;
     if (!img || !img.naturalWidth) return false;
     const cached = baseRef.current;
-    if (cached && cached.src === img.src && cached.w === canvasRef.current?.width) return true;
-    const MAX = 1600;
-    const scale = Math.min(1, MAX / Math.max(img.naturalWidth, img.naturalHeight));
+    if (cached && cached.src === img.src && cached.max === max && cached.w === canvasRef.current?.width) return true;
+    const scale = Math.min(1, max / Math.max(img.naturalWidth, img.naturalHeight));
     const w = Math.max(1, Math.round(img.naturalWidth * scale));
     const h = Math.max(1, Math.round(img.naturalHeight * scale));
     const off = document.createElement('canvas');
@@ -293,7 +295,7 @@ export default function ColorRoom({
     const ctx = off.getContext('2d', { willReadFrequently: true });
     if (!ctx) return false;
     ctx.drawImage(img, 0, 0, w, h);
-    baseRef.current = { data: ctx.getImageData(0, 0, w, h).data, w, h, src: img.src };
+    baseRef.current = { data: ctx.getImageData(0, 0, w, h).data, w, h, src: img.src, max };
     const cv = canvasRef.current;
     if (cv) {
       cv.width = w;
@@ -302,9 +304,10 @@ export default function ColorRoom({
     return true;
   };
 
-  const renderPreview = () => {
+  /** quick=true：拖动帧只算 720 长边的小图；停手后必须回到 FULL_MAX 全精度 */
+  const renderPreview = (quick = false) => {
     if (showRawRef.current) return;
-    if (!buildBase()) return;
+    if (!buildBase(quick ? DRAG_MAX : FULL_MAX)) return;
     const cv = canvasRef.current;
     const base = baseRef.current;
     if (!cv || !base) return;
@@ -351,10 +354,15 @@ export default function ColorRoom({
     applyView();
   });
 
-  // 参数变化 → 防抖重算预览（滑块拖动时不必每像素都算一遍）
+  // 拖动时每帧最多算一次低分辨率预览（rAF 合并连续 onChange），
+  // 停手 180ms 后回到全精度预览：最终画面与成品用同一套逐像素公式，逐像素一致。
   useEffect(() => {
-    const t = window.setTimeout(() => renderPreview(), 50);
-    return () => window.clearTimeout(t);
+    const raf = requestAnimationFrame(() => renderPreview(true));
+    const settle = window.setTimeout(() => renderPreview(false), 180);
+    return () => {
+      cancelAnimationFrame(raf);
+      window.clearTimeout(settle);
+    };
   }, [value]);
 
   // 「对比」：按住时露出底下的原图，松开恢复调色预览

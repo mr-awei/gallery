@@ -14,6 +14,9 @@ export interface ImageItem {
   duration: number;
   /** 自定义封面帧（秒） */
   coverTs: number;
+  /** 视频首尾裁剪区间（秒）；0 / 未提供表示未设置 */
+  trimStart?: number;
+  trimEnd?: number;
   /** 内容指纹（MD5），完全重复检测用 */
   md5: string;
   favorite: boolean;
@@ -425,10 +428,18 @@ export interface WallpaperMonitors {
 }
 
 /** 动态壁纸配置 */
+/** 壁纸实时交互参数（滑块 0~300，100 为基准） */
+export interface LiveWallpaperParams {
+  brightness: number;
+  speed: number;
+  intensity: number;
+  depth: number;
+}
+
 export interface LiveWallpaperConfig {
   enabled: boolean;
-  /** slideshow 相册轮播 / video 本地视频 / web 网页 */
-  mode: 'slideshow' | 'video' | 'web';
+  /** slideshow 相册轮播 / video / web / shader GLSL / interactive 交互 / audio 音频可视化 */
+  mode: 'slideshow' | 'video' | 'web' | 'shader' | 'interactive' | 'audio';
   /** 轮播间隔（秒） */
   intervalSec: number;
   /** 视频文件路径（mode=video 时） */
@@ -449,6 +460,39 @@ export interface LiveWallpaperConfig {
   pauseOnFullscreen: boolean;
   /** 用电池时暂停 */
   pauseOnBattery: boolean;
+  /** GPU 占用达到阈值时暂停 */
+  pauseOnGpu?: boolean;
+  /** GPU 阈值百分比 1-100（取最忙引擎） */
+  gpuThreshold?: number;
+  /** 这些进程在前台时暂停（basename / 简单通配） */
+  pauseApps?: string[];
+  /** 允许本机 / 内网 http(s) 与可信目录内的 file:// 网页 */
+  allowLocalUrl?: boolean;
+  /** file:// 网页允许的根目录（绝对路径） */
+  trustedDir?: string;
+  /** 网页壁纸点击穿透（false = 网页可接收鼠标，Esc 恢复） */
+  clickThrough?: boolean;
+  /** 实时交互参数：亮度 / 速度 / 强度 / 景深 */
+  params?: LiveWallpaperParams;
+  /** GLSL 预设 id（shaderPreset），内置四款 */
+  shaderPreset?: string;
+  /** 自定义 GLSL 片元着色器源码；非空时优先于预设 */
+  shaderSource?: string;
+  /** 交互壁纸：开启后桌面层接收鼠标事件 */
+  interactive?: boolean;
+  /** 音频可视化：本地音频路径 */
+  audioPath?: string;
+  /** file = 素材音频文件 / mic = 麦克风 / system = 系统音频回环（Windows 桌面音频） */
+  audioSource?: 'file' | 'mic' | 'system';
+}
+
+/** 屏幕保护程序：空闲 N 分钟后用动态壁纸窗口全屏覆盖 */
+export interface ScreensaverConfig {
+  enabled: boolean;
+  idleMinutes: number;
+  /** slideshow / shader / interactive / audio */
+  mode: 'slideshow' | 'shader' | 'interactive' | 'audio';
+  showClock: boolean;
 }
 
 export interface AutoWallpaperStatus {
@@ -506,6 +550,42 @@ export interface WatermarkPreset {
   at: number;
 }
 
+/** 局域网投送状态（/api/lan/status） */
+export interface LanStatus {
+  ok: boolean;
+  enabled: boolean;
+  /** 独立投送端口；0 = 未开启 */
+  port: number;
+  /** 手机可访问的 URL（含投送令牌） */
+  urls: string[];
+  qrText: string;
+  token: string;
+  note: string;
+}
+
+/** 已安装的插件（/api/plugins 下发；宿主不回传 entry / 绝对路径细节） */
+export interface PluginInfo {
+  id: string;
+  name: string;
+  version: string;
+  description: string;
+  permissions: string[];
+  actions: string[];
+  builtin: boolean;
+}
+
+export interface PluginRunResult {
+  ok: boolean;
+  plugin: string;
+  action: string;
+  logs: string[];
+  patch: Record<string, unknown>;
+  applied: string[];
+  result: unknown;
+  /** 插件想写库但没声明 image:write 时为 true */
+  denied?: boolean;
+}
+
 export interface Settings {
   minResolution: number;
   minFileSize: number;
@@ -519,6 +599,10 @@ export interface Settings {
   watermarkPresets?: WatermarkPreset[];
   /** 关窗行为（桌面端）：true = 收到托盘继续后台跑，false = 关窗即退出 */
   closeToTray?: boolean;
+  /** 局域网 / 手机扫码投送（跨库共享，默认关闭） */
+  lanAccess?: boolean;
+  /** 屏幕保护程序（跨库共享） */
+  screensaver?: ScreensaverConfig;
   maxFileSize: number;
   concurrency: number;
   sources: Record<string, boolean>;

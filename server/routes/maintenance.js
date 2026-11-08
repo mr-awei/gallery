@@ -10,6 +10,7 @@ import { getMissingCached, importLocalImages } from '../importer.js';
 import { existingThumbPath } from '../thumbs.js';
 import { computePHash } from '../phash.js';
 import { probeMedia } from '../lib/media-probe.js';
+import { thumbRebuildStatus } from '../lib/thumb-rebuild.js';
 
 function dbFilePath() {
   try {
@@ -127,25 +128,46 @@ export function register(app, ctx) {
     asyncRoute(async (req, res) => {
       const limit = Math.min(2000, Math.max(1, Number(req.body?.limit) || 300));
       const force = req.body?.force === true;
-      const rows = db
-        .prepare("SELECT id, abs_path FROM images WHERE media_kind IN ('image', 'gif') ORDER BY id DESC LIMIT ?")
-        .all(limit * 4);
+      // 续跑游标：整库补图要走好几轮，每轮都从「最新的 limit*4 张」里挑，
+      // 排在后面的老图永远轮不到（8 千张的库会卡在最后几百张上）
+      const beforeId = Math.max(0, Number(req.body?.beforeId) || 0);
+      // RAW / PSD 也要能在里修：它们的缩略图来自文件内嵌预览，以前被这条 SQL 排除在外，
+      // 一旦导入时没提取成功就永远修不好（卡片一直是「文件缺失」）
+      // 非 force 时直接筛「还没有缩略图」的，天然分页，不会被已修好的行占满窗口
+      const sql = force
+        ? `SELECT id, abs_path FROM images WHERE media_kind IN ('image', 'gif', 'raw', 'design')
+           ${beforeId ? 'AND id < ?' : ''} ORDER BY id DESC LIMIT ?`
+        : `SELECT id, abs_path FROM images WHERE media_kind IN ('image', 'gif', 'raw', 'design')
+           AND COALESCE(thumb, '') = '' ${beforeId ? 'AND id < ?' : ''} ORDER BY id DESC LIMIT ?`;
+      const rows = beforeId ? db.prepare(sql).all(beforeId, limit) : db.prepare(sql).all(limit);
       let rebuilt = 0;
       let skipped = 0;
       let failed = 0;
       for (const r of rows) {
-        if (rebuilt + failed >= limit) break;
+        // rows 本身已经 LIMIT 过，最多就是 limit 行，不需要在循环里再 break；
+        // 旧的 break 还会让游标停在「没处理的那一行」上
         try {
           if (!fs.existsSync(r.abs_path)) {
             failed++;
             continue;
           }
           const srcMtime = fs.statSync(r.abs_path).mtimeMs;
-          if (!force && existingThumbPath(r.id, srcMtime)) {
-            skipped++;
-            continue;
+          if (!force) {
+            const cached = existingThumbPath(r.id, srcMtime);
+            if (cached) {
+              // 磁盘上有可用缩略图但 thumb 字段为空：必须回写。
+              // 否则 thumbMissingCount() 一直把它算作缺失，每轮续跑都白扫一遍。
+              db.prepare("UPDATE images SET thumb = ? WHERE id = ? AND COALESCE(thumb, '') = ''").run(cached, r.id);
+              skipped++;
+              continue;
+            }
           }
           const p = await lib.ensureThumb(r.id, r.abs_path, { force });
+          // 生成失败不要把 thumb 写成 NULL 还算「已重建」
+          if (!p) {
+            failed++;
+            continue;
+          }
           // 缩略图换了，pHash 必须跟着重算：查重用的指纹是从缩略图派生的，
           // 留着按旧缩略图算出的 hash，等于拿别人的指纹去比对，还会把好图误判成「重复」。
           const phash = await computePHash(p || r.abs_path).catch(() => '');
@@ -165,9 +187,31 @@ export function register(app, ctx) {
           failed++;
         }
       }
-      res.json({ ok: true, rebuilt, skipped, failed });
+      // nextBeforeId：这一批处理到的最小 id，下一轮带上它继续往前翻（0 = 已到头）。
+      // 不能按「有没有 rebuilt/failed」判断：整页都被 skipped 时会被判成 0，
+      // 前端续跑就永远从第一页重来，排在后面的图一辈子轮不到。
+      const nextBeforeId = rows.length ? Number(rows[rows.length - 1].id) : 0;
+      res.json({ ok: true, rebuilt, skipped, failed, nextBeforeId });
     })
   );
+
+  /**
+   * 一键补齐所有缺缩略图的记录（后台任务，不阻塞请求）。
+   * 与上面的 rebuild-thumbs 的区别：那个是「前端一轮轮点」，这个是服务端自己按记录补完，
+   * 进度写进任务表，适合「旧库合并进来 / 上次导入被强杀」这种成片缺图。
+   */
+  app.post('/api/maintenance/rebuild-missing', (_req, res) => {
+    const r = ctx.startThumbRebuild?.({
+      onProgress: (s) => {
+        if (s.finished) ctx.sseBroadcast?.('library', { thumbRebuild: s });
+      },
+    }) || { started: false, reason: 'unavailable' };
+    res.json({ ok: true, ...r });
+  });
+
+  app.get('/api/maintenance/rebuild-missing', (_req, res) => {
+    res.json({ ok: true, ...thumbRebuildStatus() });
+  });
 
   /** 清理孤立缩略图；默认 dryRun，只报告不动手 */
   app.post(

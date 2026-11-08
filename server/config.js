@@ -113,3 +113,27 @@ export const API_TOKEN = (() => {
     }
   }
 })();
+
+/**
+ * /api/v1 的附加令牌表（scope 分级，可选）。
+ * 环境变量 TUKU_API_SCOPE_TOKENS 优先，其次用户数据目录 api-tokens.json。
+ * 格式见 server/lib/api-scopes.js 的 parseTokenMap；解析失败一律当作「没有附加令牌」，
+ * 绝不退化成「无 scope 但全部可用」。主令牌 API_TOKEN 恒拥有全部权限。
+ */
+export const API_SCOPE_TOKENS = (() => {
+  let raw = process.env.TUKU_API_SCOPE_TOKENS || '';
+  if (!raw) {
+    try {
+      raw = fs.readFileSync(path.join(USER_ROOT, 'api-tokens.json'), 'utf8');
+    } catch {
+      return {};
+    }
+  }
+  try {
+    const parsed = JSON.parse(raw);
+    return parsed && typeof parsed === 'object' ? parsed : {};
+  } catch {
+    console.warn('[config] api-tokens.json / TUKU_API_SCOPE_TOKENS 不是合法 JSON，已忽略附加令牌');
+    return {};
+  }
+})();

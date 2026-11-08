@@ -13,19 +13,68 @@ import { pipeline } from 'node:stream/promises';
 import { httpFetch } from './http.js';
 
 /**
- * 已知模型的强校验哈希（hex，键 = `<repo>/<镜像内路径>`）。
+ * 随包可信哈希清单（只读资源，打包进 asar，运行时改不了）。
  *
- * 这里的条目才是「可信参照」：首次下载完成后，把 `<dest>.sha256` 里的值抄进来就完成固化了
- * （换机器重装时会拿清单比对，镜像投毒 / 传输损坏都会被发现）。
- * 清单为空时不要谎报「校验通过」——`isPinned()` 为 false 时上层应显示「仅记录哈希，未与清单比对」。
+ * 与 sidecar 的本质区别：sidecar 是「上次下载时自己写的」，模型与 sidecar 一起被替换时
+ * 校验照样通过；而这里的条目来自发布包，攻击者改不了，才算真正的外部参照。
+ * 清单用 `npm run pin-models -- <已核对的文件> <键>` 固化，并随代码提交。
+ * 内网部署可用 TUKU_MODEL_SHA256_FILE 指向同结构 JSON 覆盖/追加。
  */
-export const KNOWN_SHA256 = {
-  // 'sunseeker001/U-2-Net-Human-Seg/onnx/model.onnx': '<sha256 hex>',
-};
+function loadPins() {
+  const models = {};
+  const zips = {};
+  const merge = (raw, from) => {
+    try {
+      const data = JSON.parse(raw);
+      for (const [k, v] of Object.entries(data?.models || {})) {
+        if (/^[0-9a-f]{64}$/i.test(String(v))) models[k] = String(v).toLowerCase();
+      }
+      for (const [k, v] of Object.entries(data?.zips || {})) {
+        if (/^[0-9a-f]{64}$/i.test(String(v))) zips[k] = String(v).toLowerCase();
+      }
+    } catch (err) {
+      console.warn(`[model] ${from} 不是有效的哈希清单：${err?.message || err}`);
+    }
+  };
+  try {
+    merge(fs.readFileSync(new URL('./model-pins.json', import.meta.url), 'utf8'), '随包清单');
+  } catch {
+    /* 开发态清单可能还没生成：只留 sidecar 兜底，但不谎报 verified */
+  }
+  const override = String(process.env.TUKU_MODEL_SHA256_FILE || '').trim();
+  if (override) {
+    try {
+      merge(fs.readFileSync(override, 'utf8'), override);
+    } catch (err) {
+      console.warn(`[model] 外部哈希清单不可读：${err?.message || err}`);
+    }
+  }
+  return { models, zips };
+}
+
+const PINS = loadPins();
+
+/** 已知模型的强校验哈希（hex，键 = 镜像内相对路径） */
+export const KNOWN_SHA256 = Object.freeze({ ...PINS.models });
+/** 已知 release zip 的强校验哈希（hex，键 = 下载 URL） */
+export const KNOWN_ZIP_SHA256 = Object.freeze({ ...PINS.zips });
 
 /** 该仓库路径是否有固定过的可信哈希（false = 只有 sidecar 自记录，不能算校验通过） */
 export function isPinned(repoPath) {
   return /^[0-9a-f]{64}$/i.test(String(KNOWN_SHA256[repoPath] || ''));
+}
+
+/**
+ * 取清单里的期望哈希：downloadModelFile 必须优先用它，不能被 sidecar 覆盖。
+ * 调用方有时传相对路径（如 matting 的 `onnx/model.onnx`），而清单键为完整
+ * `仓库/路径`；后缀唯一时也应命中，否则清单形同虚设、又退回 sidecar 自记录。
+ */
+export function pinnedSha(repoPath) {
+  const key = String(repoPath || '');
+  if (isPinned(key)) return String(KNOWN_SHA256[key]).toLowerCase();
+  const suffix = `/${key.replace(/^\/+/, '')}`;
+  const hits = Object.entries(KNOWN_SHA256).filter(([k, v]) => k.endsWith(suffix) && /^[0-9a-f]{64}$/i.test(String(v)));
+  return hits.length === 1 ? String(hits[0][1]).toLowerCase() : '';
 }
 
 function sha256File(p) {
@@ -102,13 +151,20 @@ export async function downloadModelFile({
       if (size < minBytes) throw new Error(`文件不完整（仅 ${size} 字节）`);
 
       const digest = hash.digest('hex');
-      const expect = sha256 || (await readSidecar(dest));
-      if (expect && digest !== expect) throw new Error('sha256 校验失败：文件损坏或来源异常');
+      // 清单优先：sidecar 可能被和模型一起替换掉，不能让它覆盖随包可信哈希
+      const pinned = pinnedSha(repoPath);
+      const expect = pinned || sha256 || (await readSidecar(dest));
+      if (expect && digest !== expect) {
+        throw new Error(
+          pinned ? 'sha256 与随包可信清单不一致：模型可能被替换' : 'sha256 校验失败：文件损坏或来源异常'
+        );
+      }
 
       await fsp.rename(part, dest);
       await fsp.writeFile(`${dest}.sha256`, `${digest}\n`, 'utf8').catch(() => {});
-      // verified=false 表示「没有任何可信参照」，只是自己记下了这次下载的哈希
-      return { size, sha256: digest, verified: !!expect };
+      // 只有「随包清单」或调用方显式给出的期望哈希才算外部参照；
+      // sidecar 只是自洽，不能谎报 verified=true
+      return { size, sha256: digest, verified: !!(pinned || sha256) };
     } catch (err) {
       lastErr = err;
       await fsp.rm(part, { force: true }).catch(() => {});

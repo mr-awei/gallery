@@ -4,6 +4,7 @@ import { DatabaseSync } from 'node:sqlite';
 import { DB_FILE, GLOBAL_DB_FILE, DATA_DIR, THUMB_DIR, DEFAULT_STORAGE_DIR } from './config.js';
 import { encryptSecret, decryptSecret } from './secret.js';
 import { settingsBus } from './lib/settings-bus.js';
+import { rgbToOklab } from './lib/oklab.js';
 
 /**
  * 跨库共享的设置键：永远存 global.db，所有库共用一份。
@@ -28,6 +29,9 @@ const GLOBAL_SETTING_KEYS = new Set([
   'weiboUserAgent',
   'network',
   'closeToTray',
+  // 局域网投送 / 屏保是应用级能力，不该每个资源库各配一遍
+  'lanAccess',
+  'screensaver',
   // 水印预设是「排版方案」，用户不想每个库重新配一遍，跟着人走
   'watermarkPresets',
 ]);
@@ -509,6 +513,10 @@ END;
   conn.exec('CREATE INDEX IF NOT EXISTS idx_images_viewed ON images(view_count)');
   ensureColumn('images', 'rating', 'rating INTEGER NOT NULL DEFAULT 0');
   ensureColumn('images', 'note', "note TEXT NOT NULL DEFAULT ''");
+  // 视频首尾裁剪区间（秒）：灯箱里拖动裁剪滑块后保存，0 = 未设置。
+  // 用幂等 reconcile 补列，不新增迁移版本——老库不备份整个 DB 也能平滑升级。
+  ensureColumn('images', 'trim_start', 'trim_start REAL NOT NULL DEFAULT 0');
+  ensureColumn('images', 'trim_end', 'trim_end REAL NOT NULL DEFAULT 0');
   // 文件指纹（mtime 秒）：导入时据此跳过内容未变的文件，让二次扫描接近零成本
   ensureColumn('images', 'fs_mtime', 'fs_mtime INTEGER NOT NULL DEFAULT 0');
   // 封面版本号：换/恢复自定义封面只重写缩略图文件、不动原文件，fs_mtime 不会变，
@@ -527,6 +535,25 @@ END;
   ensureColumn('images', 'dominant', "dominant TEXT NOT NULL DEFAULT ''");
   ensureColumn('images', 'hue', "hue TEXT NOT NULL DEFAULT ''");
   ensureColumn('images', 'palette', "palette TEXT NOT NULL DEFAULT ''");
+  // 颜色搜索索引：主色 OKLab 三通道落库，SQL 粗筛 box 下推，避免每次请求全库解析 palette JSON。
+  // 以幂等 reconcile 补列（老库不备份整库也能平滑升级），并用后台回填把已存在的 dominant 量化进库。
+  ensureColumn('images', 'dominant_l', 'dominant_l REAL');
+  ensureColumn('images', 'dominant_a', 'dominant_a REAL');
+  ensureColumn('images', 'dominant_b', 'dominant_b REAL');
+  conn.exec('CREATE INDEX IF NOT EXISTS idx_images_domlab ON images(dominant_l, dominant_a, dominant_b)');
+  {
+    const nullCount = Number(conn.prepare("SELECT COUNT(*) AS c FROM images WHERE dominant_l IS NULL AND dominant <> ''").get()?.c || 0);
+    if (nullCount > 0) {
+      console.info(`[db] 回填主色 OKLab 索引（约 ${nullCount} 张，仅此一次）…`);
+      const upd = conn.prepare('UPDATE images SET dominant_l = ?, dominant_a = ?, dominant_b = ? WHERE id = ?');
+      const rows = conn.prepare("SELECT id, dominant FROM images WHERE dominant_l IS NULL AND dominant <> ''").all();
+      for (const r of rows) {
+        const lab = rgbToOklab(r.dominant);
+        if (lab) upd.run(+lab.L.toFixed(4), +lab.a.toFixed(4), +lab.b.toFixed(4), r.id);
+      }
+      console.info('[db] 主色 OKLab 索引回填完成');
+    }
+  }
   // 主体哈希（白底抠图+主体包围盒归一化后的 pHash）：全图哈希被白底背景主导导致
   // 不同商品误判相似，主体化后彻底解决；'' = 尚未补算（相似分组退回全图 phash）
   ensureColumn('images', 'obj_phash', "obj_phash TEXT NOT NULL DEFAULT ''");
@@ -551,6 +578,10 @@ END;
   // 而不是每点一次「开始迁移」就多出一份副本
   ensureColumn('images', 'eagle_id', "eagle_id TEXT NOT NULL DEFAULT ''");
   conn.exec('CREATE INDEX IF NOT EXISTS idx_images_eagle ON images(eagle_id)');
+  // 回收站整行快照（images 行的 JSON）：恢复时要还原 media_kind / rating / note /
+  // duration / cover_ts / md5 / fs_mtime 等全部列。只存回收站表那 15 个字段的话，
+  // 视频恢复成图片、评分备注丢失、fs_mtime=0 让 ?v=0 的缩略图缓存永不刷新。
+  ensureColumn('trash', 'snapshot', "snapshot TEXT NOT NULL DEFAULT ''");
 
   // abs_path 唯一索引：watch 防抖回调与手动 rescan 可能同时进入，两边都判「不存在」就各插一条。
   // 老库里若已经有重复路径，唯一索引建不起来（会抛错）——这里只告警、不阻断启动，
@@ -814,6 +845,9 @@ export const DEFAULT_SETTINGS = {
     duitang: true,
     weibo: false, // 需要登录 Cookie，默认不开，填好后可在采集页勾选
     wallhaven: true,
+    commons: true, // Wikimedia 官方 API，稳定且图片可自由使用
+    douban: false, // 风控较严，按需在设置里打开；失败会在任务日志说明原因
+    tieba: false,
   },
   wallhavenApiKey: '',
   // 更新源（GitHub owner/repo）：设置页「检查更新」用，留空则提示未配置
@@ -836,6 +870,15 @@ export const DEFAULT_SETTINGS = {
   tourDone: false,
   // 删除策略：trash 回收站 / permanent 彻底删除 / unlink 仅移出图库
   deletePolicy: 'trash',
+  // 局域网 / 手机扫码投送：默认关闭。开启时另起独立端口 + 独立小权限令牌，主服务仍只绑 127.0.0.1
+  lanAccess: false,
+  // 屏幕保护程序：空闲 N 分钟后用动态壁纸窗口全屏覆盖，用户一动键鼠即退出
+  screensaver: {
+    enabled: false,
+    idleMinutes: 10,
+    mode: 'slideshow',
+    showClock: true,
+  },
   // 智能评分：低于该分数的图片在采集时自动丢弃
   scoreThreshold: 40,
   // AI 打标后自动按智能文件夹规则归类（打标 → 自动分类 的联动）
@@ -847,7 +890,8 @@ export const DEFAULT_SETTINGS = {
   // 动态壁纸（把窗口挂到桌面 WorkerW 层，做成真正的动态桌面）
   liveWallpaper: {
     enabled: false,
-    mode: 'slideshow', // slideshow 相册轮播 / video 本地视频 / web 网页
+    // slideshow 相册轮播 / video 本地视频 / web 网页 / shader GLSL / interactive 交互 / audio 音频可视化
+    mode: 'slideshow',
     intervalSec: 15,
     videoPath: '',
     webUrl: '',
@@ -859,6 +903,23 @@ export const DEFAULT_SETTINGS = {
     minScore: 0,
     pauseOnFullscreen: true, // 有全屏应用/游戏时暂停
     pauseOnBattery: false, // 用电池时暂停
+    pauseOnGpu: false, // GPU 占用达到阈值时暂停
+    gpuThreshold: 85, // 取最忙 GPU 引擎的占用率（%），计数器不可用时规则自动跳过
+    pauseApps: [], // 这些进程在前台时暂停，如 ['photoshop.exe', 'msedge*']
+    // 网页壁纸：默认只放公网 http(s)；显式放开后才允许本机/内网页面与可信目录内的 file://
+    allowLocalUrl: false,
+    trustedDir: '',
+    clickThrough: true, // 网页壁纸默认点击穿透；关掉后网页可接收鼠标，Esc 恢复
+    // 壁纸实时交互参数：UI 滑块 0~300，渲染页归一化到倍率；拖滑块不重开窗口
+    params: { brightness: 100, speed: 50, intensity: 60, depth: 40 },
+    // 着色器：预设 id 稳定，自定义源码为空时用预设；编译失败会在桌面层如实提示
+    shaderPreset: 'plasma',
+    shaderSource: '',
+    // 交互壁纸：开启后桌面层窗口不再忽略鼠标事件，Esc 可退出交互
+    interactive: false,
+    // 音频可视化：素材音频文件 / 麦克风（系统音频回环需 WASAPI，暂不假装支持）
+    audioPath: '',
+    audioSource: 'file', // file / mic
   },
   // 定时自动切换壁纸
   autoWallpaper: {

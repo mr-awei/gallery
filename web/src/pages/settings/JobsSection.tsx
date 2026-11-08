@@ -2,6 +2,7 @@ import React, { useCallback, useEffect, useState } from 'react';
 import { api, quiet } from '../../api';
 import type { JobItem, OpLogItem } from '../../api';
 import Card from './Card';
+import { usePollWhenVisible } from '../../hooks/usePollWhenVisible';
 
 interface Props {
   onToast: (msg: string, kind?: 'info' | 'error') => void;
@@ -57,10 +58,9 @@ export default function JobsSection({ onToast }: Props) {
 
   useEffect(() => {
     refresh();
-    // 任务进度靠 SSE 里的 library 事件间接触发刷新，这里再兜一层 5s 轮询（只在设置页可见时）
-    const timer = window.setInterval(refresh, 5000);
-    return () => window.clearInterval(timer);
   }, [refresh]);
+  // 任务历史没有专门的 SSE 事件，只在页面可见时低频兜底；隐藏时 0 请求
+  usePollWhenVisible(refresh, 5000);
 
   const cancel = async (job: JobItem) => {
     setBusy(true);

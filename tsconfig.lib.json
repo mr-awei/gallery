@@ -1,0 +1,24 @@
+{
+  // T-12：先对「安全关键 + 纯函数」的 JS 开真类型检查（checkJs），分批消除噪音。
+  // tsconfig.node.json 仍保持 checkJs:false 覆盖全部 server/electron/scripts 的语法/引用结构，
+  // 这里作为第二道语义闸，纳入 npm run typecheck；后续按目录逐步把更多文件加进 include。
+  "compilerOptions": {
+    "target": "ES2022",
+    "module": "ESNext",
+    "moduleResolution": "bundler",
+    "allowJs": true,
+    "checkJs": true,
+    "noEmit": true,
+    "allowImportingTsExtensions": true,
+    "skipLibCheck": true,
+    "strict": false,
+    "types": ["node"]
+  },
+  "include": [
+    "electron/lib/pure.js",
+    "electron/lib/stale-process.js",
+    "server/sanitize.js",
+    "server/lib/clip-scan.js",
+    "server/lib/clip-index.js"
+  ]
+}

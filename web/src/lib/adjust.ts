@@ -1,7 +1,7 @@
 // 带 .ts 扩展名：Node 直接跑单测时能解析（Vite 与 allowImportingTsExtensions 同样支持）
-import type { AdjustParams, CurvePoint, CurveSet, HueBandKey, MixBandKey } from '../types.ts';
-import { CURVES_DEFAULTS, isColorGradeDefault, isColorMixerDefault } from '../types.ts';
-import { curveFn, toneMap } from './tone.ts';
+import type { AdjustParams, CurvePoint, CurveSet, HueBandKey, MixBandKey } from '../types';
+import { CURVES_DEFAULTS, isColorGradeDefault, isColorMixerDefault } from '../types';
+import { curveFn, toneMap } from './tone';
 
 /**
  * 逐像素调色管线（**唯一的预览实现**，实时预览与直方图都走它）。

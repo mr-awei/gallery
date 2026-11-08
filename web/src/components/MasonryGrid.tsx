@@ -197,7 +197,10 @@ export default function MasonryGrid({
     const vh = scroller ? scroller.clientHeight : window.innerHeight;
     if (Math.abs(top - scrollTop) > 2) setScrollTop(top);
     if (Math.abs(vh - viewH) > 2) setViewH(vh);
-  });
+    // 必须有依赖数组：没有它每次渲染都会 getComputedStyle + 读 scrollTop/clientHeight，
+    // 与滚动 rAF 里的 setState 形成「渲染 → 量布局 → setState」循环，千张图滚动掉帧。
+    // layoutSig 变化（数据/宽度变化）时仍对一次账，保住「事件丢了也能自愈」的意图。
+  }, [scrollTop, viewH, layoutSig]);
 
   /**
    * 布局：每张卡片的绝对坐标 + 容器总高。

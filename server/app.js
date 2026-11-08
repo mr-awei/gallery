@@ -8,6 +8,7 @@ import * as lib from './library.js';
 import { undoLastEdit, lastEdit, hasUndo } from './lib/undo.js';
 import { getActiveLibrary, setImportPending, isImportPending } from './libraries.js';
 import { getJobStatus } from './crawler.js';
+import { editJobStatus } from './edit-job.js';
 import * as clip from './clip.js';
 import { importLocalImages, watchStorageDir, invalidateMissingCache } from './importer.js';
 import { sweepThumbTemp } from './bulk-import.js';
@@ -44,7 +45,16 @@ import { register as registerSource } from './routes/source.js';
 import { register as registerInspect } from './routes/inspect.js';
 import { register as registerActions } from './routes/actions.js';
 import { register as registerTransfer } from './routes/transfer.js';
+import { register as registerV1 } from './routes/v1.js';
+import { register as registerPlugins } from './routes/plugins.js';
+import { register as registerLan } from './routes/lan.js';
+import { register as registerWorkshop } from './routes/workshop.js';
+import { register as registerSync } from './routes/sync.js';
+import { capabilitiesFor, platformSummary } from './lib/platform.js';
 import { markInterruptedJobs, pruneJobs } from './jobs.js';
+import { startThumbRebuild, thumbMissingCount } from './lib/thumb-rebuild.js';
+import { autoMergeLegacy, refreshMergedRows } from './lib/legacy-db.js';
+import { backfillMissingFolderLinks } from './folders.js';
 
 const asyncRoute = (fn) => (req, res, next) => Promise.resolve(fn(req, res, next)).catch(next);
 
@@ -77,6 +87,30 @@ function sseBroadcast(type, data) {
 }
 
 let importState = { running: false, progress: 0, message: '', result: null };
+
+/**
+ * 整库补缩略图：只按数据库里的记录补，不扫磁盘。
+ *
+ * 触发场景：从旧单库合并进来、上次导入被强杀（半截记录）、用户把 thumbs 目录清过。
+ * 以前这种情况只能靠「卡片滚到哪补到哪」，一屏几十张排队十几秒，用户看到的就是
+ * 「图片一直转圈」。这里达到阈值就后台批量补，进度写进任务表。
+ */
+function scheduleThumbRebuild(reason = '') {
+  const missing = thumbMissingCount();
+  // 少量缺图（顺手一两张）不值得起任务：在线队列很快就补上了
+  if (missing < 20) return { started: false, reason: 'below-threshold', missing };
+  const timer = setTimeout(() => {
+    const r = startThumbRebuild({
+      onProgress: (s) => {
+        if (s.finished) sseBroadcast('library', { thumbRebuild: { ...s, reason } });
+      },
+    });
+    if (r.started) console.info(`[thumb] 后台补图 ${r.total} 张（${reason || '自动'}）`);
+  }, 2000);
+  // 别让定时器把进程吊着（Electron 退出时）
+  if (typeof timer.unref === 'function') timer.unref();
+  return { started: true, scheduled: true, missing };
+}
 
 /**
  * 后台扫描素材文件夹：把磁盘上已有、库中未登记的图片补登记进来。
@@ -138,6 +172,8 @@ function startLocalImport(message = '扫描本地图片…') {
       };
       sseBroadcast('library', { imported: result.saved, cancelled });
       invalidateMissingCache(); // 文件落库/清理后，缺失检查缓存作废
+      // 扫描没覆盖到的缺图（上次被打断、旧库合并进来的行）→ 后台按记录补，别再让用户滚着等
+      if (!cancelled) scheduleThumbRebuild('扫描完成后的补图');
       // 批量导入不逐张建模（百万张会堆积上百万次推理），统一交给补算任务后台跑；
       // 延迟启动给用户紧接着的列表浏览让路（补算是重 CPU 任务）
       if (clip.clipReady()) setTimeout(() => clip.startBackfill(), 5_000);
@@ -151,7 +187,9 @@ function startLocalImport(message = '扫描本地图片…') {
     })
     .catch((err) => {
       setImportPending(false, pendingLibId);
-      importState = { running: false, progress: 100, message: `导入失败：${err.message}`, result: null };
+      // error 单独留一个字段：前端靠它区分「扫描失败」和「正常完成 0 张」，
+      // 否则空库页面只会显示「还没有符合条件的图片」，用户根本不知道扫描崩了
+      importState = { running: false, progress: 100, message: `导入失败：${err.message}`, error: err.message, result: null };
       sseBroadcast('library', { imported: 0, error: err.message });
       if (pendingImportMessage) {
         const next = pendingImportMessage;
@@ -179,7 +217,26 @@ function bootstrap() {
   watchStorageDir();
   // 上次被强杀时留下的 .tmp 缩略图残留
   sweepThumbTemp();
-  const imageCount = db.prepare('SELECT COUNT(*) AS c FROM images').get().c;
+  let imageCount = db.prepare('SELECT COUNT(*) AS c FROM images').get().c;
+  // 当前库是空的，但素材目录里还躺着单库时代的 gallery.db：先把它合并回来再谈扫描。
+  // 用户升级后最常见的状态就是这个（库注册了、数据还在老文件里），不合并就是「一张图都没有」。
+  if (imageCount === 0) {
+    const active = getActiveLibrary();
+    if (active?.root_path) {
+      try {
+        const merged = autoMergeLegacy(active.root_path, { backupParent: active.path || '' });
+        if (merged?.ok && merged.images > 0) {
+          imageCount = Number(db.prepare('SELECT COUNT(*) AS c FROM images').get()?.c || 0);
+          console.log(`[启动] 已自动合并旧库 ${merged.images} 张（备份：${merged.backup}）`);
+          void refreshMergedRows()
+            .then(() => scheduleThumbRebuild('旧库合并后补图'))
+            .catch(() => {});
+        }
+      } catch (err) {
+        console.warn('[启动] 旧库自动合并失败（不影响使用）:', err?.message || err);
+      }
+    }
+  }
   console.log(`[db] 图片 ${imageCount} 张，pHash 索引 ${lib.initPhashIndex()} 条`);
   // 后台预加载 CLIP 模型（首次会下载 ~150MB，之后走本地缓存）；就绪后补算缺失特征。
   // 补算延迟 15s：万级库特征补全是持续数分钟的重 CPU 任务，启动即跑会抢占
@@ -192,6 +249,18 @@ function bootstrap() {
       if (clip.embeddingCount() < imageCount) setTimeout(() => clip.startBackfill(), 15_000);
     })
     .catch(() => {});
+  // 有记录却大面积缺缩略图（旧库合并进来 / thumbs 目录被清过）：直接按记录后台补，
+  // 不走目录扫描 —— 扫描是 O(文件数)，补图是 O(缺图数)
+  const thumbGap = scheduleThumbRebuild('启动检查');
+  if (thumbGap.started) console.log(`[启动] 检测到 ${thumbGap.missing} 张缺缩略图，稍后后台补`);
+  // 早期版本给 RAW / 视频等非图片素材入库时漏了文件夹关联：这些素材在文件夹视图里
+  // 完全不出现（只有「图库」全量视图有）。启动时补一次，幂等且只扫无关联的行。
+  try {
+    const linked = backfillMissingFolderLinks();
+    if (linked) console.log(`[启动] 补齐 ${linked} 个素材的文件夹关联`);
+  } catch (err) {
+    console.warn('[启动] 补齐文件夹关联失败:', err?.message || err);
+  }
   // 上次扫描被强杀打断：库里留着「已登记但缺缩略图」的半截记录，还有一批文件没登记。
   // 增量扫描会把这些补上（未变且有缩略图的全跳过），代价只是一次目录遍历。
   const resume = isImportPending();
@@ -303,8 +372,11 @@ export function buildApp({ desktop = false } = {}) {
     sr: srDeep.srStatus(),
     aiUp: aiUpscale.aiStatus(),
     matting: matting.mattingStatus(),
+    // 批量裁切/调色/水印以前只能各自 800ms 轮询，现在一起走 SSE 快照
+    edit: editJobStatus(),
   });
   let lastJobJson = '';
+  let lastJobPush = 0;
   setInterval(() => {
     if (!sseClients.size) return;
     let snap;
@@ -314,7 +386,11 @@ export function buildApp({ desktop = false } = {}) {
       return;
     }
     const json = JSON.stringify(snap);
-    if (json !== lastJobJson) {
+    // 有任务在跑时即使快照没变也按 5s 心跳推一帧：前端据此确认 SSE 还活着，
+    // 不再各自 800ms/1s 轮询；空闲时仍然只在变化时推，避免空转刷屏。
+    const running = Object.values(snap).some((s) => s && (s.running || s.downloading || s.loading));
+    if (json !== lastJobJson || (running && Date.now() - lastJobPush >= 5000)) {
+      lastJobPush = Date.now();
       lastJobJson = json;
       sseBroadcast('job', snap);
     }
@@ -340,7 +416,16 @@ export function buildApp({ desktop = false } = {}) {
 
   // 路由组已拆分至 routes/*.js，此处统一注册。
   // importState 是重赋值型 let（不能传对象引用），routes 经 getter 读最新值
-  const ctx = { desktop, sseBroadcast, startLocalImport, asyncRoute, colorFilterIds, importState: () => importState };
+  const ctx = {
+    desktop,
+    sseBroadcast,
+    startLocalImport,
+    asyncRoute,
+    colorFilterIds,
+    importState: () => importState,
+    scheduleThumbRebuild,
+    startThumbRebuild,
+  };
   registerTidy(app, ctx);
   registerEnhance(app, ctx);
   registerFiles(app, ctx);
@@ -362,8 +447,17 @@ export function buildApp({ desktop = false } = {}) {
   registerInspect(app, ctx);
   registerActions(app, ctx);
   registerTransfer(app, ctx);
+  registerV1(app, ctx);
+  registerPlugins(app, ctx);
+  registerLan(app, ctx);
+  registerWorkshop(app, ctx);
+  registerSync(app, ctx);
 
   /* -------------------------------- 系统能力 ------------------------------- */
+  app.get('/api/platform', (_req, res) => {
+    const caps = capabilitiesFor();
+    res.json({ ok: true, ...caps, summary: platformSummary(caps) });
+  });
 
   app.get('/api/system/info', (_req, res) => {
     const settings = getSettings();

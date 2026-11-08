@@ -5,12 +5,13 @@ import { api, copyText, formatDate, formatSize, pickFolder, quiet } from '../api
 import type { VersionInfo } from '../api';
 import type { ImageItem } from '../types';
 import { IconClose, IconCopy, IconDownload, IconRefresh, IconTrash, IconWand } from './Icons';
+import InpaintTab from './InpaintTab';
 
 /**
  * 素材工具箱：把「检查器 / OCR / 来源 / 版本 / 多区域裁切」收在一个浮层里。
  * 放大图后按需打开，不占常驻界面；每一项都显示真实结果或明确的不可用原因。
  */
-export type ToolkitTab = 'info' | 'ocr' | 'source' | 'versions' | 'regions';
+export type ToolkitTab = 'info' | 'ocr' | 'source' | 'versions' | 'regions' | 'inpaint';
 
 interface Props {
   item: ImageItem;
@@ -27,6 +28,7 @@ const TABS: { key: ToolkitTab; label: string; hint: string }[] = [
   { key: 'source', label: '来源', hint: '以图搜图 / 换大图' },
   { key: 'versions', label: '版本历史', hint: '回到任意一次编辑之前' },
   { key: 'regions', label: '多区域裁切', hint: '一张图切出多份副本' },
+  { key: 'inpaint', label: '擦除修复', hint: '涂掉划痕 / 水印 / 小物件' },
 ];
 
 export default function ImageToolkit({ item, tab = 'info', onClose, onToast, onReplaced }: Props) {
@@ -72,6 +74,7 @@ export default function ImageToolkit({ item, tab = 'info', onClose, onToast, onR
           {active === 'source' && <SourceTab item={item} onToast={onToast} onReplaced={onReplaced} />}
           {active === 'versions' && <VersionsTab item={item} onToast={onToast} onReplaced={onReplaced} />}
           {active === 'regions' && <RegionsTab item={item} onToast={onToast} />}
+          {active === 'inpaint' && <InpaintTab item={item} onToast={onToast} onReplaced={onReplaced} />}
         </div>
       </div>
     </div>,

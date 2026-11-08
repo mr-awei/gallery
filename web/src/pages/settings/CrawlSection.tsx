@@ -55,6 +55,7 @@ export default function CrawlSection({
               <span>
                 {s.label}
                 {s.needsCookie && <span className="src-hint">需配置</span>}
+                {s.hint && <div className="hint" style={{ marginTop: 2 }}>{s.hint}</div>}
               </span>
               <input type="checkbox" checked={!!settings.sources[s.key]} onChange={() => toggleSource(s.key)} />
             </div>

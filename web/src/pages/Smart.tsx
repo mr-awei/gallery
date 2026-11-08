@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { api, downloadFile, type SmartFolder } from '../api';
 import type { ImageItem } from '../types';
 import ImageCard from '../components/ImageCard';
@@ -16,6 +16,9 @@ interface Props {
 
 export default function Smart({ onToast, onTagsChanged, onOpenItem }: Props) {
   const [tags, setTags] = useState<{ tag: string; count: number }[]>([]);
+  const [tagOffset, setTagOffset] = useState(0);
+  const [tagTotal, setTagTotal] = useState(0);
+  const [tagLoading, setTagLoading] = useState(false);
   const [folders, setFolders] = useState<SmartFolder[]>([]);
   const [previewItems, setPreviewItems] = useState<ImageItem[] | null>(null);
   const [previewName, setPreviewName] = useState('');
@@ -29,23 +32,48 @@ export default function Smart({ onToast, onTagsChanged, onOpenItem }: Props) {
   /** 编辑器：undefined = 关闭，null = 新建，对象 = 编辑 */
   const [editing, setEditing] = useState<SmartFolder | null | undefined>(undefined);
 
+  const TAG_PAGE = 100;
+  /** 标签分页：标签几千条时不一次拉完，初始拉一页，改名/合并/删除后回到第一页 */
+  const loadTags = useCallback(
+    async (reset: boolean) => {
+      setTagLoading(true);
+      try {
+        const offset = reset ? 0 : tagOffset;
+        const r = await api.tags({ limit: TAG_PAGE, offset });
+        if (reset) {
+          setTags(r.tags);
+          setTagOffset(r.tags.length);
+        } else {
+          setTags((prev) => [...prev, ...r.tags]);
+          setTagOffset((o) => o + r.tags.length);
+        }
+        setTagTotal(r.total ?? 0);
+      } catch (err) {
+        onToast((err as Error).message, 'error');
+      } finally {
+        setTagLoading(false);
+      }
+    },
+    [tagOffset, onToast]
+  );
+
   const load = useCallback(async () => {
     try {
-      const [t, f] = await Promise.all([api.tags(), api.smartFolders()]);
-      setTags(t.tags);
+      await loadTags(true);
+      const f = await api.smartFolders();
       setFolders(f);
     } catch (err) {
       onToast((err as Error).message, 'error');
     }
-  }, [onToast]);
+  }, [loadTags, onToast]);
 
   useEffect(() => {
     load();
   }, [load]);
 
-  /** 标签变更后：本页用自己的副本渲染，同时通知 App 刷新侧栏用的那份 */
-  const refreshTags = (r: { tags: { tag: string; count: number }[] }) => {
-    setTags(r.tags);
+  /** 标签变更后：本页重新拉第一页，同时通知 App 刷新侧栏用的那份 */
+  const refreshTags = () => {
+    loadTags(true);
     onTagsChanged?.();
   };
 
@@ -53,7 +81,8 @@ export default function Smart({ onToast, onTagsChanged, onOpenItem }: Props) {
     const nn = await promptDialog('重命名为：', oldName);
     if (!nn || nn === oldName) return;
     try {
-      refreshTags(await api.renameTag(oldName, nn));
+      await api.renameTag(oldName, nn);
+      refreshTags();
       onToast(`已重命名 ${oldName} → ${nn}`);
     } catch (err) {
       onToast((err as Error).message, 'error');
@@ -62,7 +91,8 @@ export default function Smart({ onToast, onTagsChanged, onOpenItem }: Props) {
   const deleteTag = async (t: string) => {
     if (!(await confirmDialog(`删除标签「${t}」（会从所有图片上摘除）？`))) return;
     try {
-      refreshTags(await api.deleteTag(t));
+      await api.deleteTag(t);
+      refreshTags();
       onToast(`已删除标签 ${t}`);
     } catch (err) {
       onToast((err as Error).message, 'error');
@@ -72,7 +102,8 @@ export default function Smart({ onToast, onTagsChanged, onOpenItem }: Props) {
     const to = await promptDialog(`把「${from}」合并到（输入目标标签名）：`, from);
     if (!to || to === from) return;
     try {
-      refreshTags(await api.mergeTags(from, to));
+      await api.mergeTags(from, to);
+      refreshTags();
       onToast(`已合并 ${from} → ${to}`);
     } catch (err) {
       onToast((err as Error).message, 'error');
@@ -101,46 +132,57 @@ export default function Smart({ onToast, onTagsChanged, onOpenItem }: Props) {
   const applyTags = async (id: number, fname: string) => {
     try {
       const r = await api.applySmartFolderTags(id);
-      refreshTags(r);
+      refreshTags();
       onToast(`已把「${fname}」的标签继承到 ${r.changed} 张图`);
     } catch (err) {
       onToast((err as Error).message, 'error');
     }
   };
 
+  /**
+   * 预览请求序号：连点 A、B 两个智能文件夹时，A 的响应可能晚于 B。
+   * 没有序号校验的话会出现「标题是 B、内容还是 A」，随后「加载更多」还会
+   * 用 A 的条数当 offset 去查 B —— 列表整个错位。
+   */
+  const previewSeq = useRef(0);
+
   const preview = async (f: SmartFolder) => {
+    const seq = ++previewSeq.current;
     setPreviewLoading(true);
     try {
       const r = await api.previewSmartFolder(f.id, { limit: 200 });
+      if (seq !== previewSeq.current) return; // 已经切到别的文件夹
       setPreviewItems(r.items);
       setPreviewSel(new Set());
       setPreviewFolder(f);
       setPreviewTotal(r.total);
       setPreviewName(f.name);
     } catch (err) {
-      onToast((err as Error).message, 'error');
+      if (seq === previewSeq.current) onToast((err as Error).message, 'error');
     } finally {
-      setPreviewLoading(false);
+      if (seq === previewSeq.current) setPreviewLoading(false);
     }
   };
 
   const loadMorePreview = async () => {
     if (!previewFolder || previewLoading) return;
+    const seq = previewSeq.current; // 记住目标：期间切换了文件夹就丢弃这批结果
     setPreviewLoading(true);
     try {
       const r = await api.previewSmartFolder(previewFolder.id, {
         limit: 200,
         offset: previewItems?.length || 0,
       });
+      if (seq !== previewSeq.current) return;
       setPreviewItems((prev) => {
         const seen = new Set((prev || []).map((x) => x.id));
         return [...(prev || []), ...r.items.filter((x) => !seen.has(x.id))];
       });
       setPreviewTotal(r.total);
     } catch (err) {
-      onToast((err as Error).message, 'error');
+      if (seq === previewSeq.current) onToast((err as Error).message, 'error');
     } finally {
-      setPreviewLoading(false);
+      if (seq === previewSeq.current) setPreviewLoading(false);
     }
   };
 
@@ -194,6 +236,11 @@ export default function Smart({ onToast, onTagsChanged, onOpenItem }: Props) {
           </div>
         ))}
       </div>
+      {tagTotal > tags.length && (
+        <button className="btn sm" disabled={tagLoading} onClick={() => loadTags(false)} style={{ marginTop: 8 }}>
+          {tagLoading ? '加载中…' : `加载更多标签（还剩 ${tagTotal - tags.length} 个）`}
+        </button>
+      )}
 
       <h3>智能文件夹</h3>
       <div className="sf-form">

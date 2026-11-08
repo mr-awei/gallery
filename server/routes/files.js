@@ -70,10 +70,27 @@ export function register(app, ctx) {
       const kind = row.media_kind || 'image';
       if (kind !== 'image' && kind !== 'gif') {
         const custom = row.thumb && fs.existsSync(row.thumb) ? row.thumb : '';
-        if (!custom) return res.status(404).end('no thumb');
-        res.set('Cache-Control', 'public, max-age=604800');
-        res.type(custom);
-        return res.sendFile(custom, SEND_OPTS);
+        if (custom) {
+          res.set('Cache-Control', 'public, max-age=604800');
+          res.type(custom);
+          return res.sendFile(custom, SEND_OPTS);
+        }
+        // RAW / 设计稿可以从文件里抽内嵌预览：给一次插队生成的机会（卡片正看着这张）。
+        // 以前这里直接 404 且不带 Cache-Control —— Electron 会把这次「暂缺」长期缓存，
+        // 补图完成后 URL 又没变，卡片就永远停在「暂无预览」（磁盘上缩略图明明已存在）。
+        if (kind === 'raw' || kind === 'design') {
+          if (req.query.retry) {
+            const made = await trySyncThumb(id);
+            if (made && fs.existsSync(made)) {
+              res.set('Cache-Control', 'public, max-age=604800');
+              res.type(made);
+              return res.sendFile(made, SEND_OPTS);
+            }
+          }
+          queueThumb(id);
+        }
+        res.set('Cache-Control', 'no-store');
+        return res.status(404).end('thumb pending');
       }
       // 已有缩略图：直发（绝大多数请求走这条，零解码）。
       // 必须比对原图 mtime：按 id 命名的缓存可能是「上一辈子这个 id」的残留，

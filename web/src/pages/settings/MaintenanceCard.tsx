@@ -62,9 +62,23 @@ export default function MaintenanceCard({ onLibraryChanged, onToast }: Props) {
 
   const rebuildThumbs = () =>
     run('thumb', async () => {
-      const r = await api.maintenanceRebuildThumbs(300);
-      const failedPart = r.failed ? `，失败 ${r.failed}` : '';
-      onToast(`重建 ${r.rebuilt} 张（已存在 ${r.skipped}${failedPart}）`, r.failed ? 'error' : 'info');
+      // 以前只跑 300 张就结束，用户以为「修好了」，其实还剩几千张没补。
+      // 服务端按 nextBeforeId 分页，这里一直翻到底（上限 80 轮 = 2.4 万张，防意外死循环）。
+      let rebuilt = 0;
+      let skipped = 0;
+      let failed = 0;
+      let beforeId = 0;
+      for (let round = 0; round < 80; round++) {
+        const r = await api.maintenanceRebuildThumbs(300, beforeId);
+        rebuilt += r.rebuilt;
+        skipped += r.skipped;
+        failed += r.failed;
+        if (!r.nextBeforeId) break;
+        beforeId = r.nextBeforeId;
+      }
+      // 失败的不是「已重建」：文件已不在，或根本没内嵌预览（RAW 变体/设计稿）
+      const failedPart = failed ? `，失败 ${failed} 张（文件不在或没有内嵌预览）` : '';
+      onToast(`重建 ${rebuilt} 张（已存在 ${skipped}${failedPart}）`, failed ? 'error' : 'info');
       onLibraryChanged();
     });
 

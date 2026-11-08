@@ -15,9 +15,9 @@
  *
  * 采样只取 1 万多个像素，单次候选渲染是亚毫秒级；几十组候选加起来仍在预算内。
  */
-import type { CurvePoint } from '../types.ts';
-import { ADJUST_DEFAULTS } from '../types.ts';
-import { renderPixels } from './adjust.ts';
+import type { CurvePoint } from '../types';
+import { ADJUST_DEFAULTS } from '../types';
+import { renderPixels } from './adjust';
 
 /** 采样点数：再多也不会让打分更准，只会更慢 */
 const SAMPLE_TARGET = 12000;

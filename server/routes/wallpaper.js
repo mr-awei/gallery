@@ -12,6 +12,7 @@ import { httpFetch } from '../http.js';
 import { isFullscreenAppRunning, listMonitors } from '../desktop.js';
 import { liveBus } from '../live-bus.js';
 import { LIVE_HTML } from '../live-page.js';
+import { MAX_SHADER_SOURCE, shaderPresetList, VERTEX_SHADER } from '../lib/shader-presets.js';
 import { db, getSettings, saveSettings } from '../db.js';
 
 export function register(app, ctx) {
@@ -276,6 +277,27 @@ export function register(app, ctx) {
       // 强缓存会让窗口一直播旧的；本地文件重读代价可忽略，直接不缓存
       res.set('Cache-Control', 'no-store');
       // 视频可能就放在素材目录的 .tuku 下，必须放开点路径
+      res.sendFile(p, { dotfiles: 'allow' });
+    })
+  );
+
+  /** 内置 GLSL 预设（id 稳定）+ 顶点着色器源码；自定义源码优先于预设 */
+  app.get('/api/wallpaper/live/shaders', (_req, res) => {
+    res.set('Cache-Control', 'no-store');
+    res.json({ ok: true, presets: shaderPresetList(), vertex: VERTEX_SHADER, maxSource: MAX_SHADER_SOURCE });
+  });
+
+  /** 音频可视化用的本地音频流（只允许常见音频扩展名，避免变成任意文件读取） */
+  app.get(
+    '/api/wallpaper/live/audio',
+    asyncRoute(async (_req, res) => {
+      const p = String(getSettings().liveWallpaper?.audioPath || '');
+      const ext = path.extname(p).toLowerCase();
+      if (!p || !['.mp3', '.wav', '.ogg', '.m4a', '.aac', '.flac', '.webm', '.opus'].includes(ext)) {
+        return res.status(404).json({ error: '未选择受支持的音频文件' });
+      }
+      if (!fs.existsSync(p)) return res.status(404).json({ error: '音频文件不存在' });
+      res.set('Cache-Control', 'no-store');
       res.sendFile(p, { dotfiles: 'allow' });
     })
   );

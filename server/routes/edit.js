@@ -2,6 +2,7 @@
 import fs from 'node:fs';
 import { CROP_RATIOS, ADJUST_DEFAULTS, adjustImage, cropImage } from '../lib/edit.js';
 import { detectFocus, parseRatioSpec } from '../lib/focus.js';
+import { inpaintImage } from '../lib/inpaint.js';
 import { systemFonts } from '../lib/fonts.js';
 import { GEO_REGIONS } from '../lib/geo.js';
 import { previewWatermark, watermarkImage, watermarkOptions } from '../lib/watermark.js';
@@ -45,6 +46,21 @@ export function register(app, ctx) {
         res.json({ ok: true, item: r.item, savedPath: r.savedPath, copied: !!r.copied, note: r.note || '' });
       } catch (err) {
         res.status(400).json({ error: err.message || '裁切失败' });
+      }
+    })
+  );
+
+  /* 擦除修复：{ mask: PNG data URL, strength, saveMode, targetDir, addToLibrary }
+     蒙版白色 = 要擦掉。走 persistEdit，自动带撤销备份与缓存版本刷新。 */
+  app.post(
+    '/api/images/:id/inpaint',
+    asyncRoute(async (req, res) => {
+      const id = Number(req.params.id);
+      try {
+        const r = await inpaintImage(id, req.body || {});
+        res.json({ ok: true, item: r.item, savedPath: r.savedPath, copied: !!r.copied, coverage: r.coverage, note: r.note || '' });
+      } catch (err) {
+        res.status(400).json({ error: err.message || '擦除修复失败' });
       }
     })
   );

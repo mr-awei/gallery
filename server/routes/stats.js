@@ -101,8 +101,14 @@ export function register(app, ctx) {
 
   // 标签树：count + 分组 / 颜色 / 父标签 / 排序（Eagle 的标签体系）
   // 兼容老前端：每项仍带 tag / count，新字段视作附加信息
-  app.get('/api/tags', (_req, res) => {
-    res.json({ tags: lib.listTagsRich(), groups: lib.listTagGroups() });
+  app.get('/api/tags', (req, res) => {
+    // 不传 limit 时保持全量（兼容标签云 / 写操作后的整树刷新）；
+    // 传了就走 item_tags 聚合分页，设置页几千个标签不用一次拉完
+    const limit = Math.max(0, Math.min(500, Number(req.query.limit) || 0));
+    const groups = lib.listTagGroups();
+    if (!limit) return res.json({ tags: lib.listTagsRich(), groups });
+    const page = lib.listTagsPaged({ limit, offset: Math.max(0, Number(req.query.offset) || 0) });
+    return res.json({ tags: page.items, groups, total: page.total, limit: page.limit, offset: page.offset });
   });
 
   /* ----------------------------------- AI ---------------------------------- */
@@ -235,7 +241,7 @@ export function register(app, ctx) {
     '/api/tags/rename',
     asyncRoute(async (req, res) => {
       const n = lib.renameTag(req.body?.oldName, req.body?.newName);
-      res.json({ ok: true, affected: n, tags: lib.listTags() });
+      res.json({ ok: true, affected: n, tags: lib.listTagsPaged({ limit: 500 }).items });
     })
   );
 
@@ -243,7 +249,7 @@ export function register(app, ctx) {
     '/api/tags/delete',
     asyncRoute(async (req, res) => {
       const n = lib.deleteTag(req.body?.name);
-      res.json({ ok: true, affected: n, tags: lib.listTags() });
+      res.json({ ok: true, affected: n, tags: lib.listTagsPaged({ limit: 500 }).items });
     })
   );
 
@@ -251,7 +257,7 @@ export function register(app, ctx) {
     '/api/tags/merge',
     asyncRoute(async (req, res) => {
       const n = lib.mergeTags(req.body?.from, req.body?.to);
-      res.json({ ok: true, affected: n, tags: lib.listTags() });
+      res.json({ ok: true, affected: n, tags: lib.listTagsPaged({ limit: 500 }).items });
     })
   );
 
@@ -348,7 +354,12 @@ export function register(app, ctx) {
 
   /* --------------------------------- 知识库 --------------------------------- */
 
-  app.get('/api/kb/rules', (_req, res) => res.json(kb.listRules()));
+  app.get('/api/kb/rules', (req, res) => {
+    // 默认仍是数组（前端 kbRules() 照旧）；带 limit 时返回 {items,total,limit,offset}
+    const limit = Math.max(0, Math.min(500, Number(req.query.limit) || 0));
+    if (!limit) return res.json(kb.listRules());
+    return res.json(kb.listRulesPaged({ limit, offset: Math.max(0, Number(req.query.offset) || 0) }));
+  });
 
   app.put(
     '/api/kb/rules/:id',

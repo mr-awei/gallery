@@ -5,12 +5,19 @@
  * CLIP 向量对这些变换几乎无感（cos > 0.9 仍是同一张），能补上哈希查重的最大盲区。
  *
  * 模型：CLIP ViT-B/32（约 150MB，首次使用自动下载到 models 缓存目录，之后离线可用）。
- * 索引：全量暴力余弦（778 张 ≈ 每次查询几十毫秒），万张以内无需 ANN。
+ * 权重完整性：加载前与随包可信哈希清单 server/model-pins.json 核对，被替换的权重拒绝加载。
+ * 索引：磁盘 int16 量化分桶 + 余弦上界剪枝，扫描在 worker 线程按块读盘，不全表驻留内存。
  */
 import fs from 'node:fs';
+import path from 'node:path';
+import crypto from 'node:crypto';
+import { Worker } from 'node:worker_threads';
 import { pipeline, env, AutoTokenizer, CLIPTextModelWithProjection } from '@huggingface/transformers';
-import { db, getLibraryGeneration } from './db.js';
-import { MODEL_CACHE_DIR } from './config.js';
+import { db, getLibraryGeneration, getActiveLibrary } from './db.js';
+import { MODEL_CACHE_DIR, DATA_DIR } from './config.js';
+import { KNOWN_SHA256 } from './model-fetch.js';
+import { openIndex } from './lib/clip-index.js';
+import { scanBuckets } from './lib/clip-scan.js';
 
 // 模型缓存放可写目录：打包版代码在只读 asar 内，指向 asar 会导致首次下载必挂
 env.cacheDir = MODEL_CACHE_DIR;
@@ -31,9 +38,45 @@ let loadError = '';
  *  否则冒烟结果取决于模型此刻有没有加载完，同一份代码在本地和 CI 上结论不同。 */
 const CLIP_DISABLED = String(process.env.TUKU_CLIP || '').toLowerCase() === 'off';
 
+let pinnedChecked = false;
+
+/**
+ * 随包可信哈希清单核对：CLIP 权重不经过 model-fetch（由 transformers.js 自己下载），
+ * 所以加载前单独校验缓存文件。清单里没有的文件（首次下载）跳过；文件存在却与清单
+ * 不符时拒绝加载 —— 否则改权重 + 改 sidecar 就能绕过校验，「可信清单」形同虚设。
+ * 按 1MB 块读，避免为 90MB 权重再吃一份等量内存。
+ */
+function verifyPinnedModels() {
+  if (pinnedChecked) return;
+  for (const [key, expect] of Object.entries(KNOWN_SHA256)) {
+    if (!key.startsWith(`${MODEL_ID}/`)) continue;
+    const file = path.join(MODEL_CACHE_DIR, key);
+    if (!fs.existsSync(file)) continue;
+    const hash = crypto.createHash('sha256');
+    const buf = Buffer.allocUnsafe(1024 * 1024);
+    let fd = null;
+    try {
+      fd = fs.openSync(file, 'r');
+      let n = 0;
+      while ((n = fs.readSync(fd, buf, 0, buf.length, null)) > 0) hash.update(buf.subarray(0, n));
+    } finally {
+      if (fd !== null) fs.closeSync(fd);
+    }
+    if (hash.digest('hex') !== String(expect).toLowerCase()) {
+      throw new Error(`CLIP 模型与随包可信哈希不一致：${key}，请删除 ${file} 后重新下载`);
+    }
+  }
+  pinnedChecked = true;
+}
+
 /** 懒加载特征提取器（首次调用触发模型下载） */
 function getExtractor() {
   if (CLIP_DISABLED) return Promise.reject(new Error('CLIP 已通过 TUKU_CLIP=off 关闭'));
+  try {
+    verifyPinnedModels();
+  } catch (err) {
+    return Promise.reject(err);
+  }
   if (!extractorPromise) {
     extractorReady = false;
     extractorPromise = pipeline('image-feature-extraction', MODEL_ID, { dtype: 'q8' })
@@ -102,6 +145,7 @@ function getTextEncoder() {
   if (!textPromise) {
     textReady = false;
     textPromise = (async () => {
+      verifyPinnedModels(); // 文本塔与图像塔共用仓库权重，同样先过可信哈希清单
       const tokenizer = await AutoTokenizer.from_pretrained(MODEL_ID);
       const model = await CLIPTextModelWithProjection.from_pretrained(MODEL_ID, { dtype: 'q8' });
       textReady = true;
@@ -186,127 +230,113 @@ export function embeddingCount() {
   return db.prepare('SELECT COUNT(*) AS c FROM clip_vec').get().c;
 }
 
-/* ------------------------------ 向量内存索引 ------------------------------ */
+/* -------------------------- 磁盘向量索引 + worker -------------------------- */
 /**
- * 分片增量缓存（替代旧的「全量单块 + 一写全失效」）：
- * - 按维度分组，每片 SHARD_CAP 条连续存储；写/删只动所在分片。
- *   旧实现每 save/delete 一条就把整个缓存扔掉、下次查询全表重读——
- *   批量导入或补算时等于每张图都触发一次全表扫描，百万级直接不可用。
- * - 删除先做墓碑（空槽复用），碎片超阈值就地紧凑化该分片。
- * - 查询两段式：先算前半维点积，用 Cauchy–Schwarz 上界
- *   （cos ≤ headDot + ‖queryTail‖·‖vecTail‖）剪枝，无假阴性；幸存者才算全维。
- *   图库向量普遍彼此 cos ≤ 0.8，典型查询可剪掉大半候选。
- * 内存量级与旧版相同（512 维 × 4B 常驻，百万张 ≈ 2GB），纯 JS 无 ANN 前提的折衷；
- * 进一步省内存需 sqlite-vec / 量化，见 docs。 */
-const SHARD_CAP = 4096;
-const vecStores = new Map(); // Map<dim, store>
+ * 旧版 vecStores 把全库 512 维 float32 常驻 HTTP 进程（百万张 ≈ 2GB），
+ * 且 topSimilar 在主线程逐条算点积，只能靠 setImmediate 让出事件循环。
+ * 现在向量以 int16 量化落在库目录的分桶索引文件里：
+ * - 主线程只留 id → { 桶, 槽位 } 的轻量 Map，不含向量本身；
+ * - 查询先用桶级余弦上界跳过整桶，再由 worker 线程按块读盘扫描，HTTP 主线程不阻塞；
+ * - DB 仍是权威数据源，count 不一致时流式重建，切库按库目录隔离索引。
+ */
+const indexes = new Map(); // Map<dim, 磁盘索引>
 
-/** 切库后必须调用：缓存里是上一个库的向量，留着会把新库导入误判成重复 */
-export function resetVecCache() {
-  vecStores.clear();
+function indexDir(dim) {
+  const root = getActiveLibrary()?.path || DATA_DIR;
+  return path.join(root, 'clip-index', `d${dim}`);
 }
 
-function tailNormOf(data, offset, head, dim) {
-  let headSq = 0;
-  for (let j = 0; j < head; j++) headSq += data[offset + j] * data[offset + j];
-  const v = 1 - headSq;
-  return v > 0 ? Math.sqrt(v) : 0;
+function indexFor(dim) {
+  let index = indexes.get(dim);
+  if (!index) {
+    index = openIndex(indexDir(dim), dim, {
+      count: () => Number(db.prepare('SELECT COUNT(*) AS c FROM clip_vec WHERE dim = ?').get(dim)?.c || 0),
+      iterate: function* () {
+        const stmt = db.prepare('SELECT image_id, dim, vec FROM clip_vec WHERE dim = ?');
+        // 迭代器逐行读，不 .all()：重建百万张时不把整表物化进内存
+        const rows = typeof stmt.iterate === 'function' ? stmt.iterate(dim) : stmt.all(dim);
+        for (const r of rows) {
+          yield { id: r.image_id, vec: new Float32Array(r.vec.buffer, r.vec.byteOffset, dim) };
+        }
+      },
+    });
+    indexes.set(dim, index);
+  }
+  return index;
 }
 
-function newShard(dim) {
-  return {
-    ids: new Int32Array(SHARD_CAP),
-    data: new Float32Array(SHARD_CAP * dim),
-    tail: new Float32Array(SHARD_CAP),
-    count: 0,
-    holes: [],
-  };
+/** 单个常驻 worker：并发查询排队，避免每个请求都起一个线程 */
+let searchWorker = null;
+let workerSeq = 0;
+const pendingScans = new Map();
+
+function failPending(err) {
+  for (const p of pendingScans.values()) p.reject(err);
+  pendingScans.clear();
 }
 
-function loadStore(dim) {
-  const stmt = db.prepare('SELECT image_id, vec FROM clip_vec WHERE dim = ?');
-  const store = { dim, shards: [], idIndex: new Map(), total: 0 };
-  let shard = null;
-  // 用迭代器逐行读：.all() 会先把整表（百万行 × 2KB ≈ 2GB）物化成数组，
-  // 再复制进分片，峰值内存直接翻倍。iterate 只保留游标。
-  const rows = typeof stmt.iterate === 'function' ? stmt.iterate(dim) : stmt.all(dim);
-  for (const r of rows) {
-    if (!shard || shard.count >= SHARD_CAP) {
-      shard = newShard(dim);
-      store.shards.push(shard);
+function getSearchWorker() {
+  if (searchWorker) return searchWorker;
+  try {
+    const w = new Worker(new URL('./clip-search-worker.js', import.meta.url));
+    w.on('message', (msg) => {
+      const p = pendingScans.get(msg.seq);
+      if (!p) return;
+      pendingScans.delete(msg.seq);
+      if (msg.ok) p.resolve(msg.hits);
+      else p.reject(new Error(msg.error || 'CLIP 扫描 worker 执行失败'));
+    });
+    w.on('error', (err) => {
+      failPending(err);
+      w.terminate().catch(() => {});
+      searchWorker = null;
+    });
+    w.on('exit', () => {
+      searchWorker = null;
+    });
+    w.unref?.();
+    searchWorker = w;
+  } catch (err) {
+    searchWorker = null;
+    console.warn('[clip] 相似搜索 worker 不可用，回退主线程分块扫描：', err?.message || err);
+  }
+  return searchWorker;
+}
+
+async function runScan(payload) {
+  const w = getSearchWorker();
+  if (!w) {
+    // 打包环境偶发起不了线程：仍走同一份分块磁盘扫描，绝不把向量搬回主线程常驻
+    await new Promise((r) => setImmediate(r));
+    return scanBuckets(payload);
+  }
+  const seq = ++workerSeq;
+  const copy = Float32Array.from(payload.query);
+  return new Promise((resolve, reject) => {
+    pendingScans.set(seq, { resolve, reject });
+    try {
+      w.postMessage({ seq, payload: { ...payload, query: copy.buffer } }, [copy.buffer]);
+    } catch (err) {
+      pendingScans.delete(seq);
+      scanBuckets(payload).then(resolve, reject);
     }
-    const slot = shard.count++;
-    const normed = normalizeInPlace(new Float32Array(r.vec.buffer, r.vec.byteOffset, dim));
-    shard.data.set(normed, slot * dim);
-    shard.ids[slot] = r.image_id;
-    shard.tail[slot] = tailNormOf(shard.data, slot * dim, dim >> 1, dim);
-    store.idIndex.set(r.image_id, { s: store.shards.length - 1, i: slot });
-  }
-  store.total = store.idIndex.size;
-  vecStores.set(dim, store);
-  return store;
-}
-
-function getStore(dim) {
-  return vecStores.get(dim) || loadStore(dim);
-}
-
-/** 预加载某维度的全量向量缓存（聚类前调用，避免 cachedVector 逐条回库） */
-export function ensureVecCache(dim = DIM) {
-  return getStore(dim);
-}
-
-/** 分片内墓碑过多时紧凑化（把尾部活体往前挪，更新 idIndex） */
-function compactShard(store, si) {
-  const shard = store.shards[si];
-  const { dim } = store;
-  const live = [];
-  for (let i = 0; i < shard.count; i++) {
-    if (shard.ids[i] !== 0) live.push([shard.ids[i], shard.tail[i], i]);
-  }
-  const data = new Float32Array(SHARD_CAP * dim);
-  const ids = new Int32Array(SHARD_CAP);
-  const tail = new Float32Array(SHARD_CAP);
-  live.forEach(([id, tn, oldSlot], i) => {
-    data.set(shard.data.subarray(oldSlot * dim, oldSlot * dim + dim), i * dim);
-    ids[i] = id;
-    tail[i] = tn;
-    store.idIndex.set(id, { s: si, i });
   });
-  store.shards[si] = { ids, data, tail, count: live.length, holes: [] };
 }
 
-function removeFromStore(store, imageId) {
-  const pos = store.idIndex.get(imageId);
-  if (!pos) return;
-  const shard = store.shards[pos.s];
-  if (shard && shard.ids[pos.i] === imageId) {
-    shard.ids[pos.i] = 0;
-    shard.holes.push(pos.i);
-    if (shard.holes.length > shard.count / 3) compactShard(store, pos.s);
+/** 切库后必须调用：旧库索引文件里的 id 会和别库撞，留着会误判重复 */
+export function resetVecCache() {
+  for (const index of indexes.values()) index.close();
+  indexes.clear();
+  if (searchWorker) {
+    searchWorker.terminate().catch(() => {});
+    searchWorker = null;
   }
-  store.idIndex.delete(imageId);
-  store.total--;
+  failPending(new Error('已切换资源库，相似搜索中止'));
 }
 
-function insertIntoStore(store, imageId, normed) {
-  let shard = store.shards[store.shards.length - 1];
-  if (!shard || (shard.count >= SHARD_CAP && !shard.holes.length)) {
-    shard = newShard(store.dim);
-    store.shards.push(shard);
-  }
-  let slot;
-  if (shard.holes.length) {
-    slot = shard.holes.pop();
-  } else {
-    slot = shard.count++;
-  }
-  const { dim } = store;
-  shard.data.set(normed, slot * dim);
-  shard.ids[slot] = imageId;
-  shard.tail[slot] = tailNormOf(shard.data, slot * dim, dim >> 1, dim);
-  store.idIndex.set(imageId, { s: store.shards.length - 1, i: slot });
-  store.total++;
+/** 确保某维度的磁盘索引就绪（聚类前调用，避免 cachedVector 逐条回库） */
+export function ensureVecCache(dim = DIM) {
+  return indexFor(dim).ensure();
 }
 
 export function saveEmbedding(imageId, vec) {
@@ -314,84 +344,73 @@ export function saveEmbedding(imageId, vec) {
     'INSERT INTO clip_vec(image_id, dim, vec, created_at) VALUES (?, ?, ?, ?) ON CONFLICT(image_id) DO UPDATE SET dim = excluded.dim, vec = excluded.vec'
   ).run(imageId, vec.length, Buffer.from(vec.buffer, vec.byteOffset, vec.byteLength), new Date().toISOString());
   const dim = vec.length;
-  const store = getStore(dim);
-  const pos = store.idIndex.get(imageId);
-  if (pos) {
-    const shard = store.shards[pos.s];
-    if (shard && shard.ids[pos.i] === imageId) {
-      if (store.dim === dim) {
-        // 同维度重建模：原地覆盖
-        shard.data.set(vec, pos.i * dim);
-        shard.tail[pos.i] = tailNormOf(shard.data, pos.i * dim, dim >> 1, dim);
-        return;
-      }
-      removeFromStore(store, imageId); // 跨维度（实际不会发生，防御）
-    }
+  try {
+    indexFor(dim).upsert(imageId, vec);
+  } catch (err) {
+    // DB 已写成功，不回滚；标记索引失效，下次查询按 DB 流式重建
+    console.warn('[clip] 向量索引写入失败，将在下次查询时重建：', err?.message || err);
+    indexes.get(dim)?.invalidate();
   }
-  // 缓存写入用归一化副本，DB 保持调用方原样（读取路径本就归一化）
-  insertIntoStore(store, imageId, normalizeInPlace(Float32Array.from(vec)));
 }
 
 export function deleteEmbedding(imageId) {
   db.prepare('DELETE FROM clip_vec WHERE image_id = ?').run(imageId);
-  // 不知道该向量是哪个维度：逐 store 清（store 数 = 出现过的维度数，通常 1）
-  for (const store of vecStores.values()) removeFromStore(store, imageId);
-}
-
-/** 缓存中的向量副本（无则 null）。供聚类等场景避免逐 id 回库查询 */
-export function cachedVector(imageId) {
-  for (const store of vecStores.values()) {
-    const pos = store.idIndex.get(imageId);
-    if (pos) {
-      const shard = store.shards[pos.s];
-      if (shard && shard.ids[pos.i] === imageId) {
-        return shard.data.slice(pos.i * store.dim, pos.i * store.dim + store.dim);
-      }
+  // 不知道该向量属于哪个维度：清掉已加载索引里的槽位；
+  // 尚未加载的索引下次 ensure 时因 count 变化自动重建，不会留下陈旧向量
+  for (const index of indexes.values()) {
+    try {
+      index.remove(imageId);
+    } catch (err) {
+      console.warn('[clip] 向量索引删除失败，将在下次查询时重建：', err?.message || err);
+      index.invalidate();
     }
   }
+}
+
+/** 磁盘索引中的向量副本（无则 null）。供聚类等场景避免逐 id 回库查询 */
+export function cachedVector(imageId) {
+  for (const index of indexes.values()) {
+    const v = index.get(imageId);
+    if (v) return v;
+  }
   return null;
+}
+
+/** 索引/worker 都不可用时的兜底：按游标逐行读 DB 算余弦，仍不把整表物化进内存 */
+function scanFromDb(q, dim, { k, minCos, excludeId }) {
+  const hits = [];
+  const stmt = db.prepare('SELECT image_id, vec FROM clip_vec WHERE dim = ?');
+  const rows = typeof stmt.iterate === 'function' ? stmt.iterate(dim) : stmt.all(dim);
+  for (const r of rows) {
+    if (r.image_id === excludeId) continue;
+    const v = new Float32Array(r.vec.buffer, r.vec.byteOffset, dim);
+    let dot = 0;
+    let nb = 0;
+    for (let j = 0; j < dim; j++) {
+      dot += q[j] * v[j];
+      nb += v[j] * v[j];
+    }
+    const cos = dot / Math.sqrt(nb || 1); // q 已归一化
+    if (cos >= minCos) hits.push({ id: r.image_id, cos });
+  }
+  hits.sort((a, b) => b.cos - a.cos);
+  return hits.slice(0, k);
 }
 
 /** 全库中与 vec 余弦最高的前 k 个（排除自身），返回 [{ id, cos }] */
 export async function topSimilar(vec, { k = 24, minCos = 0.8, excludeId = 0 } = {}) {
   const dim = vec.length;
-  const head = dim >> 1;
-  const store = getStore(dim);
-  const scored = [];
-  let qTailSq = 1;
-  for (let j = 0; j < head; j++) qTailSq -= vec[j] * vec[j];
-  const qTail = qTailSq > 0 ? Math.sqrt(qTailSq) : 0;
-  let guard = 0;
-  const LIMIT = Math.max(k * 8, 4096);
-  let si = 0;
-  for (const shard of store.shards) {
-    const { ids, data, tail, count } = shard;
-    for (let i = 0; i < count; i++) {
-      const id = ids[i];
-      if (id === 0 || id === excludeId) continue;
-      const base = i * dim;
-      // 第一段：前半维点积 + 尾范数上界剪枝（上界 < minCos 必然不是近邻）
-      let h = 0;
-      for (let j = 0; j < head; j++) h += vec[j] * data[base + j];
-      if (h + qTail * tail[i] < minCos) continue;
-      let dot = h;
-      for (let j = head; j < dim; j++) dot += vec[j] * data[base + j];
-      if (dot >= minCos) {
-        scored.push({ id, cos: dot });
-        // 命中远超 k 时就地收敛：排序截断，防止 minCos 很低时数组膨胀
-        if (++guard >= LIMIT) {
-          scored.sort((a, b) => b.cos - a.cos);
-          scored.length = k;
-          guard = 0;
-        }
-      }
-    }
-    // 每两个分片让出一次事件循环：百万级库一趟扫描是上亿次乘加，
-    // 同步跑会把整个 HTTP 服务卡住（期间所有请求都超时）
-    if (++si % 2 === 0) await new Promise((resolve) => setImmediate(resolve));
+  const q = normalizeInPlace(Float32Array.from(vec));
+  try {
+    const buckets = indexFor(dim).plan(q, minCos);
+    if (!buckets.length) return [];
+    return await runScan({ dim, buckets, query: q, k, minCos, excludeId });
+  } catch (err) {
+    // 切库会让 db 的 live binding 指向新库：拿旧库的 query 去新库兜底比对只会误判重复
+    if (/已切换资源库/.test(String(err?.message || ''))) return [];
+    console.warn('[clip] 磁盘索引扫描失败，回退 DB 逐行比对：', err?.message || err);
+    return scanFromDb(q, dim, { k, minCos, excludeId });
   }
-  scored.sort((a, b) => b.cos - a.cos);
-  return scored.slice(0, k);
 }
 
 /* ------------------------------- 全库补算 ------------------------------- */
@@ -415,36 +434,46 @@ export async function startBackfill() {
   if (backfillState.running) return { ok: false, message: '补算正在进行中' };
   // 补算是跨 await 的长任务：中途切库后 id 属于旧库，写进新库就是错数据
   const generation = getLibraryGeneration();
-  const ids = db
-    .prepare(
-      `SELECT id, abs_path FROM images WHERE id NOT IN (SELECT image_id FROM clip_vec) ORDER BY id`
-    )
-    .all();
+  const total = db
+    .prepare('SELECT COUNT(*) AS c FROM images WHERE id NOT IN (SELECT image_id FROM clip_vec)')
+    .get().c;
   backfillState.running = true;
   backfillState.done = 0;
-  backfillState.total = ids.length;
+  backfillState.total = total;
   backfillState.error = '';
   (async () => {
     try {
       await getExtractor();
-      for (const { id, abs_path } of ids) {
-        if (generation !== getLibraryGeneration()) {
-          backfillState.error = '已切换资源库，补算中止';
-          break;
-        }
-        try {
-          if (fs.existsSync(abs_path)) {
-            const vec = await embedImage(abs_path);
-            saveEmbedding(id, vec);
+      // 游标分批：旧版 .all() 一次性把百万个待补算 id 拉进内存，
+      // 且补算途中新增/切库都会让这份快照失真；现在每批重新查一次。
+      const batch = db.prepare(
+        'SELECT id, abs_path FROM images WHERE id < ? AND id NOT IN (SELECT image_id FROM clip_vec) ORDER BY id DESC LIMIT ?'
+      );
+      let cursor = Number.MAX_SAFE_INTEGER;
+      for (;;) {
+        const rows = batch.all(cursor, 500);
+        if (!rows.length) break;
+        cursor = rows[rows.length - 1].id;
+        for (const { id, abs_path } of rows) {
+          if (generation !== getLibraryGeneration()) {
+            backfillState.error = '已切换资源库，补算中止';
+            break;
           }
-        } catch (err) {
-          console.error('[clip] 建模失败', id, err?.message || err);
+          try {
+            if (fs.existsSync(abs_path)) {
+              const vec = await embedImage(abs_path);
+              saveEmbedding(id, vec);
+            }
+          } catch (err) {
+            console.error('[clip] 建模失败', id, err?.message || err);
+          }
+          backfillState.done++;
+          // 节流：让事件循环转一圈，推理高峰期 HTTP 才不会被饿死。
+          // 用 setImmediate 而非 setTimeout(40)：固定 40ms 是给每张图白加 40ms
+          // 纯睡眠（百万张 ≈ 11 小时），setImmediate 同样让出主线程但不空等。
+          await new Promise((r) => setImmediate(r));
         }
-        backfillState.done++;
-        // 节流：让事件循环转一圈，推理高峰期 HTTP 才不会被饿死。
-        // 用 setImmediate 而非 setTimeout(40)：固定 40ms 是给每张图白加 40ms
-        // 纯睡眠（百万张 ≈ 11 小时），setImmediate 同样让出主线程但不空等。
-        await new Promise((r) => setImmediate(r));
+        if (generation !== getLibraryGeneration()) break;
       }
     } catch (err) {
       backfillState.error = err?.message || String(err);
@@ -452,5 +481,5 @@ export async function startBackfill() {
       backfillState.running = false;
     }
   })();
-  return { ok: true, total: ids.length };
+  return { ok: true, total };
 }

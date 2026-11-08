@@ -1,4 +1,5 @@
-import React, { useEffect, useMemo, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useJobProgress } from '../hooks/useJobProgress';
 import type { AdjustParams, EditJobStatus, EditSaveOptions } from '../types';
 import {
   ADJUST_DEFAULTS,
@@ -78,53 +79,46 @@ export default function BulkEditDialog({ ids, preview, films, onClose, onToast, 
   // 保存方式：默认覆盖原图；'copy' 时全部副本输出到同一目录，原图不动
   const [save, setSave] = useState<SaveModeState>(SAVE_MODE_DEFAULT);
   const saveMode = save.saveMode;
-  const timer = useRef<number | null>(null);
   const startedRef = useRef(false);
   const errCount = useRef(0);
   const [pollErr, setPollErr] = useState('');
 
   const running = !!job?.running;
 
-  // 任务运行中轮询进度；结束时提示一次并停表
-  useEffect(() => {
-    if (!running) {
-      if (timer.current) {
-        window.clearInterval(timer.current);
-        timer.current = null;
+  // 进度走 SSE job 快照；只有在连续 10s 收不到推送时才低频兜底拉接口
+  const applyStatus = useCallback(
+    (s: EditJobStatus) => {
+      errCount.current = 0;
+      setPollErr('');
+      setJob(s);
+      if (!s.running && startedRef.current) {
+        startedRef.current = false;
+        onDone?.();
+        const okCount = s.done;
+        const failCount = s.failed;
+        onToast?.(
+          s.cancelled
+            ? `批量编辑已取消（完成 ${okCount} 张，失败 ${failCount} 张）`
+            : `批量${s.op === 'crop' ? '裁切' : '调色'}完成：成功 ${okCount} 张${failCount ? `，失败 ${failCount} 张` : ''}`
+        );
       }
-      return;
+    },
+    [onDone, onToast]
+  );
+
+  const pollOnce = useCallback(async () => {
+    try {
+      applyStatus(await api.editJob());
+    } catch (err) {
+      // 连续失败说明服务可能断了，不能一直装成「正在处理」
+      errCount.current += 1;
+      if (errCount.current >= 3) setPollErr((err as Error).message || '无法连接服务');
     }
-    timer.current = window.setInterval(async () => {
-      try {
-        const s = await api.editJob();
-        errCount.current = 0;
-        setPollErr('');
-        setJob(s);
-        if (!s.running && startedRef.current) {
-          startedRef.current = false;
-          onDone?.();
-          const okCount = s.done;
-          const failCount = s.failed;
-          onToast?.(
-            s.cancelled
-              ? `批量编辑已取消（完成 ${okCount} 张，失败 ${failCount} 张）`
-              : `批量${s.op === 'crop' ? '裁切' : '调色'}完成：成功 ${okCount} 张${failCount ? `，失败 ${failCount} 张` : ''}`
-          );
-        }
-      } catch (err) {
-        // 单次失败继续重试（进度接口偶发抖动），但连续失败说明服务可能没了，
-        // 一直转圈会让人以为还在处理 —— 至少把原因摆出来
-        errCount.current += 1;
-        if (errCount.current >= 3) setPollErr((err as Error).message || '无法连接服务');
-      }
-    }, 800);
-    return () => {
-      if (timer.current) {
-        window.clearInterval(timer.current);
-        timer.current = null;
-      }
-    };
-  }, [running, onToast]);
+  }, [applyStatus]);
+
+  useJobProgress((d) => {
+    if (d?.edit) applyStatus(d.edit as EditJobStatus);
+  }, pollOnce, running);
 
   const start = async () => {
     if (starting || running) return;

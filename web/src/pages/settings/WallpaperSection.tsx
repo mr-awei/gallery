@@ -5,6 +5,7 @@ import type {
   AutoWallpaperConfig as AutoConfig,
   AutoWallpaperStatus,
   LiveWallpaperConfig,
+  LiveWallpaperParams,
   Playlist,
   Settings as SettingsType,
   WallpaperLogItem,
@@ -13,6 +14,8 @@ import type {
 import Card from './Card';
 import Select from '../../components/Select';
 import AppUpdateCard from './AppUpdateCard';
+import LiveWallpaperExtras from './LiveWallpaperExtras';
+import { useDebouncedCommit } from '../../hooks/useDebouncedCommit';
 
 interface Props {
   settings: SettingsType;
@@ -45,6 +48,13 @@ export default function WallpaperSection({ settings, patch, onToast }: Props) {
   const [monitors, setMonitors] = useState<WallpaperMonitors | null>(null);
   const [appInfo, setAppInfo] = useState<AppInfo | null>(null);
   const [live, setLive] = useState<LiveWallpaperConfig | null>(null);
+  const [platformCaps, setPlatformCaps] = useState<{ summary: string; liveWallpaper: boolean; gpuMeter: boolean } | null>(null);
+
+  useEffect(() => {
+    api.platform()
+      .then((r) => setPlatformCaps({ summary: r.summary, liveWallpaper: r.liveWallpaper, gpuMeter: r.gpuMeter }))
+      .catch(() => {});
+  }, []);
 
   // 初始加载（原样迁自父组件）
   useEffect(() => {
@@ -94,6 +104,16 @@ export default function WallpaperSection({ settings, patch, onToast }: Props) {
     } catch (err) {
       onToast(`保存失败：${(err as Error).message}`, 'error');
     }
+  };
+
+  // 文本/数字/开关的 onChange 以前每次都直接打接口（打字时一个字一个请求）。
+  // 合并成 300ms 一次提交；串行化保证旧响应不会覆盖新输入。
+  const saveAutoDebounced = useDebouncedCommit<AutoConfig>(saveAuto, 300);
+  const applyLiveDebounced = useDebouncedCommit<LiveWallpaperConfig>(applyLive, 300);
+
+  /** 拖参数滑块：只推桌面层窗口，不落库、不重载窗口（松手由 onPatch 防抖保存） */
+  const previewParams = (p: Partial<LiveWallpaperParams>) => {
+    if (isDesktop && desktop?.setLiveParams) void desktop.setLiveParams(p).catch(() => {});
   };
 
   const switchNow = async () => {
@@ -173,7 +193,7 @@ export default function WallpaperSection({ settings, patch, onToast }: Props) {
                     <input
                       type="checkbox"
                       checked={autoStatus?.config?.perMonitorDifferent !== false}
-                      onChange={(e) => saveAuto({ perMonitorDifferent: e.target.checked })}
+                      onChange={(e) => saveAutoDebounced.push({ perMonitorDifferent: e.target.checked })}
                     />
                   </div>
                   </Card>
@@ -279,6 +299,13 @@ export default function WallpaperSection({ settings, patch, onToast }: Props) {
                       )
                     }
                   >
+                    {platformCaps && (
+                      <div className="hint" style={{ marginBottom: 10, lineHeight: 1.8 }}>
+                        {platformCaps.summary}
+                        {!platformCaps.liveWallpaper && '；开启动态壁纸会被明确回滚并提示，不会假装在动。'}
+                        {!platformCaps.gpuMeter && '；GPU 占用阈值与「指定 App 前台」暂停规则在此平台不可用。'}
+                      </div>
+                    )}
                     {!isDesktop && (
                       <div className="hint" style={{ color: 'var(--warn)', marginBottom: 10 }}>
                         网页模式下无法把窗口挂到桌面层，请在桌面应用（npm run desktop / npm run dev）中使用此功能。
@@ -289,7 +316,7 @@ export default function WallpaperSection({ settings, patch, onToast }: Props) {
                       <input
                         type="checkbox"
                         checked={!!live?.enabled}
-                        onChange={(e) => applyLive({ enabled: e.target.checked })}
+                        onChange={(e) => applyLiveDebounced.push({ enabled: e.target.checked })}
                       />
                     </div>
 
@@ -299,11 +326,14 @@ export default function WallpaperSection({ settings, patch, onToast }: Props) {
                         className="select"
                         style={{ width: '100%' }}
                         value={live?.mode || 'slideshow'}
-                        onChange={(v) => applyLive({ mode: v as LiveWallpaperConfig['mode'] })}
+                        onChange={(v) => applyLiveDebounced.push({ mode: v as LiveWallpaperConfig['mode'] })}
                       >
                         <option value="slideshow">相册轮播（从收藏/全库自动播放，带缓慢缩放）</option>
                         <option value="video">本地视频循环（mp4 / webm）</option>
                         <option value="web">网页（任意网址，如网页动画 / 在线壁纸）</option>
+                        <option value="shader">GLSL 着色器（内置四款 / 自定义源码）</option>
+                        <option value="interactive">交互式壁纸（鼠标粒子，可 Esc 退出）</option>
+                        <option value="audio">音频可视化（本地音频 / 麦克风频谱）</option>
                       </Select>
                     </div>
 
@@ -315,7 +345,7 @@ export default function WallpaperSection({ settings, patch, onToast }: Props) {
                             className="select"
                             style={{ width: '100%' }}
                             value={live?.scope || 'favorites'}
-                            onChange={(v) => applyLive({ scope: v as LiveWallpaperConfig['scope'] })}
+                            onChange={(v) => applyLiveDebounced.push({ scope: v as LiveWallpaperConfig['scope'] })}
                           >
                             <option value="favorites">仅收藏</option>
                             <option value="all">全库</option>
@@ -329,7 +359,7 @@ export default function WallpaperSection({ settings, patch, onToast }: Props) {
                               className="select"
                               style={{ width: '100%' }}
                               value={live?.playlistId ?? ''}
-                              onChange={(v) => applyLive({ playlistId: v ? Number(v) : null })}
+                              onChange={(v) => applyLiveDebounced.push({ playlistId: v ? Number(v) : null })}
                             >
                               <option value="">— 请选择 —</option>
                               {playlists?.map((p) => (
@@ -350,7 +380,7 @@ export default function WallpaperSection({ settings, patch, onToast }: Props) {
                               max={600}
                               value={live?.intervalSec ?? 15}
                               onChange={(e) =>
-                                applyLive({ intervalSec: Math.max(5, Math.min(600, Number(e.target.value) || 15)) })
+                                applyLiveDebounced.push({ intervalSec: Math.max(5, Math.min(600, Number(e.target.value) || 15)) })
                               }
                             />
                           </div>
@@ -363,7 +393,7 @@ export default function WallpaperSection({ settings, patch, onToast }: Props) {
                               max={100}
                               value={live?.minScore ?? 0}
                               onChange={(e) =>
-                                applyLive({ minScore: Math.max(0, Math.min(100, Number(e.target.value) || 0)) })
+                                applyLiveDebounced.push({ minScore: Math.max(0, Math.min(100, Number(e.target.value) || 0)) })
                               }
                             />
                           </div>
@@ -373,7 +403,7 @@ export default function WallpaperSection({ settings, patch, onToast }: Props) {
                           <input
                             type="checkbox"
                             checked={live?.kenBurns !== false}
-                            onChange={(e) => applyLive({ kenBurns: e.target.checked })}
+                            onChange={(e) => applyLiveDebounced.push({ kenBurns: e.target.checked })}
                           />
                         </div>
                       </>
@@ -388,7 +418,7 @@ export default function WallpaperSection({ settings, patch, onToast }: Props) {
                             style={{ flex: 1 }}
                             value={live?.videoPath || ''}
                             placeholder="C:\\Users\\...\\tuku.mp4"
-                            onChange={(e) => applyLive({ videoPath: e.target.value })}
+                            onChange={(e) => applyLiveDebounced.push({ videoPath: e.target.value })}
                           />
                           <button
                             className="btn"
@@ -397,7 +427,7 @@ export default function WallpaperSection({ settings, patch, onToast }: Props) {
                                 const p = await desktop?.pickFile?.([
                                   { name: '视频', extensions: ['mp4', 'webm', 'mov'] },
                                 ]);
-                                if (p) applyLive({ videoPath: p });
+                                if (p) applyLiveDebounced.push({ videoPath: p });
                               } catch (err) {
                                 onToast((err as Error).message, 'error');
                               }
@@ -416,9 +446,43 @@ export default function WallpaperSection({ settings, patch, onToast }: Props) {
                           className="input"
                           value={live?.webUrl || ''}
                           placeholder="https://..."
-                          onChange={(e) => applyLive({ webUrl: e.target.value })}
+                          onChange={(e) => applyLiveDebounced.push({ webUrl: e.target.value })}
                         />
-                        <div className="hint">注意：很多站点禁止被内嵌（X-Frame-Options），这类网页做不了壁纸</div>
+                        <div className="hint">很多站点禁止被内嵌（X-Frame-Options），这类网页做不了壁纸</div>
+                      </div>
+                    )}
+                    {live?.mode === 'web' && (
+                      <div className="field">
+                        <label>网页来源与交互</label>
+                        <div className="switch-row">
+                          <span>允许本地 / 内网网页（默认只放公网 http(s)）</span>
+                          <input
+                            type="checkbox"
+                            checked={!!live?.allowLocalUrl}
+                            onChange={(e) => applyLiveDebounced.push({ allowLocalUrl: e.target.checked })}
+                          />
+                        </div>
+                        {live?.allowLocalUrl && (
+                          <input
+                            className="input"
+                            style={{ marginTop: 6 }}
+                            value={live?.trustedDir || ''}
+                            placeholder="可信本地页面目录（绝对路径），如 E:\wallpapers\pages"
+                            onChange={(e) => applyLiveDebounced.push({ trustedDir: e.target.value })}
+                          />
+                        )}
+                        <div className="switch-row">
+                          <span>允许网页接收鼠标（关闭点击穿透）</span>
+                          <input
+                            type="checkbox"
+                            checked={live?.clickThrough === false}
+                            onChange={(e) => applyLiveDebounced.push({ clickThrough: !e.target.checked })}
+                          />
+                        </div>
+                        <div className="hint">
+                          默认点击穿透，桌面图标照常可点。放开本地页面时只加载本目录内的 <code>file://</code> 页面，
+                          窗口不挂预加载桥；关闭穿透后网页会遮住桌面图标，按 Esc 立即恢复穿透。
+                        </div>
                       </div>
                     )}
 
@@ -429,7 +493,7 @@ export default function WallpaperSection({ settings, patch, onToast }: Props) {
                         <input
                           type="checkbox"
                           checked={live?.pauseOnFullscreen !== false}
-                          onChange={(e) => applyLive({ pauseOnFullscreen: e.target.checked })}
+                          onChange={(e) => applyLiveDebounced.push({ pauseOnFullscreen: e.target.checked })}
                         />
                       </div>
                       <div className="switch-row">
@@ -437,11 +501,60 @@ export default function WallpaperSection({ settings, patch, onToast }: Props) {
                         <input
                           type="checkbox"
                           checked={!!live?.pauseOnBattery}
-                          onChange={(e) => applyLive({ pauseOnBattery: e.target.checked })}
+                          onChange={(e) => applyLiveDebounced.push({ pauseOnBattery: e.target.checked })}
                         />
+                      </div>
+                      <div className="switch-row">
+                        <span>GPU 占用达到阈值时暂停</span>
+                        <input
+                          type="checkbox"
+                          checked={!!live?.pauseOnGpu}
+                          onChange={(e) => applyLiveDebounced.push({ pauseOnGpu: e.target.checked })}
+                        />
+                      </div>
+                      {live?.pauseOnGpu && (
+                        <div className="switch-row">
+                          <span>阈值（%，取最忙 GPU 引擎）</span>
+                          <input
+                            className="input"
+                            style={{ width: 90 }}
+                            type="number"
+                            min={1}
+                            max={100}
+                            value={live?.gpuThreshold ?? 85}
+                            onChange={(e) =>
+                              applyLiveDebounced.push({
+                                gpuThreshold: Math.max(1, Math.min(100, Number(e.target.value) || 85)),
+                              })
+                            }
+                          />
+                        </div>
+                      )}
+                      <div className="field" style={{ marginTop: 8 }}>
+                        <label>指定 App 在前台时暂停</label>
+                        <input
+                          className="input"
+                          value={live?.pauseApps?.join(', ') || ''}
+                          placeholder="photoshop.exe, premiere*, msedge.exe"
+                          onChange={(e) =>
+                            applyLiveDebounced.push({
+                              pauseApps: e.target.value.split(/[,，\n]/).map((s) => s.trim()).filter(Boolean),
+                            })
+                          }
+                        />
+                        <div className="hint">填进程文件名，逗号分隔，支持 <code>*</code> 通配；命中即暂停，切走自动恢复。GPU 计数器不可用时该规则自动跳过，不会误暂停。</div>
                       </div>
                     </div>
                   </Card>
+
+                  <LiveWallpaperExtras
+                    live={live}
+                    settings={settings}
+                    onInstant={previewParams}
+                    onPatch={(p) => applyLiveDebounced.push(p)}
+                    patchSettings={patch}
+                    onToast={onToast}
+                  />
 
               <Card
                 title="定时自动切换"
@@ -459,7 +572,7 @@ export default function WallpaperSection({ settings, patch, onToast }: Props) {
                   <input
                     type="checkbox"
                     checked={!!autoStatus?.config?.enabled}
-                    onChange={(e) => saveAuto({ enabled: e.target.checked })}
+                    onChange={(e) => saveAutoDebounced.push({ enabled: e.target.checked })}
                   />
                 </div>
 
@@ -469,7 +582,7 @@ export default function WallpaperSection({ settings, patch, onToast }: Props) {
                     className="select"
                     style={{ width: '100%' }}
                     value={autoStatus?.config?.mode || 'day'}
-                    onChange={(v) => saveAuto({ mode: v as AutoConfig['mode'] })}
+                    onChange={(v) => saveAutoDebounced.push({ mode: v as AutoConfig['mode'] })}
                   >
                     <option value="day">每天</option>
                     <option value="week">每周</option>
@@ -486,7 +599,7 @@ export default function WallpaperSection({ settings, patch, onToast }: Props) {
                       type="number"
                       min={1}
                       value={autoStatus?.config?.minutes ?? 60}
-                      onChange={(e) => saveAuto({ minutes: Math.max(1, Number(e.target.value) || 60) })}
+                      onChange={(e) => saveAutoDebounced.push({ minutes: Math.max(1, Number(e.target.value) || 60) })}
                     />
                   </div>
                 ) : (
@@ -497,7 +610,7 @@ export default function WallpaperSection({ settings, patch, onToast }: Props) {
                         className="input"
                         type="time"
                         value={autoStatus?.config?.atTime || '09:00'}
-                        onChange={(e) => saveAuto({ atTime: e.target.value })}
+                        onChange={(e) => saveAutoDebounced.push({ atTime: e.target.value })}
                       />
                     </div>
                     {autoStatus?.config?.mode === 'week' && (
@@ -507,7 +620,7 @@ export default function WallpaperSection({ settings, patch, onToast }: Props) {
                           className="select"
                           style={{ width: '100%' }}
                           value={autoStatus?.config?.weekday ?? 1}
-                          onChange={(v) => saveAuto({ weekday: Number(v) })}
+                          onChange={(v) => saveAutoDebounced.push({ weekday: Number(v) })}
                         >
                           {[1, 2, 3, 4, 5, 6, 7].map((d) => (
                             <option key={d} value={d}>
@@ -527,7 +640,7 @@ export default function WallpaperSection({ settings, patch, onToast }: Props) {
                           max={28}
                           value={autoStatus?.config?.dayOfMonth ?? 1}
                           onChange={(e) =>
-                            saveAuto({ dayOfMonth: Math.max(1, Math.min(28, Number(e.target.value) || 1)) })
+                            saveAutoDebounced.push({ dayOfMonth: Math.max(1, Math.min(28, Number(e.target.value) || 1)) })
                           }
                         />
                       </div>
@@ -541,7 +654,7 @@ export default function WallpaperSection({ settings, patch, onToast }: Props) {
                     className="select"
                     style={{ width: '100%' }}
                     value={autoStatus?.config?.scope || 'favorites'}
-                    onChange={(v) => saveAuto({ scope: v as AutoConfig['scope'] })}
+                    onChange={(v) => saveAutoDebounced.push({ scope: v as AutoConfig['scope'] })}
                   >
                     <option value="all">全库</option>
                     <option value="favorites">收藏 / 喜欢</option>
@@ -556,7 +669,7 @@ export default function WallpaperSection({ settings, patch, onToast }: Props) {
                       className="select"
                       style={{ width: '100%' }}
                       value={autoStatus?.config?.playlistId ?? ''}
-                      onChange={(v) => saveAuto({ playlistId: Number(v) || null })}
+                      onChange={(v) => saveAutoDebounced.push({ playlistId: Number(v) || null })}
                     >
                       <option value="">（请选择）</option>
                       {(playlists || []).map((p) => (
@@ -574,7 +687,7 @@ export default function WallpaperSection({ settings, patch, onToast }: Props) {
                     className="select"
                     style={{ width: '100%' }}
                     value={autoStatus?.config?.order || 'smart'}
-                    onChange={(v) => saveAuto({ order: v as AutoConfig['order'] })}
+                    onChange={(v) => saveAutoDebounced.push({ order: v as AutoConfig['order'] })}
                   >
                     <option value="ai">适配度加权（推荐）：知识库评分 + 本地适配度 + 个人偏好</option>
                     <option value="smart">评分加权：高分图片更常出现（只用知识库评分）</option>
@@ -603,7 +716,7 @@ export default function WallpaperSection({ settings, patch, onToast }: Props) {
                     min={0}
                     max={100}
                     value={autoStatus?.config?.minScore ?? 0}
-                    onChange={(e) => saveAuto({ minScore: Math.max(0, Math.min(100, Number(e.target.value) || 0)) })}
+                    onChange={(e) => saveAutoDebounced.push({ minScore: Math.max(0, Math.min(100, Number(e.target.value) || 0)) })}
                   />
                 </div>
 
@@ -620,7 +733,7 @@ export default function WallpaperSection({ settings, patch, onToast }: Props) {
                     <input
                       type="checkbox"
                       checked={autoStatus?.config?.useAiFit !== false}
-                      onChange={(e) => saveAuto({ useAiFit: e.target.checked })}
+                      onChange={(e) => saveAutoDebounced.push({ useAiFit: e.target.checked })}
                     />
                   </label>
                   <label className="switch-row">
@@ -633,7 +746,7 @@ export default function WallpaperSection({ settings, patch, onToast }: Props) {
                     <input
                       type="checkbox"
                       checked={autoStatus?.config?.feedbackToKb !== false}
-                      onChange={(e) => saveAuto({ feedbackToKb: e.target.checked })}
+                      onChange={(e) => saveAutoDebounced.push({ feedbackToKb: e.target.checked })}
                     />
                   </label>
                   <label className="switch-row">
@@ -643,7 +756,7 @@ export default function WallpaperSection({ settings, patch, onToast }: Props) {
                     <input
                       type="checkbox"
                       checked={autoStatus?.config?.useTimeAware !== false}
-                      onChange={(e) => saveAuto({ useTimeAware: e.target.checked })}
+                      onChange={(e) => saveAutoDebounced.push({ useTimeAware: e.target.checked })}
                     />
                   </label>
                   <label className="switch-row">
@@ -654,7 +767,7 @@ export default function WallpaperSection({ settings, patch, onToast }: Props) {
                     <input
                       type="checkbox"
                       checked={autoStatus?.config?.autoEnhance === true}
-                      onChange={(e) => saveAuto({ autoEnhance: e.target.checked })}
+                      onChange={(e) => saveAutoDebounced.push({ autoEnhance: e.target.checked })}
                     />
                   </label>
                 </div>

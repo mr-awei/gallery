@@ -3,6 +3,7 @@ import fs from 'node:fs';
 import fsp from 'node:fs/promises';
 import sharp from 'sharp';
 import { getThumbDir } from './db.js';
+import { designThumbJpeg, isDesignLikePath } from './lib/design-thumb.js';
 
 /**
  * 缩略图按 id 分桶存储：thumbs/<id%256 的两位 hex>/<id>.jpg
@@ -112,7 +113,17 @@ export async function ensurePreview(id, absPath) {
     // 先写临时文件再改名：中途被切库/关软件不会留下半张图（半张会一直被当成有效缓存）
     // 后缀必须唯一：后台预取和灯箱前台请求可能同时做同一张（tmp 同名会互相覆盖，
     // 一个 rename 成功后另一个 rename 失败 → 灯箱拿到 404 回退 20MB 原图）
-    const tmp = `${target}.${process.pid}.${Math.random().toString(36).slice(2, 8)}.tmp`;
+    // 后缀里必须带 `.tmp-`：启动清扫 sweepThumbTemp() 只认这个标记，
+    // 以前写成 `xxx.tmp` 的预览图残片永远不会被清理，会一直堆在缩略图桶里。
+    const tmp = `${target}.tmp-${process.pid}-${Math.random().toString(36).slice(2, 8)}`;
+    // RAW / PSD 走自带预览：sharp 读不了它们（CR2 里那段还是 14 位无损 JPEG）
+    if (isDesignLikePath(absPath)) {
+      const t = await designThumbJpeg(absPath, { width: PREVIEW_EDGE, quality: 82 });
+      if (!t?.buffer?.length) throw new Error('没有可用的内嵌预览');
+      await fsp.writeFile(tmp, t.buffer);
+      await fsp.rename(tmp, target);
+      return target;
+    }
     await sharp(absPath, { failOn: 'none' })
       .rotate() // 按 EXIF 摆正，和浏览器显示原图的方向一致
       .resize({ width: PREVIEW_EDGE, height: PREVIEW_EDGE, fit: 'inside', withoutEnlargement: true })

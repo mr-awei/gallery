@@ -304,8 +304,13 @@ export function restoreLibrary({ sourceDir, name, rootPath } = {}) {
         try {
           for (const r of rows) {
             const p = String(r.abs_path || '');
-            if (!p.startsWith(oldRoot)) continue;
-            const next = path.join(root, p.slice(oldRoot.length).replace(/^[\\/]+/, ''));
+            if (!p) continue;
+            // 必须按「路径段」判断前缀：裸 startsWith 会把 D:\素材备份\x.jpg 误判成
+            // D:\素材 之下，拼成 新根\备份\x.jpg 这种不存在的路径（恢复后大面积为空）。
+            // path.relative 同时处理分隔符与 Windows 大小写。
+            const rel = path.relative(path.resolve(oldRoot), path.resolve(p));
+            if (!rel || rel === '..' || rel.startsWith(`..${path.sep}`) || path.isAbsolute(rel)) continue;
+            const next = path.join(root, rel);
             upd.run(next, r.id);
             remapped += 1;
             if (!fs.existsSync(next)) missing += 1;

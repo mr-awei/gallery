@@ -105,15 +105,29 @@ registerUndoer('import', async (p) => {
   const maxId = Number(p.maxId) || 0;
   if (!maxId) throw new Error('这次导入没有记录可撤销的边界');
   const cap = 2000;
-  const rows = db
-    .prepare('SELECT id FROM images WHERE id > ? ORDER BY id DESC LIMIT ?')
-    .all(maxId, cap);
-  let n = 0;
-  for (const row of rows) {
-    const r = await removeImage(row.id, { reason: '撤销导入' });
-    if (r.ok) n++;
+  // 以前只取最新 2000 张就收工：导入 8000 张点「撤销」会静默留下 6000 张，
+  // 而这次 op 已标 consumed，用户再也没有第二次机会。这里分批循环撤到边界。
+  let trashed = 0;
+  let rounds = 0;
+  for (;;) {
+    const rows = db
+      .prepare('SELECT id FROM images WHERE id > ? ORDER BY id DESC LIMIT ?')
+      .all(maxId, cap);
+    if (!rows.length) break;
+    let progressed = 0;
+    for (const row of rows) {
+      const r = await removeImage(row.id, { reason: '撤销导入' });
+      if (r.ok) {
+        trashed++;
+        progressed++;
+      }
+    }
+    // 整批都删不掉（文件被占用/权限不足）时再查还是同一批，及时收手避免死循环，
+    // 剩余条数由返回值的 failed 体现
+    if (!progressed || rows.length < cap) break;
+    if (++rounds >= 500) break; // 防御：上限 100 万张
   }
-  return { trashed: n, capped: rows.length >= cap };
+  return { trashed };
 });
 
 /* -------------------------------- 路由 -------------------------------- */

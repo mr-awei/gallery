@@ -86,34 +86,68 @@ function sigmoid(z) {
   return 1 / (1 + Math.exp(-z));
 }
 
+const BATCH = 1000;
+/** 训练样本上限：SGD 要常驻全部样本，行为信号再多也只取最近 2 万条（老信号对当下偏好没用） */
+const MAX_SAMPLES = 20000;
+
+/**
+ * 带辅助表 JOIN 的游标批次查询。
+ * 旧实现是 `SELECT * FROM images` + 四张辅助表各 `.all()` 建 Map，
+ * 百万级库一次训练就要把整库行对象和四张大 Map 全塞进内存。
+ * 现在每批只取打分真正需要的列，辅助表用 LEFT JOIN 随批取，内存恒定 O(BATCH)。
+ */
+function batchRows(cursor, { signalOnly = false } = {}) {
+  const where = signalOnly
+    ? `AND (i.favorite = 1 OR i.rating >= 4 OR i.rating = 1 OR i.view_count >= 3
+         OR COALESCE(f.likes, 0) > 0 OR COALESCE(f.dislikes, 0) > 0
+         OR EXISTS (SELECT 1 FROM feedback fb WHERE fb.image_id = i.id))`
+    : '';
+  return db
+    .prepare(
+      `SELECT i.id, i.source, i.keyword, i.width, i.height, i.hue, i.pref,
+              i.favorite, i.rating, i.view_count,
+              f.brightness, f.likes, f.dislikes, q.sharpness,
+              COALESCE(d.description, '') || ' ' || COALESCE(d.issues, '') AS desc_text,
+              EXISTS (SELECT 1 FROM feedback fb WHERE fb.image_id = i.id) AS has_feedback
+         FROM images i
+         LEFT JOIN wallpaper_fit f ON f.image_id = i.id
+         LEFT JOIN image_quality q ON q.image_id = i.id
+         LEFT JOIN ai_desc d ON d.image_id = i.id
+        WHERE i.id < ? ${where}
+        ORDER BY i.id DESC LIMIT ?`
+    )
+    .all(cursor, BATCH);
+}
+
 /** 收集样本：[{x, y}] */
 function collectSamples(feats) {
-  const rows = db.prepare('SELECT * FROM images').all();
-  const descMap = new Map(db.prepare('SELECT image_id, description, issues FROM ai_desc').all().map((r) => [r.image_id, `${r.description || ''} ${r.issues || ''}`]));
-  const fitMap = new Map(db.prepare('SELECT image_id, brightness, likes, dislikes FROM wallpaper_fit').all().map((r) => [r.image_id, r]));
-  const sharpMap = new Map(db.prepare('SELECT image_id, sharpness FROM image_quality').all().map((r) => [r.image_id, r.sharpness]));
-  const feedback = db.prepare('SELECT image_id, COUNT(*) c FROM feedback GROUP BY image_id').all();
-  const fbMap = new Map(feedback.map((r) => [r.image_id, r.c]));
-
   const samples = [];
-  for (const row of rows) {
-    const f = fitMap.get(row.id);
-    const rating = Number(row.rating) || 0;
-    // 标签只取**用户行为**：收藏 / 壁纸点喜欢 / 反复查看 / 高星；负样本是点不喜欢、写过删除原因、低星。
-    // 以前把「知识库规则分 < 60」也算负样本——那等于让模型去拟合规则分的形状，
-    // 训练出来的「偏好」和用户实际偏好没关系，只是把打分公式学了一遍。
-    const y =
-      row.favorite === 1 || (f && f.likes > 0) || (row.view_count || 0) >= 3 || rating >= 4
-        ? 1
-        : (f && f.dislikes > 0) || (fbMap.get(row.id) || 0) > 0 || rating === 1
-          ? -1
-          : 0;
-    if (y === 0) continue; // 没有明确行为信号的图不参与训练
-    const descText = descMap.get(row.id) || '';
-    samples.push({
-      x: vectorOf(row, descText, f?.brightness, sharpMap.get(row.id), feats),
-      y: y > 0 ? 1 : 0,
-    });
+  let cursor = Number.MAX_SAFE_INTEGER;
+  for (;;) {
+    const rows = batchRows(cursor, { signalOnly: true });
+    if (!rows.length) break;
+    cursor = rows[rows.length - 1].id;
+    for (const row of rows) {
+      const rating = Number(row.rating) || 0;
+      // 标签只取**用户行为**：收藏 / 壁纸点喜欢 / 反复查看 / 高星；负样本是点不喜欢、写过删除原因、低星。
+      // 以前把「知识库规则分 < 60」也算负样本——那等于让模型去拟合规则分的形状，
+      // 训练出来的「偏好」和用户实际偏好没关系，只是把打分公式学了一遍。
+      const y =
+        row.favorite === 1 || (Number(row.likes) || 0) > 0 || (row.view_count || 0) >= 3 || rating >= 4
+          ? 1
+          : (Number(row.dislikes) || 0) > 0 || row.has_feedback || rating === 1
+            ? -1
+            : 0;
+      if (y === 0) continue; // 没有明确行为信号的图不参与训练
+      samples.push({
+        x: vectorOf(row, row.desc_text || '', row.brightness, row.sharpness, feats),
+        y: y > 0 ? 1 : 0,
+      });
+    }
+    if (samples.length >= MAX_SAMPLES) {
+      samples.length = MAX_SAMPLES;
+      break;
+    }
   }
   return samples;
 }
@@ -149,24 +183,27 @@ export function trainPreference() {
   const model = trainSgd(samples, feats.names.length);
   const wArr = Float64Array.from(model.w);
 
-  // 给全库打分写回：只取特征需要的列（SELECT * 会把备注/AI 描述等大字段全读进内存），
-  // 且分数没变就不写 —— 百万级库逐行 UPDATE 本身就是主要耗时。
-  const rows = db
-    .prepare('SELECT id, source, keyword, width, height, hue, pref FROM images')
-    .all();
-  const descMap = new Map(db.prepare('SELECT image_id, description, issues FROM ai_desc').all().map((r) => [r.image_id, `${r.description || ''} ${r.issues || ''}`]));
-  const fitMap = new Map(db.prepare('SELECT image_id, brightness FROM wallpaper_fit').all().map((r) => [r.image_id, r.brightness]));
-  const sharpMap = new Map(db.prepare('SELECT image_id, sharpness FROM image_quality').all().map((r) => [r.image_id, r.sharpness]));
+  // 给全库打分写回：按 id 游标分批，每批一个事务、只取特征需要的列。
+  // 旧版一次 `.all()` 拉全库 + 三张辅助表全量 Map + 单个跨百万行的事务，
+  // 内存与 WAL 都会随库大小线性膨胀；分数没变就不写，减少无谓 UPDATE。
   const upd = db.prepare('UPDATE images SET pref = ? WHERE id = ?');
-  withTransaction(() => {
-    for (const row of rows) {
-      const x = vectorOf(row, descMap.get(row.id) || '', fitMap.get(row.id), sharpMap.get(row.id), feats);
-      let z = model.b;
-      for (let i = 0; i < x.length; i++) z += wArr[i] * x[i];
-      const next = Math.round(sigmoid(z) * 100);
-      if (row.pref !== next) upd.run(next, row.id);
-    }
-  });
+  let updated = 0;
+  let cursor = Number.MAX_SAFE_INTEGER;
+  for (;;) {
+    const rows = batchRows(cursor);
+    if (!rows.length) break;
+    cursor = rows[rows.length - 1].id;
+    updated += rows.length;
+    withTransaction(() => {
+      for (const row of rows) {
+        const x = vectorOf(row, row.desc_text || '', row.brightness, row.sharpness, feats);
+        let z = model.b;
+        for (let i = 0; i < x.length; i++) z += wArr[i] * x[i];
+        const next = Math.round(sigmoid(z) * 100);
+        if (row.pref !== next) upd.run(next, row.id);
+      }
+    });
+  }
 
   saveSettings({
     prefModel: {
@@ -184,7 +221,7 @@ export function trainPreference() {
         .slice(0, 8),
     },
   });
-  return { ok: true, samples: samples.length, pos, neg, updated: rows.length, top: getSettings().prefModel?.top || [] };
+  return { ok: true, samples: samples.length, pos, neg, updated, top: getSettings().prefModel?.top || [] };
 }
 
 export function prefStatus() {

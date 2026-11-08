@@ -7,6 +7,7 @@ import { assertWritableDir } from './lib/safe-path.js';
 import { watchStorageDir, cancelLocalImport } from './importer.js';
 import { initPhashIndex } from './library.js';
 import { clearThumbQueue } from './lib/thumb-queue.js';
+import { stopThumbRebuild } from './lib/thumb-rebuild.js';
 import { clearPreviewQueue } from './lib/preview-queue.js';
 import { resetVecCache } from './clip.js';
 import { applyProxy } from './network.js';
@@ -121,6 +122,8 @@ export function activateLibrary(id) {
   // 往新库的 thumbs 目录里写文件（缩略图张冠李戴，且永远清理不掉）
   clearThumbQueue();
   clearPreviewQueue();
+  // 后台补图任务同理：它按旧库的 id 列表在跑，切库后必须叫停
+  stopThumbRebuild();
   // 内存索引随库重建：pHash 索引 / CLIP 向量缓存若残留上个库的数据，
   // 新库导入会被旧库的哈希/向量误判成重复（ingest 甚至会按旧库 id 删图）
   initPhashIndex();
@@ -166,10 +169,12 @@ export function deleteLibrary(id) {
         console.warn('[删库] 删除库文件失败', f, err?.message || err);
       }
     }
-    try {
-      fs.rmSync(path.join(libDir, 'thumbs'), { recursive: true, force: true });
-    } catch (err) {
-      console.warn('[删库] 删除缩略图目录失败', err?.message || err);
+    for (const dir of ['thumbs', 'clip-index']) {
+      try {
+        fs.rmSync(path.join(libDir, dir), { recursive: true, force: true });
+      } catch (err) {
+        console.warn('[删库] 删除派生目录失败', dir, err?.message || err);
+      }
     }
     // 尝试删除已清空的库目录（ASCII 目录此时已空；历史中文库若残留文件则失败，无害）
     try {

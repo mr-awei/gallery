@@ -56,6 +56,27 @@ export function listRules() {
   return rows.map((r) => ({ ...r, dormant: r.type === 'ai_term' && noAiDesc }));
 }
 
+/**
+ * 分页版规则列表：LIMIT/OFFSET 在 SQL 里做，响应体不随规则总数线性增长。
+ * 注意 listRules() 不能加分页 —— scoreImage / rescoreAll 拿它当「全部生效规则」用。
+ * @returns {{items:object[], total:number, limit:number, offset:number}}
+ */
+export function listRulesPaged({ limit = 100, offset = 0 } = {}) {
+  const lim = Math.max(1, Math.min(500, Number(limit) || 100));
+  const off = Math.max(0, Number(offset) || 0);
+  const total = Number(db.prepare('SELECT COUNT(*) AS c FROM kb_rules').get()?.c || 0);
+  const rows = db
+    .prepare('SELECT * FROM kb_rules ORDER BY enabled DESC, weight DESC, id DESC LIMIT ? OFFSET ?')
+    .all(lim, off);
+  const noAiDesc = !db.prepare('SELECT 1 FROM ai_desc LIMIT 1').get();
+  return {
+    items: rows.map((r) => ({ ...r, dormant: r.type === 'ai_term' && noAiDesc })),
+    total,
+    limit: lim,
+    offset: off,
+  };
+}
+
 export function upsertRule({ type, value, label, weight = 12, origin = 'user' }) {
   if (!type || !value) return null;
   const now = new Date().toISOString();
@@ -367,32 +388,45 @@ export function requestRescore(delay = 2000) {
   return rescoreTimer;
 }
 
+const RESCORE_BATCH = 1000;
+
 export function rescoreAll() {
   const rules = listRules().filter((r) => r.enabled);
-  const descs = new Map(
-    db.prepare('SELECT image_id, description, issues FROM ai_desc').all().map((r) => [
-      r.image_id,
-      `${r.description || ''} ${r.issues || ''}`,
-    ])
-  );
   const threshold = getSettings().scoreThreshold; // 移出循环：getSettings 每次全量读表+JSON解析，放循环里曾导致全库重打分耗时 11 秒
-  const rows = db.prepare('SELECT * FROM images').all();
+  // 旧实现把 `SELECT * FROM images` 与整张 ai_desc 全量物化，再包一个跨百万行的事务。
+  // 现在按 id 游标分批，AI 描述随批 LEFT JOIN，每批独立事务：常驻内存与 WAL 都不再随库线性增长。
+  const batch = db.prepare(
+    `SELECT i.id, i.source, i.keyword, i.width, i.height, i.tags, i.phash,
+            i.score, i.score_reason,
+            COALESCE(d.description, '') || ' ' || COALESCE(d.issues, '') AS ai_text
+       FROM images i
+       LEFT JOIN ai_desc d ON d.image_id = i.id
+      WHERE i.id < ? ORDER BY i.id DESC LIMIT ?`
+  );
   const update = db.prepare('UPDATE images SET score = ?, score_reason = ? WHERE id = ?');
   let low = 0;
   let written = 0;
-  withTransaction(() => {
-    for (const row of rows) {
-      const { score, reasons } = scoreImage(row, rules, descs.get(row.id) || '');
-      if (score < threshold) low++;
-      const reason = reasons.join('；');
-      // 分数没变就不写：以前每次反馈/改规则都把全库每一行 UPDATE 一遍
-      if (row.score !== score || String(row.score_reason || '') !== reason) {
-        update.run(score, reason, row.id);
-        written++;
+  let updated = 0;
+  let cursor = Number.MAX_SAFE_INTEGER;
+  for (;;) {
+    const rows = batch.all(cursor, RESCORE_BATCH);
+    if (!rows.length) break;
+    cursor = rows[rows.length - 1].id;
+    updated += rows.length;
+    withTransaction(() => {
+      for (const row of rows) {
+        const { score, reasons } = scoreImage(row, rules, row.ai_text || '');
+        if (score < threshold) low++;
+        const reason = reasons.join('；');
+        // 分数没变就不写：以前每次反馈/改规则都把全库每一行 UPDATE 一遍
+        if (row.score !== score || String(row.score_reason || '') !== reason) {
+          update.run(score, reason, row.id);
+          written++;
+        }
       }
-    }
-  });
-  return { updated: rows.length, written, low };
+    });
+  }
+  return { updated, written, low };
 }
 
 /* -------------------------------- AI 归纳 -------------------------------- */
@@ -459,8 +493,9 @@ export async function summarizeWithAI() {
 
   // 整体替换为 AI 整理后的规则集；沿用同名规则的开关状态与命中次数
   const oldBy = new Map(existing.map((r) => [`${r.type}:${r.value}`, r]));
-  db.exec('BEGIN');
-  try {
+  // 与其它写路径统一用 withTransaction（SAVEPOINT），避免与外层事务嵌套时抛
+  // "cannot start a transaction within a transaction" 或把外层一起回滚
+  withTransaction(() => {
     db.exec('DELETE FROM kb_rules');
     const ins = db.prepare(
       `INSERT INTO kb_rules(type, value, label, weight, hits, origin, enabled, created_at, updated_at)
@@ -480,16 +515,7 @@ export async function summarizeWithAI() {
         now
       );
     }
-    db.exec('COMMIT');
-  } catch (err) {
-    // 回滚自身失败（连接已断等）不应掩盖原始异常
-    try {
-      db.exec('ROLLBACK');
-    } catch {
-      /* 忽略 */
-    }
-    throw err;
-  }
+  });
   const stats = rescoreAll();
   return {
     ok: true,

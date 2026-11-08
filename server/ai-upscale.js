@@ -8,6 +8,7 @@ import { spawn, execFile, execFileSync } from 'node:child_process';
 import sharp from 'sharp';
 import { DATA_DIR } from './config.js';
 import { httpFetch } from './http.js';
+import { KNOWN_ZIP_SHA256 } from './model-fetch.js';
 
 /**
  * 真·AI 超分：Real-ESRGAN（ncnn + Vulkan 版，免 Python / 免 CUDA）
@@ -227,6 +228,7 @@ export async function installCuganRuntime() {
     await fsp.rm(CUGAN_DIR, { recursive: true, force: true });
     await fsp.mkdir(path.dirname(CUGAN_DIR), { recursive: true });
     await fsp.rename(root, CUGAN_DIR);
+    await writeSidecar(CUGAN_EXE);
     installState.message = '自检中…';
     await cuganSelfTest();
     installState = { downloading: false, progress: 100, message: 'Real-CUGAN 安装完成' };
@@ -295,16 +297,12 @@ async function remoteSize(url) {
 
 /**
  * 下载完整性校验（sha256）：
- * - KNOWN_ZIP_SHA256 显式清单：官方 release（2022 年）未提供 digest，留空待补；
- *   若日后拿到官方哈希，按 URL 填入即可强制校验。
- * - sidecar（<dest>.sha256）：首次成功下载时自动记录哈希；重装/重下时与
- *   首次二进制比对，防止镜像篡改或下载损坏被静默解压运行。
+ * - KNOWN_ZIP_SHA256 来自随包只读清单 server/model-pins.json（打包进 asar，运行时改不了）；
+ *   官方 release（2022 年）未提供 digest，用 `npm run pin-models -- <zip> <URL>` 核对后固化。
+ * - sidecar（<dest>.sha256）：清单没条目时只做「与上次下载一致」的自洽检查，
+ *   不能算可信校验；清单有条目时清单优先，sidecar 无法覆盖。
  * - PK 签名快检：zip 前两字节必须是 'PK'，防半截文件直接进解压。
  */
-const KNOWN_ZIP_SHA256 = {
-  // [RELEASE_URL]: '<sha256 hex>',
-  // [CUGAN_RELEASE_URL]: '<sha256 hex>',
-};
 
 function sha256File(p) {
   return new Promise((resolve, reject) => {
@@ -322,6 +320,30 @@ async function readSidecar(dest) {
     return /^[0-9a-f]{64}$/i.test(hex) ? hex.toLowerCase() : '';
   } catch {
     return '';
+  }
+}
+
+/** 安装完成后给运行库/权重写一份 sha256 旁注，供运行前复核 */
+async function writeSidecar(file) {
+  try {
+    const h = await sha256File(file);
+    await fsp.writeFile(`${file}.sha256`, `${h}\n`, 'utf8');
+  } catch {
+    /* 旁注失败不阻断安装 */
+  }
+}
+
+/** 运行前复核：体积异常或哈希不匹配（被替换/损坏）都判为不可用 */
+async function verifyBinary(file) {
+  try {
+    const st = await fsp.stat(file);
+    if (st.size < 1024 * 1024) return { ok: false, reason: '体积异常（可能损坏）' };
+    const expect = await readSidecar(file);
+    if (!expect) return { ok: true, reason: '' };
+    const digest = await sha256File(file);
+    return digest === expect ? { ok: true, reason: '' } : { ok: false, reason: '哈希不匹配（可能损坏或被替换）' };
+  } catch {
+    return { ok: false, reason: '无法读取运行库' };
   }
 }
 
@@ -345,10 +367,15 @@ async function verifyDownloaded(dest, url) {
     }
   }
   const digest = await sha256File(dest);
-  const expect = KNOWN_ZIP_SHA256[url] || (await readSidecar(dest));
+  const pinned = KNOWN_ZIP_SHA256[url];
+  const expect = pinned || (await readSidecar(dest));
   if (expect && digest !== expect.toLowerCase()) {
     await fsp.rm(dest, { force: true }).catch(() => {});
-    throw new Error('sha256 校验失败：文件损坏或来源异常，已删除');
+    throw new Error(
+      pinned
+        ? 'sha256 与随包可信清单不一致：安装包可能被替换，已删除'
+        : 'sha256 校验失败：文件损坏或来源异常，已删除'
+    );
   }
   await fsp.writeFile(`${dest}.sha256`, `${digest}\n`, 'utf8').catch(() => {});
 }
@@ -553,6 +580,7 @@ export async function installRuntime() {
     await fsp.rm(RUNTIME_DIR, { recursive: true, force: true });
     await fsp.mkdir(path.dirname(RUNTIME_DIR), { recursive: true });
     await fsp.rename(root, RUNTIME_DIR);
+    await writeSidecar(EXE);
 
     installState.message = '自检中…';
     await selfTest();
@@ -614,20 +642,28 @@ export function runUpscale({
   denoise = 0,
   conservative = false,
 }) {
-  return new Promise((resolve, reject) => {
-    const useCugan = engine === 'realcugan';
-    const exe = useCugan ? CUGAN_EXE : EXE;
-    const cwd = useCugan ? CUGAN_DIR : RUNTIME_DIR;
-    if (!fs.existsSync(exe)) {
-      return reject(
-        new Error(
-          useCugan
-            ? 'Real-CUGAN 运行库未安装，请先到「设置 → 画质增强」下载'
-            : 'AI 运行库未安装，请先到「设置 → 画质增强」下载'
-        )
-      );
+  const useCugan = engine === 'realcugan';
+  const exe = useCugan ? CUGAN_EXE : EXE;
+  if (!fs.existsSync(exe)) {
+    return Promise.reject(
+      new Error(
+        useCugan
+          ? 'Real-CUGAN 运行库未安装，请先到「设置 → 画质增强」下载'
+          : 'AI 运行库未安装，请先到「设置 → 画质增强」下载'
+      )
+    );
+  }
+  // 运行前复核：运行库损坏或被替换时删掉并明确报错，引导重新下载，
+  // 而不是带着坏文件跑出奇怪的结果。
+  return verifyBinary(exe).then((binCheck) => {
+    if (!binCheck.ok) {
+      return fsp.rm(exe, { force: true }).then(() => {
+        throw new Error(`AI 运行库${useCugan ? '（Real-CUGAN）' : ''}${binCheck.reason}，已删除并请重新下载`);
+      });
     }
-    const args = ['-i', inputPath, '-o', outputPath, '-n', modelName, '-s', String(scale)];
+    return new Promise((resolve, reject) => {
+      const cwd = useCugan ? CUGAN_DIR : RUNTIME_DIR;
+      const args = ['-i', inputPath, '-o', outputPath, '-n', modelName, '-s', String(scale)];
     if (useCugan) {
       args.push('-d', String(denoise));
       if (conservative) args.push('-c');
@@ -658,6 +694,7 @@ export function runUpscale({
       } else {
         reject(new Error(`AI 超分失败（退出码 ${code}）：${(err || out).slice(-300) || '无输出'}`));
       }
+    });
     });
   });
 }

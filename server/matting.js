@@ -151,6 +151,17 @@ async function getSession() {
   if (sessionPromise) return sessionPromise;
   sessionPromise = (async () => {
     if (!fs.existsSync(MODEL_FILE)) throw new Error('去背景模型未下载，请先到「设置」下载（约 4.5MB）');
+    // 运行前复核完整性：哈希不匹配（被替换/损坏）直接删掉坏文件，
+    // 强制用户重新下载，而不是带着损坏权重静默推理出废图。
+    const check = await verifyModelFileDetailed(MODEL_FILE, {
+      minBytes: 1024 * 1024,
+      sha256: KNOWN_SHA256[MODEL_KEY] || '',
+    });
+    if (!check.ok) {
+      await fsp.rm(MODEL_FILE, { force: true }).catch(() => {});
+      sessionPromise = null;
+      throw new Error(`去背景模型文件损坏或哈希不匹配（${check.reason || '校验失败'}），已删除并请在「设置 → 画质增强」重新下载`);
+    }
     const ort = await import('onnxruntime-node');
     const sess = await ort.InferenceSession.create(MODEL_FILE);
     return sess;

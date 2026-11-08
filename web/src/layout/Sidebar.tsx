@@ -34,6 +34,10 @@ interface Props {
   onOpenTag: (tag: string) => void;
   onEditTag: (t: TagNode) => void;
   onTagsChanged: (r: { tags: TagNode[]; groups: string[] }) => void;
+  /** 远端标签总数比已加载的多多少个（分页）：>0 时 TagPanel 显示「加载更多」 */
+  remaining?: number;
+  /** 点击「加载更多」加载下一页标签 */
+  onLoadMore?: () => void;
 
   folders: FolderNode[];
   folderId: number | null;
@@ -79,6 +83,8 @@ export default function Sidebar({
   onOpenTag,
   onEditTag,
   onTagsChanged,
+  remaining,
+  onLoadMore,
   folders,
   folderId,
   onOpenRoot,
@@ -145,6 +151,8 @@ export default function Sidebar({
         onEditTag={onEditTag}
         onChanged={onTagsChanged}
         onToast={onToast}
+        remaining={remaining}
+        onLoadMore={onLoadMore}
       />
 
       <div className="folders-panel">

@@ -15,10 +15,53 @@
  * - 检查失败（断网 / 更新源 404）不锁界面：没确认有新版本就没理由把人挡在门外
  * - 更新源只认官方仓库（见 OFFICIAL_REPO），设置里的 updateRepo 不能指向别的项目
  */
+import fs from 'node:fs';
+import path from 'node:path';
 import { app, BrowserWindow } from 'electron';
 
 /** 唯一允许的更新源：写死，避免「设置被改 → 自动装上无关的安装包」 */
 const OFFICIAL_REPO = 'mr-awei/gallery';
+
+/**
+ * 安装连续失败达到这个次数后，强制更新自动降级为非强制。
+ * 否则每次启动都被同一份装不上的更新包挡在遮罩后面，用户只能手动改环境变量。
+ */
+const MAX_INSTALL_FAILURES = 2;
+
+/** 失败计数存在 userData（跨启动保留），版本变了就说明升级成功、旧账作废 */
+function failureFile() {
+  return path.join(app.getPath('userData'), 'update-failures.json');
+}
+
+function readFailures() {
+  try {
+    const raw = JSON.parse(fs.readFileSync(failureFile(), 'utf8'));
+    return { count: Math.max(0, Number(raw?.count) || 0), version: String(raw?.version || '') };
+  } catch {
+    return { count: 0, version: '' };
+  }
+}
+
+function writeFailures(data) {
+  try {
+    fs.writeFileSync(failureFile(), JSON.stringify(data));
+  } catch {
+    /* userData 不可写时退化为「本次会话内降级」，不能因此拦住启动 */
+  }
+}
+
+function bumpInstallFailure() {
+  const prev = readFailures();
+  const version = app.getVersion();
+  const next = { count: (prev.version === version ? prev.count : 0) + 1, version };
+  writeFailures(next);
+  return next.count;
+}
+
+/** 用户主动点「检查更新」时清账：允许重新走一次强制流程 */
+export function resetUpdateFailures() {
+  writeFailures({ count: 0, version: app.getVersion() });
+}
 
 /** 后台失败重试的退避间隔（检查或下载失败时用） */
 const RETRY_DELAYS = [60_000, 180_000, 600_000];
@@ -37,6 +80,8 @@ const state = {
   ready: false,
   /** 用户选择「本次先继续用」后置 true，本次会话不再遮挡 */
   dismissed: false,
+  /** 连续装不上、强制更新已自动降级：界面据此给出正确文案 */
+  degraded: false,
 };
 
 /** 强制更新模式（有新版就自动下载并重启安装） */
@@ -48,7 +93,12 @@ let retries = 0;
 let retryTimer = null;
 
 export function snapshot() {
-  return { ...state, current: app.getVersion(), force: forceMode };
+  return {
+    ...state,
+    current: app.getVersion(),
+    force: forceMode,
+    installFailures: readFailures().count,
+  };
 }
 
 function broadcast() {
@@ -108,7 +158,16 @@ function failInstall(msg) {
   clearWatchdog();
   installing = false;
   const text = String(msg || '安装程序未能启动').slice(0, 240);
-  setState({ status: 'error', ready: true, error: `启动安装程序失败：${text}` });
+  const failures = bumpInstallFailure();
+  const degraded = failures >= MAX_INSTALL_FAILURES;
+  setState({
+    status: 'error',
+    ready: true,
+    degraded,
+    error: degraded
+      ? `启动安装程序失败：${text}。已连续 ${failures} 次装不上，强制更新已自动关闭：本次可正常使用，想再试请到「设置 → 检查更新」手动触发。`
+      : `启动安装程序失败：${text}`,
+  });
   Promise.resolve()
     .then(() => recoverAfterFailure(text))
     .catch((err) => console.warn('[update] 安装失败后恢复失败：', err?.message || err));
@@ -116,7 +175,19 @@ function failInstall(msg) {
 
 /** 是否启用强制更新。内网离线部署可用 TUKU_FORCE_UPDATE=off 关闭（正式包不要设）。 */
 export function forceUpdateEnabled() {
-  return String(process.env.TUKU_FORCE_UPDATE ?? 'on').toLowerCase() !== 'off';
+  if (String(process.env.TUKU_FORCE_UPDATE ?? 'on').toLowerCase() === 'off') return false;
+  const f = readFailures();
+  const version = app.getVersion();
+  if (f.version !== version) {
+    // 版本号变了 = 上次升级真的成功了，清掉旧账恢复强制策略
+    if (f.count) writeFailures({ count: 0, version });
+    return true;
+  }
+  if (f.count >= MAX_INSTALL_FAILURES) {
+    console.warn(`[update] 连续 ${f.count} 次安装失败，本次启动降级为非强制更新`);
+    return false;
+  }
+  return true;
 }
 
 function isSupported() {
@@ -256,6 +327,8 @@ export async function checkForUpdates(opts = {}) {
     const latest = String(r?.updateInfo?.version || '');
     const hasUpdate = !!latest && latest !== app.getVersion();
     if (hasUpdate) setState({ version: latest });
+    // 服务端确认「已是最新版」：此前的安装失败账目可以清掉了
+    else writeFailures({ count: 0, version: app.getVersion() });
     return { ok: true, supported: true, hasUpdate, latest, current: app.getVersion() };
   } catch (err) {
     const msg = String(err?.message || err).slice(0, 300);

@@ -1,12 +1,13 @@
 import React from 'react';
 import { createRoot } from 'react-dom/client';
 import App from './App';
-import { applyTheme, getStoredTheme } from './theme';
+import { applyTheme, getStoredTheme, restoreThemePack } from './theme';
 import { watchUiScale } from './lib/screen-scale';
 import './styles.css';
 
 // 渲染前先定好主题，避免启动瞬间闪成暗色
 applyTheme(getStoredTheme());
+restoreThemePack(); // 上次导入的主题包要在渲染前恢复
 // 弹窗尺寸系数：按屏幕分辨率算一次，之后跟随窗口 resize
 watchUiScale();
 

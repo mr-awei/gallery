@@ -4,6 +4,7 @@ import fsp from 'node:fs/promises';
 import sharp from 'sharp';
 import { phashFromGrey32 } from './phash.js';
 import { dominantFromRaw } from './color.js';
+import { decodeHeifFile } from './lib/heif.js';
 
 /**
  * 派生资产 worker：一张图只做「一次整图解码」，其余全部由这份像素派生。
@@ -16,17 +17,49 @@ import { dominantFromRaw } from './color.js';
 const THUMB_WIDTH = Number(process.env.TUKU_THUMB_WIDTH || 640);
 const THUMB_QUALITY = Number(process.env.TUKU_THUMB_QUALITY || 82);
 
+/**
+ * 唯一一次整图解码（直接解出「缩略图尺寸」的原始像素）。
+ *
+ * sharp 解不了的 HEIC 走 WASM 版 libheif：iPhone 照片在目录扫描里也是「普通图片」，
+ * 不处理就会被当成格式不支持整批丢掉。
+ */
+async function decodeOnce(source, file) {
+  try {
+    const pixels = await sharp(source, { failOn: 'none', sequentialRead: true })
+      .rotate()
+      .resize({ width: THUMB_WIDTH, withoutEnlargement: true })
+      .raw()
+      .toBuffer({ resolveWithObject: true });
+    const meta = await sharp(source, { failOn: 'none' }).metadata();
+    return {
+      data: pixels.data,
+      info: pixels.info,
+      meta: { width: meta.width || 0, height: meta.height || 0, format: (meta.format || '').toLowerCase() },
+    };
+  } catch (err) {
+    if (!file) throw err;
+    const img = await decodeHeifFile(file);
+    if (!img) throw err;
+    const pixels = await sharp(img.data, { raw: { width: img.width, height: img.height, channels: 4 } })
+      .rotate()
+      .resize({ width: THUMB_WIDTH, withoutEnlargement: true })
+      .raw()
+      .toBuffer({ resolveWithObject: true });
+    return {
+      data: pixels.data,
+      info: pixels.info,
+      meta: { width: img.width, height: img.height, format: 'heif' },
+    };
+  }
+}
+
 parentPort.on('message', async (job) => {
   const { seq, file, buffer, thumbPath } = job;
   // 输入二选一：磁盘路径（本地导入）或内存 buffer（爬虫/浏览器采集下载到的原始字节）
   const source = buffer || file;
   try {
     // 1) 唯一一次整图解码：直接解出「缩略图尺寸」的原始像素
-    const { data, info } = await sharp(source, { failOn: 'none', sequentialRead: true })
-      .rotate()
-      .resize({ width: THUMB_WIDTH, withoutEnlargement: true })
-      .raw()
-      .toBuffer({ resolveWithObject: true });
+    const { data, info, meta } = await decodeOnce(source, file);
 
     // 2) 缩略图 JPEG 从这份像素编码（不再二次解码）
     const jpeg = await sharp(data, {
@@ -34,9 +67,6 @@ parentPort.on('message', async (job) => {
     })
       .jpeg({ quality: THUMB_QUALITY, chromaSubsampling: '4:2:0' })
       .toBuffer();
-
-    // 元数据只读取文件头，代价远小于整图解码
-    const meta = await sharp(source, { failOn: 'none' }).metadata();
 
     // 3) pHash / 主色同样从这份像素派生
     const grey = await sharp(data, {
@@ -59,9 +89,9 @@ parentPort.on('message', async (job) => {
     parentPort.postMessage({
       seq,
       ok: true,
-      width: meta.width || 0,
-      height: meta.height || 0,
-      format: (meta.format || '').toLowerCase(),
+      width: meta.width,
+      height: meta.height,
+      format: meta.format,
       thumb: thumbPath,
       phash,
       dominant,

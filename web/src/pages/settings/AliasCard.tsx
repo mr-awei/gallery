@@ -17,7 +17,8 @@ export default function AliasCard({ onToast }: { onToast: (msg: string, kind?: '
 
   const load = useCallback(async () => {
     try {
-      const [a, t] = await Promise.all([api.tagAliases(), api.tags()]);
+      // 别名下拉只需要候选标签，不必把整棵标签树（大库几千条）拉回来
+      const [a, t] = await Promise.all([api.tagAliases(), api.tags({ limit: 200 })]);
       setAliases(a.aliases);
       setTags(t.tags.map((x) => ({ tag: x.tag, count: x.count })));
     } catch (err) {

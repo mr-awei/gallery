@@ -260,6 +260,10 @@ public static class TukuLive {
   [DllImport("user32.dll")] static extern IntPtr GetDesktopWindow();
   [DllImport("user32.dll")] static extern bool GetWindowRect(IntPtr hWnd, out RECT r);
   [DllImport("user32.dll")] static extern IntPtr GetClassName(IntPtr hWnd, System.Text.StringBuilder name, int max);
+  [DllImport("user32.dll")] static extern uint GetWindowThreadProcessId(IntPtr hWnd, out uint pid);
+  [DllImport("kernel32.dll", SetLastError=true)] static extern IntPtr OpenProcess(uint access, bool inherit, uint pid);
+  [DllImport("kernel32.dll")] static extern bool CloseHandle(IntPtr h);
+  [DllImport("kernel32.dll", CharSet=CharSet.Unicode, SetLastError=true)] static extern bool QueryFullProcessImageName(IntPtr h, uint flags, System.Text.StringBuilder name, ref uint size);
 
   [StructLayout(LayoutKind.Sequential)]
   public struct RECT { public int Left, Top, Right, Bottom; }
@@ -337,6 +341,27 @@ public static class TukuLive {
     if (screenW <= 0 || screenH <= 0) return false;
     return Math.Abs(r.Left) < 4 && Math.Abs(r.Top) < 4 && w >= screenW - 2 && h >= screenH - 2;
   }
+
+  /** 前台窗口所属进程的文件名（小写），用于「指定 App 在前台时暂停」 */
+  public static string ForegroundProcessName() {
+    try {
+      IntPtr fg = GetForegroundWindow();
+      if (fg == IntPtr.Zero) return "";
+      uint pid;
+      GetWindowThreadProcessId(fg, out pid);
+      IntPtr proc = OpenProcess(0x1000 /* PROCESS_QUERY_LIMITED_INFORMATION */, false, pid);
+      if (proc == IntPtr.Zero) return "";
+      try {
+        var sb = new System.Text.StringBuilder(1024);
+        uint size = (uint)sb.Capacity;
+        if (!QueryFullProcessImageName(proc, 0, sb, ref size)) return "";
+        return System.IO.Path.GetFileName(sb.ToString()).ToLowerInvariant();
+      } finally { CloseHandle(proc); }
+    } catch { return ""; }
+  }
+
+  /** 桌面层 WorkerW 的真实句柄，供持续挂载守护比对父窗口 */
+  public static long WorkerWHandle() { return FindWorkerW().ToInt64(); }
 }
 `;
 
@@ -396,6 +421,47 @@ export async function isFullscreenAppRunning() {
   }
 }
 let screenSizeCache = null;
+
+/**
+ * 一次 PowerShell 采样拿齐动态壁纸的性能信号：
+ * GPU 占用（最忙引擎的百分比，-1 = 计数器不可用）、前台进程名、
+ * 窗口父句柄 / 当前 WorkerW 句柄、是否全屏应用。
+ * 合并成一次调用是为了避免 3 秒轮询里连开四个 PowerShell 进程。
+ */
+export async function livePerfSnapshot(hwndDecimal, screenW, screenH) {
+  if (platform !== 'win32') {
+    return { supported: false, gpu: -1, foreground: '', parent: 0, workerw: 0, fullscreen: false };
+  }
+  const dll = await ensureLiveCom();
+  const hx = String(hwndDecimal || '0').replace(/\D/g, '') || '0';
+  const w = Number(screenW) || 0;
+  const h = Number(screenH) || 0;
+  const script = `
+if (-not ('TukuLive' -as [type])) { Add-Type -Path '${dll.replace(/'/g, "''")}' }
+$hwnd = [IntPtr]::new([long]::Parse('${hx}'))
+$gpu = -1
+try {
+  $sample = Get-Counter -Counter '\\GPU Engine(*)\\Utilization Percentage' -MaxSamples 1 -ErrorAction Stop
+  $vals = @($sample.CounterSamples | ForEach-Object { $_.CookedValue })
+  if ($vals.Count -gt 0) { $gpu = [math]::Round(($vals | Measure-Object -Maximum).Maximum, 1) }
+} catch { $gpu = -1 }
+[ordered]@{
+  gpu = $gpu
+  foreground = [TukuLive]::ForegroundProcessName()
+  parent = [TukuLive]::ParentOf($hwnd)
+  workerw = [TukuLive]::WorkerWHandle()
+  fullscreen = [TukuLive]::FullscreenAppRunning(${w}, ${h})
+} | ConvertTo-Json -Compress
+`;
+  try {
+    const out = String(await runPowerShellCapture(script)).trim().replace(/^\uFEFF/, '');
+    const parsed = JSON.parse(out);
+    return { supported: true, ...parsed };
+  } catch (err) {
+    console.warn('[desktop] 性能采样失败：', err?.message || err);
+    return { supported: false, gpu: -1, foreground: '', parent: 0, workerw: 0, fullscreen: false };
+  }
+}
 
 /** 主显示器分辨率（用于合成壁纸） */
 export async function getScreenSize() {
@@ -502,6 +568,39 @@ export async function setWallpaper(p) {
     ]);
     return true;
   }
-  await execFileAsync('gsettings', ['set', 'org.gnome.desktop.background', 'picture-uri', `file://${p}`]);
-  return true;
+  // Linux 没有统一接口：按桌面环境依次尝试，全失败要说清原因，而不是假装设置成功
+  const env = {
+    ...process.env,
+    DISPLAY: process.env.DISPLAY || ':0',
+    DBUS_SESSION_BUS_ADDRESS: process.env.DBUS_SESSION_BUS_ADDRESS || '',
+  };
+  const attempts = [
+    ['GNOME / Cinnamon', 'gsettings', [
+      'set', 'org.gnome.desktop.background', 'picture-uri', `file://${p}`,
+    ]],
+    ['XFCE', 'xfconf-query', [
+      '-c', 'xfce4-desktop', '-p', '/backdrop/screen0/monitor0/image-path', '-s', p,
+    ]],
+    ['轻量 WM', 'feh', ['--bg-scale', p]],
+  ];
+  const kdeScript =
+    `var allDesktops = desktops(); for (i=0;i<allDesktops.length;i++) {` +
+    ` d = allDesktops[i]; d.wallpaperPlugin = 'org.kde.image';` +
+    ` d.currentConfigGroup = Array('Wallpaper','org.kde.image','General');` +
+    ` d.writeConfig('Image', 'file://${p.replace(/'/g, "\\'")}'); }`;
+  for (const qdbus of ['qdbus6', 'qdbus']) {
+    attempts.push(['KDE Plasma', qdbus, [
+      'org.kde.plasmashell', '/PlasmaShell', 'org.kde.PlasmaShell.evaluateScript', kdeScript,
+    ]]);
+  }
+  const failures = [];
+  for (const [name, cmd, args] of attempts) {
+    try {
+      await execFileAsync(cmd, args, { env, timeout: 8000 });
+      return true;
+    } catch (err) {
+      failures.push(`${name}（${cmd}：${String(err?.message || err).slice(0, 80)}）`);
+    }
+  }
+  throw new Error(`未能识别桌面环境，已尝试：${failures.join('；')}。请手动设置壁纸或安装 feh`);
 }

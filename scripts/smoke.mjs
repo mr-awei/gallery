@@ -62,6 +62,8 @@ const server = spawn(process.execPath, ['server/index.js'], {
     // 关掉 CLIP：不然入库查重要看「模型加载完没」——CI 上模型就绪了会把噪点图判成重复，
     // 本地没加载又通过，同一份代码两种结论。这里只测接口行为，不需要深度特征。
     TUKU_CLIP: 'off',
+    // 开放 API 的只读令牌：冒烟要真的验证「有 scope 但写不了」的 403，而不是只测接口能通
+    TUKU_API_SCOPE_TOKENS: JSON.stringify({ 'smoke-readonly-token-1234': ['read'] }),
     NO_COLOR: '1',
   },
   stdio: ['ignore', 'pipe', 'pipe'],
@@ -937,6 +939,282 @@ try {
       '数据出口：备份含 gallery.db/library.json，恢复后按新根目录重映射',
       backupOk && restoreOk,
       `backup=${bk.status} ${bj.dir || '-'} restore=${rs.status} remapped=${rj.remapped} missing=${rj.missing}`
+    );
+  }
+
+  /* ---------------- 本轮新增功能的端到端契约 ---------------- */
+  {
+    const bearer = { Authorization: `Bearer ${token}` };
+    const json = async (res) => (await res.json().catch(() => ({})));
+
+    // 开放 API v1：不接受同源豁免，令牌与 scope 都得是真的
+    const anon = await fetch(`${BASE}/api/v1/status`);
+    check('开放 API v1：无令牌 401（同源也不放行）', anon.status === 401, `${anon.status}`);
+    const v1 = await fetch(`${BASE}/api/v1/status`, { headers: bearer });
+    const v1j = await json(v1);
+    check('开放 API v1：主令牌可用', v1.status === 200 && v1j.ok === true, `${v1.status} total=${v1j.total}`);
+    const who = await json(await fetch(`${BASE}/api/v1/whoami`, { headers: bearer }));
+    check(
+      '开放 API v1：主令牌拥有 read/write/ingest',
+      ['read', 'write', 'ingest'].every((s) => who.scopes?.includes(s)),
+      JSON.stringify(who.scopes)
+    );
+    const doc = await fetch(`${BASE}/api/v1/openapi.json`, { headers: bearer });
+    const docj = await json(doc);
+    check(
+      'OpenAPI 3.0：文档覆盖 images/ingest 与 Bearer 方案',
+      doc.status === 200 && String(docj.openapi).startsWith('3.0') && !!docj.paths?.['/api/v1/ingest'] &&
+        !!docj.paths?.['/api/v1/images'] && !!docj.components?.securitySchemes?.BearerAuth,
+      `${doc.status} ${docj.openapi}`
+    );
+    const ro = { Authorization: 'Bearer smoke-readonly-token-1234' };
+    const roRead = await fetch(`${BASE}/api/v1/status`, { headers: ro });
+    const roWrite = await fetch(`${BASE}/api/v1/images/1/tags`, {
+      method: 'POST',
+      headers: { ...ro, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ tags: ['不该写入'] }),
+    });
+    check('scope：只读令牌可读', roRead.status === 200, `${roRead.status}`);
+    check('scope：只读令牌写操作被 403 拦下', roWrite.status === 403, `${roWrite.status}`);
+    const roMainWrite = await fetch(`${BASE}/api/settings`, {
+      method: 'PUT',
+      headers: { ...ro, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ tourDone: true }),
+    });
+    check('scope：只读令牌不能借主 /api/* 写接口绕过 v1 的 403', roMainWrite.status === 403, `${roMainWrite.status}`);
+
+    // 插件 / 脚本宿主
+    const plugs = await fetch(`${BASE}/api/plugins`, auth);
+    const plugsj = await json(plugs);
+    check(
+      '插件宿主：内置示例插件可发现',
+      plugs.status === 200 && plugsj.plugins?.some((p) => p.id === 'tag-prefix'),
+      JSON.stringify(plugsj.plugins?.map((p) => p.id))
+    );
+    const pr = await fetch(`${BASE}/api/plugins/tag-prefix/run`, {
+      method: 'POST',
+      headers: { ...auth.headers, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ action: 'run', args: { prefix: '冒烟' } }),
+    });
+    const prj = await json(pr);
+    check(
+      '插件宿主：独立进程试运行回传 patch',
+      pr.status === 200 && prj.ok === true && prj.patch?.tags?.includes('冒烟'),
+      `${pr.status} ${JSON.stringify(prj).slice(0, 130)}`
+    );
+
+    // 局域网投送：默认关闭，主服务不暴露端口（真正的开关启停由单测覆盖）
+    const lan = await fetch(`${BASE}/api/lan/status`, auth);
+    const lanj = await json(lan);
+    check('局域网投送：默认关闭且无端口', lan.status === 200 && lanj.enabled === false && lanj.port === 0);
+    const qr = await fetch(`${BASE}/api/lan/qrcode.svg`, auth);
+    check('局域网投送：未开启时二维码明确 409', qr.status === 409, `${qr.status}`);
+
+    // 动态壁纸：新字段、实时参数、GLSL 预设、渲染页、音频源
+    const livej = await json(await fetch(`${BASE}/api/wallpaper/live`, auth));
+    check(
+      '动态壁纸：默认参数与新字段齐备',
+      livej.params?.brightness === 100 && 'shaderPreset' in livej && 'audioSource' in livej,
+      JSON.stringify(livej.params)
+    );
+    const putLive = await fetch(`${BASE}/api/wallpaper/live`, {
+      method: 'PUT',
+      headers: { ...auth.headers, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ params: { brightness: 130, speed: 60, intensity: 60, depth: 40 } }),
+    });
+    const liveAfter = await json(await fetch(`${BASE}/api/wallpaper/live`, auth));
+    check('实时参数滑块：PUT 后立即读回', putLive.ok && liveAfter.params?.brightness === 130, `${putLive.status}`);
+    const shaders = await json(await fetch(`${BASE}/api/wallpaper/live/shaders`, auth));
+    check(
+      'GLSL 预设：4 款且源码只依赖白名单 uniform',
+      shaders.presets?.length === 4 && shaders.presets.every((p) => p.source?.includes('u_resolution')),
+      `${shaders.presets?.length} 款`
+    );
+    const livePage = await fetch(`${BASE}/live?token=${encodeURIComponent(token)}`, auth);
+    const liveHtml = await livePage.text();
+    check(
+      '动态壁纸渲染页：shader/交互/音频/实时 setParams/屏保都在',
+      livePage.status === 200 &&
+        ['startShader', 'startInteractive', 'startAudio', 'setParams', 'SCREENSAVER'].every((k) => liveHtml.includes(k)),
+      `${livePage.status} ${liveHtml.length}B`
+    );
+    const audio = await fetch(`${BASE}/api/wallpaper/live/audio`, auth);
+    check('音频壁纸：未选文件时明确 404', audio.status === 404, `${audio.status}`);
+
+    // 视频首尾裁剪：区间可落库并进入 DTO（GIF / WebM 编码在单测里验证）
+    const one = await json(await fetch(`${BASE}/api/v1/images?limit=1`, { headers: bearer }));
+    const firstId = one.items?.[0]?.id;
+    const patchMedia = firstId
+      ? await fetch(`${BASE}/api/images/${firstId}/media`, {
+          method: 'PATCH',
+          headers: { ...auth.headers, 'Content-Type': 'application/json' },
+          body: JSON.stringify({ trimStart: 1.5, trimEnd: 4.5 }),
+        })
+      : null;
+    const dto = firstId ? await json(await fetch(`${BASE}/api/v1/images/${firstId}`, { headers: bearer })) : {};
+    check(
+      '视频首尾裁剪：trimStart/trimEnd 可保存并进入 DTO',
+      !!patchMedia?.ok && dto.item?.trimStart === 1.5 && dto.item?.trimEnd === 4.5,
+      `${patchMedia?.status} ${JSON.stringify(dto.item?.trimStart)}~${JSON.stringify(dto.item?.trimEnd)}`
+    );
+
+    // 主令牌实际投送一张图：验证 write/ingest 通路不只是「鉴权通过」
+    const unique = await sharp({
+      create: {
+        width: 64, height: 64, channels: 3,
+        background: { r: 30 + (Date.now() % 200), g: 90, b: 160 },
+      },
+    }).png().toBuffer();
+    const ingest = await fetch(`${BASE}/api/v1/ingest`, {
+      method: 'POST',
+      headers: { ...bearer, 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        dataUrl: `data:image/png;base64,${unique.toString('base64')}`,
+        title: 'v1 冒烟投送',
+        tags: '开放API',
+      }),
+    });
+    const ingj = await json(ingest);
+    check(
+      '开放 API v1：主令牌可投送入库',
+      ingest.ok && ingj.ok === true && ingj.id > 0,
+      `${ingest.status} ${JSON.stringify(ingj).slice(0, 120)}`
+    );
+
+    // 跨库共享设置（屏保 / 投送开关）能落库并读回
+    const putSaver = await fetch(`${BASE}/api/settings`, {
+      method: 'PUT',
+      headers: { ...auth.headers, 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        screensaver: { enabled: true, idleMinutes: 3, mode: 'shader', showClock: false },
+        lanAccess: false,
+      }),
+    });
+    const saver = await json(await fetch(`${BASE}/api/settings`, auth));
+    check(
+      '屏保 / 投送开关：设置可保存并读回',
+      putSaver.ok && saver.screensaver?.idleMinutes === 3 && saver.screensaver?.mode === 'shader' &&
+        saver.screensaver?.showClock === false && saver.lanAccess === false,
+      `${putSaver.status} ${JSON.stringify(saver.screensaver)}`
+    );
+
+    /* ------------- 第四轮：采集源 / 暂停策略 / 擦除 / 工坊 / 同步 / 跨平台 ------------- */
+    const caps = await json(await fetch(`${BASE}/api/platform`, auth));
+    check(
+      '跨平台：能力矩阵如实标注桌面层与静态壁纸能力',
+      caps.ok === true && typeof caps.liveWallpaper === 'boolean' &&
+        caps.staticWallpaper === true && caps.library === true && caps.screensaver === true,
+      `${caps.family} live=${caps.liveWallpaper}`
+    );
+    const sources = await json(await fetch(`${BASE}/api/sources`, auth));
+    const sourceKeys = (sources.sources || sources.items || []).map((s) => s.key || s.id || s);
+    check(
+      '采集源：豆瓣 / 贴吧 / Wikimedia 已注册',
+      ['commons', 'douban', 'tieba'].every((k) => sourceKeys.includes(k)),
+      sourceKeys.join(',')
+    );
+    const livePut = await fetch(`${BASE}/api/wallpaper/live`, {
+      method: 'PUT',
+      headers: { ...auth.headers, 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        pauseOnGpu: true, gpuThreshold: 72,
+        pauseApps: ['photoshop.exe', 'msedge*'],
+        allowLocalUrl: true, trustedDir: tmpUser, clickThrough: false,
+      }),
+    });
+    const liveNext = await json(await fetch(`${BASE}/api/wallpaper/live`, auth));
+    check(
+      '暂停策略 / 网页交互：新配置项可保存读回',
+      livePut.ok && liveNext.pauseOnGpu === true && liveNext.gpuThreshold === 72 &&
+        liveNext.pauseApps?.length === 2 && liveNext.allowLocalUrl === true && liveNext.clickThrough === false,
+      `${livePut.status} ${JSON.stringify(liveNext.pauseApps)}`
+    );
+
+    // 擦除修复：真实图片 + 真实 PNG 蒙版，走完整的写回 / 另存链路
+    if (firstId) {
+      const maskRaw = Buffer.alloc(64 * 64 * 3, 0);
+      for (let y = 20; y < 40; y++) {
+        for (let x = 20; x < 40; x++) {
+          const i = (y * 64 + x) * 3;
+          maskRaw[i] = 255;
+          maskRaw[i + 1] = 255;
+          maskRaw[i + 2] = 255;
+        }
+      }
+      const maskPng = await sharp(maskRaw, { raw: { width: 64, height: 64, channels: 3 } }).png().toBuffer();
+      const inp = await fetch(`${BASE}/api/images/${firstId}/inpaint`, {
+        method: 'POST',
+        headers: { ...auth.headers, 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          mask: `data:image/png;base64,${maskPng.toString('base64')}`,
+          strength: 8,
+          saveMode: 'copy',
+          addToLibrary: true,
+        }),
+      });
+      const inpj = await json(inp);
+      check(
+        '擦除修复：真实图片 + 蒙版能另存副本并回报覆盖率',
+        inp.ok && inpj.ok === true && inpj.coverage > 0 && !!inpj.item,
+        `${inp.status} coverage=${inpj.coverage} ${JSON.stringify(inpj).slice(0, 100)}`
+      );
+    } else {
+      check('擦除修复：真实图片 + 蒙版能另存副本并回报覆盖率', false, '库里没有素材');
+    }
+
+    // 创意工坊：导出 → 导入往返，配色 / 壁纸设置 / 图片都要还原，注入的 CSS 要被剔掉
+    const cover = await sharp({ create: { width: 16, height: 16, channels: 3, background: { r: 12, g: 34, b: 56 } } })
+      .png().toBuffer();
+    const exp = await fetch(`${BASE}/api/workshop/export`, {
+      method: 'POST',
+      headers: { ...auth.headers, 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        name: '冒烟主题',
+        theme: { base: 'dark', variables: { '--accent': '#aabbcc', '--bg': 'url(https://evil/x)' } },
+        assets: [{ name: 'cover.png', dataUrl: `data:image/png;base64,${cover.toString('base64')}` }],
+      }),
+    });
+    const expj = await json(exp);
+    check(
+      '创意工坊：导出过滤注入值、保留合法配色与图片',
+      exp.ok && expj.pack?.theme?.variables?.['--accent'] === '#aabbcc' &&
+        !('--bg' in (expj.pack?.theme?.variables || {})) && expj.pack.assets.length === 1,
+      `${exp.status} skipped=${expj.skipped?.length}`
+    );
+    const imp = await fetch(`${BASE}/api/workshop/import`, {
+      method: 'POST',
+      headers: { ...auth.headers, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ data: JSON.stringify(expj.pack) }),
+    });
+    const impj = await json(imp);
+    check(
+      '创意工坊：导入还原配色 / 壁纸设置 / 图片',
+      imp.ok && impj.theme?.variables?.['--accent'] === '#aabbcc' &&
+        impj.assetPaths?.length === 1 && impj.appliedSettings?.includes('liveWallpaper'),
+      `${imp.status} applied=${JSON.stringify(impj.appliedSettings)}`
+    );
+
+    // 多端同步：发布 → 第二次发布增量跳过 → 已是最新时不重复拉取
+    const syncDir = path.join(tmpUser, 'sync-folder');
+    fs.mkdirSync(syncDir, { recursive: true });
+    const cfgSync = await fetch(`${BASE}/api/sync/configure`, {
+      method: 'POST',
+      headers: { ...auth.headers, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ syncDir }),
+    });
+    const pubArgs = { method: 'POST', headers: { ...auth.headers, 'Content-Type': 'application/json' }, body: '{}' };
+    const pub1 = await json(await fetch(`${BASE}/api/sync/publish`, pubArgs));
+    const pub2 = await json(await fetch(`${BASE}/api/sync/publish`, pubArgs));
+    const pull = await json(await fetch(`${BASE}/api/sync/pull`, {
+      method: 'POST',
+      headers: { ...auth.headers, 'Content-Type': 'application/json' },
+      body: '{"force":false}',
+    }));
+    check(
+      '多端同步：发布 / 内容未变增量跳过 / 已是最新不重复拉取',
+      cfgSync.ok && pub1.ok === true && pub1.revision === 1 && pub2.unchanged === true &&
+        pull.ok === true && pull.skipped === true,
+      `${cfgSync.status} r=${pub1.revision} unchanged=${pub2.unchanged} skipped=${pull.skipped}`
     );
   }
 

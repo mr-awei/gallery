@@ -709,7 +709,7 @@ function applyAdjust(pipeline, p) {
 }
 
 /** 按原文件格式编码（JPEG 高质量重编码；PNG/WebP 用无损档） */
-async function encode(pipeline, format) {
+export async function encode(pipeline, format) {
   if (format === 'png') return pipeline.png({ compressionLevel: 9 }).toBuffer({ resolveWithObject: true });
   if (format === 'webp') return pipeline.webp({ quality: 95 }).toBuffer({ resolveWithObject: true });
   if (format === 'avif') return pipeline.avif({ quality: 60 }).toBuffer({ resolveWithObject: true });

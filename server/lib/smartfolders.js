@@ -1,5 +1,5 @@
 // 智能文件夹：基于规则匹配的虚拟视图，可把 autoTags 一次性继承到命中图片（从 library.js 拆出）
-import { db } from '../db.js';
+import { db, withTransaction } from '../db.js';
 import { toDTO } from '../library.js';
 import { splitTags, joinTags, safeParse, aiDescText } from './utils.js';
 
@@ -183,20 +183,17 @@ export function applySmartFolderTags(id) {
   // 只取命中行的 id+tags：不再把整库读进内存
   const { sql, params } = buildSmartFolderWhere(f.rules);
   const rows = db.prepare(`SELECT id, tags FROM images ${sql}`).all(...params);
-  let changed = 0;
   const stmt = db.prepare('UPDATE images SET tags = ? WHERE id = ?');
-  db.exec('BEGIN');
-  try {
+  // withTransaction（SAVEPOINT）可与外层事务嵌套；裸 BEGIN 在嵌套时会直接抛错，
+  // 内层 ROLLBACK 还会把外层已写入的内容一起回滚。
+  return withTransaction(() => {
+    let changed = 0;
     for (const r of rows) {
       const set = new Set(splitTags(r.tags));
       autoTags.forEach((t) => set.add(String(t).trim()));
       stmt.run([...set].join(','), r.id);
       changed++;
     }
-  } catch (e) {
-    db.exec('ROLLBACK');
-    throw e;
-  }
-  db.exec('COMMIT');
-  return changed;
+    return changed;
+  });
 }

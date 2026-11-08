@@ -171,6 +171,25 @@
     transform: rotate(360deg);
   }
 }
+/* 缩略图待生成：占位决定卡片高度，下面压一个透明探针 <img> 保持请求/重试链路活着。
+   探针不能卸载——卸载后既没人再触发 onError（退避失效），也没人触发 onLoad。
+   选择器用 .card-img .card-thumb-probe 压过 .card-img img 的 height:auto。 */
+.card-thumb-pending {
+  position: relative;
+}
+.card-thumb-pending > .card-broken {
+  width: 100%;
+}
+.card-img .card-thumb-probe {
+  position: absolute;
+  inset: 0;
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  opacity: 0;
+  pointer-events: none;
+}
 
 /* ------------------------- 多格式素材卡（视频 / 音频 / 字体…） ------------------------- */
 .media-video {

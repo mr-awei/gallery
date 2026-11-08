@@ -6,6 +6,7 @@ import { db } from '../db.js';
 import { addImagesToFolder } from '../folders.js';
 import { analyzeImage, aiStatus, visionJson } from '../ai.js';
 import { ocrImage, ocrPlatformSupported } from './ocr.js';
+import { runPlugin } from './plugin-host.js';
 
 export const STEP_TYPES = {
   tag: { label: '标签', desc: '批量加/删/替换标签' },
@@ -17,6 +18,7 @@ export const STEP_TYPES = {
   ocr: { label: 'OCR', desc: '识别图内文字（可被搜索）' },
   aiDescribe: { label: 'AI 描述', desc: '调用视觉模型生成描述' },
   aiPrompt: { label: 'AI 指令', desc: '按你的指令把结果写进字段' },
+  script: { label: '插件脚本', desc: '在独立进程里运行已安装的插件' },
 };
 
 const MAX_IDS = 500;
@@ -67,6 +69,9 @@ export function validateSteps(steps) {
   return steps.slice(0, 12).map((s) => {
     const type = String(s?.type || '');
     if (!STEP_TYPES[type]) throw new Error(`未知的步骤类型：${type || '(空)'}`);
+    if (type === 'script' && !/^[a-z0-9][a-z0-9_-]{1,40}$/.test(String(s?.pluginId || ''))) {
+      throw new Error('脚本步骤缺少合法的插件 id');
+    }
     return { ...s, type };
   });
 }
@@ -173,6 +178,18 @@ async function applyStep(step, row, index, ai) {
       else if (target === 'tags') lib.setTags(row.id, [...new Set([...splitTags(row.tags), ...splitTags(value)])].join(','));
       else lib.setNote(row.id, value);
       return `AI 写入 ${target}：${value.slice(0, 30)}`;
+    }
+    case 'script': {
+      // 插件跑在独立子进程；失败必须抛出来，让这张素材如实标记为失败
+      const r = await runPlugin({
+        id: String(step.pluginId || ''),
+        action: String(step.action || 'run'),
+        imageId: row.id,
+        args: step.args,
+      });
+      if (!r.ok) throw new Error(r.error || '插件执行失败');
+      const detail = (r.logs || []).join('；') || (r.applied?.length ? `已写入 ${r.applied.join('/')}` : '已执行');
+      return `${r.plugin}：${detail}`;
     }
     default:
       return '未知步骤';

@@ -40,14 +40,40 @@ import Sidebar from './layout/Sidebar';
 import StatusBar from './layout/StatusBar';
 import ForcedUpdateOverlay from './components/ForcedUpdateOverlay';
 import { TOOLS } from './layout/nav';
+import { useAppUiState } from './hooks/useAppUiState';
 
 const PAGE_SIZE = 48;
+
+/**
+ * 追加分页结果时按 id 去重。
+ * offset 分页在导入期会整体后移：刚加载完第 2 页，前面又插进 30 张新图，
+ * 第 3 页就会把第 2 页末尾那几张再返回一次。直接 concat 会让同一张图在网格里
+ * 出现两次、React key 重复（卡片叠位、点击命中错的素材）。
+ */
+function mergeItems(prev: ImageItem[], next: ImageItem[]): ImageItem[] {
+  const seen = new Set(prev.map((x) => x.id));
+  const out = prev.slice();
+  for (const it of next) {
+    if (seen.has(it.id)) continue;
+    seen.add(it.id);
+    out.push(it);
+  }
+  return out;
+}
 
 /** 首屏状态来自 URL：分享出去的链接 / 刷新后都能还原到同一个筛选视图 */
 const initialRoute: RouteState = parseRoute(window.location.search);
 const defaultFilters: Filters = initialRoute.filters;
 
 export default function App() {
+  // 提示条 / 错误条 / 弹窗开关下沉到 hook：App 主体只管图库数据与筛选
+  const {
+    toast, showToast, loadError, setLoadError,
+    serviceRestarting, setServiceRestarting, serviceOffline, setServiceOffline, serviceError, setServiceError,
+    showCreateLib, setShowCreateLib, bookmarkOpen, setBookmarkOpen,
+    exportOpen, setExportOpen, coverFolderId, setCoverFolderId,
+    toolsOpen, setToolsOpen, palette, setPalette,
+  } = useAppUiState();
   const [view, setView] = useState<View>(initialRoute.view);
   const [stats, setStats] = useState<Stats | null>(null);
   const [filters, setFilters] = useState<Filters>(defaultFilters);
@@ -67,6 +93,8 @@ export default function App() {
   });
   const [tags, setTags] = useState<TagNode[]>([]);
   const [tagGroups, setTagGroups] = useState<string[]>([]);
+  /** 标签总数（分页）：远端实际标签数可能大于本地已加载的 tags */
+  const [tagTotal, setTagTotal] = useState(0);
   /** 「待整理」三个入口的数量（Eagle 侧栏数字） */
   const [pendingCounts, setPendingCounts] = useState<{ total: number; noFolder: number; noTags: number; noRating: number } | null>(
     null
@@ -77,9 +105,6 @@ export default function App() {
   /** 正在编辑元数据的标签（右键侧栏标签） */
   const [tagEdit, setTagEdit] = useState<TagNode | null>(null);
   const [lb, setLb] = useState<{ items: ImageItem[]; index: number } | null>(null);
-  // 提示条：区分普通提示与失败提示（失败用红色 + 停留更久，避免一闪而过没人看见）
-  const [toast, setToast] = useState<{ text: string; kind: 'info' | 'error' } | null>(null);
-  const toastTimer = useRef(0);
   const [importing, setImporting] = useState(false);
   // 导入进度（图库空态/顶部提示用）：progress 0-100，saved 为已入库张数，message 为任务名
   const [importProgress, setImportProgress] = useState<{
@@ -99,14 +124,6 @@ export default function App() {
   // 「缩略图加载失败」的残留状态（否则卡片复用实例，刷新也无法恢复显示）
   const [refreshSeq, setRefreshSeq] = useState(0);
   const [refreshing, setRefreshing] = useState(false);
-  /**
-   * 后台请求失败（api.quiet 上报）。
-   * 以前这类失败只写 console，界面照常渲染「暂无内容」，看起来像图库空了；
-   * 现在收成一个可关闭的错误条，并给一次重试。
-   */
-  const [loadError, setLoadError] = useState('');
-  /** 主进程在重启本地服务：遮住界面，别让用户对着必然失败的请求点来点去 */
-  const [serviceRestarting, setServiceRestarting] = useState(false);
   const totalRef = useRef(0);
   // 上一次统计到的全库张数：library 推送后若库变大（导入/采集），自动重载列表
   const libTotalRef = useRef(-1);
@@ -129,15 +146,6 @@ const importingRef = useRef(false);
   const [folders, setFolders] = useState<FolderNode[]>([]);
   const [folderId, setFolderId] = useState<number | null>(initialRoute.folderId);
   const folderIdRef = useRef<number | null>(null);
-  const [showCreateLib, setShowCreateLib] = useState(false);
-  const [bookmarkOpen, setBookmarkOpen] = useState(false);
-  const [exportOpen, setExportOpen] = useState(false);
-  // 正在选封面的文件夹 id（null = 没打开）
-  const [coverFolderId, setCoverFolderId] = useState<number | null>(null);
-  // 顶栏「工具箱」下拉开关（点击菜单外自动收起）
-  const [toolsOpen, setToolsOpen] = useState(false);
-  // 命令面板：Ctrl+K 搜命令 / Alt+F 搜筛选条件
-  const [palette, setPalette] = useState<'command' | 'filter' | null>(null);
   const toolsRef = useRef<HTMLDivElement | null>(null);
 
   // 侧栏宽度：右缘把手拖拽调整并持久化，双击恢复默认。
@@ -253,15 +261,6 @@ const importingRef = useRef(false);
   filtersRef.current = effectiveFilters;
   folderIdRef.current = folderId;
 
-  const showToast = useCallback((msg: string, kind: 'info' | 'error' = 'info') => {
-    if (!msg) return;
-    setToast({ text: msg, kind });
-    window.clearTimeout(toastTimer.current);
-    // 较长的是可操作报错（如「文件被占用，请关闭看图软件」），给足阅读时间
-    const duration = kind === 'error' || msg.length > 40 ? 9000 : 2600;
-    toastTimer.current = window.setTimeout(() => setToast(null), duration);
-  }, []);
-
   // importing 状态同步到 ref（job 事件 / importStatus 等多处 setImporting 都会覆盖）
   useEffect(() => {
     importingRef.current = importing;
@@ -275,6 +274,9 @@ const importingRef = useRef(false);
     if (!desktop?.onServiceState) return;
     return desktop.onServiceState((s) => {
       setServiceRestarting(!!s.restarting);
+      // dead 态不遮罩锁死，但要常驻一条离线横幅，别让用户对着「点不动」猜原因
+      setServiceOffline(!!s.dead);
+      setServiceError(String(s.error || ''));
       if (s.error) setLoadError(`本地服务重启失败：${s.error}`);
     });
   }, []);
@@ -291,7 +293,7 @@ const importingRef = useRef(false);
         ? await api.folderImages(folderIdRef.current, page, PAGE_SIZE, { signal })
         : await api.images(filtersRef.current, page, PAGE_SIZE, { signal });
       if (id !== reqId.current) return;
-      setItems((prev) => (reset ? res.items : [...prev, ...res.items]));
+      setItems((prev) => (reset ? res.items : mergeItems(prev, res.items)));
       setTotal(res.total);
       totalRef.current = res.total;
       setHasMore(res.hasMore);
@@ -328,6 +330,10 @@ const importingRef = useRef(false);
    * 现在对账收进这里：library 事件、job 快照（1.5s 必到）、60s 兜底定时器都会调用，
    * 任何一路活着列表就能跟上导入进度。
    */
+  // 标签是全量扫 images.tags 算出来的，比 stats 贵得多；而导入进度推送期间
+  // 标签集合不会变（入库不带标签）。2s 内重复拉只是白扫一遍全表。
+  const tagsFetchedAtRef = useRef(0);
+
   const refreshStats = useCallback(() => {
     api.stats().then((s) => {
       setStats(s);
@@ -348,27 +354,60 @@ const importingRef = useRef(false);
       // 让筛选栏「共 X 张」随导入实时跳动，而不是等下一次 load 才更新
       if (importingRef.current) setTotal((cur) => Math.max(cur, s.total));
     }).catch(quiet);
-    api
-      .tags()
-      .then((r) => {
-        setTags(r.tags);
-        setTagGroups(r.groups);
-      })
-      .catch(quiet);
+    const now = Date.now();
+    if (now - tagsFetchedAtRef.current >= 2000) {
+      tagsFetchedAtRef.current = now;
+      api
+        .tags({ limit: 500 })
+        .then((r) => {
+          setTags(r.tags);
+          setTagGroups(r.groups);
+          setTagTotal(r.total ?? r.tags.length);
+        })
+        .catch(quiet);
+    }
     api.pending().then(setPendingCounts).catch(quiet);
     api.missingFiles().then((m) => setMissingCount(m.count)).catch(quiet);
   }, [load, showToast]);
 
+  /**
+   * 统计刷新节流（800ms）。
+   * library 与 job 两条推送都走这里：导入期任务快照每秒好几条，以前每条都打
+   * stats/tags/pending/missingFiles 四个接口，叠加 1.2s 轮询直接变成请求风暴。
+   * 用「定时器在就不重置」的节流而不是尾随去抖：持续导入时也保持稳定刷新节奏，
+   * 不会因为事件不断而永远刷不到。
+   */
+  const statsThrottleRef = useRef(0);
+  const scheduleStatsRefresh = useCallback(() => {
+    if (statsThrottleRef.current) return;
+    statsThrottleRef.current = window.setTimeout(() => {
+      statsThrottleRef.current = 0;
+      refreshStats();
+    }, 800);
+  }, [refreshStats]);
+
   /** 只重取标签/分组：智能文件夹页改名、合并、删除后要让侧栏同步，不必重拉统计 */
   const reloadTags = useCallback(() => {
     api
-      .tags()
+      .tags({ limit: 500 })
       .then((r) => {
         setTags(r.tags);
         setTagGroups(r.groups);
+        setTagTotal(r.total ?? r.tags.length);
       })
       .catch(quiet);
   }, []);
+
+  /** 侧栏标签按需加载更多页（标签很多时初始只拉前 500，避免一次拉完） */
+  const loadMoreTags = useCallback(() => {
+    api
+      .tags({ limit: 500, offset: tags.length })
+      .then((r) => {
+        setTags((prev) => [...prev, ...r.tags]);
+        setTagTotal((prevTotal) => r.total ?? prevTotal + r.tags.length);
+      })
+      .catch(quiet);
+  }, [tags.length]);
 
   /** 错误条上的「重试」：把统计、标签、列表这几条主链路重跑一遍 */
   const retryFailedLoad = useCallback(() => {
@@ -437,6 +476,11 @@ const importingRef = useRef(false);
           setImporting(false);
           setImportProgress(null);
           refreshStats();
+          // 扫描崩溃不能静默收尾：以前只在 importState 里留一句话，界面上就是
+          // 「库是空的、也没有任何提示」，用户只能以为图丢了。
+          if (status.error) {
+            showToast(`扫描失败：${status.error}（可到 设置 → 数据维护 重新扫描）`, 'error');
+          }
           // 收尾强制重载一次：若导入在最后一次对账后才落库，列表会停在旧张数
           pageRef.current = 1;
           load(1, true);
@@ -448,7 +492,7 @@ const importingRef = useRef(false);
     } finally {
       followRunningRef.current = false;
     }
-  }, [refreshStats, load]);
+  }, [refreshStats, load, showToast]);
 
   /** 切库 / 建库 / 删库后重置「库张数」基线。
    *  refreshStats 靠 total 变大判断要不要重载列表；换库后新旧库张数没有可比性
@@ -815,24 +859,22 @@ const importingRef = useRef(false);
 
   useEffect(() => {
     refreshStats(); // 首次调用即建立 libTotalRef 基线
-    // 服务端写操作会推 library 事件；这里防抖刷新统计。
-    // 60s 低频兜底覆盖推送遗漏（如多标签页）场景。
-    const timer = setInterval(refreshStats, 60000);
-    let pending = 0;
-    const off = subscribeEvents('library', () => {
-      pending++;
-      window.setTimeout(() => {
-        if (--pending <= 0) {
-          pending = 0;
-          refreshStats(); // 内含库增长对账：变大则自动重载列表
-        }
-      }, 400);
-    });
+    // 服务端写操作会推 library 事件；与 job 推送共用 800ms 节流。
+    // 60s 低频兜底覆盖推送遗漏（如多标签页）场景；页面隐藏时不发请求
+    const timer = window.setInterval(() => {
+      if (!document.hidden) refreshStats();
+    }, 60000);
+    const off = subscribeEvents('library', scheduleStatsRefresh);
     return () => {
       clearInterval(timer);
       off();
+      // 卸载 / 重订阅后，在途的节流回调不能再 setState、也不能再打接口
+      if (statsThrottleRef.current) {
+        window.clearTimeout(statsThrottleRef.current);
+        statsThrottleRef.current = 0;
+      }
     };
-  }, [refreshStats]);
+  }, [refreshStats, scheduleStatsRefresh]);
 
   useEffect(() => {
     // 导入状态改为订阅 job 事件（原 3s 轮询）；导入进行中顺带刷新统计
@@ -860,7 +902,8 @@ const importingRef = useRef(false);
           unchanged: Number(imp.result?.unchanged) || 0,
           message: imp.message || '',
         });
-        refreshStats();
+        // 进度快照每秒好几条：走节流，别每条都打一遍 stats/tags/pending/missing
+        scheduleStatsRefresh();
       } else {
         setImportProgress(null);
         // 结束时一次性提示：有目录因超过深度上限没被扫到（以前完全静默，用户只看到"少了一半图"）
@@ -884,6 +927,8 @@ const importingRef = useRef(false);
         setImporting(s.running);
         if (!s.running) {
           setImportProgress(null);
+          // 打开页面时上一次扫描已经失败了：也得说一声
+          if (s.error) showToast(`上次扫描失败：${s.error}（可到 设置 → 数据维护 重新扫描）`, 'error');
           return;
         }
         setImportProgress({
@@ -900,7 +945,7 @@ const importingRef = useRef(false);
     return () => {
       off();
     };
-  }, [refreshStats, followImport, showToast, load]);
+  }, [refreshStats, scheduleStatsRefresh, followImport, showToast, load]);
 
   const patchItem = useCallback((updated: ImageItem) => {
     setItems((prev) => prev.map((it) => (it.id === updated.id ? updated : it)));
@@ -1019,8 +1064,23 @@ const importingRef = useRef(false);
 
   // 大图导航池补全代数：期间用户再次打开大图 / 关闭后，旧补全回调不得覆盖新池
   const lbFillSeq = useRef(0);
+  // 补全请求的取消句柄：关闭大图 / 重开必须 abort，否则关掉后几百个请求还在继续跑
+  const lbFillAbort = useRef<AbortController | null>(null);
+  // 「从大图定位回网格」的请求句柄：连续定位时取消上一次
+  const revealAbort = useRef<AbortController | null>(null);
+
+  useEffect(() => {
+    if (lb) return;
+    lbFillAbort.current?.abort();
+    lbFillAbort.current = null;
+  }, [lb]);
 
   const openItem = useCallback((item: ImageItem, pool?: ImageItem[], full = false) => {
+    // 重开大图：上一轮补全与「定位回网格」立刻作废，别让旧请求稍后改写列表
+    lbFillAbort.current?.abort();
+    lbFillAbort.current = null;
+    revealAbort.current?.abort();
+    revealAbort.current = null;
     const list = pool && pool.some((x) => x.id === item.id) ? pool : [item];
     const index = list.findIndex((x) => x.id === item.id);
     setLb({ items: list, index: Math.max(0, index) });
@@ -1030,6 +1090,9 @@ const importingRef = useRef(false);
     // （让大图和缩略图先加载）+ 并发 5 路分块拉取，每页到齐即合并，失败页直接放弃补全。
     if (full && pool) {
       const seq = ++lbFillSeq.current;
+      const ac = new AbortController();
+      lbFillAbort.current = ac;
+      const { signal } = ac;
       const filters = filtersRef.current; // 快照：补全期间用户切筛选时保持页间一致
       const replacePool = (all: ImageItem[]) => {
         setLb((prev) => {
@@ -1041,26 +1104,31 @@ const importingRef = useRef(false);
       };
       (async () => {
         await new Promise((r) => setTimeout(r, 1500));
-        const first = await api.images(filters, 1, 120);
-        if (seq !== lbFillSeq.current) return;
+        if (signal.aborted || seq !== lbFillSeq.current) return;
+        const first = await api.images(filters, 1, 120, { signal });
+        if (signal.aborted || seq !== lbFillSeq.current) return;
         if (first.total <= list.length) return; // 本来就是全量，无需替换
-        const pages = Math.ceil(first.total / 120);
+        // 上限 200 页（24000 张）：更大的库也只补一段连续前缀，
+        // 不能因为「打开了张图」就打出上千个请求
+        const pages = Math.min(Math.ceil(first.total / 120), 200);
         const results: (ImageItem[] | null)[] = new Array(pages).fill(null);
         results[0] = first.items;
         if (pages === 1) return replacePool(first.items);
         let next = 2;
         const worker = async () => {
           while (next <= pages) {
+            // 循环体内也要检查：只在最后检查的话，关闭大图后已排队的页仍会全部打出去
+            if (signal.aborted || seq !== lbFillSeq.current) return;
             const p = next++;
             try {
-              results[p - 1] = (await api.images(filters, p, 120)).items;
+              results[p - 1] = (await api.images(filters, p, 120, { signal })).items;
             } catch {
-              return; // 一页失败就放弃补全，保留已有池
+              return; // 一页失败（含被 abort）就放弃补全，保留已有池
             }
           }
         };
         await Promise.all(Array.from({ length: Math.min(5, pages - 1) }, worker));
-        if (seq !== lbFillSeq.current || results.some((r) => !r)) return;
+        if (signal.aborted || seq !== lbFillSeq.current || results.some((r) => !r)) return;
         replacePool(results.flat() as ImageItem[]);
       })().catch(quiet);
     }
@@ -1108,6 +1176,27 @@ const importingRef = useRef(false);
   const onFiltersChange = useCallback((patch: Partial<Filters>) => {
     setFilters((prev) => ({ ...prev, ...patch }));
   }, []);
+
+  /* Gallery 已用 React.memo 包住：这些回调必须是稳定引用，
+     否则每次 App 渲染都会生成新函数，memo 永远命中不了（勾一张图就重渲染整页）。 */
+  const clearSelection = useCallback(() => setSelected(new Set<number>()), []);
+  const selectAll = useCallback(() => void selectAllMatching(), [selectAllMatching]);
+  const openFromGrid = useCallback((item: ImageItem) => openItem(item, items, true), [openItem, items]);
+  const deleteFromGrid = useCallback(
+    (item: ImageItem) => {
+      setItems((prev) => prev.filter((it) => it.id !== item.id));
+      setLb((prev) => {
+        if (!prev) return prev;
+        const rest = prev.items.filter((it) => it.id !== item.id);
+        if (!rest.length) return null;
+        return { items: rest, index: Math.min(prev.index, rest.length - 1) };
+      });
+      refreshStats();
+    },
+    [refreshStats]
+  );
+  const startCrawl = useCallback(() => setView('crawl'), []);
+  const undoFromGrid = useCallback(() => void undoEdit(), [undoEdit]);
 
   /* 命令面板里的命令：只列真正能跑通的入口，不做「点了没反应」的假菜单 */
   const paletteCommands = useMemo<PaletteCommand[]>(() => {
@@ -1509,28 +1598,35 @@ const importingRef = useRef(false);
         setScrollTargetId(id);
         return;
       }
-      const pages = Math.floor(pos / PAGE_SIZE) + 1;
+      // 只请求目标页（必要时再加相邻一页），不再从第 1 页串行拉到底：
+      // 在第 400 页的图上点「在网格中显示」以前要发 400 个请求，界面全程无反馈。
+      const page = Math.max(1, Math.floor(pos / PAGE_SIZE) + 1);
       setLoading(true);
       const req = ++reqId.current;
+      revealAbort.current?.abort();
+      const ac = new AbortController();
+      revealAbort.current = ac;
       try {
-        const all: ImageItem[] = [];
-        let lastTotal = 0;
-        for (let p = 1; p <= pages; p++) {
-          const res = await api.images(filtersRef.current, p, PAGE_SIZE);
-          if (req !== reqId.current) return; // 期间用户触发了其他加载，放弃
-          all.push(...res.items);
-          lastTotal = res.total;
-          if (all.length >= res.total) break;
+        const filters = filtersRef.current;
+        let landed = page;
+        let res = await api.images(filters, landed, PAGE_SIZE, { signal: ac.signal });
+        if (req !== reqId.current) return;
+        // 期间有新增导致列表整体后移：目标可能落到下一页，补查一次
+        if (!res.items.some((x) => x.id === id) && landed * PAGE_SIZE < res.total) {
+          landed += 1;
+          res = await api.images(filters, landed, PAGE_SIZE, { signal: ac.signal });
+          if (req !== reqId.current) return;
         }
-        setItems(all);
-        setTotal(lastTotal);
-        totalRef.current = lastTotal;
-        setHasMore(all.length < lastTotal);
-        pageRef.current = pages;
+        setItems(res.items);
+        setTotal(res.total);
+        totalRef.current = res.total;
+        setHasMore((landed - 1) * PAGE_SIZE + res.items.length < res.total);
+        pageRef.current = landed;
         setRefreshSeq((n) => n + 1);
         setScrollTargetId(id);
       } catch (err) {
-        showToast((err as Error).message);
+        // 主动 abort 不算错误，别弹「网络请求失败」吓用户
+        if ((err as Error)?.name !== 'AbortError') showToast((err as Error).message);
       } finally {
         if (req === reqId.current) setLoading(false);
       }
@@ -1666,6 +1762,8 @@ const importingRef = useRef(false);
         tags={tags}
         tagGroups={tagTree.groups}
         childrenOf={tagTree.childrenOf}
+        remaining={Math.max(0, tagTotal - tags.length)}
+        onLoadMore={loadMoreTags}
         onOpenTag={openTag}
         onEditTag={setTagEdit}
         onTagsChanged={(r) => {
@@ -1761,23 +1859,14 @@ const importingRef = useRef(false);
               onLoadMore={loadMore}
               selected={selected}
               onToggleSelect={toggleSelect}
-              onClearSelection={() => setSelected(new Set())}
-              onSelectAll={() => void selectAllMatching()}
+              onClearSelection={clearSelection}
+              onSelectAll={selectAll}
               onBulk={bulk}
-              onOpen={(item) => openItem(item, items, true)}
+              onOpen={openFromGrid}
               onToggleFavorite={toggleFavorite}
               onDownload={download}
               onUpdateItem={patchItem}
-              onDeleteItem={(item) => {
-                setItems((prev) => prev.filter((it) => it.id !== item.id));
-                setLb((prev) => {
-                  if (!prev) return prev;
-                  const rest = prev.items.filter((it) => it.id !== item.id);
-                  if (!rest.length) return null;
-                  return { items: rest, index: Math.min(prev.index, rest.length - 1) };
-                });
-                refreshStats();
-              }}
+              onDeleteItem={deleteFromGrid}
               viewMode={viewMode}
               onViewMode={changeViewMode}
               colWidth={colWidth}
@@ -1786,9 +1875,9 @@ const importingRef = useRef(false);
               dupeCounts={dupeCounts}
               tags={tags}
               hideFavorite={view === 'favorites'}
-              onStartCrawl={() => setView('crawl')}
+              onStartCrawl={startCrawl}
               onRefresh={refreshGallery}
-              onUndo={() => void undoEdit()}
+              onUndo={undoFromGrid}
               importing={importing}
               importProgress={importProgress}
               missingCount={missingCount}
@@ -1979,17 +2068,7 @@ const importingRef = useRef(false);
             setLb(null);
             setView('gallery');
           }}
-          onReplaceItem={(updated) => {
-            setItems((prev) => prev.map((it) => (it.id === updated.id ? updated : it)));
-            setLb((prev) =>
-              prev
-                ? {
-                    ...prev,
-                    items: prev.items.map((it) => (it.id === updated.id ? updated : it)),
-                  }
-                : prev
-            );
-          }}
+          onReplaceItem={patchItem}
         />
         </ErrorBoundary>
       )}
@@ -2031,6 +2110,53 @@ const importingRef = useRef(false);
           <span className="spinner" />
           <div>本地服务正在重启，请稍候…</div>
           <div style={{ color: 'var(--muted)', fontSize: 12 }}>正在进行的上传/导入会被中断，完成后自动恢复。</div>
+        </div>
+      )}
+
+      {/* 服务彻底起不来：常驻离线横幅（不遮罩），用户仍可浏览界面 */}
+      {serviceOffline && !serviceRestarting && (
+        <div
+          style={{
+            position: 'fixed',
+            top: 0,
+            left: 0,
+            right: 0,
+            zIndex: 9997,
+            padding: '9px 18px',
+            background: 'rgba(120, 34, 46, 0.94)',
+            color: '#fff',
+            fontSize: 12.5,
+            textAlign: 'center',
+            pointerEvents: 'auto',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            gap: 12,
+            flexWrap: 'wrap',
+          }}
+          role="alert"
+        >
+          <span>
+            本地服务不可用：换壁纸、收藏、导入等接口暂时失效。
+            {serviceError && <span style={{ opacity: 0.85 }}> 原因：{serviceError}</span>}
+          </span>
+          <button
+            className="btn sm"
+            onClick={() => {
+              if (!desktop?.restartService) {
+                showToast('当前是开发模式，请重启 npm run dev', 'error');
+                return;
+              }
+              void desktop
+                .restartService()
+                .then((r) => {
+                  if (!r?.ok) showToast('重启未成功，可在托盘右键选「重启本地服务」再试一次', 'error');
+                })
+                .catch((err) => showToast(`重启失败：${(err as Error)?.message || err}`, 'error'));
+            }}
+          >
+            立即重启服务
+          </button>
         </div>
       )}
 

@@ -174,6 +174,38 @@ export function backfillFolders(rootPath = getSettings().storageDir) {
   return { folders: db.prepare('SELECT COUNT(*) AS c FROM folders').get().c, linked };
 }
 
+/**
+ * 补齐「已登记但没挂任何文件夹」的行。
+ *
+ * 为什么需要：早期版本对非图片素材（RAW / 视频 / 音频 / 字体 / PDF / 3D）走
+ * ingestMedia 登记，却漏了 image_folders 关联 —— 这些素材在任何文件夹视图里都
+ * 看不到，只有「图库」全量视图能找到（用户以为原片没导入）。backfillFolders 只在
+ * folders 表为空时跑，修不了这种「已有文件夹但部分行漏挂」的情况，所以单独补。
+ *
+ * 分页处理且只扫无关联的行，百万库也不会一把梭进内存；重复执行幂等。
+ */
+export function backfillMissingFolderLinks(rootPath = getSettings().storageDir, { pageSize = 5000 } = {}) {
+  if (!rootPath) return 0;
+  const pick = db.prepare(
+    `SELECT i.id, i.abs_path FROM images i
+      WHERE i.id NOT IN (SELECT image_id FROM image_folders)
+      ORDER BY i.id LIMIT ?`
+  );
+  let linked = 0;
+  for (;;) {
+    const rows = pick.all(pageSize);
+    if (!rows.length) break;
+    let changed = 0;
+    withTransaction(() => {
+      for (const r of rows) if (linkImageByPath(r.id, r.abs_path, rootPath)) changed++;
+    });
+    linked += changed;
+    // 这一批没有一条能挂上（不在 root 下 / 已排除目录）：再查还是同样一批，必须停
+    if (!changed || rows.length < pageSize) break;
+  }
+  return linked;
+}
+
 /* ------------------------- 虚拟文件夹管理（Eagle 式，不碰磁盘） ------------------------- */
 /* 磁盘目录同步产生的夹有 anchor_path；纯虚拟夹 anchor_path 为空。二者在树里共存，
  * 一张图可同时归属多个文件夹（image_folders 多对多），删除文件夹不删除图片。 */

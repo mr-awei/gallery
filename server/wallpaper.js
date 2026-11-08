@@ -32,17 +32,26 @@ export async function buildWallpaper(imageId, style = 'blur', opts = {}) {
     opts.width && opts.height ? { width: opts.width, height: opts.height } : await getScreenSize();
   const tag = opts.tag ? `${opts.tag}_` : '';
 
-  // 读取真实尺寸（数据库缺失时回退到读文件）
+  // 读取真实尺寸（数据库缺失时回退到读文件），顺便识别动图。
+  // sharp 默认只解第一帧：以前把 GIF 设成静态壁纸会静默变成一张静帧，
+  // 用户以为「动态壁纸坏了」。这里明确拒绝并指路（/live 轮播会用原文件 URL 真正播放）。
   let iw = Number(row.width) || 0;
   let ih = Number(row.height) || 0;
-  if (!iw || !ih) {
+  const suspicious = /\.(gif|webp|png|apng)$/i.test(row.abs_path || '');
+  let meta = null;
+  if (!iw || !ih || suspicious) {
     try {
-      const meta = await sharp(row.abs_path, { failOn: 'none' }).metadata();
-      iw = meta.width || 0;
-      ih = meta.height || 0;
+      meta = await sharp(row.abs_path, { failOn: 'none' }).metadata();
     } catch {
-      /* ignore */
+      /* 读不出来就按数据库尺寸继续 */
     }
+  }
+  if ((Number(meta?.pages) || 1) > 1) {
+    throw new Error('这是动图：静态壁纸只会显示第一帧。请改用动态壁纸模式（/live 轮播会播放原动图）');
+  }
+  if (!iw || !ih) {
+    iw = meta?.width || 0;
+    ih = meta?.height || 0;
   }
   const cacheName = `wp_${row.id}_${style}_${tag}${screen.width}x${screen.height}.jpg`;
   const outPath = path.join(WALLPAPER_DIR, cacheName);

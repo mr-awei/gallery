@@ -13,8 +13,11 @@ export function markAllViewedByFilter(query = {}) {
     // 无论有无颜色筛选都是一条 UPDATE：颜色命中集经临时表引用，不再把几十万个
     // id 捞进内存再逐条更新（旧路径十万级 = 十万次 UPDATE + 一次全表 SELECT）
     return db
-      .prepare(`UPDATE images SET view_count = view_count + 1, viewed_at = ? ${sql}`)
-      .run(now, ...params).changes;
+      .prepare(
+        `UPDATE images SET view_count = view_count + 1,
+           viewed_at = CASE WHEN viewed_at < ? THEN ? ELSE viewed_at END ${sql}`
+      )
+      .run(now, now, ...params).changes;
   } finally {
     dropColorScope(colorTable);
   }
@@ -24,18 +27,19 @@ export function markAllViewedByFilter(query = {}) {
 export function markAllViewed(ids) {
   const list = (Array.isArray(ids) ? ids : []).map(Number).filter(Boolean);
   if (!list.length) return 0;
-  const stmt = db.prepare('UPDATE images SET view_count = view_count + 1, viewed_at = ? WHERE id = ?');
+  const stmt = db.prepare(
+    `UPDATE images SET view_count = view_count + 1,
+       viewed_at = CASE WHEN viewed_at < ? THEN ? ELSE viewed_at END
+     WHERE id = ?`
+  );
   const now = new Date().toISOString();
-  let affected = 0;
-  db.exec('BEGIN');
-  try {
-    for (const id of list) affected += stmt.run(now, id).changes;
-  } catch (e) {
-    db.exec('ROLLBACK');
-    throw e;
-  }
-  db.exec('COMMIT');
-  return affected;
+  // 用 withTransaction（SAVEPOINT）：裸 BEGIN 一旦被外层事务包住就会抛
+  // "cannot start a transaction within a transaction"，而内层 ROLLBACK 还会把外层一起回滚。
+  return withTransaction(() => {
+    let affected = 0;
+    for (const id of list) affected += stmt.run(now, now, id).changes;
+    return affected;
+  });
 }
 
 /* ------------------------------ 统一列表查询 ------------------------------ */

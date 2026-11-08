@@ -9,6 +9,7 @@ import { db, getSettings, getLibraryGeneration } from './db.js';
 import { IMAGE_DIR } from './config.js';
 import { linkImageByPath } from './folders.js';
 import { computePHash } from './phash.js';
+import { designThumbJpeg, isDesignLikePath } from './lib/design-thumb.js';
 import { computeSubjectPHash } from './lib/subject.js';
 import * as clip from './clip.js';
 import { invalidateQuality } from './quality.js';
@@ -16,6 +17,9 @@ import { scoreImage } from './kb.js';
 import { existingThumbPath, ensureThumbDirFor, thumbPathFor, removeThumbFiles, mtimeOf } from './thumbs.js';
 import { md5File, md5Buffer } from './lib/hash.js';
 import { pushEditBackup } from './lib/undo.js';
+// 注意：本文件里已有一个按「格式名」取扩展名的 extOf()，这里按路径取扩展名要换名
+import { extOf as extOfPath, isHeifExt } from './lib/media-kind.js';
+import { decodeHeifBuffer, decodeHeifFile } from './lib/heif.js';
 
 const jpegtran = typeof jpegtranPkg === 'string' ? jpegtranPkg : jpegtranPkg.default;
 
@@ -404,6 +408,25 @@ export async function ensureThumb(id, absPath, { force = false } = {}) {
   try {
     await ensureThumbDirFor(id);
     const target = thumbPathFor(id);
+    // RAW（CR2/NEF/ARW/DNG…）与 PSD/PSB 交给设计文件提取器：它们自带的预览图
+    // 比 sharp 直接解码更靠谱，也避免 CR2 里那段 14 位无损 JPEG 报错
+    const design = isDesignLikePath(absPath) ? await designThumbJpeg(absPath, { width: 640 }) : null;
+    if (design?.buffer?.length) {
+      await fsp.writeFile(target, design.buffer);
+      if (getLibraryGeneration() === gen) {
+        try {
+          db.prepare('UPDATE images SET thumb = ?, width = ?, height = ? WHERE id = ?').run(
+            target,
+            design.width || 0,
+            design.height || 0,
+            id
+          );
+        } catch {
+          /* 行可能已删除 */
+        }
+      }
+      return target;
+    }
     await sharp(absPath, { failOn: 'none' })
       .rotate()
       .resize({ width: 640, withoutEnlargement: true })
@@ -420,6 +443,26 @@ export async function ensureThumb(id, absPath, { force = false } = {}) {
     }
     return target;
   } catch (err) {
+    // sharp 解不了的（RAW 变体、少见的 PSD/PSB、AI/EPS）：再给一次「抽内嵌预览」的机会
+    try {
+      const design = await designThumbJpeg(absPath, { width: 640 });
+      if (design?.buffer?.length) {
+        await ensureThumbDirFor(id);
+        const target = thumbPathFor(id);
+        await fsp.writeFile(target, design.buffer);
+        if (getLibraryGeneration() === gen) {
+          db.prepare('UPDATE images SET thumb = ?, width = ?, height = ? WHERE id = ?').run(
+            target,
+            design.width || 0,
+            design.height || 0,
+            id
+          );
+        }
+        return target;
+      }
+    } catch {
+      /* 兜底也失败：走下面的报错 */
+    }
     console.error('[thumb] 生成缩略图失败', id, err.message);
     return null;
   }
@@ -622,6 +665,9 @@ export function toDTO(row) {
     duration: Number(row.duration) || 0,
     /** 自定义封面帧（秒），视频/GIF 缩略图取自该时间点 */
     coverTs: Number(row.cover_ts) || 0,
+    /** 视频首尾裁剪区间（秒），0 = 未设置 */
+    trimStart: Number(row.trim_start) || 0,
+    trimEnd: Number(row.trim_end) || 0,
     md5: row.md5 || '',
     favorite: row.favorite === 1,
     viewed: !!row.viewed_at,
@@ -722,7 +768,15 @@ export async function ingest(params, settings = getSettings()) {
     const pipeline = sharp(buffer || absPath, { failOn: 'none' });
     meta = await pipeline.metadata();
   } catch {
-    return { ok: false, reason: KEEP_REASONS.badFormat };
+    // HEIC / HEIF：sharp 的 libvips 没编 HEVC 解码器，但它确实是 iPhone 拍的照片，
+    // 不属于「格式不支持」。用 WASM 版 libheif 读宽高后照常入库，
+    // 缩略图仍由 design-thumb 那条路（同一个解码器）生成。
+    const maybeHeif = buffer ? true : isHeifExt(extOfPath(absPath));
+    const img = maybeHeif
+      ? await (buffer ? decodeHeifBuffer(buffer) : decodeHeifFile(absPath)).catch(() => null)
+      : null;
+    if (!img) return { ok: false, reason: KEEP_REASONS.badFormat };
+    meta = { format: 'heif', compression: 'hevc', width: img.width, height: img.height };
   }
 
   const format = (meta.format || '').toLowerCase();
@@ -963,10 +1017,14 @@ export function renameTitle(id, title) {
 
 /** 标记「已看过」（进入大图预览时调用），供「未看过」筛选使用 */
 export function markViewed(id) {
-  db.prepare('UPDATE images SET view_count = view_count + 1, viewed_at = ? WHERE id = ?').run(
-    new Date().toISOString(),
-    id
-  );
+  const now = new Date().toISOString();
+  // 单调写入：快速切图时两个请求可能乱序到达，或在同毫秒里与批量标记交错，
+  // 旧请求不能用更早的时间把已更新的 viewed_at 覆盖回去；view_count 仍然照实累加。
+  db.prepare(
+    `UPDATE images SET view_count = view_count + 1,
+       viewed_at = CASE WHEN viewed_at < ? THEN ? ELSE viewed_at END
+     WHERE id = ?`
+  ).run(now, now, id);
   return toDTO(getImage(id));
 }
 
@@ -988,6 +1046,7 @@ export function setNote(id, note) {
 export {
   listTags,
   listTagsRich,
+  listTagsPaged,
   listTagGroups,
   setTagMeta,
   setTagParent,
@@ -1033,9 +1092,17 @@ export async function backfillDominant(limit = 300, force = false) {
     )
     .all(Math.max(1, Math.min(5000, limit)));
   let done = 0;
+  /** 文件不在了的行：写占位色后计入 skipped，否则它们会永久占住缺失窗口 */
+  let skipped = 0;
   for (const row of rows) {
     try {
-      if (!fs.existsSync(row.abs_path)) continue;
+      if (!fs.existsSync(row.abs_path)) {
+        // 以前这里直接 continue：这些行 dominant 仍为空，下一批还是它们，
+        // 后面的图永远补不出主色，接口却返回 ok:true。
+        db.prepare("UPDATE images SET dominant = '#808080', hue = '', palette = '[]' WHERE id = ?").run(row.id);
+        skipped++;
+        continue;
+      }
       const c = await computeDominant(row.abs_path);
       db.prepare('UPDATE images SET dominant = ?, hue = ?, palette = ? WHERE id = ?').run(
         c.dominant,
@@ -1046,12 +1113,13 @@ export async function backfillDominant(limit = 300, force = false) {
       done++;
     } catch {
       db.prepare("UPDATE images SET dominant = '#808080', hue = '', palette = '[]' WHERE id = ?").run(row.id);
+      skipped++;
     }
   }
   const remain = force
     ? 0
     : db.prepare("SELECT COUNT(*) AS c FROM images WHERE dominant = ''").get().c;
-  return { done, remain };
+  return { done, skipped, remain };
 }
 
 /** 补算主体哈希（白底抠图+主体包围盒归一化后的 pHash），一次一批可重复调用。

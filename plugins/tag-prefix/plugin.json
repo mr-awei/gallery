@@ -1,0 +1,9 @@
+{
+  "id": "tag-prefix",
+  "name": "示例：按前缀打标",
+  "version": "1.0.0",
+  "entry": "index.js",
+  "permissions": ["image:read", "image:write", "log"],
+  "actions": ["run"],
+  "description": "内置示例插件：给素材追加一个自定义标签和按宽度生成的标签。可复制整个目录到用户插件目录，改 index.js 写自己的逻辑。"
+}

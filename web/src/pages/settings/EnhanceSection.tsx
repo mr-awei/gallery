@@ -179,18 +179,12 @@ export default function EnhanceSection({ settings, patch, onToast }: Props) {
   const aiUpDownloadingRef = useRef(false);
   aiUpDownloadingRef.current = !!aiUp?.downloading;
 
-  // 去背景模型不在 job 事件里推送状态：后台下载期间自己轮询，否则「下载中 0%」一直不动
-  useEffect(() => {
-    if (!matting?.downloading) return;
-    const timer = window.setInterval(() => {
-      api.mattingStatus().then(setMatting).catch(quiet);
-    }, 1000);
-    return () => window.clearInterval(timer);
-  }, [matting?.downloading]);
-
   useEffect(() => {
     const off = subscribeEvents('job', (d) => {
       try {
+        // 去背景模型下载进度已并入 job 快照（服务端运行期 5s 心跳推一帧），
+        // 不再每 1s 打一次 mattingStatus 接口
+        if (d?.matting) setMatting(d.matting);
         if (d?.sr) {
           const st = d.sr;
           setSr(st);

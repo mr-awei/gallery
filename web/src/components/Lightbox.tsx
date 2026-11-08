@@ -235,14 +235,24 @@ export default function Lightbox({
   /* ------- 找相似：面板打开 / 阈值变化 / 切图后自动（防抖）拉取 ------- */
   useEffect(() => {
     if (!sim.open || !currentId) return;
+    // 快速切图 / 拖动阈值时，先发的请求会晚于本次返回：不设守卫的话
+    // 会把另一张图的结果写进当前面板（再点「应用」就操作到了错误素材）。
+    let cancelled = false;
     const timer = window.setTimeout(() => {
       setSim((s) => ({ ...s, loading: true, error: '' }));
       api
         .similarTo(currentId, sim.minCos)
-        .then((r) => setSim((s) => ({ ...s, items: r.items, loading: false })))
-        .catch((err) => setSim((s) => ({ ...s, loading: false, error: (err as Error).message })));
+        .then((r) => {
+          if (!cancelled) setSim((s) => ({ ...s, items: r.items, loading: false }));
+        })
+        .catch((err) => {
+          if (!cancelled) setSim((s) => ({ ...s, loading: false, error: (err as Error).message }));
+        });
     }, 350);
-    return () => window.clearTimeout(timer);
+    return () => {
+      cancelled = true;
+      window.clearTimeout(timer);
+    };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [sim.open, sim.minCos, currentId]);
 
@@ -590,7 +600,11 @@ export default function Lightbox({
    * 以前一律加载原图，6000×4000 的 20MB JPG 光解码就要一两秒，这就是模糊的来源。 */
   // 带文件版本号（DTO 里给的）：同一张图重复打开直接命中浏览器缓存，不走条件请求
   const previewUrl = `${BASE}${item.previewUrl || `/api/images/${item.id}/preview`}`;
-  const mainSrc = colorRoom || previewFailed || hq ? item.url : previewUrl;
+  /* HEIC/HEIF：Chromium 解不了原文件，原图地址拉下来只会是一张破图。
+   * 这种格式永远停在服务端转出来的预览图上（放大也一样，宁可略糊也别空屏）。 */
+  const isHeif = /\.(heic|heif|hif)$/i.test(item.title || '');
+  const wantOriginal = colorRoom || hq || previewFailed;
+  const mainSrc = wantOriginal && !isHeif ? item.url : previewUrl;
 
   /* 这张图的主色板：优先用导入时 MMCQ 提取的 palette，缺失时退回单一主色 */
   const paletteColors = (() => {
@@ -964,6 +978,16 @@ export default function Lightbox({
       run: () => setToolkit('versions'),
     },
     {
+      key: 'inpaint',
+      label: '擦除修复…',
+      short: '擦除',
+      icon: '🧽',
+      title: '涂掉划痕、水印、小物件（内容感知扩散，可撤销）',
+      group: 'tool',
+      show: isImage,
+      run: () => setToolkit('inpaint'),
+    },
+    {
       key: 'compare',
       label: '图片对比…',
       short: '对比',
@@ -1275,6 +1299,8 @@ export default function Lightbox({
             onClick={(e) => e.stopPropagation()}
             onDoubleClick={toggleZoom}
             onError={() => {
+              // HEIC 是浏览器不认识的 HEVC，退回原图也只会再破一次
+              if (isHeif) return;
               // 预览图生成失败 / 文件损坏：退回原图，别让灯箱空着
               if (!previewFailed && !hq) setPreviewFailed(true);
             }}

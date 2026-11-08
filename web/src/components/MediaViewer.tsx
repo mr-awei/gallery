@@ -3,6 +3,7 @@ import { api, formatSize, revealFile } from '../api';
 import { fontFrameDataUrl, imageFrameDataUrl } from '../lib/coverFrame';
 import OfficeViewer from './OfficeViewer';
 import ModelViewer from './ModelViewer';
+import VideoTrimExport from './VideoTrimExport';
 import type { ImageItem } from '../types';
 
 /**
@@ -205,6 +206,8 @@ export default function MediaViewer({ item, onReplaceItem, onToast }: Props) {
   const [progress, setProgress] = useState(0);
   /** 编码不受 Chromium 支持（mkv/avi/flv/wmv 等）时的兜底提示 */
   const [videoError, setVideoError] = useState(false);
+  /** RAW / 设计稿的内嵌预览图取不到（后端 404）：不是文件丢了，只是没预览 */
+  const [thumbFailed, setThumbFailed] = useState(false);
   const family = useFontFamily(kind === 'font' ? item.url : '');
   const wave = useWaveform(kind === 'audio' ? item.url : '');
 
@@ -212,6 +215,7 @@ export default function MediaViewer({ item, onReplaceItem, onToast }: Props) {
   useEffect(() => {
     setProgress(0);
     setVideoError(false);
+    setThumbFailed(false);
   }, [item.id]);
 
   /* 读元数据后回写时长/分辨率（只写有变化的，避免每次预览都打库） */
@@ -281,10 +285,23 @@ export default function MediaViewer({ item, onReplaceItem, onToast }: Props) {
           onLoadedMetadata={(e) => {
             const v = e.currentTarget;
             patchMeta(v.duration, v.videoWidth, v.videoHeight);
+            // 已保存的裁剪区间要真的生效：以前只影响导出，常规播放仍从头到尾，
+            // 用户会以为「保存区间」没用。起点在这里跳，终点由 onTimeUpdate 收口。
+            const s = Number(item.trimStart || 0);
+            if (s > 0 && s < v.duration) v.currentTime = s;
+          }}
+          onTimeUpdate={(e) => {
+            const v = e.currentTarget;
+            const s = Number(item.trimStart || 0);
+            const end = Number(item.trimEnd || 0);
+            if (end > s && v.currentTime >= end - 0.05) v.pause();
           }}
         />
         <div className="mv-bar">
           <span>{item.width > 0 ? `${item.width} × ${item.height}` : '分辨率待播放后写入'}</span>
+          {Number(item.trimEnd || 0) > Number(item.trimStart || 0) && (
+            <span>已保存区间 {Number(item.trimStart || 0).toFixed(1)}–{Number(item.trimEnd || 0).toFixed(1)}s，播放到此自动暂停</span>
+          )}
           <span>{formatSize(item.sizeBytes)}</span>
           <button className="btn sm" disabled={coverBusy} onClick={setCoverFromFrame} title="把当前画面存为这张素材的封面缩略图">
             {coverBusy ? '保存中…' : '用当前帧做封面'}
@@ -313,6 +330,7 @@ export default function MediaViewer({ item, onReplaceItem, onToast }: Props) {
             在文件夹中显示
           </button>
         </div>
+        <VideoTrimExport item={item} videoRef={videoRef} onReplaceItem={onReplaceItem} onToast={onToast} />
       </div>
     );
   }
@@ -499,21 +517,40 @@ export default function MediaViewer({ item, onReplaceItem, onToast }: Props) {
     );
   }
 
-  /* 设计文件 / RAW：浏览器渲染不了原文件，但入库时已把文件内嵌的预览图抽成缩略图 */
+  /* 设计文件 / RAW：浏览器渲染不了原文件，但入库时已把文件内嵌的预览图抽成缩略图。
+   * 有些文件压根没写内嵌预览（或解析失败），这时不能说「文件缺失」——文件好端端在磁盘上。 */
   if (kind === 'design' || kind === 'raw') {
+    const kindLabel = kind === 'raw' ? 'RAW' : '设计稿';
+    const ext = (item.title.split('.').pop() || '').toUpperCase();
     return (
       <div className="mv-wrap" onClick={(e) => e.stopPropagation()}>
-        <img
-          src={item.thumbUrl}
-          alt={item.title}
-          draggable={false}
-          style={{ maxWidth: '92vw', maxHeight: '80vh', objectFit: 'contain', borderRadius: 8 }}
-        />
+        {thumbFailed ? (
+          <div className="mv-fallback">
+            <div className="mv-fallback-icon">{kind === 'raw' ? '📷' : '🎨'}</div>
+            <b>{item.title}</b>
+            <p>
+              这个 {kindLabel} 文件里没有可显示的内嵌预览图
+              <br />
+              文件本身正常{ext ? `（${ext}）` : ''}，可用原软件打开查看或编辑。
+            </p>
+            <button className="btn" onClick={() => revealFile(item.path)}>
+              用系统应用打开
+            </button>
+          </div>
+        ) : (
+          <img
+            src={item.thumbUrl}
+            alt={item.title}
+            draggable={false}
+            onError={() => setThumbFailed(true)}
+            style={{ maxWidth: '92vw', maxHeight: '80vh', objectFit: 'contain', borderRadius: 8 }}
+          />
+        )}
         <div className="mv-bar">
           <span>
             {item.title}
             {item.width > 0 ? ` · ${item.width}×${item.height}` : ''} · {formatSize(item.sizeBytes)}
-            <span style={{ opacity: 0.6 }}> · 预览图取自原文件内嵌画面</span>
+            {!thumbFailed && <span style={{ opacity: 0.6 }}> · 预览图取自原文件内嵌画面</span>}
           </span>
           <button className="btn sm ghost" onClick={() => revealFile(item.path)}>
             用系统应用打开

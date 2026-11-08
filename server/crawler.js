@@ -4,6 +4,12 @@ import { bulkIngestBuffers } from './bulk-import.js';
 import { liveBus } from './live-bus.js';
 import { httpFetch } from './http.js';
 import { sanitizeResults } from './sanitize.js';
+import {
+  parseCommonsSearch,
+  extractDoubanImages,
+  extractTiebaThreads,
+  extractTiebaImages,
+} from './lib/site-parsers.js';
 import { createJob, finishJob, jobProgress } from './jobs.js';
 
 const UA_POOL = [
@@ -151,7 +157,7 @@ async function searchBing(keyword, page) {
       out.push({ url: u, referer: 'https://www.bing.com/', source: 'bing' });
     }
   }
-  return sanitizeResults(out);
+  return sanitizeResults(out, { sources: Object.keys(SOURCES) });
 }
 
 async function searchBaidu(keyword, page) {
@@ -173,7 +179,7 @@ async function searchBaidu(keyword, page) {
       break;
     }
   }
-  return sanitizeResults(out);
+  return sanitizeResults(out, { sources: Object.keys(SOURCES) });
 }
 
 async function searchSogou(keyword, page) {
@@ -203,7 +209,7 @@ async function searchSogou(keyword, page) {
       out.push({ url: u, referer: 'https://pic.sogou.com/', source: 'sogou' });
     }
   }
-  return sanitizeResults(out);
+  return sanitizeResults(out, { sources: Object.keys(SOURCES) });
 }
 
 async function searchWallhaven(keyword, page, opts = {}) {
@@ -220,7 +226,8 @@ async function searchWallhaven(keyword, page, opts = {}) {
   const json = parseJsonSafe(buf.toString('utf8'), 'Wallhaven');
   const list = Array.isArray(json?.data) ? json.data : [];
   return sanitizeResults(
-    list.map((item) => ({ url: item.path, referer: 'https://wallhaven.cc/', source: 'wallhaven' }))
+    list.map((item) => ({ url: item.path, referer: 'https://wallhaven.cc/', source: 'wallhaven' })),
+    { sources: Object.keys(SOURCES) }
   );
 }
 
@@ -249,7 +256,7 @@ async function searchImage360(keyword, page, opts = {}) {
     seen.add(u);
     out.push({ url: u, referer: 'https://image.so.com/', source: 'image360' });
   }
-  return sanitizeResults(out);
+  return sanitizeResults(out, { sources: Object.keys(SOURCES) });
 }
 
 /** JSON.parse 守护：源返回风控 HTML / 空响应时给出带源名的可读错误，而不是裸解析栈 */
@@ -279,7 +286,7 @@ async function searchDuitang(keyword, page, opts = {}) {
     seen.add(u);
     out.push({ url: u, referer: 'https://www.duitang.com/', source: 'duitang' });
   }
-  return sanitizeResults(out);
+  return sanitizeResults(out, { sources: Object.keys(SOURCES) });
 }
 
 /**
@@ -328,7 +335,100 @@ async function searchWeibo(keyword, page, opts = {}) {
       out.push({ url: u, referer: 'https://m.weibo.cn/', source: 'weibo' });
     }
   }
-  return sanitizeResults(out);
+  return sanitizeResults(out, { sources: Object.keys(SOURCES) });
+}
+
+/**
+ * Wikimedia Commons：官方 MediaWiki API（generator=search + imageinfo），
+ * 返回的是可自由使用的原图 URL，还能按已知尺寸先筛掉小图。
+ */
+async function searchCommons(keyword, page, opts = {}) {
+  const qs = new URLSearchParams({
+    action: 'query',
+    generator: 'search',
+    gsrsearch: keyword,
+    gsrnamespace: '6',
+    gsrlimit: String(CRAWL_LIMITS.PAGE_SIZE),
+    gsroffset: String(page * CRAWL_LIMITS.PAGE_SIZE),
+    prop: 'imageinfo',
+    iiprop: 'url|size',
+    format: 'json',
+    formatversion: '2',
+    origin: '*',
+  });
+  const url = `https://commons.wikimedia.org/w/api.php?${qs}`;
+  const buf = await httpGet(url, {
+    headers: { Referer: 'https://commons.wikimedia.org/' },
+    timeout: CRAWL_LIMITS.SEARCH_TIMEOUT,
+  });
+  const json = parseJsonSafe(buf.toString('utf8'), 'Wikimedia Commons');
+  if (json?.error) throw new Error(`Wikimedia Commons 返回错误：${json.error.info || json.error.code}`);
+  const list = parseCommonsSearch(json, { minLongSide: Number(opts.minResolution) || 0 });
+  return sanitizeResults(
+    list.map((x) => ({ url: x.url, referer: 'https://commons.wikimedia.org/', source: 'commons' })),
+    { sources: Object.keys(SOURCES) }
+  );
+}
+
+/** 豆瓣站内图片：风控较严，遇到安全验证 / 403 要明确说出原因，不静默返回空页 */
+async function searchDouban(keyword, page) {
+  const url = `https://www.douban.com/search?cat=1025&q=${encodeURIComponent(keyword)}&start=${page * 20}`;
+  let buf;
+  try {
+    buf = await httpGet(url, {
+      headers: { Referer: 'https://www.douban.com/' },
+      timeout: CRAWL_LIMITS.SEARCH_TIMEOUT,
+    });
+  } catch (err) {
+    throw new Error(`豆瓣拒绝了本次请求（${err?.message || err}）：站点可能要求登录或触发反爬，请稍后重试`, { cause: err });
+  }
+  const html = buf.toString('utf8');
+  if (/sec\.douban\.com|异常请求|请输入验证码|有异常请求从你的 IP/.test(html)) {
+    throw new Error('豆瓣触发了安全验证：请先在浏览器访问一次豆瓣，稍后再试');
+  }
+  const urls = extractDoubanImages(html);
+  return sanitizeResults(
+    urls.map((u) => ({ url: u, referer: 'https://www.douban.com/', source: 'douban' })),
+    { sources: Object.keys(SOURCES) }
+  );
+}
+
+/** 贴吧：先搜帖子，再读前几个帖子里的图片；单个帖子失败只记日志，不拖垮整源 */
+async function searchTieba(keyword, page) {
+  const url =
+    `https://tieba.baidu.com/f/search/res?ie=utf-8&qw=${encodeURIComponent(keyword)}&pn=${page + 1}&rn=20`;
+  let buf;
+  try {
+    buf = await httpGet(url, {
+      headers: { Referer: 'https://tieba.baidu.com/' },
+      timeout: CRAWL_LIMITS.SEARCH_TIMEOUT,
+    });
+  } catch (err) {
+    throw new Error(`贴吧搜索失败（${err?.message || err}）：站点可能要求登录或触发反爬，请稍后重试`, { cause: err });
+  }
+  const ids = extractTiebaThreads(buf.toString('utf8'));
+  const out = [];
+  const postFailures = [];
+  for (const id of ids.slice(0, 4)) {
+    try {
+      const one = await httpGet(`https://tieba.baidu.com/p/${id}`, {
+        headers: { Referer: 'https://tieba.baidu.com/' },
+        timeout: 10000,
+        retries: 0,
+      });
+      for (const u of extractTiebaImages(one.toString('utf8'))) {
+        out.push({ url: u, referer: `https://tieba.baidu.com/p/${id}`, source: 'tieba' });
+      }
+    } catch (err) {
+      const message = `帖子 ${id} 读取失败（${err?.message || err}）`;
+      console.warn(`[crawler] 贴吧 ${message}`);
+      postFailures.push({ id, message });
+    }
+  }
+  const results = sanitizeResults(out, { sources: Object.keys(SOURCES) });
+  // 只 console.warn 用户永远看不到：把单帖失败挂到结果上，让采集任务日志能列出来
+  results.postFailures = postFailures;
+  return results;
 }
 
 export const SOURCES = {
@@ -345,6 +445,19 @@ export const SOURCES = {
     search: searchWeibo,
   },
   wallhaven: { key: 'wallhaven', label: 'Wallhaven', search: searchWallhaven },
+  commons: { key: 'commons', label: 'Wikimedia Commons', search: searchCommons },
+  douban: {
+    key: 'douban',
+    label: '豆瓣',
+    hint: '豆瓣风控较严，可能要求先在浏览器登录；失败时任务日志会给出具体原因',
+    search: searchDouban,
+  },
+  tieba: {
+    key: 'tieba',
+    label: '百度贴吧',
+    hint: '从贴吧搜索结果里的帖子抓图，站点改版或反爬时可能返回 0 张',
+    search: searchTieba,
+  },
 };
 
 /* --------------------------------- 任务引擎 -------------------------------- */
@@ -565,6 +678,48 @@ async function runJob(jobRef, settings) {
             await sleep(1200); // 可能被反爬返回空页，重试一次
             items = await searchOne();
           }
+          // 被 schema 校验剔除的结果要留痕，不能静默消失（站点改版时这就是线索）
+          const rejected = Array.isArray(items.rejected) ? items.rejected : [];
+          if (rejected.length) {
+            for (const r of rejected.slice(0, 10)) {
+              addFailure(jobRef, {
+                source: source.label,
+                keyword,
+                url: r.url || '',
+                reason: '结果字段校验未通过',
+                message: r.reason,
+              });
+            }
+            jobRef.stats.rejected = (jobRef.stats.rejected || 0) + rejected.length;
+          }
+          const postFailures = Array.isArray(items.postFailures) ? items.postFailures : [];
+          for (const f of postFailures.slice(0, 4)) {
+            addFailure(jobRef, {
+              source: source.label,
+              keyword,
+              url: `https://tieba.baidu.com/p/${f.id}`,
+              reason: '贴吧帖子读取失败',
+              message: f.message,
+            });
+          }
+          // 「候选 0 张」以前只有一个数字，用户无从判断是「关键词没图」还是「被反爬」。
+          // 现在把可能原因写进任务日志与失败清单，尤其是需要 Cookie / 触发安全验证的源。
+          if (!items.length) {
+            const hint =
+              sourceKey === 'weibo'
+                ? '微博通常需要在设置里配置 Cookie'
+                : sourceKey === 'douban' || sourceKey === 'tieba'
+                  ? '该站可能触发了安全验证或要求登录，稍后重试或换个关键词'
+                  : '站点改版 / 反爬拦截 / 关键词无结果，可换个关键词或稍后重试';
+            addFailure(jobRef, {
+              source: source.label,
+              keyword,
+              url: '',
+              reason: '重试后仍无候选结果',
+              message: hint,
+            });
+            log(jobRef, 'warn', `[${source.label}] "${keyword}" 第 ${page + 1} 页候选 0 张：${hint}`);
+          }
           jobRef.search.done++;
           let fresh = 0;
           for (const item of items) {
@@ -579,7 +734,7 @@ async function runJob(jobRef, settings) {
           log(
             jobRef,
             'info',
-            `[${source.label}] "${keyword}" 第 ${page + 1} 页：候选 ${items.length} 张，新增 ${fresh} 张（待下载 ${queue.length}）`
+            `[${source.label}] "${keyword}" 第 ${page + 1} 页：候选 ${items.length} 张，新增 ${fresh} 张，校验剔除 ${rejected.length} 条（待下载 ${queue.length}）`
           );
         } catch (err) {
           jobRef.search.done++;

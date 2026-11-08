@@ -7,15 +7,20 @@ import { ingest, resyncImageMeta, removePhash } from './library.js';
 import * as clip from './clip.js';
 import { invalidateQuality } from './quality.js';
 import { ingestMedia, isMediaPath, MEDIA_EXTS } from './lib/media.js';
+import { SCAN_IMAGE_EXTS } from './lib/media-kind.js';
 import { bulkImportLocal } from './bulk-import.js';
 import { SOURCES } from './crawler.js';
 import { shouldSkipDir, isSkippedPath } from './lib/skip-dirs.js';
 import { md5File } from './lib/hash.js';
+import { mapLimit } from './lib/utils.js';
 import { liveBus } from './live-bus.js';
+import { linkImageByPath } from './folders.js';
 
 // 扫描/监听白名单：图片 + Eagle 式多格式素材（视频/音频/字体/PDF/Office/3D）
 // 排除表（thumbs / .tuku / .library …）统一在 lib/skip-dirs.js，别再本地复制一份
-const EXTS = new Set(['.jpg', '.jpeg', '.png', '.webp', ...[...MEDIA_EXTS].map((e) => `.${e}`)]);
+// 图片白名单和素材白名单都来自 lib/media-kind.js：HEIC 这类「sharp 解不了但确实是照片」
+// 的格式由 lib/heif.js 兜底，扫描阶段就得放进来，否则 iPhone 里的照片永远不入库
+const EXTS = new Set([...SCAN_IMAGE_EXTS, ...MEDIA_EXTS].map((e) => `.${e}`));
 const DEFAULT_MAX_DEPTH = 4;
 
 /**
@@ -101,19 +106,6 @@ export async function importLocalImages(options = {}) {
   }
 }
 
-/** 有限并发执行异步任务（next 指针派发；JS 单线程，各任务对共享计数器的修改天然安全） */
-async function mapLimit(list, limit, fn) {
-  let next = 0;
-  const workers = Array.from({ length: Math.max(1, Math.min(limit, list.length)) }, async () => {
-    for (;;) {
-      const i = next++;
-      if (i >= list.length) return;
-      await fn(list[i]);
-    }
-  });
-  await Promise.all(workers);
-}
-
 /* ------------------------- 素材文件夹实时监听 ------------------------- */
 /* 用户手动往素材文件夹拷图（如同名 jpg/png 副本）时自动登记入库，
  * 避免「磁盘上有、库里没有」导致整理工具配不成对。 */
@@ -150,10 +142,18 @@ function scheduleWatchIngest(delayMs = 2000) {
     }
     const nowGen = getLibraryGeneration();
     // 只处理当前库期间收集的文件；上一个库的积压事件整体作废
+    // 注意：Map 的 filter 回调拿到的是 [key, value]，第二参数不是 value 而是下标。
+    // 旧写法 `.filter((f, gen) => gen === nowGen && fs.existsSync(f))` 里 f 是
+    // [absPath, generation] 数组，existsSync 恒为 false → files 恒空 → 自动入库整条链路作废。
     const files = [...watchPending]
-      .filter((f, gen) => gen === nowGen && fs.existsSync(f))
+      .filter(([f, gen]) => gen === nowGen && fs.existsSync(f))
       .map(([f]) => f);
     for (const f of files) watchPending.delete(f);
+    // 已不存在 / 属于上一代库的事件也一并丢弃：它们永远不会再被处理，
+    // 留在 Map 里只会让 watchPending 无界增长
+    for (const [f, gen] of watchPending) {
+      if (gen !== nowGen || !fs.existsSync(f)) watchPending.delete(f);
+    }
     if (!files.length) return;
     const settings = getSettings();
     const root = path.resolve(settings.storageDir || '');
@@ -198,6 +198,9 @@ function scheduleWatchIngest(delayMs = 2000) {
               settings
             );
         if (res.ok) {
+          // 非图片素材（RAW / 视频 / 音频…）由 ingestMedia 入库，它本身不建文件夹关联；
+          // 不补的话监听/扫描进来的原片同样只在「图库」可见，文件夹视图里看不到。
+          if (res.id) linkImageByPath(res.id, res.path || f, settings.storageDir);
           saved++;
           console.log('[watch] 新文件已入库:', f);
         }

@@ -2,6 +2,7 @@ import fs from 'node:fs';
 import fsp from 'node:fs/promises';
 import path from 'node:path';
 import { assertWritableDir } from './safe-path.js';
+import { mapLimit } from './utils.js';
 import { db, getSettings } from '../db.js';
 import { getActiveLibrary } from '../libraries.js';
 import { hiddenFolderPaths, hiddenImagesClause } from './privacy.js';
@@ -37,17 +38,6 @@ function safeName(raw, fallback = 'item') {
 function toMs(iso, fallback = Date.now()) {
   const t = Date.parse(String(iso || ''));
   return Number.isFinite(t) ? t : fallback;
-}
-
-async function mapLimit(list, limit, fn) {
-  let i = 0;
-  const workers = Array.from({ length: Math.min(limit, list.length) }, async () => {
-    while (i < list.length) {
-      const idx = i++;
-      await fn(list[idx], idx);
-    }
-  });
-  await Promise.all(workers);
 }
 
 /**

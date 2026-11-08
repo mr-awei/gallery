@@ -51,7 +51,7 @@ export function register(app, ctx) {
     asyncRoute(async (req, res) => {
       const { tag, group, color, parent, sortOrder } = req.body || {};
       const meta = lib.setTagMeta({ tag, group, color, parent, sortOrder });
-      res.json({ ok: true, meta, tags: lib.listTagsRich(), groups: lib.listTagGroups() });
+      res.json({ ok: true, meta, tags: lib.listTagsPaged({ limit: 500, rich: true }).items, groups: lib.listTagGroups() });
     })
   );
 
@@ -61,7 +61,7 @@ export function register(app, ctx) {
     asyncRoute(async (req, res) => {
       const { tag, parent } = req.body || {};
       const meta = lib.setTagParent(tag, parent);
-      res.json({ ok: true, meta, tags: lib.listTagsRich(), groups: lib.listTagGroups() });
+      res.json({ ok: true, meta, tags: lib.listTagsPaged({ limit: 500, rich: true }).items, groups: lib.listTagGroups() });
     })
   );
 
@@ -80,14 +80,14 @@ export function register(app, ctx) {
     asyncRoute(async (req, res) => {
       const { from, to } = req.body || {};
       const groups = lib.renameTagGroup(from, to);
-      res.json({ ok: true, groups, tags: lib.listTagsRich() });
+      res.json({ ok: true, groups, tags: lib.listTagsPaged({ limit: 500, rich: true }).items });
     })
   );
   app.post(
     '/api/tags/group/delete',
     asyncRoute(async (req, res) => {
       const groups = lib.clearTagGroup(req.body?.name);
-      res.json({ ok: true, groups, tags: lib.listTagsRich() });
+      res.json({ ok: true, groups, tags: lib.listTagsPaged({ limit: 500, rich: true }).items });
     })
   );
 
@@ -289,7 +289,7 @@ export function register(app, ctx) {
       const id = Number(req.params.id);
       const row = lib.getImage(id);
       if (!row) return res.status(404).json({ error: '图片不存在' });
-      const { duration, width, height, coverTs } = req.body || {};
+      const { duration, width, height, coverTs, trimStart, trimEnd } = req.body || {};
       const sets = [];
       const vals = [];
       if (duration !== undefined && Number.isFinite(Number(duration))) {
@@ -307,6 +307,15 @@ export function register(app, ctx) {
       if (coverTs !== undefined && Number.isFinite(Number(coverTs))) {
         sets.push('cover_ts = ?');
         vals.push(Math.max(0, Number(coverTs)));
+      }
+      // 视频首尾裁剪区间：只接受非负有限数，且终点不小于起点（否则存进去就是坏数据）
+      if (trimStart !== undefined && Number.isFinite(Number(trimStart))) {
+        sets.push('trim_start = ?');
+        vals.push(Math.max(0, Number(trimStart)));
+      }
+      if (trimEnd !== undefined && Number.isFinite(Number(trimEnd))) {
+        sets.push('trim_end = ?');
+        vals.push(Math.max(0, Number(trimEnd)));
       }
       if (sets.length) {
         db.prepare(`UPDATE images SET ${sets.join(', ')} WHERE id = ?`).run(...vals, id);
