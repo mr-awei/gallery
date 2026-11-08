@@ -7,6 +7,11 @@
   "author": "图库",
   "main": "electron/main.js",
   "type": "module",
+  "_comment_mirror": "打包二进制走 npmmirror：GitHub Releases 在部分网络会超时/重置/504。npm 会以 npm_package_config_<key> 注入脚本，@electron/get 与 electron-builder 都能读到。",
+  "config": {
+    "electron_mirror": "https://npmmirror.com/mirrors/electron/",
+    "electron_builder_binaries_mirror": "https://npmmirror.com/mirrors/electron-builder-binaries/"
+  },
   "engines": {
     "node": ">=22.5.0"
   },
