@@ -1,7 +1,7 @@
 {
   "name": "tuku-gallery",
   "productName": "TuKu",
-  "version": "1.2.0",
+  "version": "1.2.1",
   "private": true,
   "description": "通用图片管理与壁纸工具 — 多源采集 / pHash 去重 / 暗色图片库",
   "author": "图库",

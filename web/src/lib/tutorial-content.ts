@@ -6,28 +6,13 @@
  * 关键词用来补同义词（壁纸 / 桌面 / 自动换），搜索只看这里的文字，不会去猜。
  */
 
-export interface TutorialShortcut {
-  keys: string;
-  desc: string;
-}
+import type { TutorialCategory, TutorialSection, TutorialShortcut } from './tutorial/types';
+import { EXTRA_TUTORIAL } from './tutorial/extra';
 
-export interface TutorialSection {
-  id: string;
-  title: string;
-  /** 搜索结果里显示的一句话摘要 */
-  summary: string;
-  keywords: string[];
-  body: string;
-  shortcuts?: TutorialShortcut[];
-}
+export type { TutorialCategory, TutorialSection, TutorialShortcut };
 
-export interface TutorialCategory {
-  id: string;
-  title: string;
-  sections: TutorialSection[];
-}
-
-export const TUTORIAL: TutorialCategory[] = [
+/** 首批（核心流程）内容；逐控件的小功能在 tutorial/extra-*.ts 里补齐 */
+const BASE_TUTORIAL: TutorialCategory[] = [
   {
     id: 'start',
     title: '入门',
@@ -791,6 +776,20 @@ export const TUTORIAL: TutorialCategory[] = [
     ],
   },
 ];
+
+/**
+ * 合并顺序：核心流程在前，逐控件的小功能在后。
+ * 同一分类 id 会在合并时合并 sections，方便 extra 文件按主题续写（不占地新建分类）。
+ */
+export const TUTORIAL: TutorialCategory[] = (() => {
+  const out: TutorialCategory[] = BASE_TUTORIAL.map((c) => ({ ...c, sections: [...c.sections] }));
+  for (const c of EXTRA_TUTORIAL) {
+    const hit = out.find((x) => x.id === c.id);
+    if (hit) hit.sections.push(...c.sections);
+    else out.push(c);
+  }
+  return out;
+})();
 
 export const TUTORIAL_CATEGORIES = TUTORIAL.map((c) => ({ id: c.id, title: c.title, count: c.sections.length }));
 
