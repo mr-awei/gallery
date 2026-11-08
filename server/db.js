@@ -469,6 +469,31 @@ CREATE TABLE IF NOT EXISTS actions (
   created_at TEXT NOT NULL,
   last_run_at TEXT NOT NULL DEFAULT ''
 );
+
+-- 保存的筛选器：把当前筛选栏（关键词/类型/星级/标签/文件夹…）整套存下来，
+-- 侧栏一键回到同一视图。query 存 JSON，不做字段拆分 —— 筛选参数还在演进，
+-- 拆成列每次加参数都要迁移，而这里只做整体回放。
+CREATE TABLE IF NOT EXISTS saved_filters (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  name TEXT NOT NULL,
+  query TEXT NOT NULL DEFAULT '{}',
+  icon TEXT NOT NULL DEFAULT '',
+  sort_order INTEGER NOT NULL DEFAULT 0,
+  created_at TEXT NOT NULL,
+  updated_at TEXT NOT NULL DEFAULT ''
+);
+
+-- 素材笔记：Eagle 式「文字笔记 + 视频时间点笔记」。
+-- ts > 0 表示钉在音视频的某个时间点（秒），0 = 纯文本笔记。
+-- 单独成表而不是给 images.note 加数组：一张图可以有任意多条带时间的笔记。
+CREATE TABLE IF NOT EXISTS image_notes (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  image_id INTEGER NOT NULL,
+  body TEXT NOT NULL DEFAULT '',
+  ts REAL NOT NULL DEFAULT 0,
+  created_at TEXT NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_image_notes_image ON image_notes(image_id, id);
 `);
 
   // 触发器依赖的拆分/清理函数（必须在任何写入前注册）。
@@ -486,6 +511,10 @@ CREATE TABLE IF NOT EXISTS actions (
   conn.function('delete_item_tags', (id) => {
     conn.prepare('DELETE FROM item_tags WHERE image_id = ?').run(id);
   });
+  // 素材被彻底删除时一并清掉笔记，否则素材删掉后笔记表会一直长（还带着正文）
+  conn.function('delete_image_notes', (id) => {
+    conn.prepare('DELETE FROM image_notes WHERE image_id = ?').run(id);
+  });
   conn.exec(`
 CREATE TRIGGER IF NOT EXISTS trg_item_tags_insert AFTER INSERT ON images BEGIN
   SELECT sync_item_tags(NEW.id, NEW.tags);
@@ -495,6 +524,9 @@ CREATE TRIGGER IF NOT EXISTS trg_item_tags_update AFTER UPDATE OF tags ON images
 END;
 CREATE TRIGGER IF NOT EXISTS trg_item_tags_delete AFTER DELETE ON images BEGIN
   SELECT delete_item_tags(OLD.id);
+END;
+CREATE TRIGGER IF NOT EXISTS trg_image_notes_delete AFTER DELETE ON images BEGIN
+  SELECT delete_image_notes(OLD.id);
 END;
 `);
 
@@ -527,6 +559,9 @@ END;
   // 文件夹标签（Eagle：给文件夹打标签，里面素材自动带上）：只存逗号串，查询期沿路径继承，
   // 不物化进 images.tags —— 物化后「删文件夹标签」得逐张回滚，得不偿失
   ensureColumn('folders', 'tags', "tags TEXT NOT NULL DEFAULT ''");
+  // 文件夹外观：emoji / 图标字符 + 主题色（Eagle 允许给文件夹上色，一眼区分用途）
+  ensureColumn('folders', 'icon', "icon TEXT NOT NULL DEFAULT ''");
+  ensureColumn('folders', 'color', "color TEXT NOT NULL DEFAULT ''");
   // 文件夹内手动排序（拖动定序）：同一张图在不同文件夹可以有不同顺序，所以落在这里而不是 images
   ensureColumn('image_folders', 'sort_order', 'sort_order INTEGER NOT NULL DEFAULT 0');
   // 隐私空间：文件夹密码锁（哈希 + 盐，明文不落库）
@@ -582,6 +617,17 @@ END;
   // duration / cover_ts / md5 / fs_mtime 等全部列。只存回收站表那 15 个字段的话，
   // 视频恢复成图片、评分备注丢失、fs_mtime=0 让 ?v=0 的缩略图缓存永不刷新。
   ensureColumn('trash', 'snapshot', "snapshot TEXT NOT NULL DEFAULT ''");
+
+  // 图片堆叠（Eagle 的 Stack）：同一素材的多版本/多裁切合成一组。
+  // stack_id = 0 表示没堆叠；否则指向「组主」那张图的 id（组主自己的 stack_id = 自己的 id）。
+  // 列表默认只显示组主，成员在灯箱里展开 —— 否则同素材几个版本会把网格占满。
+  ensureColumn('images', 'stack_id', 'stack_id INTEGER NOT NULL DEFAULT 0');
+  conn.exec('CREATE INDEX IF NOT EXISTS idx_images_stack ON images(stack_id)');
+  // 使用统计：复制 / 导出次数（Eagle 详情里能看到「用过几次」，也便于找出从没用过的素材）
+  ensureColumn('images', 'copy_count', 'copy_count INTEGER NOT NULL DEFAULT 0');
+  ensureColumn('images', 'export_count', 'export_count INTEGER NOT NULL DEFAULT 0');
+  ensureColumn('images', 'last_used_at', "last_used_at TEXT NOT NULL DEFAULT ''");
+  conn.exec('CREATE INDEX IF NOT EXISTS idx_images_last_used ON images(last_used_at)');
 
   // abs_path 唯一索引：watch 防抖回调与手动 rescan 可能同时进入，两边都判「不存在」就各插一条。
   // 老库里若已经有重复路径，唯一索引建不起来（会抛错）——这里只告警、不阻断启动，

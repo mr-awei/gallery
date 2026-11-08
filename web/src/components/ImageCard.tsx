@@ -4,6 +4,7 @@ import type { ImageItem } from '../types';
 import { BASE, SOURCE_LABELS, api, copyText, desktop, formatSize as fmtSize, revealFile } from '../api';
 import { confirmDialog, promptDialog } from './Dialogs';
 import { fontFrameDataUrl, imageFrameDataUrl, videoElementDataUrl, videoFrameDataUrl } from '../lib/coverFrame';
+import { IMAGE_MIME, TAG_MIME } from '../lib/dnd';
 import { IconDownload, IconExpand, IconHeart } from './Icons';
 
 interface Props {
@@ -33,6 +34,14 @@ interface Props {
   /** 手动排序模式（文件夹视图 + sort=manual）：拖到另一张卡片上表示「插到它后面」 */
   manualSort?: boolean;
   onReorderDrop?: (dragIds: number[], targetId: number) => void;
+  /** 侧栏标签拖到这张卡上：给这张素材追加这个标签 */
+  onDropTag?: (item: ImageItem, tag: string) => void;
+  /** 点堆叠角标：打开堆叠查看器（组主 id） */
+  onOpenStack?: (stackId: number) => void;
+  /** 解散这张图所在的堆叠 */
+  onUngroupStack?: (stackId: number) => void;
+  /** 把拖过来的图叠到这张上（目标是组主则并入该组，否则两张成组） */
+  onStackDrop?: (dragIds: number[], target: ImageItem) => void;
 }
 
 /* 全局同时只保留一个卡片右键菜单：在另一张卡上右键时先收起上一张的（菜单状态在各卡实例内，需跨实例互斥） */
@@ -224,9 +233,17 @@ const ImageCard = React.memo(function ImageCard({
   dragIds,
   manualSort,
   onReorderDrop,
+  onDropTag,
+  onOpenStack,
+  onUngroupStack,
+  onStackDrop,
 }: Props) {
   // 手动排序时被拖到本卡上方高亮：告诉用户「松手就插到这张后面」
   const [dropHint, setDropHint] = useState(false);
+  /** 侧栏标签拖到这张卡上时的落点高亮 */
+  const [tagHint, setTagHint] = useState(false);
+  /** 拖图到这张卡上 = 叠成一堆的落点高亮 */
+  const [stackHint, setStackHint] = useState(false);
   const [broken, setBroken] = useState(false);
   /**
    * 缩略图待生成：后端没有现成的缩略图时会立刻 404 并在后台补，
@@ -428,11 +445,14 @@ const ImageCard = React.memo(function ImageCard({
       return <FontThumb url={fullUrl} title={item.title} />;
     }
     if (!isPlainImage) {
+      // 音频 / PDF / Office / 3D 等没有画面：卡片上给文件名 + 时长 + 大小，
+      // 比只放一个类型图标更容易认出是哪一个（Eagle 的媒体卡也是这么做的）
+      const bare = item.title.replace(/\.[a-z0-9]{2,5}$/i, '');
       return (
         <MediaGlyph
           kind={kind}
           size={item.sizeBytes}
-          title=""
+          title={bare}
           label={[kindLabel, extOfPath(item.path || item.url)].filter(Boolean).join(' · ')}
           duration={item.duration}
         />
@@ -508,6 +528,7 @@ const ImageCard = React.memo(function ImageCard({
 
   const copyLink = async () => {
     const ok = await copyText(fullUrl);
+    if (ok) void api.bumpUsage('copy', [item.id]).catch(() => undefined);
     onToast?.(ok ? '图片链接已复制' : '复制失败：浏览器拒绝了剪贴板访问', ok ? 'info' : 'error');
   };
 
@@ -578,7 +599,31 @@ const ImageCard = React.memo(function ImageCard({
 
   const copyPath = async () => {
     const ok = await copyText(item.path);
+    if (ok) void api.bumpUsage('copy', [item.id]).catch(() => undefined);
     onToast?.(ok ? '文件路径已复制' : '复制失败：浏览器拒绝了剪贴板访问', ok ? 'info' : 'error');
+  };
+
+  /** 把图片本身放进剪贴板（Chromium 只稳定支持写 PNG，这里统一转成 PNG） */
+  const copyImage = async () => {
+    try {
+      const res = await fetch(fullUrl);
+      if (!res.ok) throw new Error(`读取失败 ${res.status}`);
+      const src = await res.blob();
+      const bmp = await createImageBitmap(src);
+      const canvas = document.createElement('canvas');
+      canvas.width = bmp.width;
+      canvas.height = bmp.height;
+      const ctx = canvas.getContext('2d');
+      if (!ctx) throw new Error('画布不可用');
+      ctx.drawImage(bmp, 0, 0);
+      const png = await new Promise<Blob | null>((resolve) => canvas.toBlob(resolve, 'image/png'));
+      if (!png) throw new Error('转换 PNG 失败');
+      await navigator.clipboard.write([new ClipboardItem({ 'image/png': png })]);
+      void api.bumpUsage('copy', [item.id]).catch(() => undefined);
+      onToast?.('图片已复制到剪贴板');
+    } catch (err) {
+      onToast?.(`复制图片失败：${(err as Error).message}`, 'error');
+    }
   };
 
   const reveal = async () => {
@@ -602,37 +647,67 @@ const ImageCard = React.memo(function ImageCard({
 
   return (
     <div
-      className={`card-img kind-${kind}${selected ? ' selected' : ''}${dropHint ? ' drop-hint' : ''}`}
+      className={`card-img kind-${kind}${selected ? ' selected' : ''}${dropHint ? ' drop-hint' : ''}${
+        tagHint ? ' tag-hint' : ''
+      }${stackHint ? ' stack-hint' : ''}${item.stackPrimary && (item.stackCount || 0) > 1 ? ' has-stack' : ''}`}
       data-image-id={item.id}
-      onDragOver={
-        manualSort && onReorderDrop
-          ? (e) => {
-              // 必须 preventDefault 才允许 drop；只认卡片自己那套 MIME
-              if (!e.dataTransfer.types.includes('application/x-tuku-image-id')) return;
-              e.preventDefault();
-              e.dataTransfer.dropEffect = 'move';
-              if (!dropHint) setDropHint(true);
-            }
-          : undefined
-      }
-      onDragLeave={manualSort ? () => setDropHint(false) : undefined}
-      onDrop={
-        manualSort && onReorderDrop
-          ? (e) => {
-              const raw = e.dataTransfer.getData('application/x-tuku-image-id');
-              setDropHint(false);
-              if (!raw) return;
-              e.preventDefault();
-              e.stopPropagation();
-              const ids = raw
-                .split(',')
-                .map((s) => Number(s))
-                .filter((n) => Number.isFinite(n) && n > 0);
-              if (!ids.length || ids.includes(item.id)) return;
-              onReorderDrop(ids, item.id);
-            }
-          : undefined
-      }
+      onDragOver={(e) => {
+        // 侧栏标签拖过来：整张卡都是落点（Eagle 里拖标签到图上就是打标）
+        if (onDropTag && e.dataTransfer.types.includes(TAG_MIME)) {
+          e.preventDefault();
+          e.stopPropagation();
+          e.dataTransfer.dropEffect = 'copy';
+          if (!tagHint) setTagHint(true);
+          return;
+        }
+        if (!e.dataTransfer.types.includes(IMAGE_MIME)) return;
+        // 手动排序优先：那时候「拖到图上」的语义是插到它后面，不再叠堆
+        if (manualSort && onReorderDrop) {
+          e.preventDefault();
+          e.dataTransfer.dropEffect = 'move';
+          if (!dropHint) setDropHint(true);
+          return;
+        }
+        if (!onStackDrop) return;
+        e.preventDefault();
+        e.stopPropagation();
+        e.dataTransfer.dropEffect = 'move';
+        if (!stackHint) setStackHint(true);
+      }}
+      onDragLeave={() => {
+        setDropHint(false);
+        setTagHint(false);
+        setStackHint(false);
+      }}
+      onDrop={(e) => {
+        const tag = e.dataTransfer.getData(TAG_MIME);
+        if (tag && onDropTag) {
+          e.preventDefault();
+          e.stopPropagation();
+          setTagHint(false);
+          onDropTag(item, tag);
+          return;
+        }
+        const raw = e.dataTransfer.getData(IMAGE_MIME);
+        setDropHint(false);
+        setStackHint(false);
+        if (!raw) return;
+        const ids = raw
+          .split(',')
+          .map((s) => Number(s))
+          .filter((n) => Number.isFinite(n) && n > 0);
+        if (!ids.length || ids.includes(item.id)) return;
+        if (manualSort && onReorderDrop) {
+          e.preventDefault();
+          e.stopPropagation();
+          onReorderDrop(ids, item.id);
+          return;
+        }
+        if (!onStackDrop) return;
+        e.preventDefault();
+        e.stopPropagation();
+        onStackDrop(ids, item);
+      }}
       onClick={() => onOpen(item)}
       onContextMenu={(e) => {
         e.preventDefault();
@@ -651,8 +726,9 @@ const ImageCard = React.memo(function ImageCard({
       onDragStart={(e) => {
         // 桌面端：走系统级拖拽，拖到资源管理器/微信/PS 直接落成真实文件（Eagle 核心用法）。
         // 必须先 preventDefault 取消 HTML5 拖影，否则两套拖拽会互相打架。
-        // 手动排序模式下不拖出系统：此时拖拽的语义是「调整顺序」，不是「拷文件」
-        if (desktop?.dragOut && item.path && !manualSort) {
+        // 手动排序模式下不拖出系统：此时拖拽的语义是「调整顺序」，不是「拷文件」。
+        // 按住 Alt 也不拖出系统：应用内「拖到图上叠成一堆」需要 HTML5 拖放（系统拖拽拿不到自定义 MIME）
+        if (desktop?.dragOut && item.path && !manualSort && !e.altKey) {
           e.preventDefault();
           desktop.dragOut(item.path);
           return;
@@ -668,6 +744,23 @@ const ImageCard = React.memo(function ImageCard({
     >
       {renderMedia()}
       {!item.viewed && <span className="unseen-dot" title="还没在大图预览里看过" />}
+      {stackHint && (
+        <span className="stack-drop-tip">
+          ⧉ {item.stackPrimary && (item.stackCount || 0) > 1 ? '并入这堆' : '叠成一堆'}
+        </span>
+      )}
+      {item.stackPrimary && (item.stackCount || 0) > 1 && (
+        <button
+          className="stack-badge"
+          title={`堆叠 ${item.stackCount} 张：点开看同素材的其他版本`}
+          onClick={(e) => {
+            e.stopPropagation();
+            onOpenStack?.(item.stackId || item.id);
+          }}
+        >
+          ⧉ {item.stackCount}
+        </button>
+      )}
       {kind === 'video' && durationText && (
         <span className="media-duration" title="时长">
           {durationText}
@@ -793,6 +886,16 @@ const ImageCard = React.memo(function ImageCard({
           <button onClick={() => { setMenu(null); onOpen(item); }}>
             <IconExpand /> 大图预览
           </button>
+          {(item.stackCount || 0) > 1 && onOpenStack && (
+            <button onClick={() => { setMenu(null); onOpenStack(item.stackId || item.id); }}>
+              ⧉ 查看堆叠（{item.stackCount} 张）
+            </button>
+          )}
+          {!!item.stackId && onUngroupStack && (
+            <button onClick={() => { setMenu(null); onUngroupStack(item.stackId || item.id); }}>
+              ⧉ 解散这个堆叠
+            </button>
+          )}
           <button onClick={() => { setMenu(null); onToggleFavorite(item); }}>
             <IconHeart filled={item.favorite} /> {item.favorite ? '取消收藏' : '收藏'}
           </button>
@@ -812,6 +915,7 @@ const ImageCard = React.memo(function ImageCard({
           <button onClick={() => { setMenu(null); rotate('ccw'); }}>↺ 逆时针旋转</button>
           <button onClick={() => { setMenu(null); editTags(); }}>🏷 编辑标签…</button>
           <div className="card-ctx-sep" />
+          <button onClick={() => { setMenu(null); void copyImage(); }}>📋 复制图片</button>
           <button onClick={() => { setMenu(null); copyLink(); }}>🔗 复制图片链接</button>
           {item.path && <button onClick={() => { setMenu(null); copyPath(); }}>📄 复制文件路径</button>}
           {item.path && <button onClick={() => { setMenu(null); reveal(); }}>📂 打开所在文件夹</button>}

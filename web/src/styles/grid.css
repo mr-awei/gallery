@@ -510,6 +510,19 @@
   gap: 10px;
   padding: 0 14px;
 }
+
+/* 侧栏标签拖到列表行上：整行作落点，用内描边提示 */
+.list-row.tag-hint {
+  outline: 1px dashed var(--accent);
+  outline-offset: -3px;
+  background: rgba(255, 92, 168, 0.08);
+}
+/* 拖图到列表行上 = 叠成一堆 */
+.list-row.stack-hint {
+  outline: 2px solid var(--accent);
+  outline-offset: -3px;
+  background: rgba(255, 92, 168, 0.14);
+}
 .list-sort {
   background: none;
   border: none;

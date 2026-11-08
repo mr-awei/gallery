@@ -16,6 +16,7 @@ import {
   revealFile,
 } from '../../api';
 import { buildASE, buildPngSheet, downloadBlob } from '../../lib/palette';
+import NotesPanel from './NotesPanel';
 
 interface Props {
   item: ImageItem;
@@ -30,6 +31,10 @@ interface Props {
   onPatch?: (item: ImageItem, patch: Partial<ImageItem>) => void;
   onChangeToast?: (msg: string) => void;
   onFindColor?: (hue: string) => void;
+  /** 打开「外部以图找图」面板（SauceNAO / Google Lens / TinEye…） */
+  onOpenSource?: () => void;
+  /** 打开堆叠查看器（看同素材的其他版本） */
+  onOpenStack?: () => void;
   onSaveTags: (item: ImageItem, tags: string[]) => void;
   tagInput: string;
   setTagInput: (v: string) => void;
@@ -64,6 +69,8 @@ export default function InfoPanel({
   onPatch,
   onChangeToast,
   onFindColor,
+  onOpenSource,
+  onOpenStack,
   onSaveTags,
   tagInput,
   setTagInput,
@@ -109,6 +116,16 @@ export default function InfoPanel({
         <span className="lb-sum-dim">{SOURCE_LABELS[item.source] || item.source}</span>
         <span className="lb-sum-sep" />
         <span className="lb-sum-dim">{formatDate(item.createdAt)}</span>
+        {(item.stackCount || 0) > 1 && (
+          <span
+            className="lb-sum-pill"
+            style={{ cursor: onOpenStack ? 'pointer' : 'default' }}
+            title={`这是 ${item.stackCount} 张同素材版本堆叠中的一张，点击查看全部`}
+            onClick={onOpenStack}
+          >
+            ⧉ {item.stackCount}
+          </span>
+        )}
         <span className="lb-sum-sep" />
         <span className="stars lb-sum-stars">
           {[1, 2, 3, 4, 5].map((n) => (
@@ -202,6 +219,16 @@ export default function InfoPanel({
             <div className="lb-kv">
               <b>浏览情况</b>
               <span>{item.viewCount ? `看过 ${item.viewCount} 次` : '还没看过'}</span>
+            </div>
+            <div className="lb-kv">
+              <b>使用统计</b>
+              <span>
+                {item.copyCount || item.exportCount
+                  ? `复制 ${item.copyCount || 0} 次 · 导出 ${item.exportCount || 0} 次${
+                      item.lastUsedAt ? ` · 最近 ${formatDate(item.lastUsedAt)}` : ''
+                    }`
+                  : '还没复制或导出过'}
+              </span>
             </div>
             <div className="lb-kv">
               <b>本地文件</b>
@@ -327,6 +354,7 @@ export default function InfoPanel({
                 }}
               />
             </div>
+            <NotesPanel imageId={item.id} duration={item.duration} onToast={onChangeToast} />
           </section>
 
           <section className="lb-group">
@@ -399,6 +427,20 @@ export default function InfoPanel({
                 </button>
               </span>
             </div>
+            {onOpenSource && (
+              <div className="lb-kv">
+                <b>外部搜图</b>
+                <span>
+                  <button
+                    className="btn sm"
+                    onClick={onOpenSource}
+                    title="用 SauceNAO / Google Lens / TinEye 等外部引擎以图找图（需联网）"
+                  >
+                    🔎 以图找图
+                  </button>
+                </span>
+              </div>
+            )}
             <div className="lb-kv">
               <b>AI 识图</b>
               <div className="lb-kv-row lb-kv-col">

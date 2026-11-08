@@ -19,6 +19,8 @@ import Select from '../components/Select';
 import ToolbarCustomizer from '../components/ToolbarCustomizer';
 import WatermarkStudio from '../components/WatermarkStudio';
 import { usePinnedActions } from '../lib/pinned';
+import { IMAGE_MIME, TAG_MIME } from '../lib/dnd';
+import FolderCards from '../components/FolderCards';
 
 interface Props {
   title: string;
@@ -84,6 +86,23 @@ interface Props {
   /** 手动排序模式：拖到某张卡片上 = 插到它后面（仅文件夹视图 + sort=manual） */
   manualSort?: boolean;
   onReorder?: (dragIds: number[], targetId: number) => void;
+  /** 侧栏标签拖到卡片上 = 给这张素材追加标签 */
+  onDropTag?: (item: ImageItem, tag: string) => void;
+  /** 打开堆叠查看器（参数是组主 id） */
+  onOpenStack?: (stackId: number) => void;
+  /** 解散某个堆叠 */
+  onUngroupStack?: (stackId: number) => void;
+  /** 批量条「堆叠」：把选中的素材合成一摞 */
+  onStackSelected?: () => void;
+  /** 批量条「快速分类」/ F 键：放进文件夹 + 追加标签 */
+  onQuickClassify?: () => void;
+  /** 把拖来的图叠到某张上（目标是组主则并入该组，否则两张成组） */
+  onStackDrop?: (dragIds: number[], target: ImageItem) => void;
+  /** 图库页顶部的文件夹卡片（收藏 / 清单等视图不显示） */
+  showFolderCards?: boolean;
+  folders?: FolderNode[];
+  onOpenFolder?: (id: number) => void;
+  onDropImagesOnFolder?: (folderId: number, ids: number[]) => void;
 }
 
 /** 「重置筛选」的完整目标态：新增筛选字段必须同步，否则重置后条件仍残留 */
@@ -295,6 +314,10 @@ function Gallery(props: Props) {
      上万张时只建视口附近几十个 DOM 节点，而不是一次性几万个。 */
   const listRef = useRef<HTMLDivElement | null>(null);
   const [listWin, setListWin] = useState({ start: 0, end: 60 });
+  /** 侧栏标签拖到列表行上时的落点高亮（网格视图由卡片自己管） */
+  const [tagOverId, setTagOverId] = useState<number | null>(null);
+  /** 拖图到列表行上 = 叠成一堆的落点高亮 */
+  const [stackOverId, setStackOverId] = useState<number | null>(null);
 
   useEffect(() => {
     if (props.viewMode !== 'list') return;
@@ -469,6 +492,22 @@ function Gallery(props: Props) {
         const two = [...selected];
         setCmpIds([two[0], two[1]]);
       },
+    },
+    {
+      key: 'classify',
+      label: '快速分类…',
+      title: '把选中的素材放进文件夹并追加标签（快捷键 F）',
+      hint: '文件夹 + 标签，一步归类',
+      show: !!props.onQuickClassify,
+      run: () => props.onQuickClassify?.(),
+    },
+    {
+      key: 'stack',
+      label: '堆叠',
+      title: '把同素材的多个版本合成一摞（只显示封面，角标可展开）',
+      hint: '多版本合成一摞',
+      show: selected.size > 1 && !!props.onStackSelected,
+      run: () => props.onStackSelected?.(),
     },
     {
       key: 'actions',
@@ -665,6 +704,15 @@ function Gallery(props: Props) {
         </div>
       )}
 
+      {props.showFolderCards && props.folders && props.onOpenFolder && (
+        <FolderCards
+          folders={props.folders}
+          folderId={props.folderId ?? null}
+          onOpenFolder={props.onOpenFolder}
+          onDropImages={props.onDropImagesOnFolder}
+        />
+      )}
+
       {viewMode === 'list' ? (
         /* 列表视图（Eagle List View）：一屏看更多，靠标签/日期/大小做整理 */
         <div className="list-view" ref={listRef}>
@@ -702,7 +750,10 @@ function Gallery(props: Props) {
           {listSlice.map((it) => (
             <div
               key={it.id}
-              className={`list-row${selected.has(it.id) ? ' selected' : ''}`}
+              className={`list-row${selected.has(it.id) ? ' selected' : ''}${tagOverId === it.id ? ' tag-hint' : ''}${
+                stackOverId === it.id ? ' stack-hint' : ''
+              }`}
+              data-image-id={it.id}
               onClick={() => props.onOpen(it)}
               title={it.title}
               draggable
@@ -710,6 +761,48 @@ function Gallery(props: Props) {
                 const ids = selected.has(it.id) && selected.size > 1 ? Array.from(selected) : [it.id];
                 e.dataTransfer.setData('application/x-tuku-image-id', ids.join(','));
                 e.dataTransfer.effectAllowed = 'copy';
+              }}
+              onDragOver={(e) => {
+                // 列表视图也要能接侧栏拖来的标签，不然「拖标签到图片」只在网格里成立
+                if (props.onDropTag && e.dataTransfer.types.includes(TAG_MIME)) {
+                  e.preventDefault();
+                  e.stopPropagation();
+                  e.dataTransfer.dropEffect = 'copy';
+                  if (tagOverId !== it.id) setTagOverId(it.id);
+                  return;
+                }
+                if (props.manualSort || !props.onStackDrop) return;
+                if (!e.dataTransfer.types.includes(IMAGE_MIME)) return;
+                e.preventDefault();
+                e.stopPropagation();
+                e.dataTransfer.dropEffect = 'move';
+                if (stackOverId !== it.id) setStackOverId(it.id);
+              }}
+              onDragLeave={() => {
+                setTagOverId(null);
+                setStackOverId(null);
+              }}
+              onDrop={(e) => {
+                const tag = e.dataTransfer.getData(TAG_MIME);
+                setTagOverId(null);
+                setStackOverId(null);
+                if (tag && props.onDropTag) {
+                  e.preventDefault();
+                  e.stopPropagation();
+                  props.onDropTag(it, tag);
+                  return;
+                }
+                if (props.manualSort || !props.onStackDrop) return;
+                const raw = e.dataTransfer.getData(IMAGE_MIME);
+                if (!raw) return;
+                const ids = raw
+                  .split(',')
+                  .map((s) => Number(s))
+                  .filter((n) => Number.isFinite(n) && n > 0);
+                if (!ids.length || ids.includes(it.id)) return;
+                e.preventDefault();
+                e.stopPropagation();
+                props.onStackDrop(ids, it);
               }}
             >
               <span
@@ -782,6 +875,10 @@ function Gallery(props: Props) {
               dragIds={dragIds && selected.has(item.id) ? dragIds : undefined}
               manualSort={props.manualSort}
               onReorderDrop={props.onReorder}
+              onDropTag={props.onDropTag}
+              onOpenStack={props.onOpenStack}
+              onUngroupStack={props.onUngroupStack}
+              onStackDrop={props.onStackDrop}
             />
           )}
         />

@@ -4,7 +4,7 @@
  */
 import type { Ref } from 'react';
 import type { View } from '../types';
-import { IconDownload, IconGear, IconLink, IconMoon, IconSun, IconWand } from '../components/Icons';
+import { IconBook, IconDownload, IconGear, IconLink, IconMoon, IconSun, IconWand } from '../components/Icons';
 import { TOOLS } from './nav';
 
 interface Props {
@@ -79,6 +79,14 @@ export default function TopBar({
         </button>
         <button className="icon-btn" onClick={onExportGallery} title="导出为 HTML 网页画廊">
           <IconDownload />
+        </button>
+        <button
+          className={`icon-btn${view === 'tutorial' ? ' icon-btn-active' : ''}`}
+          onClick={() => onView('tutorial')}
+          title="使用教程（F1）"
+          data-tour="tutorial-btn"
+        >
+          <IconBook />
         </button>
         <button
           className={`icon-btn${view === 'settings' ? ' icon-btn-active' : ''}`}

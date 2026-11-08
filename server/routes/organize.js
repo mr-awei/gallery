@@ -91,16 +91,53 @@ export function register(app, ctx) {
     })
   );
 
+  /**
+   * 批量创建标签：一行/逗号一个标签名，可同时归入一个分组。
+   * 标签本体仍是 images.tags 逗号串，这里只是把 tag_meta 建出来 —— 空标签（0 张图）
+   * 也能出现在标签树里，符合 Eagle「先把分类建好再往里放图」的用法。
+   */
+  app.post(
+    '/api/tags/batch',
+    asyncRoute(async (req, res) => {
+      const { names, group, color } = req.body || {};
+      const list = (Array.isArray(names) ? names : String(names || '').split(/[\r\n,，]+/))
+        .map((s) => String(s).trim())
+        .filter(Boolean)
+        .filter((s, i, a) => a.indexOf(s) === i)
+        .slice(0, 300);
+      if (!list.length) return res.status(400).json({ error: '请至少填写一个标签名' });
+      const created = [];
+      for (const tag of list) {
+        lib.setTagMeta({
+          tag,
+          group: group === undefined ? undefined : String(group || ''),
+          color: color === undefined ? undefined : String(color || ''),
+        });
+        created.push(tag);
+      }
+      res.json({
+        ok: true,
+        created,
+        tags: lib.listTagsPaged({ limit: 500, rich: true }).items,
+        groups: lib.listTagGroups(),
+      });
+    })
+  );
+
   /* ------------------------------- 待整理视图 ------------------------------- */
 
   // Eagle 的固定入口：未分类 / 无标签 / 未评分。前端拿到计数后直接跳对应的筛选视图。
   app.get('/api/organize/pending', (_req, res) => {
     const one = (sql) => Number(db.prepare(sql).get()?.n || 0);
+    // 与图库列表同口径：堆叠成员不单独计数，否则侧栏 12、点进去 11
+    const visible = '(stack_id = 0 OR stack_id = id)';
     res.json({
-      total: one('SELECT COUNT(*) n FROM images'),
-      noFolder: one('SELECT COUNT(*) n FROM images WHERE id NOT IN (SELECT image_id FROM image_folders)'),
-      noTags: one("SELECT COUNT(*) n FROM images WHERE tags = ''"),
-      noRating: one('SELECT COUNT(*) n FROM images WHERE rating = 0'),
+      total: one(`SELECT COUNT(*) n FROM images WHERE ${visible}`),
+      noFolder: one(
+        `SELECT COUNT(*) n FROM images WHERE id NOT IN (SELECT image_id FROM image_folders) AND ${visible}`
+      ),
+      noTags: one(`SELECT COUNT(*) n FROM images WHERE tags = '' AND ${visible}`),
+      noRating: one(`SELECT COUNT(*) n FROM images WHERE rating = 0 AND ${visible}`),
     });
   });
 

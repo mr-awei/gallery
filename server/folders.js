@@ -66,8 +66,9 @@ export function linkImageByPath(imageId, absPath, rootPath = getSettings().stora
 export function listFolderTree() {
   const folders = db
     .prepare(
-      `SELECT id, name, parent_id, path, anchor_path, cover_image_id, tags, (lock_hash <> '') AS locked
-         FROM folders ORDER BY name ASC`
+      `SELECT id, name, parent_id, path, anchor_path, cover_image_id, tags, icon, color,
+              sort_order, (lock_hash <> '') AS locked
+         FROM folders ORDER BY sort_order ASC, name ASC`
     )
     .all();
   // 隐私空间：锁着且本次会话没解锁的夹（含其后代）不露图片数与封面
@@ -75,16 +76,42 @@ export function listFolderTree() {
   const unlockedIds = new Set(lockedInfo.filter((f) => f.unlocked).map((f) => f.id));
   const hiddenPrefixes = lockedInfo.filter((f) => !f.unlocked).map((f) => f.path);
   const isHiddenPath = (p) => hiddenPrefixes.some((pre) => String(p).startsWith(pre));
-  const counts = db.prepare('SELECT folder_id, COUNT(*) AS c FROM image_folders GROUP BY folder_id').all();
+  // 与列表口径一致：堆叠成员不单独计数，否则侧栏显示 46、点开只有 45
+  const stackVisible = 'image_id NOT IN (SELECT id FROM images WHERE stack_id <> 0 AND stack_id <> id)';
+  const counts = db
+    .prepare(`SELECT folder_id, COUNT(*) AS c FROM image_folders WHERE ${stackVisible} GROUP BY folder_id`)
+    .all();
   const countMap = new Map(counts.map((r) => [r.folder_id, r.c]));
-  // 封面：手动指定优先；没指定就用夹内最新的一张（MAX(image_id) 一条 GROUP BY 拿全库，不做逐夹子查询）
+  // 封面：手动指定优先；没指定就用夹内最新的一张（MAX(image_id) 一条 GROUP BY 拿全库，不做逐夹子查询）。
+  // 也跳过堆叠成员：拿一张列表里看不到的图当封面会让人以为它在夹里。
   const latest = new Map(
-    db.prepare('SELECT folder_id, MAX(image_id) AS image_id FROM image_folders GROUP BY folder_id').all()
+    db
+      .prepare(
+        `SELECT folder_id, MAX(image_id) AS image_id FROM image_folders WHERE ${stackVisible} GROUP BY folder_id`
+      )
+      .all()
       .map((r) => [r.folder_id, r.image_id])
   );
+  // 父夹本身常常不直接挂图（图都在子夹里），只取 direct 最新会让父夹永远没有预览图。
+  // 这里把子孙夹的最新一张上滚给祖先（Eagle 式：父夹也有封面）；锁着且未解锁的子夹不参与，
+  // 避免把隐私空间的图漏到父夹封面上。
+  const bestCover = new Map();
+  const depthDesc = [...folders].sort((a, b) => String(b.path || '').length - String(a.path || '').length);
+  for (const f of depthDesc) {
+    if (isHiddenPath(f.path)) continue;
+    const cand = f.cover_image_id || latest.get(f.id) || bestCover.get(f.id) || null;
+    if (!cand) continue;
+    if (!bestCover.has(f.id) || cand > bestCover.get(f.id)) bestCover.set(f.id, cand);
+    for (const seg of String(f.path || '').split('/')) {
+      const aid = Number(seg);
+      if (!aid || aid === f.id) continue;
+      const prev = bestCover.get(aid);
+      if (!prev || cand > prev) bestCover.set(aid, cand);
+    }
+  }
   const coverIds = new Set();
   for (const f of folders) {
-    const cid = f.cover_image_id || latest.get(f.id);
+    const cid = f.cover_image_id || bestCover.get(f.id);
     if (cid) coverIds.add(cid);
   }
   const coverRows = coverIds.size
@@ -97,10 +124,10 @@ export function listFolderTree() {
   const coverMeta = new Map(coverRows.map((r) => [r.id, r]));
   const nodes = folders.map((f) => {
     const hidden = isHiddenPath(f.path);
-    // 指定的那张被删掉了（或不再属于这个夹）→ 退回自动封面
+    // 指定的那张被删掉了（或不再属于这个夹）→ 退回自动封面（含子孙夹上滚的封面）
     const cid = hidden
       ? null
-      : [f.cover_image_id, latest.get(f.id)].find((id) => id && coverMeta.has(id)) || null;
+      : [f.cover_image_id, bestCover.get(f.id)].find((id) => id && coverMeta.has(id)) || null;
     const meta = cid ? coverMeta.get(cid) : null;
     return {
       ...f,
@@ -144,7 +171,8 @@ export function folderImageRows(folderId, { page = 1, pageSize = 48 } = {}) {
   }
   const sub = `SELECT f.image_id FROM image_folders f JOIN folders d ON d.id = f.folder_id WHERE d.path LIKE ?`;
   const like = folder.path + '%';
-  const where = `id IN (${sub})`;
+  // 与主列表一致：堆叠成员只在灯箱里展开，文件夹视图也只列组主
+  const where = `id IN (${sub}) AND (stack_id = 0 OR stack_id = id)`;
   const total = db.prepare(`SELECT COUNT(*) AS c FROM images WHERE ${where}`).get(like).c;
   const rows = db
     .prepare(`SELECT * FROM images WHERE ${where} ORDER BY created_at DESC, id DESC LIMIT ? OFFSET ?`)
@@ -294,6 +322,87 @@ export function setFolderCover(folderId, imageId = null) {
     folderId
   );
   return iid;
+}
+
+/**
+ * 文件夹外观：emoji / 图标字符 + 主题色。
+ * icon 允许空串（清除图标）、最多 4 个字符（一个 emoji 可能是两个码元）；
+ * color 只接受 #rgb / #rrggbb，其他一律当清除，避免把任意 CSS 写进 style。
+ */
+export function setFolderAppearance(id, { icon, color } = {}) {
+  const f = db.prepare('SELECT id FROM folders WHERE id = ?').get(Number(id));
+  if (!f) throw new Error('文件夹不存在');
+  const sets = [];
+  const vals = [];
+  let nextIcon;
+  let nextColor;
+  if (icon !== undefined) {
+    nextIcon = Array.from(String(icon || '').trim()).slice(0, 4).join('');
+    sets.push('icon = ?');
+    vals.push(nextIcon);
+  }
+  if (color !== undefined) {
+    const c = String(color || '').trim();
+    nextColor = /^#(?:[0-9a-f]{3}|[0-9a-f]{6})$/i.test(c) ? c.toLowerCase() : '';
+    sets.push('color = ?');
+    vals.push(nextColor);
+  }
+  if (!sets.length) return { id: f.id };
+  sets.push('updated_at = ?');
+  vals.push(new Date().toISOString(), f.id);
+  db.prepare(`UPDATE folders SET ${sets.join(', ')} WHERE id = ?`).run(...vals);
+  return { id: f.id, icon: nextIcon, color: nextColor };
+}
+
+/**
+ * 文件夹排序：Eagle 的手动拖拽顺序。
+ * 只写「同一父级内」的相对顺序（步长 1024 留插入余量），传进来的 id 必须同父，
+ * 否则一次拖拽就能把子夹悄悄挪到别的父级下 —— 那不是排序而是移动。
+ */
+export function reorderFolders(parentId, folderIds = []) {
+  const pid = parentId == null ? null : Number(parentId);
+  const rows = db.prepare('SELECT id, parent_id FROM folders').all();
+  const parentOf = new Map(rows.map((r) => [r.id, r.parent_id ?? null]));
+  const upd = db.prepare('UPDATE folders SET sort_order = ?, updated_at = ? WHERE id = ?');
+  const now = new Date().toISOString();
+  let n = 0;
+  withTransaction(() => {
+    folderIds.forEach((id, i) => {
+      const fid = Number(id);
+      if (!fid || !parentOf.has(fid)) return;
+      if ((parentOf.get(fid) ?? null) !== pid) return;
+      upd.run((i + 1) * 1024, now, fid);
+      n++;
+    });
+  });
+  return { parentId: pid, updated: n };
+}
+
+/**
+ * 批量创建文件夹：一行一个名字（换行 / 逗号分隔），都挂在同一父级下。
+ * 遇到同名兄弟夹跳过（不重复建），返回实际新建的名字，便于前端如实提示。
+ */
+export function createFoldersBatch(names, parentId = null) {
+  const list = (Array.isArray(names) ? names : String(names || '').split(/[\r\n,，]+/))
+    .map((s) => String(s).trim())
+    .filter(Boolean)
+    .filter((s, i, a) => a.indexOf(s) === i)
+    .slice(0, 200);
+  if (!list.length) throw new Error('请至少填写一个文件夹名称');
+  const exists = db.prepare('SELECT 1 AS ok FROM folders WHERE name = ? AND parent_id IS ?');
+  const created = [];
+  const skipped = [];
+  withTransaction(() => {
+    for (const name of list) {
+      if (exists.get(name, parentId ?? null)) {
+        skipped.push(name);
+        continue;
+      }
+      createVirtualFolder(name, parentId ?? null);
+      created.push(name);
+    }
+  });
+  return { created, skipped };
 }
 
 /** 重命名文件夹（虚拟夹与磁盘夹均可） */

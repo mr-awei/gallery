@@ -1,7 +1,7 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { api, desktop, downloadFile, isDesktop, onApiError, openFolder, quiet } from './api';
 import { subscribeEvents } from './events';
-import type { Filters, ImageItem, Stats, Library, FolderNode, TagNode, View } from './types';
+import type { Filters, ImageItem, Stats, Library, FolderNode, SavedFilter, TagNode, View } from './types';
 import Dashboard from './pages/Dashboard';
 import GalleryPage from './pages/Gallery';
 import Crawl from './pages/Crawl';
@@ -25,12 +25,17 @@ import ExportGalleryDialog from './components/ExportGalleryDialog';
 import ErrorBoundary from './components/ErrorBoundary';
 import FolderCoverDialog from './components/FolderCoverDialog';
 import FolderTree from './components/FolderTree';
+import FolderAppearanceDialog from './components/FolderAppearanceDialog';
+import BatchCreateDialog from './components/BatchCreateDialog';
+import QuickClassifyDialog from './components/QuickClassifyDialog';
+import StackViewer from './components/StackViewer';
 import LibrarySwitcher from './components/LibrarySwitcher';
 import CreateLibraryDialog from './components/CreateLibraryDialog';
 import OnboardingTour from './components/OnboardingTour';
 import TagMetaDialog from './components/TagMetaDialog';
 import { applyTheme, getStoredTheme, type Theme } from './theme';
 import Bookmarks from './pages/Bookmarks';
+import Tutorial from './pages/Tutorial';
 import CommandPalette, { type PaletteCommand } from './components/CommandPalette';
 import { buildRoute, parseRoute, sameRoute, type RouteState } from './lib/route';
 import { THUMB_DEFAULT, clampThumbWidth } from './lib/thumb-size';
@@ -148,6 +153,14 @@ const importingRef = useRef(false);
   const folderIdRef = useRef<number | null>(null);
   const toolsRef = useRef<HTMLDivElement | null>(null);
 
+  /* 集合类能力：保存筛选器 / 文件夹外观 / 批量创建 / 快速分类 / 堆叠 */
+  const [savedFilters, setSavedFilters] = useState<SavedFilter[]>([]);
+  const [activeSavedId, setActiveSavedId] = useState<number | null>(null);
+  const [appearanceFolderId, setAppearanceFolderId] = useState<number | null>(null);
+  const [batchCreate, setBatchCreate] = useState<{ mode: 'folder' | 'tag'; parentId: number | null } | null>(null);
+  const [quickClassifyIds, setQuickClassifyIds] = useState<number[] | null>(null);
+  const [stackViewId, setStackViewId] = useState<number | null>(null);
+
   // 侧栏宽度：右缘把手拖拽调整并持久化，双击恢复默认。
   // 宽度写入 --sidebar-w 变量（.sidebar 的 width/flex-basis 都引用它），
   // 窄屏媒体查询直接覆盖 width，不受内联变量影响
@@ -230,6 +243,7 @@ const importingRef = useRef(false);
       })
       .catch(quiet);
     api.folders().then((r) => setFolders(r.folders)).catch(quiet);
+    api.savedFilters().then((r) => setSavedFilters(r.filters)).catch(quiet);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -520,6 +534,9 @@ const importingRef = useRef(false);
         // SSE 在导入 CPU 密集期会丢事件，必须开轮询兜底
         followImport();
         api.folders().then((r) => setFolders(r.folders)).catch(quiet);
+        // 保存的筛选器存在各库自己的 gallery.db：不重载就会继续显示上一个库的条目
+        setActiveSavedId(null);
+        api.savedFilters().then((r) => setSavedFilters(r.filters)).catch(quiet);
       } catch (err) {
         showToast((err as Error).message);
       }
@@ -551,6 +568,8 @@ const importingRef = useRef(false);
           load(1, true);
           refreshStats();
           api.folders().then((x) => setFolders(x.folders)).catch(quiet);
+          setActiveSavedId(null);
+          api.savedFilters().then((x) => setSavedFilters(x.filters)).catch(quiet);
         }
         showToast(`已删除资源库「${lib.name}」`);
       } catch (err) {
@@ -581,6 +600,8 @@ const importingRef = useRef(false);
         setActiveLibId(r.activeId);
       }).catch(quiet);
       api.folders().then((r) => setFolders(r.folders)).catch(quiet);
+      setActiveSavedId(null);
+      api.savedFilters().then((r) => setSavedFilters(r.filters)).catch(quiet);
       showToast('已创建并切换到新资源库');
     },
     [load, refreshStats, followImport, resetLibBaseline, showToast]
@@ -741,6 +762,170 @@ const importingRef = useRef(false);
       }
     },
     [folders, folderId, showToast]
+  );
+
+  /** 文件夹同父级拖动排序：把 dragId 插到 targetId 前/后，整份新顺序发给后端 */
+  const reorderFoldersAt = useCallback(
+    async (dragId: number, targetId: number, position: 'before' | 'after') => {
+      const target = folders.find((f) => f.id === targetId);
+      if (!target) return;
+      const parent = target.parent_id ?? null;
+      const siblings = folders
+        .filter((f) => (f.parent_id ?? null) === parent)
+        .sort((a, b) => (a.sort_order || 0) - (b.sort_order || 0) || a.name.localeCompare(b.name, 'zh-Hans-CN'));
+      const dragged = siblings.find((f) => f.id === dragId);
+      if (!dragged) return;
+      const without = siblings.filter((f) => f.id !== dragId);
+      const at = without.findIndex((f) => f.id === targetId);
+      if (at < 0) return;
+      const next = [...without];
+      next.splice(position === 'before' ? at : at + 1, 0, dragged);
+      try {
+        const r = await api.reorderFolders(parent, next.map((f) => f.id));
+        setFolders(r.folders);
+      } catch (err) {
+        showToast((err as Error).message);
+      }
+    },
+    [folders, showToast]
+  );
+
+  /* ------------------------- 保存的筛选器：存 / 用 / 改 / 删 ------------------------- */
+
+  const openSavedFilter = useCallback((f: SavedFilter) => {
+    const q = (f.query || {}) as Partial<Filters> & { folderId?: number | null };
+    setFolderId(q.folderId ?? null);
+    setFilters({ ...defaultFilters, ...q });
+    setActiveSavedId(f.id);
+    setView('gallery');
+  }, []);
+
+  const saveCurrentFilter = useCallback(async () => {
+    const name = await promptDialog('保存当前筛选', '', '给这组筛选起个名字（例：4K 风景待修）');
+    if (name === null) return;
+    if (!name.trim()) return showToast('名称不能为空');
+    try {
+      const r = await api.createSavedFilter(name.trim(), { ...filters, folderId });
+      setSavedFilters(r.filters);
+      setActiveSavedId(r.id);
+      showToast(`已保存筛选「${name.trim()}」`);
+    } catch (err) {
+      showToast((err as Error).message);
+    }
+  }, [filters, folderId, showToast]);
+
+  const editSavedFilter = useCallback(
+    async (f: SavedFilter) => {
+      const name = await promptDialog('重命名筛选器', f.name, '新名称');
+      if (name === null || !name.trim()) return;
+      try {
+        const r = await api.updateSavedFilter(f.id, { name: name.trim() });
+        setSavedFilters(r.filters);
+      } catch (err) {
+        showToast((err as Error).message);
+      }
+    },
+    [showToast]
+  );
+
+  /** 用当前筛选覆盖已保存的那一条：Eagle 里改完条件顺手存回去，不必删了重存 */
+  const overwriteSavedFilter = useCallback(
+    async (f: SavedFilter) => {
+      if (!(await confirmDialog(`用当前筛选条件覆盖「${f.name}」？原来的条件会被替换。`))) return;
+      try {
+        const r = await api.updateSavedFilter(f.id, { query: { ...filters, folderId } });
+        setSavedFilters(r.filters);
+        setActiveSavedId(f.id);
+        showToast(`已用当前筛选更新「${f.name}」`);
+      } catch (err) {
+        showToast((err as Error).message, 'error');
+      }
+    },
+    [filters, folderId, showToast]
+  );
+
+  const deleteSavedFilter = useCallback(
+    async (f: SavedFilter) => {
+      if (!(await confirmDialog(`删除筛选器「${f.name}」？只删这条筛选记录，不会动任何素材。`))) return;
+      try {
+        const r = await api.deleteSavedFilter(f.id);
+        setSavedFilters(r.filters);
+        if (activeSavedId === f.id) setActiveSavedId(null);
+      } catch (err) {
+        showToast((err as Error).message);
+      }
+    },
+    [activeSavedId, showToast]
+  );
+
+  /* ---------------------------------- 图片堆叠 ---------------------------------- */
+
+  const stackSelection = useCallback(async () => {
+    const ids = [...selected];
+    if (ids.length < 2) return showToast('至少选两张素材才能堆叠');
+    try {
+      await api.createStack(ids);
+      showToast(`已把 ${ids.length} 张合成一个堆叠`);
+      setSelected(new Set());
+      pageRef.current = 1;
+      load(1, true);
+    } catch (err) {
+      showToast((err as Error).message);
+    }
+  }, [load, selected, showToast]);
+
+  /**
+   * 拖图到某张卡上：目标是组主就并入那一堆，否则两张（多张）现场成组。
+   * 桌面端系统级拖出会抢走 HTML5 拖放，所以卡片上按住 Alt 拖才走这条路径（见 ImageCard）。
+   */
+  const stackDropOnImage = useCallback(
+    async (dragIds: number[], target: ImageItem) => {
+      const ids = dragIds.filter((id) => id !== target.id);
+      if (!ids.length) return;
+      try {
+        if ((target.stackCount || 0) > 1 && target.stackId) {
+          const r = await api.addToStack(target.stackId, ids);
+          showToast(`已把 ${ids.length} 张并入这一堆（共 ${r.stacks.length} 张）`);
+        } else {
+          await api.createStack([target.id, ...ids]);
+          showToast(`已把 ${ids.length + 1} 张叠成一堆`);
+        }
+        setSelected(new Set());
+        pageRef.current = 1;
+        load(1, true);
+      } catch (err) {
+        showToast((err as Error).message);
+      }
+    },
+    [load, showToast]
+  );
+
+  /** 拖图到文件夹卡片上：归档并刷新夹上的数量/封面 */
+  const dropImagesOnFolderAt = useCallback(
+    async (targetFolderId: number, ids: number[]) => {
+      try {
+        const r = await api.addToFolder(targetFolderId, ids);
+        showToast(`已把 ${ids.length} 张放进文件夹（新增 ${r.added} 条归属）`);
+        api.folders().then((x) => setFolders(x.folders)).catch(quiet);
+      } catch (err) {
+        showToast((err as Error).message);
+      }
+    },
+    [showToast]
+  );
+
+  const ungroupStackAt = useCallback(
+    async (stackId: number) => {
+      try {
+        const r = await api.ungroupStack(stackId);
+        showToast(`已解散堆叠（${r.removed} 张恢复为独立素材）`);
+        pageRef.current = 1;
+        load(1, true);
+      } catch (err) {
+        showToast((err as Error).message);
+      }
+    },
+    [load, showToast]
   );
 
   // 文件夹视图切换（folderId 变化）同样要触发列表重载
@@ -959,6 +1144,24 @@ const importingRef = useRef(false);
     );
   }, []);
 
+  /** 侧栏标签拖到卡片上：追加这个标签（不清空原有标签） */
+  const dropTagOnImage = useCallback(
+    async (item: ImageItem, tag: string) => {
+      const t = String(tag || '').trim();
+      if (!t) return;
+      if ((item.tags || []).includes(t)) return showToast(`「${t}」已经在这张图的标签里了`);
+      try {
+        const updated = await api.patch(item.id, { tags: [...(item.tags || []), t] });
+        patchItem(updated);
+        showToast(`已给「${item.title}」打上 #${t}`);
+        reloadTags();
+      } catch (err) {
+        showToast((err as Error).message);
+      }
+    },
+    [patchItem, reloadTags, showToast]
+  );
+
   /**
    * 撤销最近一次「覆盖写回」编辑。
    * 裁切/旋转/调色/增强都是原地覆盖，以前误操作只能去 Eagle 备份里捞文件；
@@ -1174,6 +1377,8 @@ const importingRef = useRef(false);
   );
 
   const onFiltersChange = useCallback((patch: Partial<Filters>) => {
+    // 手动改筛选就离开「保存的筛选」视图：否则侧栏那条还高亮着，看着像没生效
+    setActiveSavedId(null);
     setFilters((prev) => ({ ...prev, ...patch }));
   }, []);
 
@@ -1281,8 +1486,18 @@ const importingRef = useRef(false);
         },
       },
       {
+        id: 'ui:tutorial',
+        label: '使用教程（按功能查找）',
+        group: '帮助',
+        hint: 'F1',
+        run: () => {
+          setLb(null);
+          setView('tutorial');
+        },
+      },
+      {
         id: 'ui:help',
-        label: '快捷键与使用帮助',
+        label: '快捷键速查',
         group: '帮助',
         hint: '?',
         run: () => setHelpOpen(true),
@@ -1347,6 +1562,13 @@ const importingRef = useRef(false);
         return;
       }
       if (palette) return; // 面板自己处理 Esc / 方向键 / Enter
+      // F1：教程随叫随到，输入框里也照样能开（F1 不会当文字输入）
+      if (e.key === 'F1') {
+        e.preventDefault();
+        setLb(null);
+        setView('tutorial');
+        return;
+      }
       if (!typing && matchesBinding(e, keymap.help)) {
         e.preventDefault();
         setHelpOpen((v) => !v);
@@ -1386,6 +1608,22 @@ const importingRef = useRef(false);
           openItem(target, items, true);
           return;
         }
+      }
+      // F 快速分类：选中一批素材 → 「放进文件夹 + 追加标签」一步到位。
+      // 卡片自身聚焦时让位（卡片里的 F 是收藏），避免一次按键干两件事。
+      if ((e.key === 'f' || e.key === 'F') && !mod && !e.altKey && !e.shiftKey) {
+        const active = document.activeElement as HTMLElement | null;
+        if (active?.closest?.('[data-image-id]')) return;
+        const fallback = hoverIdRef.current ?? items[0]?.id;
+        const ids = selected.size
+          ? [...selected]
+          : fallback
+            ? [fallback]
+            : [];
+        if (!ids.length) return;
+        e.preventDefault();
+        setQuickClassifyIds(ids);
+        return;
       }
       if (e.key === 'Escape') {
         if (selected.size) setSelected(new Set());
@@ -1759,6 +1997,13 @@ const importingRef = useRef(false);
         filters={filters}
         onOpenPending={openPending}
         pendingCounts={pendingCounts}
+        savedFilters={savedFilters}
+        activeSavedId={activeSavedId}
+        onOpenSavedFilter={openSavedFilter}
+        onSaveCurrentFilter={saveCurrentFilter}
+        onEditSavedFilter={editSavedFilter}
+        onOverwriteSavedFilter={overwriteSavedFilter}
+        onDeleteSavedFilter={deleteSavedFilter}
         tags={tags}
         tagGroups={tagTree.groups}
         childrenOf={tagTree.childrenOf}
@@ -1784,6 +2029,10 @@ const importingRef = useRef(false);
         onEditFolderTags={editFolderTags}
         onToggleFolderLock={setLockFolderId}
         onDropImages={dropImagesIntoFolder}
+        onEditFolderAppearance={setAppearanceFolderId}
+        onBatchCreateFolder={(parentId) => setBatchCreate({ mode: 'folder', parentId })}
+        onReorderFolders={reorderFoldersAt}
+        onBatchCreateTag={() => setBatchCreate({ mode: 'tag', parentId: null })}
         width={sidebarW}
         onResizeDown={onResizerDown}
         onResizeMove={onResizerMove}
@@ -1891,6 +2140,22 @@ const importingRef = useRef(false);
               manualSort={filters.sort === 'manual' && !!folderId}
               onReorder={reorderInFolder}
               onMarkAllSeen={markAllSeen}
+              onDropTag={dropTagOnImage}
+              onOpenStack={setStackViewId}
+              onUngroupStack={ungroupStackAt}
+              onStackSelected={stackSelection}
+              onStackDrop={stackDropOnImage}
+              showFolderCards={view === 'gallery'}
+              folders={folders}
+              onOpenFolder={enterFolder}
+              onDropImagesOnFolder={dropImagesOnFolderAt}
+              onQuickClassify={() => {
+                const ids = selected.size
+                  ? [...selected]
+                  : [hoverIdRef.current || items[0]?.id].filter((n): n is number => Number.isFinite(n as number));
+                if (!ids.length) return showToast('先在网格里选中素材，或把鼠标停在某张卡片上');
+                setQuickClassifyIds(ids);
+              }}
             />
           )}
 
@@ -1959,11 +2224,14 @@ const importingRef = useRef(false);
             />
           )}
 
+          {view === 'tutorial' && <Tutorial />}
+
           {view === 'settings' && (
             <SettingsPage
               onToast={showToast}
               tourDone={tourDone === true}
               onStartTour={startTour}
+              onOpenTutorial={() => setView('tutorial')}
               onLibraryChanged={() => {
                 pageRef.current = 1;
                 load(1, true);
@@ -2057,6 +2325,7 @@ const importingRef = useRef(false);
             }
           }}
           onOpenSimilar={(pool, id) => setLb({ items: pool, index: Math.max(0, pool.findIndex((x) => x.id === id)) })}
+          onOpenStack={(sid) => setStackViewId(sid)}
           onChangeToast={(msg) => {
             showToast(msg);
             refreshStats();
@@ -2226,6 +2495,65 @@ const importingRef = useRef(false);
           />
         );
       })()}
+
+      {appearanceFolderId != null && (() => {
+        const target = folders.find((f) => f.id === appearanceFolderId);
+        if (!target) return null;
+        return (
+          <FolderAppearanceDialog
+            folder={target}
+            onClose={() => setAppearanceFolderId(null)}
+            onSaved={setFolders}
+            onToast={showToast}
+          />
+        );
+      })()}
+
+      {batchCreate && (
+        <BatchCreateDialog
+          mode={batchCreate.mode}
+          parentId={batchCreate.parentId}
+          parentName={
+            batchCreate.parentId != null ? folders.find((f) => f.id === batchCreate.parentId)?.name || '' : ''
+          }
+          onClose={() => setBatchCreate(null)}
+          onFolders={setFolders}
+          onTags={(r) => {
+            setTags(r.tags);
+            setTagGroups(r.groups);
+          }}
+          onToast={showToast}
+        />
+      )}
+
+      {quickClassifyIds && quickClassifyIds.length > 0 && (
+        <QuickClassifyDialog
+          ids={quickClassifyIds}
+          folders={folders}
+          currentFolderId={folderId}
+          onClose={() => setQuickClassifyIds(null)}
+          onDone={() => {
+            setSelected(new Set());
+            pageRef.current = 1;
+            load(1, true);
+            refreshStats();
+          }}
+          onToast={showToast}
+        />
+      )}
+
+      {stackViewId != null && (
+        <StackViewer
+          stackId={stackViewId}
+          onClose={() => setStackViewId(null)}
+          onChanged={() => {
+            pageRef.current = 1;
+            load(1, true);
+          }}
+          onToast={showToast}
+          onOpenItem={(it) => openItem(it, [it])}
+        />
+      )}
 
       {/* 新手教程：建库引导优先，教程等它关掉后再自动弹 */}
       <OnboardingTour open={tourOpen && onboarding === true} onClose={finishTour} />

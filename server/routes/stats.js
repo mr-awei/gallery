@@ -30,18 +30,25 @@ export function register(app, ctx) {
       const hidden = hiddenImagesClause();
       const lockSql = hidden ? ` AND ${hidden.sql}` : '';
       const lockParams = hidden ? hidden.params : [];
-      const total = db.prepare(`SELECT COUNT(*) AS c FROM images WHERE 1=1${lockSql}`).get(...lockParams).c;
+      // 堆叠成员不计入条目数：否则仪表盘 7541、图库列表 7530，用户会以为丢图
+      const stackSql = ' AND (stack_id = 0 OR stack_id = id)';
+      const total = db.prepare(`SELECT COUNT(*) AS c FROM images WHERE 1=1${lockSql}${stackSql}`).get(...lockParams).c;
       const favorite = db
-        .prepare(`SELECT COUNT(*) AS c FROM images WHERE favorite = 1${lockSql}`)
+        .prepare(`SELECT COUNT(*) AS c FROM images WHERE favorite = 1${lockSql}${stackSql}`)
         .get(...lockParams).c;
+      // 体积与张数同口径：堆叠成员不单独计，否则「63GB / 7530 张」的平均值会虚高
       const sizeRow = db
-        .prepare(`SELECT COALESCE(SUM(size_bytes),0) AS s FROM images WHERE 1=1${lockSql}`)
+        .prepare(`SELECT COALESCE(SUM(size_bytes),0) AS s FROM images WHERE 1=1${lockSql}${stackSql}`)
         .get(...lockParams);
       const bySource = db
-        .prepare(`SELECT source, COUNT(*) AS count FROM images WHERE 1=1${lockSql} GROUP BY source ORDER BY count DESC`)
+        .prepare(
+          `SELECT source, COUNT(*) AS count FROM images WHERE 1=1${lockSql}${stackSql} GROUP BY source ORDER BY count DESC`
+        )
         .all(...lockParams);
       const byBucket = db
-        .prepare(`SELECT ${bucketExpr} AS bucket, COUNT(*) AS count FROM images WHERE 1=1${lockSql} GROUP BY bucket`)
+        .prepare(
+          `SELECT ${bucketExpr} AS bucket, COUNT(*) AS count FROM images WHERE 1=1${lockSql}${stackSql} GROUP BY bucket`
+        )
         .all(...lockParams);
       const byOrientation = db
         .prepare(
@@ -49,33 +56,36 @@ export function register(app, ctx) {
             WHEN height > width * 1.15 THEN 'portrait'
             WHEN width > height * 1.15 THEN 'landscape'
             ELSE 'square' END AS orientation,
-            COUNT(*) AS count FROM images WHERE 1=1${lockSql} GROUP BY orientation`
+            COUNT(*) AS count FROM images WHERE 1=1${lockSql}${stackSql} GROUP BY orientation`
         )
         .all(...lockParams);
       const trendRows = db
         .prepare(
           `SELECT substr(created_at, 1, 10) AS date, COUNT(*) AS count FROM images
-             WHERE 1=1${lockSql} GROUP BY date ORDER BY date DESC LIMIT 14`
+             WHERE 1=1${lockSql}${stackSql} GROUP BY date ORDER BY date DESC LIMIT 14`
         )
         .all(...lockParams);
 
       // 热点标签：直接走 item_tags 倒排表（主键是 tag 前缀，GROUP BY tag 可走索引）。
       // 旧实现把整列 tags 拉进 Node 逐条 split 再聚合，百万级要几十秒并吃掉大量内存。
-      // 有隐私夹时要 join images 才能套用同一段排除条件；没有的话保持原来的快路径
+      // 这里始终 join images：既要套隐私条件，也要排除堆叠成员 —— 只挂在成员上的标签
+      // 如果出现在标签云里，点进去会是 0 张（成员默认不单独列）。
       const topTags = db
         .prepare(
-          `SELECT t.tag, COUNT(*) AS count FROM item_tags t${
-            hidden ? ' JOIN images images ON images.id = t.image_id' : ''
-          } WHERE 1=1${lockSql} GROUP BY t.tag ORDER BY count DESC, t.tag ASC LIMIT 12`
+          `SELECT t.tag, COUNT(*) AS count FROM item_tags t JOIN images ON images.id = t.image_id
+             WHERE (images.stack_id = 0 OR images.stack_id = images.id)${lockSql}
+             GROUP BY t.tag ORDER BY count DESC, t.tag ASC LIMIT 12`
         )
         .all(...lockParams);
 
       const recent = db
-        .prepare(`SELECT * FROM images WHERE 1=1${lockSql} ORDER BY created_at DESC, id DESC LIMIT 12`)
+        .prepare(
+          `SELECT * FROM images WHERE 1=1${lockSql}${stackSql} ORDER BY created_at DESC, id DESC LIMIT 12`
+        )
         .all(...lockParams)
         .map(lib.toDTO);
       const largest = db
-        .prepare(`SELECT * FROM images WHERE 1=1${lockSql} ORDER BY (width * height) DESC LIMIT 4`)
+        .prepare(`SELECT * FROM images WHERE 1=1${lockSql}${stackSql} ORDER BY (width * height) DESC LIMIT 4`)
         .all(...lockParams)
         .map(lib.toDTO);
 

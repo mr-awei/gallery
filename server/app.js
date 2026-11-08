@@ -33,6 +33,7 @@ import { register as registerWallpaper } from './routes/wallpaper.js';
 import { register as registerKeywords } from './routes/keywords.js';
 import { register as registerEdit } from './routes/edit.js';
 import { register as registerOrganize } from './routes/organize.js';
+import { register as registerCollections } from './routes/collections.js';
 import { register as registerAnnotate } from './routes/annotate.js';
 import { register as registerUpload } from './routes/upload.js';
 import { register as registerExport } from './routes/export.js';
@@ -55,6 +56,7 @@ import { markInterruptedJobs, pruneJobs } from './jobs.js';
 import { startThumbRebuild, thumbMissingCount } from './lib/thumb-rebuild.js';
 import { autoMergeLegacy, refreshMergedRows } from './lib/legacy-db.js';
 import { backfillMissingFolderLinks } from './folders.js';
+import { attachStackInfo } from './lib/stacks.js';
 
 const asyncRoute = (fn) => (req, res, next) => Promise.resolve(fn(req, res, next)).catch(next);
 
@@ -435,6 +437,7 @@ export function buildApp({ desktop = false } = {}) {
   registerKeywords(app, ctx);
   registerEdit(app, ctx);
   registerOrganize(app, ctx);
+  registerCollections(app, ctx);
   registerAnnotate(app, ctx);
   registerUpload(app, ctx);
   registerExport(app, ctx);
@@ -635,7 +638,9 @@ export function buildApp({ desktop = false } = {}) {
       if (req.body.tags !== undefined) {
         logOp({ op: 'tags', summary: `修改标签：${before.title || `图片 ${id}`}`, payload: { items: [{ id, before: before.tags || '' }] } });
       }
-      res.json(lib.toDTO(lib.getImage(id)));
+      // 带上堆叠信息：前端用 PATCH 回包就地替换列表项，缺 stackCount 会让角标/详情里的堆叠行消失
+      const fresh = lib.toDTO(lib.getImage(id));
+      res.json(attachStackInfo([fresh])[0] || fresh);
     })
   );
 

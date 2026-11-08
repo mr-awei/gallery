@@ -669,6 +669,12 @@ export function toDTO(row) {
     trimStart: Number(row.trim_start) || 0,
     trimEnd: Number(row.trim_end) || 0,
     md5: row.md5 || '',
+    /** 堆叠：0 = 未堆叠；否则是组主 id（组主自己的 stackId = 自己的 id） */
+    stackId: Number(row.stack_id) || 0,
+    /** 使用统计：复制 / 导出次数 + 最近一次使用时间 */
+    copyCount: Number(row.copy_count) || 0,
+    exportCount: Number(row.export_count) || 0,
+    lastUsedAt: row.last_used_at || '',
     favorite: row.favorite === 1,
     viewed: !!row.viewed_at,
     viewCount: row.view_count || 0,

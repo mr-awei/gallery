@@ -59,12 +59,15 @@ export default function Settings({
   onToast,
   tourDone,
   onStartTour,
+  onOpenTutorial,
   onLibraryChanged,
 }: {
   /** 第二个参数用于区分失败提示（红色、停留更久） */
   onToast: (msg: string, kind?: 'info' | 'error') => void;
   tourDone: boolean;
   onStartTour: () => void;
+  /** 打开「使用教程」页（按功能搜索） */
+  onOpenTutorial: () => void;
   onLibraryChanged: () => void;
 }) {
   // 状态、加载与全部写操作都在 useSettingsForm 里；这里只解构渲染真正用到的字段。
@@ -290,6 +293,25 @@ export default function Settings({
                     <li>大图里编辑：旋转、Camera Raw 调色、水印 / 相框、标注、版本回滚</li>
                     <li>设置：存储位置、备份导出、AI 接入、删除策略与快捷键</li>
                   </ul>
+                </div>
+              </Card>
+
+              <Card
+                title="使用教程（可搜索）"
+                desc="每个功能一条完整说明：怎么用、边界在哪、对应快捷键。按关键词搜索比翻文档快。"
+                badge={<span className="settings-badge">F1 随时打开</span>}
+              >
+                <div className="field">
+                  <label>按功能查</label>
+                  <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+                    <button className="btn primary" onClick={onOpenTutorial}>
+                      打开使用教程
+                    </button>
+                  </div>
+                  <div className="fs-hint" style={{ marginTop: 6 }}>
+                    覆盖浏览搜索、文件夹标签、堆叠笔记、查重整理、编辑导出、采集、壁纸、AI、数据备份等全部功能；
+                    在教程页顶部输入「堆叠」「水印」「时间点」这类词即可定位。
+                  </div>
                 </div>
               </Card>
 

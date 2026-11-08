@@ -16,7 +16,10 @@ function isMissingTable(err) {
 /** 只看「当前可见」的素材的标签：隐私夹里的图不能通过标签云/筛选把名字漏出来 */
 function visibleTagRows() {
   const hidden = hiddenImagesClause();
-  const sql = `SELECT tags FROM images WHERE tags <> ''${hidden ? ` AND ${hidden.sql}` : ''}`;
+  // 堆叠成员默认不在列表里出现：只挂在成员上的标签不能进标签云，
+  // 否则点进去是 0 张（计数与结果对不上）
+  const stack = ' AND (stack_id = 0 OR stack_id = id)';
+  const sql = `SELECT tags FROM images WHERE tags <> ''${stack}${hidden ? ` AND ${hidden.sql}` : ''}`;
   return db.prepare(sql).all(...(hidden ? hidden.params : []));
 }
 
@@ -86,38 +89,57 @@ export function listTagsRich() {
  * 老接口保留给「写操作后返回完整树」等场景，新调用方用这个。
  * @returns {{items:object[], total:number, limit:number, offset:number}}
  */
-export function listTagsPaged({ limit = 200, offset = 0, rich = true } = {}) {
+export function listTagsPaged({ limit = 200, offset = 0 } = {}) {
   const lim = Math.max(1, Math.min(500, Number(limit) || 200));
   const off = Math.max(0, Number(offset) || 0);
   const hidden = hiddenImagesClause();
-  const where = hidden ? `WHERE ${hidden.sql}` : '';
+  const stack = '(images.stack_id = 0 OR images.stack_id = images.id)';
+  const conds = `${stack}${hidden ? ` AND ${hidden.sql}` : ''}`;
+  const where = `WHERE ${conds}`;
   const params = hidden ? [...hidden.params] : [];
   const base = `FROM item_tags t JOIN images ON images.id = t.image_id ${where}`;
-  const total = Number(db.prepare(`SELECT COUNT(DISTINCT t.tag) AS c ${base}`).get(...params)?.c || 0);
+  const imageTags = Number(db.prepare(`SELECT COUNT(DISTINCT t.tag) AS c ${base}`).get(...params)?.c || 0);
+  // 只在 tag_meta 里存在的空标签（批量建标签建出来的、或夹标签写进来的）没有挂任何可见素材，
+  // 但必须出现在侧栏，否则「批量创建」完什么都看不到。
+  const metaOnly = Number(
+    db
+      .prepare(
+        `SELECT COUNT(*) AS c FROM tag_meta m WHERE NOT EXISTS (
+           SELECT 1 FROM item_tags t JOIN images ON images.id = t.image_id WHERE ${conds} AND t.tag = m.tag
+         )`
+      )
+      .get(...params)?.c || 0
+  );
   const rows = db
     .prepare(
       `SELECT t.tag AS tag, COUNT(*) AS count ${base}
        GROUP BY t.tag ORDER BY count DESC, t.tag LIMIT ? OFFSET ?`
     )
     .all(...params, lim, off);
-  if (!rich) return { items: rows, total, limit: lim, offset: off };
   const meta = metaMap();
-  return {
-    items: rows.map((r) => {
-      const m = meta.get(r.tag);
-      return {
-        tag: r.tag,
-        count: r.count,
-        group: m?.tag_group || '',
-        color: m?.color || '',
-        parent: m?.parent || '',
-        sortOrder: m?.sort_order || 0,
-      };
-    }),
-    total,
-    limit: lim,
-    offset: off,
+  const shape = (tag, count) => {
+    const m = meta.get(tag);
+    return {
+      tag,
+      count,
+      group: m?.tag_group || '',
+      color: m?.color || '',
+      parent: m?.parent || '',
+      sortOrder: m?.sort_order || 0,
+    };
   };
+  const items = rows.map((r) => shape(r.tag, r.count));
+  if (off === 0) {
+    // 补在第一页末尾：空标签数量本来就少（几十个），不会把一页撑爆
+    const seen = new Set(items.map((x) => x.tag));
+    const empties = [...meta.values()]
+      .filter((m) => !seen.has(m.tag))
+      .sort(
+        (a, b) => (a.sort_order || 0) - (b.sort_order || 0) || String(a.tag).localeCompare(String(b.tag), 'zh-Hans-CN')
+      );
+    for (const m of empties) items.push(shape(m.tag, 0));
+  }
+  return { items, total: imageTags + metaOnly, limit: lim, offset: off };
 }
 
 /** 列出所有分组名（含空分组） */

@@ -5,9 +5,10 @@
  * 这里保持纯展示：所有状态与副作用都还由 App 持有，避免拆分时改变行为。
  */
 import type { CSSProperties, PointerEvent } from 'react';
-import type { Filters, FolderNode, Library, Stats, TagNode, View } from '../types';
+import type { Filters, FolderNode, Library, SavedFilter, Stats, TagNode, View } from '../types';
 import FolderTree from '../components/FolderTree';
 import LibrarySwitcher from '../components/LibrarySwitcher';
+import SavedFilterList from '../components/SavedFilterList';
 import TagPanel from '../components/TagPanel';
 import { NAV, PENDING_ITEMS } from './nav';
 
@@ -27,6 +28,15 @@ interface Props {
   filters: Filters;
   onOpenPending: (key: 'noFolder' | 'noTags' | 'noRating') => void;
   pendingCounts: { total: number; noFolder: number; noTags: number; noRating: number } | null;
+
+  /** 保存的筛选器（筛选现场，一键恢复） */
+  savedFilters: SavedFilter[];
+  activeSavedId: number | null;
+  onOpenSavedFilter: (f: SavedFilter) => void;
+  onSaveCurrentFilter: () => void;
+  onEditSavedFilter: (f: SavedFilter) => void;
+  onOverwriteSavedFilter: (f: SavedFilter) => void;
+  onDeleteSavedFilter: (f: SavedFilter) => void;
 
   tags: TagNode[];
   tagGroups: [string, TagNode[]][];
@@ -53,6 +63,14 @@ interface Props {
   /** 隐私空间：加锁 / 解锁 / 移除密码 */
   onToggleFolderLock?: (id: number) => void;
   onDropImages: (folderId: number, ids: number[]) => void;
+  /** 文件夹图标 / emoji + 主题色 */
+  onEditFolderAppearance?: (id: number) => void;
+  /** 批量新建文件夹（null = 根级） */
+  onBatchCreateFolder?: (parentId: number | null) => void;
+  /** 同父级内拖动排序 */
+  onReorderFolders?: (dragId: number, targetId: number, position: 'before' | 'after') => void;
+  /** 批量新建标签 */
+  onBatchCreateTag?: () => void;
 
   width: number;
   onResizeDown: (e: PointerEvent<HTMLDivElement>) => void;
@@ -77,6 +95,13 @@ export default function Sidebar({
   filters,
   onOpenPending,
   pendingCounts,
+  savedFilters,
+  activeSavedId,
+  onOpenSavedFilter,
+  onSaveCurrentFilter,
+  onEditSavedFilter,
+  onOverwriteSavedFilter,
+  onDeleteSavedFilter,
   tags,
   tagGroups,
   childrenOf,
@@ -96,6 +121,10 @@ export default function Sidebar({
   onEditFolderTags,
   onToggleFolderLock,
   onDropImages,
+  onEditFolderAppearance,
+  onBatchCreateFolder,
+  onReorderFolders,
+  onBatchCreateTag,
   width,
   onResizeDown,
   onResizeMove,
@@ -141,7 +170,29 @@ export default function Sidebar({
         </button>
       ))}
 
-      <div className="side-section-title">标签</div>
+      <SavedFilterList
+        filters={savedFilters}
+        activeId={activeSavedId}
+        onOpen={onOpenSavedFilter}
+        onSaveCurrent={onSaveCurrentFilter}
+        onEdit={onEditSavedFilter}
+        onOverwrite={onOverwriteSavedFilter}
+        onDelete={onDeleteSavedFilter}
+      />
+
+      <div className="side-section-title" style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+        <span>标签</span>
+        {onBatchCreateTag && (
+          <button
+            className="folder-add-btn"
+            style={{ marginLeft: 'auto' }}
+            title="批量新建标签"
+            onClick={onBatchCreateTag}
+          >
+            ＋
+          </button>
+        )}
+      </div>
       <TagPanel
         tags={tags}
         groups={tagGroups}
@@ -171,6 +222,9 @@ export default function Sidebar({
           onEditTags={onEditFolderTags}
           onToggleLock={onToggleFolderLock}
           onDropImages={onDropImages}
+          onEditAppearance={onEditFolderAppearance}
+          onBatchCreate={onBatchCreateFolder}
+          onReorder={onReorderFolders}
         />
       </div>
       <div

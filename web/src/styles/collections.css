@@ -1,0 +1,664 @@
+/* 集合类能力：文件夹外观/排序、保存筛选器、堆叠、笔记、使用统计、外部以图找图 */
+
+/* ------------------------------ 文件夹外观与排序 ------------------------------ */
+
+.folder-icon {
+  width: 18px;
+  flex: 0 0 18px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 14px;
+  line-height: 1;
+}
+
+.folder-color-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  flex: 0 0 6px;
+  margin-right: 2px;
+}
+
+.folder-row.dragging {
+  opacity: 0.45;
+}
+
+.folder-row.drop-before,
+.folder-row.drop-after {
+  position: relative;
+}
+
+.folder-row.drop-before::before,
+.folder-row.drop-after::after {
+  content: '';
+  position: absolute;
+  left: 8px;
+  right: 8px;
+  height: 2px;
+  border-radius: 2px;
+  background: var(--accent);
+  pointer-events: none;
+}
+
+.folder-row.drop-before::before {
+  top: -1px;
+}
+
+.folder-row.drop-after::after {
+  bottom: -1px;
+}
+
+/* 图标 / 颜色选择器 */
+.emoji-grid {
+  display: grid;
+  grid-template-columns: repeat(10, 1fr);
+  gap: 6px;
+}
+
+.emoji-cell {
+  height: 32px;
+  border-radius: 8px;
+  border: 1px solid var(--line);
+  background: var(--surface-1, rgba(255, 255, 255, 0.04));
+  font-size: 17px;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.emoji-cell:hover,
+.emoji-cell.on {
+  border-color: var(--accent);
+  background: var(--accent-soft, rgba(120, 140, 255, 0.16));
+}
+
+.color-swatches {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+}
+
+.color-swatch {
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  border: 2px solid transparent;
+  cursor: pointer;
+  padding: 0;
+}
+
+.color-swatch.on {
+  border-color: var(--text);
+  box-shadow: 0 0 0 2px var(--bg, #111);
+}
+
+.color-swatch.clear {
+  background: transparent;
+  border: 1px dashed var(--line);
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1;
+}
+
+.appearance-preview {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 10px;
+  border-radius: 8px;
+  background: var(--surface-1, rgba(255, 255, 255, 0.05));
+  margin-bottom: 12px;
+  font-size: 13px;
+}
+
+/* -------------------------------- 保存的筛选器 -------------------------------- */
+
+.saved-filters {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.saved-filter-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 8px;
+  border-radius: 6px;
+  cursor: pointer;
+  color: var(--text);
+  font-size: 13px;
+}
+
+.saved-filter-row:hover {
+  background: var(--hover, rgba(255, 255, 255, 0.06));
+}
+
+.saved-filter-row.active {
+  background: var(--accent-soft, rgba(120, 140, 255, 0.18));
+}
+
+.saved-filter-row .sf-icon {
+  width: 16px;
+  text-align: center;
+  flex: 0 0 16px;
+}
+
+.saved-filter-row .sf-name {
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.saved-filter-row .sf-more {
+  opacity: 0;
+  border: 0;
+  background: transparent;
+  color: var(--muted);
+  cursor: pointer;
+  font-size: 14px;
+  padding: 0 2px;
+}
+
+.saved-filter-row:hover .sf-more {
+  opacity: 1;
+}
+
+.saved-filter-empty {
+  font-size: 12px;
+  color: var(--muted);
+  padding: 4px 8px;
+  line-height: 1.6;
+}
+
+/* ---------------------------------- 图片堆叠 ---------------------------------- */
+
+.stack-badge {
+  position: absolute;
+  top: 8px;
+  left: 8px;
+  z-index: 3;
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  height: 20px;
+  padding: 0 6px;
+  border-radius: 10px;
+  border: 1px solid rgba(255, 255, 255, 0.28);
+  background: rgba(0, 0, 0, 0.55);
+  color: #fff;
+  font-size: 11px;
+  font-weight: 600;
+  cursor: pointer;
+  backdrop-filter: blur(4px);
+}
+
+.stack-badge:hover {
+  background: rgba(0, 0, 0, 0.75);
+}
+
+/* 堆叠卡片：右下角错开的一层纸，一眼看出是「一摞」 */
+.card-img.has-stack {
+  box-shadow: 4px 4px 0 -1px rgba(255, 255, 255, 0.14);
+}
+
+/* 拖标签到卡片上：虚线高亮整张卡 */
+.card-img.tag-hint {
+  outline: 2px dashed var(--accent);
+  outline-offset: -3px;
+}
+
+/* 拖图到卡片上 = 叠成一堆 */
+.card-img.stack-hint {
+  outline: 2px solid var(--accent);
+  outline-offset: -3px;
+  box-shadow: 0 0 0 4px rgba(255, 92, 168, 0.18);
+}
+
+.stack-drop-tip {
+  position: absolute;
+  left: 50%;
+  bottom: 10px;
+  transform: translateX(-50%);
+  z-index: 4;
+  padding: 4px 10px;
+  border-radius: 999px;
+  background: var(--accent);
+  color: #fff;
+  font-size: 12px;
+  line-height: 1.2;
+  white-space: nowrap;
+  pointer-events: none;
+}
+
+.stack-viewer {
+  position: fixed;
+  inset: 0;
+  z-index: 9000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 40px;
+  background: rgba(0, 0, 0, 0.72);
+  backdrop-filter: blur(6px);
+}
+
+.stack-viewer-card {
+  width: min(1100px, 94vw);
+  max-height: 86vh;
+  display: flex;
+  flex-direction: column;
+  border-radius: 14px;
+  background: var(--panel, #1b1c21);
+  border: 1px solid var(--line);
+  overflow: hidden;
+}
+
+.stack-viewer-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 12px 16px;
+  border-bottom: 1px solid var(--line);
+}
+
+.stack-viewer-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+  gap: 10px;
+  padding: 14px 16px;
+  overflow: auto;
+}
+
+/* 「并入其他堆叠」选择面板：列表形式，带缩略图和张数 */
+.stack-picker {
+  max-height: 190px;
+  overflow: auto;
+  padding: 8px 12px;
+  border-bottom: 1px solid var(--line);
+  background: var(--panel-2, rgba(255, 255, 255, 0.03));
+}
+
+.stack-pick-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  padding: 6px;
+  margin-bottom: 4px;
+  background: none;
+  border: 1px solid transparent;
+  border-radius: 8px;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.stack-pick-row:hover:not(:disabled) {
+  border-color: var(--accent);
+  background: rgba(255, 92, 168, 0.08);
+}
+
+.stack-pick-row img {
+  width: 34px;
+  height: 34px;
+  flex: 0 0 34px;
+  object-fit: cover;
+  border-radius: 5px;
+  background: var(--panel-3, rgba(255, 255, 255, 0.06));
+}
+
+.stack-pick-name {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 12px;
+}
+
+.stack-pick-count {
+  font-size: 11px;
+  color: var(--muted);
+}
+
+.stack-tile {
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  overflow: hidden;
+  background: var(--surface-1, rgba(255, 255, 255, 0.04));
+  cursor: pointer;
+  text-align: left;
+}
+
+.stack-tile.on {
+  border-color: var(--accent);
+}
+
+.stack-tile img {
+  width: 100%;
+  height: 120px;
+  object-fit: cover;
+  display: block;
+  background: rgba(0, 0, 0, 0.25);
+}
+
+.stack-tile-name {
+  font-size: 11px;
+  color: var(--muted);
+  padding: 6px 8px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* ----------------------------------- 笔记 ----------------------------------- */
+
+.notes-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  max-height: 200px;
+  overflow: auto;
+}
+
+.note-item {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  padding: 6px 8px;
+  border-radius: 8px;
+  background: var(--surface-1, rgba(255, 255, 255, 0.05));
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+.note-ts {
+  flex: 0 0 auto;
+  padding: 1px 6px;
+  border-radius: 6px;
+  background: var(--accent-soft, rgba(120, 140, 255, 0.2));
+  color: var(--accent);
+  font-variant-numeric: tabular-nums;
+  cursor: pointer;
+  border: 0;
+  font-size: 11px;
+}
+
+.note-body {
+  flex: 1;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.note-del {
+  border: 0;
+  background: transparent;
+  color: var(--muted);
+  cursor: pointer;
+  font-size: 13px;
+  line-height: 1;
+}
+
+.note-del:hover {
+  color: var(--danger, #f87171);
+}
+
+.note-input-row {
+  display: flex;
+  gap: 6px;
+  margin-top: 6px;
+}
+
+/* ------------------------------- 快速分类对话框 ------------------------------- */
+
+.qc-section {
+  margin-bottom: 14px;
+}
+
+.qc-section h4 {
+  margin: 0 0 6px;
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.qc-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  max-height: 120px;
+  overflow: auto;
+}
+
+.qc-chip {
+  border: 1px solid var(--line);
+  background: var(--surface-1, rgba(255, 255, 255, 0.05));
+  color: var(--text);
+  border-radius: 999px;
+  padding: 4px 10px;
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.qc-chip:hover {
+  border-color: var(--accent);
+}
+
+.qc-chip.on {
+  background: var(--accent-soft, rgba(120, 140, 255, 0.2));
+  border-color: var(--accent);
+}
+
+.qc-hint {
+  font-size: 12px;
+  color: var(--muted);
+  line-height: 1.6;
+}
+
+/* ------------------------------ 外部以图找图 ------------------------------ */
+
+.ext-engines {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.ext-engine {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 10px 12px;
+  border-radius: 10px;
+  border: 1px solid var(--line);
+  background: var(--surface-1, rgba(255, 255, 255, 0.04));
+  cursor: pointer;
+  text-align: left;
+}
+
+.ext-engine:hover {
+  border-color: var(--accent);
+}
+
+.ext-engine b {
+  font-size: 13px;
+}
+
+.ext-engine small {
+  display: block;
+  color: var(--muted);
+  font-size: 11px;
+  margin-top: 3px;
+}
+
+.ext-arrow {
+  color: var(--muted);
+  font-size: 16px;
+}
+
+/* ------------------------------- 文件夹卡片 ------------------------------- */
+
+.folder-cards {
+  margin: 0 0 14px;
+}
+
+.folder-cards-head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 8px;
+}
+
+.folder-cards-toggle {
+  background: none;
+  border: none;
+  padding: 0;
+  color: inherit;
+  font: inherit;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.folder-cards-hint {
+  font-size: 11px;
+  color: var(--muted);
+}
+
+.folder-cards-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(132px, 1fr));
+  gap: 10px;
+}
+
+.folder-card {
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  overflow: hidden;
+  background: var(--panel, #17171f);
+  cursor: pointer;
+  transition: transform 0.15s ease, border-color 0.15s ease;
+}
+
+.folder-card:hover {
+  transform: translateY(-2px);
+  border-color: var(--fc, var(--accent));
+}
+
+.folder-card.drop {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 2px rgba(255, 92, 168, 0.35);
+}
+
+.folder-card-cover {
+  position: relative;
+  aspect-ratio: 4 / 3;
+  background: rgba(255, 255, 255, 0.04);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+}
+
+.folder-card-cover img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.folder-card-empty {
+  font-size: 34px;
+  line-height: 1;
+  opacity: 0.85;
+}
+
+.folder-card-emoji {
+  position: absolute;
+  left: 6px;
+  bottom: 6px;
+  font-size: 16px;
+  line-height: 1;
+  padding: 3px 5px;
+  border-radius: 6px;
+  background: rgba(0, 0, 0, 0.5);
+  backdrop-filter: blur(3px);
+}
+
+.folder-card-count {
+  position: absolute;
+  right: 6px;
+  top: 6px;
+  padding: 1px 6px;
+  border-radius: 999px;
+  background: rgba(0, 0, 0, 0.55);
+  color: #fff;
+  font-size: 11px;
+}
+
+.folder-card-name {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 7px 9px;
+  font-size: 12px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.folder-card-dot {
+  width: 7px;
+  height: 7px;
+  flex: 0 0 7px;
+  border-radius: 50%;
+}
+
+/* -------------------------------- 使用统计榜 -------------------------------- */
+
+.usage-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+  gap: 10px;
+}
+
+.usage-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  padding: 6px;
+  border-radius: 8px;
+  background: var(--panel-2, rgba(255, 255, 255, 0.04));
+}
+
+.usage-item img {
+  width: 42px;
+  height: 42px;
+  flex: 0 0 42px;
+  object-fit: cover;
+  border-radius: 6px;
+  background: var(--panel-3, rgba(255, 255, 255, 0.06));
+}
+
+.usage-meta {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  gap: 2px;
+}
+
+.usage-title {
+  font-size: 12px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.usage-count {
+  font-size: 11px;
+  color: var(--muted);
+}

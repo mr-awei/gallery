@@ -19,6 +19,16 @@ export interface ImageItem {
   trimEnd?: number;
   /** 内容指纹（MD5），完全重复检测用 */
   md5: string;
+  /** 图片堆叠：0 = 未堆叠；否则是组主 id（组主自己的 stackId = 自己的 id） */
+  stackId?: number;
+  /** 组内张数（含组主；仅列表 DTO 带） */
+  stackCount?: number;
+  /** 是否本组的组主 */
+  stackPrimary?: boolean;
+  /** 使用统计：复制 / 导出次数 + 最近一次使用时间 */
+  copyCount?: number;
+  exportCount?: number;
+  lastUsedAt?: string;
   favorite: boolean;
   /** 是否看过（进入大图预览即标记） */
   viewed: boolean;
@@ -303,10 +313,35 @@ export interface FolderNode {
   cover?: { imageId: number; manual: boolean; thumbUrl: string; kind: string } | null;
   /** 文件夹标签（逗号分隔）：夹内素材在搜索时自动继承这些标签 */
   tags?: string;
+  /** 文件夹图标 / emoji（空 = 自动用封面或默认图标） */
+  icon?: string;
+  /** 文件夹主题色 #rrggbb（空 = 跟随主题） */
+  color?: string;
+  /** 同一父级内的手动排序值（拖动排序写入） */
+  sort_order?: number;
   /** 隐私空间：是否设置了密码锁 */
   locked?: boolean;
   /** 本次会话是否已解锁（重启后回到锁定态） */
   unlocked?: boolean;
+}
+
+/** 保存的筛选器：一整套筛选条件（含文件夹），侧栏一键回到同一视图 */
+export interface SavedFilter {
+  id: number;
+  name: string;
+  query: Partial<Filters> & { folderId?: number | null };
+  icon: string;
+  sortOrder: number;
+  createdAt: string;
+  updatedAt: string;
+}
+
+/** 素材笔记：ts > 0 = 钉在音视频的某个时间点（秒） */
+export interface ImageNote {
+  id: number;
+  body: string;
+  ts: number;
+  createdAt: string;
 }
 
 export interface SimilarGroup {
@@ -1074,4 +1109,5 @@ export type View =
   | 'search'
   | 'smart'
   | 'enhance'
+  | 'tutorial'
   | 'settings';

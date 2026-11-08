@@ -6,6 +6,7 @@ import * as lib from '../library.js';
 import { buildGalleryHtml, safeFileName, MAX_ITEMS } from '../gallery-export.js';
 import { buildStitch } from '../lib/stitch.js';
 import { eagleExportPreview, exportEagleLibrary } from '../lib/eagle-export.js';
+import { bumpUsage } from '../lib/usage.js';
 
 const FORMATS = new Set(['jpeg', 'png', 'webp', 'avif']);
 const MIME = { jpeg: 'image/jpeg', png: 'image/png', webp: 'image/webp', avif: 'image/avif' };
@@ -74,6 +75,8 @@ export function register(app, ctx) {
           `attachment; filename="${encodeURIComponent(`${base}.${ext}`)}"; filename*=UTF-8''${encodeURIComponent(`${base}.${ext}`)}`
         );
         res.setHeader('Cache-Control', 'no-store');
+        // 使用统计：导出成功才计数（失败的重试不算「用过」）
+        bumpUsage('export', [row.id]);
         res.send(buf);
       } catch (err) {
         res.status(400).json({ error: err.message || '导出失败' });
@@ -110,6 +113,9 @@ export function register(app, ctx) {
         theme,
         maxItems,
       });
+      // 明确勾选素材导出 HTML 画廊，也算这些素材被「用过」；
+      // scope=all 不计数（否则导出一次整库，所有素材的使用次数都被刷一遍）
+      if (ids.length) bumpUsage('export', ids.slice(0, 500));
       const file = `${safeFileName(title)}.html`;
       res.setHeader('Content-Type', 'text/html; charset=utf-8');
       res.setHeader(

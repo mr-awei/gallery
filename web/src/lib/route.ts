@@ -17,6 +17,7 @@ export const VIEWS = [
   'smart',
   'enhance',
   'bookmarks',
+  'tutorial',
   'settings',
 ] as const;
 

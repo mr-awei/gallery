@@ -4,6 +4,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import sharp from 'sharp';
 import * as lib from '../library.js';
+import { bumpUsage } from '../lib/usage.js';
 import { existingPreviewPath, existingThumbPath, ensurePreview, mtimeOf } from '../thumbs.js';
 import {
   noteForegroundEnd,
@@ -207,6 +208,8 @@ export function register(app, ctx) {
         'Content-Disposition',
         `attachment; filename="tuku_${row.id}${ext}"; filename*=UTF-8''${encodeURIComponent(name)}`
       );
+      // 使用统计：下载也记一次「导出」（用户心智里下载下来用过就算用过）
+      bumpUsage('export', [row.id]);
       res.sendFile(row.abs_path, SEND_OPTS);
     })
   );

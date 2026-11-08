@@ -1,6 +1,7 @@
 import { useEffect, useState, type DragEvent } from 'react';
 import { api } from '../api';
 import { confirmDialog, promptDialog } from './Dialogs';
+import { TAG_MIME } from '../lib/dnd';
 import type { TagNode } from '../types';
 
 interface Props {
@@ -234,8 +235,10 @@ export default function TagPanel({
                     className={`tag-row${activeTag === t.tag ? ' active' : ''}${hintClass(t)}`}
                     draggable
                     onDragStart={(e) => {
-                      e.dataTransfer.effectAllowed = 'move';
+                      e.dataTransfer.effectAllowed = 'copyMove';
                       e.dataTransfer.setData('text/plain', t.tag);
+                      // 卡片 / 文件夹树据此识别「这是标签拖拽」（text/plain 也带，便于外部程序读取）
+                      e.dataTransfer.setData(TAG_MIME, t.tag);
                       setDrag(t.tag);
                     }}
                     onDragOver={(e) => rowDragOver(e, t, true)}
@@ -261,8 +264,9 @@ export default function TagPanel({
                       className={`tag-row child${activeTag === c.tag ? ' active' : ''}${hintClass(c)}`}
                       draggable
                       onDragStart={(e) => {
-                        e.dataTransfer.effectAllowed = 'move';
+                        e.dataTransfer.effectAllowed = 'copyMove';
                         e.dataTransfer.setData('text/plain', c.tag);
+                        e.dataTransfer.setData(TAG_MIME, c.tag);
                         setDrag(c.tag);
                       }}
                       onDragOver={(e) => rowDragOver(e, c, false)}

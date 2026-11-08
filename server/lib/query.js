@@ -3,6 +3,7 @@ import { db, withTransaction } from '../db.js';
 import { toDTO } from '../library.js';
 import { expandTagName, tagsMatchingKeyword } from './tags.js';
 import { hiddenImagesClause } from './privacy.js';
+import { attachStackInfo } from './stacks.js';
 
 export function markAllViewedByFilter(query = {}) {
   const colorIds = query.colorIds || null;
@@ -365,6 +366,16 @@ export function buildImageFilter(query = {}, { colorTable = '' } = {}) {
     }
   }
 
+  // 图片堆叠：默认只列组主（成员在灯箱里展开）。stackId 指定某个堆叠时，
+  // 改成「组主 + 该组成员」都能看到，供灯箱的堆叠翻页使用。
+  const stackId = Number(query.stackId) || 0;
+  if (stackId > 0) {
+    where.push('(id = ? OR stack_id = ?)');
+    params.push(stackId, stackId);
+  } else if (!query.includeStacked) {
+    where.push('(stack_id = 0 OR stack_id = id)');
+  }
+
   // 隐私空间：密码锁住且本次会话未解锁的文件夹，其素材从所有列表/搜索里消失（服务端事实，不是前端遮罩）
   const hidden = hiddenImagesClause();
   if (hidden) {
@@ -462,7 +473,7 @@ export function listImages(query = {}) {
             .all(...pageIds)
         : [];
       const byId = new Map(rows.map((r) => [r.id, r]));
-      const items = attachInheritedTags(pageIds.map((id) => byId.get(id)).filter(Boolean).map(toDTO));
+      const items = attachStackInfo(attachInheritedTags(pageIds.map((id) => byId.get(id)).filter(Boolean).map(toDTO)));
       return { items, total, page, pageSize, hasMore: page * pageSize < total };
     }
 
@@ -485,7 +496,13 @@ export function listImages(query = {}) {
     const rows = db
       .prepare(`SELECT * FROM images ${sql} ORDER BY ${order} LIMIT ? OFFSET ?`)
       .all(...params, ...orderParams, pageSize, (page - 1) * pageSize);
-    return { items: attachInheritedTags(rows.map(toDTO)), total, page, pageSize, hasMore: page * pageSize < total };
+    return {
+      items: attachStackInfo(attachInheritedTags(rows.map(toDTO))),
+      total,
+      page,
+      pageSize,
+      hasMore: page * pageSize < total,
+    };
   } finally {
     dropColorScope(colorTable);
   }

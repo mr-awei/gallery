@@ -28,6 +28,8 @@ import type {
   Filters,
   FolderNode,
   ImageItem,
+  ImageNote,
+  SavedFilter,
   KbRule,
   KbStats,
   Keyword,
@@ -729,6 +731,123 @@ export const api = {
       method: 'PUT',
       body: JSON.stringify({ imageIds }),
     }),
+
+  /** 文件夹外观：emoji / 图标字符 + 主题色（空串 = 清除） */
+  setFolderAppearance: (id: number, appearance: { icon?: string; color?: string }) =>
+    request<{ ok: boolean; icon?: string; color?: string; folders: FolderNode[] }>(
+      `/api/folders/${id}/appearance`,
+      { method: 'PUT', body: JSON.stringify(appearance) }
+    ),
+
+  /** 文件夹拖拽排序：同一父级下的完整顺序 */
+  reorderFolders: (parentId: number | null, folderIds: number[]) =>
+    request<{ ok: boolean; parentId: number | null; updated: number; folders: FolderNode[] }>(
+      '/api/folders/reorder',
+      { method: 'POST', body: JSON.stringify({ parentId, folderIds }) }
+    ),
+
+  /** 批量创建文件夹：一行/逗号一个名字，同父级下同名跳过 */
+  createFoldersBatch: (names: string[], parentId?: number | null) =>
+    request<{ ok: boolean; created: string[]; skipped: string[]; folders: FolderNode[] }>('/api/folders/batch', {
+      method: 'POST',
+      body: JSON.stringify({ names, parentId: parentId ?? null }),
+    }),
+
+  /** 批量创建标签（可同时归入一个分组） */
+  createTagsBatch: (names: string[], group?: string) =>
+    request<{ ok: boolean; created: string[]; tags: TagNode[]; groups: string[] }>('/api/tags/batch', {
+      method: 'POST',
+      body: JSON.stringify({ names, group }),
+    }),
+
+  /* ---------------------------- 图片堆叠（Stack） ---------------------------- */
+
+  /** 把选中的素材合成一个堆叠（组主 = 评分最高的一张） */
+  createStack: (imageIds: number[]) =>
+    request<{ ok: boolean; stackId: number; ids: number[]; stacks: ImageItem[] }>('/api/stacks', {
+      method: 'POST',
+      body: JSON.stringify({ imageIds }),
+    }),
+  stackMembers: (id: number) =>
+    request<{ ok: boolean; stackId: number; items: ImageItem[] }>(`/api/stacks/${id}`),
+  /** 现有堆叠列表（并入其他堆叠时选目标） */
+  stacksList: () =>
+    request<{ ok: boolean; stacks: { stackId: number; title: string; count: number; thumbUrl: string }[] }>(
+      '/api/stacks'
+    ),
+  /** 把 :id 这一组整体并入 intoId 那一组 */
+  mergeStacks: (id: number, intoId: number) =>
+    request<{ ok: boolean; stackId: number; added: number; stacks: ImageItem[] }>(`/api/stacks/${id}/merge`, {
+      method: 'POST',
+      body: JSON.stringify({ intoId }),
+    }),
+  addToStack: (id: number, imageIds: number[]) =>
+    request<{ ok: boolean; stackId: number; added: number; stacks: ImageItem[] }>(`/api/stacks/${id}/add`, {
+      method: 'POST',
+      body: JSON.stringify({ imageIds }),
+    }),
+  /** 指定堆叠封面（不按评分，用户点谁就是谁） */
+  setStackPrimary: (id: number, imageId: number) =>
+    request<{ ok: boolean; stackId: number; stacks: ImageItem[] }>(`/api/stacks/${id}/primary`, {
+      method: 'POST',
+      body: JSON.stringify({ imageId }),
+    }),
+  ungroupStack: (id: number) =>
+    request<{ ok: boolean; removed: number }>(`/api/stacks/${id}`, { method: 'DELETE' }),
+  removeFromStack: (id: number) =>
+    request<{ ok: boolean; stackId: number; removed: number; image: ImageItem }>(`/api/images/${id}/stack`, {
+      method: 'DELETE',
+    }),
+
+  /* ------------------------------- 素材笔记 ------------------------------- */
+
+  imageNotes: (id: number) => request<{ ok: boolean; notes: ImageNote[] }>(`/api/images/${id}/notes`),
+  /** ts > 0 = 钉在音视频的某个时间点（秒） */
+  addImageNote: (id: number, body: string, ts = 0) =>
+    request<{ ok: boolean; note: ImageNote }>(`/api/images/${id}/notes`, {
+      method: 'POST',
+      body: JSON.stringify({ body, ts }),
+    }),
+  deleteImageNote: (noteId: number) =>
+    request<{ ok: boolean; removed: number }>(`/api/notes/${noteId}`, { method: 'DELETE' }),
+
+  /* ------------------------------ 保存的筛选器 ------------------------------ */
+
+  savedFilters: () => request<{ ok: boolean; filters: SavedFilter[] }>('/api/saved-filters'),
+  createSavedFilter: (name: string, query: Record<string, unknown>, icon = '') =>
+    request<{ ok: boolean; id: number; filters: SavedFilter[] }>('/api/saved-filters', {
+      method: 'POST',
+      body: JSON.stringify({ name, query, icon }),
+    }),
+  updateSavedFilter: (id: number, patch: { name?: string; query?: Record<string, unknown>; icon?: string }) =>
+    request<{ ok: boolean; filters: SavedFilter[] }>(`/api/saved-filters/${id}`, {
+      method: 'PUT',
+      body: JSON.stringify(patch),
+    }),
+  deleteSavedFilter: (id: number) =>
+    request<{ ok: boolean; removed: number; filters: SavedFilter[] }>(`/api/saved-filters/${id}`, {
+      method: 'DELETE',
+    }),
+  reorderSavedFilters: (ids: number[]) =>
+    request<{ ok: boolean; filters: SavedFilter[] }>('/api/saved-filters/reorder', {
+      method: 'POST',
+      body: JSON.stringify({ ids }),
+    }),
+
+  /* -------------------------------- 使用统计 -------------------------------- */
+
+  /** 记一次使用：kind = copy（复制）/ export（导出、下载） */
+  bumpUsage: (kind: 'copy' | 'export', ids: number[]) =>
+    request<{ ok: boolean; updated: number }>('/api/images/usage', {
+      method: 'POST',
+      body: JSON.stringify({ kind, ids }),
+    }),
+  usageStats: () =>
+    request<{
+      ok: boolean;
+      items: { id: number; title: string; copyCount: number; exportCount: number; lastUsedAt: string; thumbUrl: string }[];
+      totals: { copies: number | null; exports: number | null };
+    }>('/api/usage/stats'),
 
   /* ---------------- 隐私空间：文件夹密码锁 ---------------- */
 

@@ -77,6 +77,8 @@ interface Props {
   onChangeToast?: (msg: string) => void;
   /** 当前资源库：详情面板里显示「这张图属于哪个库」 */
   library?: { id?: string; name: string; path: string } | null;
+  /** 打开堆叠查看器（看同素材的其他版本） */
+  onOpenStack?: (stackId: number) => void;
 }
 
 const ZOOM_MIN = 1;
@@ -126,6 +128,7 @@ export default function Lightbox({
   onOpenSimilar,
   onChangeToast,
   library,
+  onOpenStack,
 }: Props) {
   const item = items[index];
   const [tagInput, setTagInput] = useState('');
@@ -1617,6 +1620,8 @@ export default function Lightbox({
         onPatch={onPatch}
         onChangeToast={onChangeToast}
         onFindColor={onFindColor}
+        onOpenSource={() => setToolkit('source')}
+        onOpenStack={onOpenStack ? () => onOpenStack(item.stackId || item.id) : undefined}
         onSaveTags={onSaveTags}
         tagInput={tagInput}
         setTagInput={setTagInput}

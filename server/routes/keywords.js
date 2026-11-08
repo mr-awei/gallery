@@ -4,6 +4,7 @@ import { CRAWL_LIMITS, SOURCES, getJobStatus, startCrawl, stopCrawl } from '../c
 import * as lib from '../library.js';
 import {
   addImagesToFolder,
+  createFoldersBatch,
   createVirtualFolder,
   deleteFolder,
   folderImageRows,
@@ -11,10 +12,13 @@ import {
   removeImagesFromFolder,
   renameFolder,
   reorderFolderImages,
+  reorderFolders,
+  setFolderAppearance,
   setFolderCover,
   setFolderTags,
 } from '../folders.js';
 import { attachInheritedTags } from '../lib/query.js';
+import { attachStackInfo } from '../lib/stacks.js';
 import {
   clearFolderPassword,
   lockedFolders,
@@ -181,6 +185,39 @@ export function register(app, ctx) {
     })
   );
 
+  /** 批量创建文件夹：names 用换行/逗号分隔，一次建一批（同父级下同名跳过） */
+  app.post(
+    '/api/folders/batch',
+    asyncRoute(async (req, res) => {
+      const { names, parentId } = req.body || {};
+      const r = createFoldersBatch(names, parentId ?? null);
+      sseBroadcast('folders', { path: req.path });
+      res.json({ ok: true, ...r, folders: listFolderTree() });
+    })
+  );
+
+  /** 文件夹手动拖拽排序：body.folderIds 是同一父级下的完整顺序 */
+  app.post(
+    '/api/folders/reorder',
+    asyncRoute(async (req, res) => {
+      const r = reorderFolders(req.body?.parentId ?? null, req.body?.folderIds || []);
+      res.json({ ok: true, ...r, folders: listFolderTree() });
+    })
+  );
+
+  /** 文件夹外观：emoji / 图标字符 + 主题色 */
+  app.put(
+    '/api/folders/:id/appearance',
+    asyncRoute(async (req, res) => {
+      const r = setFolderAppearance(Number(req.params.id), {
+        icon: req.body?.icon,
+        color: req.body?.color,
+      });
+      sseBroadcast('folders', { path: req.path });
+      res.json({ ok: true, ...r, folders: listFolderTree() });
+    })
+  );
+
   app.put(
     '/api/folders/:id',
     asyncRoute(async (req, res) => {
@@ -236,7 +273,7 @@ export function register(app, ctx) {
       const pageSize = Math.min(120, Math.max(12, Number(req.query.pageSize) || 48));
       try {
         const { rows, total, hasMore } = folderImageRows(Number(req.params.id), { page, pageSize });
-        res.json({ items: attachInheritedTags(rows.map(lib.toDTO)), total, hasMore });
+        res.json({ items: attachStackInfo(attachInheritedTags(rows.map(lib.toDTO))), total, hasMore });
       } catch (err) {
         // 加锁夹未解锁：403 而不是 500，前端据此弹密码框
         res.status(err.statusCode || 400).json({ error: err.message });

@@ -1,7 +1,51 @@
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import type { ImageItem, Stats } from '../types';
 import { Bars, Donut, TrendLine } from '../components/Charts';
-import { BUCKET_LABELS, ORIENTATION_LABELS, SOURCE_LABELS, formatSize } from '../api';
+import { BUCKET_LABELS, ORIENTATION_LABELS, SOURCE_LABELS, api, formatSize } from '../api';
+
+/** 使用统计：最常复制 / 导出的素材。没有记录时整块不出现，别占着版面说「暂无」。 */
+function UsageBoard() {
+  const [data, setData] = useState<{
+    items: { id: number; title: string; copyCount: number; exportCount: number; thumbUrl: string }[];
+    totals: { copies: number | null; exports: number | null };
+  } | null>(null);
+
+  useEffect(() => {
+    let alive = true;
+    api
+      .usageStats()
+      .then((r) => alive && setData({ items: r.items, totals: r.totals }))
+      .catch(() => undefined);
+    return () => {
+      alive = false;
+    };
+  }, []);
+
+  if (!data || !data.items.length) return null;
+  return (
+    <div className="card" style={{ marginTop: 14 }}>
+      <h4 className="section-title">
+        使用统计
+        <span style={{ color: 'var(--muted)', fontWeight: 400, fontSize: 12 }}>
+          累计复制 {Number(data.totals.copies) || 0} 次 · 导出 {Number(data.totals.exports) || 0} 次
+        </span>
+      </h4>
+      <div className="usage-grid">
+        {data.items.slice(0, 8).map((it) => (
+          <div className="usage-item" key={it.id} title={it.title}>
+            <img src={it.thumbUrl} alt={it.title} loading="lazy" />
+            <div className="usage-meta">
+              <span className="usage-title">{it.title}</span>
+              <span className="usage-count">
+                复制 {it.copyCount} · 导出 {it.exportCount}
+              </span>
+            </div>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
 
 interface Props {
   stats: Stats | null;
@@ -154,6 +198,8 @@ export default function Dashboard({ stats, error, onOpen, onNavigate }: Props) {
           </div>
         </div>
       )}
+
+      <UsageBoard />
     </div>
   );
 }
