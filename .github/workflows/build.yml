@@ -61,10 +61,36 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
+      # Electron zip / NSIS / winCodeSign 都是首次构建时现下，上游偶发 504 会把发布卡死。
+      # 缓存这批二进制；仍失败时第 2、3 次自动切国内镜像重试。
+      - name: Cache electron binaries
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/AppData/Local/electron/Cache
+            ~/AppData/Local/electron-builder/Cache
+            ~/.cache/electron
+            ~/.cache/electron-builder
+          key: eb-${{ runner.os }}-${{ hashFiles('package-lock.json') }}
+          restore-keys: |
+            eb-${{ runner.os }}-
+
       - name: Build installer
         run: |
-          npm run dist -- --publish never *> build-out.txt
-          exit $LASTEXITCODE
+          $ErrorActionPreference = 'Continue'
+          for ($i = 1; $i -le 3; $i++) {
+            if ($i -ge 2) {
+              # 上游网关超时后切国内镜像再试，避免一次 504 就让发布失败
+              $env:ELECTRON_MIRROR = 'https://npmmirror.com/mirrors/electron/'
+              $env:ELECTRON_BUILDER_BINARIES_MIRROR = 'https://npmmirror.com/mirrors/electron-builder-binaries/'
+            }
+            Write-Host "electron-builder attempt $i (mirror=$($i -ge 2))"
+            npm run dist -- --publish never *> build-out.txt
+            if ($LASTEXITCODE -eq 0) { exit 0 }
+            Write-Host "attempt $i failed with $LASTEXITCODE"
+            Start-Sleep -Seconds 15
+          }
+          exit 1
         env:
           CSC_IDENTITY_AUTO_DISCOVERY: 'false'
           DEBUG: electron-builder,electron-builder:npm
