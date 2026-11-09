@@ -106,6 +106,59 @@ CREATE TABLE IF NOT EXISTS libraries (
 
 /** 库内建表 + 触发器 + 结构迁移。对每个打开的库连接执行一遍。 */
 /**
+ * abs_path 唯一索引的健康状态。
+ * 老库里若已有重复路径，建唯一索引会失败 —— 以前只 console.warn，用户永远看不到，
+ * 于是「一图一记录」这个前提在没有任何保障的情况下继续用（并发 watch + rescan 仍可能插两条）。
+ * 现在把状态暴露给「数据与维护」，并提供清理后的补建入口。
+ */
+let pathIndexState = { ok: true, duplicates: 0, error: '' };
+
+/**
+ * 结构层面的「修失败了但还能跑」的状态。
+ * 这类问题以前一律裸 catch 吞掉：界面照常打开，只是颜色筛选/计数悄悄不准。
+ * 现在收集起来，由「数据与维护 → 库健康」展示，重启或下一个版本可据此排查。
+ */
+let schemaWarnings = [];
+export function getSchemaWarnings() {
+  return schemaWarnings.slice();
+}
+function noteSchemaWarning(msg) {
+  if (!schemaWarnings.includes(msg)) schemaWarnings.push(msg);
+  console.warn('[db]', msg);
+}
+
+export function getPathIndexState() {
+  return { ...pathIndexState };
+}
+
+/** 建（或补建）abs_path 唯一索引；重复清干净后可由界面触发重试 */
+export function retryPathIndex() {
+  return createPathIndex(db);
+}
+
+function createPathIndex(conn) {
+  try {
+    conn.exec('CREATE UNIQUE INDEX IF NOT EXISTS idx_images_path_unique ON images(abs_path)');
+    pathIndexState = { ok: true, duplicates: 0, error: '' };
+  } catch (err) {
+    let duplicates = 0;
+    try {
+      duplicates =
+        Number(
+          conn
+            .prepare('SELECT COUNT(*) AS c FROM (SELECT abs_path FROM images GROUP BY abs_path HAVING COUNT(*) > 1)')
+            .get()?.c
+        ) || 0;
+    } catch {
+      /* 统计失败不影响主结论：索引确实没建起来 */
+    }
+    pathIndexState = { ok: false, duplicates, error: String(err?.message || err).slice(0, 200) };
+    console.warn(`[db] abs_path 有 ${duplicates} 组重复路径，唯一索引未建立；清理重复后可在「数据与维护」重建`);
+  }
+  return { ...pathIndexState };
+}
+
+/**
  * 单调迁移列表：每项 { version, note, run(conn) }。
  * - 只在「真的改表结构」时追加新版本，版本号必须严格递增；
  * - run 必须幂等（迁移中途失败后重跑不会把库改坏）；
@@ -117,32 +170,70 @@ CREATE TABLE IF NOT EXISTS libraries (
  */
 const MIGRATIONS = [
   { version: 1, note: '引入 schema 版本表（基线；结构由幂等 reconcile 对齐）', run() {} },
+  {
+    version: 2,
+    note: '清理历史孤儿关联（image_folders / image_comments / clip_vec）',
+    run(conn) {
+      // 旧版本删素材只删 images 行，关联表没人清：文件夹张数虚高、封面指向已删图、评论永久残留。
+      // 新库上这些表还没建（本迁移在建表语句之前跑），所以要逐个探测存在性。
+      const has = (t) =>
+        !!conn.prepare("SELECT name FROM sqlite_master WHERE type = 'table' AND name = ?").get(t);
+      if (!has('images')) return;
+      for (const table of ['image_folders', 'image_comments', 'clip_vec']) {
+        if (!has(table)) continue;
+        conn.prepare(`DELETE FROM ${table} WHERE image_id NOT IN (SELECT id FROM images)`).run();
+      }
+    },
+  },
+  {
+    version: 3,
+    note: '清理历史孤儿关联（image_quality / image_annotations / image_ocr）',
+    run(conn) {
+      // 上一轮只补了 image_folders / image_comments / clip_vec 三张表的触发器，
+      // 这三张（画质分、标注、OCR）同样以 image_id 为主键，删素材后一直没人清。
+      const has = (t) =>
+        !!conn.prepare("SELECT name FROM sqlite_master WHERE type = 'table' AND name = ?").get(t);
+      if (!has('images')) return;
+      for (const table of ['image_quality', 'image_annotations', 'image_ocr']) {
+        if (!has(table)) continue;
+        conn.prepare(`DELETE FROM ${table} WHERE image_id NOT IN (SELECT id FROM images)`).run();
+      }
+    },
+  },
 ];
 
 const SCHEMA_VERSION = MIGRATIONS[MIGRATIONS.length - 1].version;
 
-/** 升级前留一份一致性快照：VACUUM INTO 会带上 WAL 里已提交但还没合并的数据 */
+/**
+ * 升级前留一份一致性快照：VACUUM INTO 会带上 WAL 里已提交但还没合并的数据。
+ * @returns {{ ok: boolean, path?: string, error?: string }}
+ *   ok=false 表示「该备份但没备份成」；调用方对会改结构的迁移必须中止，不能带着假备份继续。
+ */
 function backupBeforeUpgrade(conn, fromVersion) {
   let file;
   try {
     file = String(conn.prepare('PRAGMA database_list').get()?.file || '');
-  } catch {
-    return;
+  } catch (err) {
+    return { ok: false, error: `读不到数据库路径：${err?.message || err}` };
   }
-  if (!file) return;
+  if (!file) return { ok: true }; // 内存库没有可备份的磁盘文件
   const stamp = new Date().toISOString().slice(0, 10);
   const dest = `${file}.bak-v${fromVersion || 'legacy'}-${stamp}`;
-  if (fs.existsSync(dest)) return; // 今天已经备份过，别每次切库都复制一份
+  if (fs.existsSync(dest)) return { ok: true, path: dest }; // 今天已经备份过，别每次切库都复制一份
   try {
     // VACUUM INTO 不接受参数绑定，路径里的单引号必须自己转义
     conn.exec(`VACUUM INTO '${dest.replace(/'/g, "''")}'`);
     console.info('[db] 升级前已备份到', dest);
+    return { ok: true, path: dest };
   } catch (err) {
-    console.warn('[db] 升级前备份失败（继续迁移）：', err?.message || err);
+    const message = String(err?.message || err);
+    console.warn('[db] 升级前备份失败：', message);
+    return { ok: false, error: message };
   }
 }
 
 function initLibrarySchema(conn) {
+  schemaWarnings = []; // 每次 open（含切库）重置：告警只描述「当前这个库」的状态
   // ---- 版本化迁移：先建版本表，老库没有它 = 0 ----
   conn.exec('CREATE TABLE IF NOT EXISTS schema_migrations (version INTEGER PRIMARY KEY, applied_at TEXT NOT NULL)');
   const fromVersion = Number(conn.prepare('SELECT MAX(version) AS v FROM schema_migrations').get()?.v) || 0;
@@ -152,12 +243,22 @@ function initLibrarySchema(conn) {
     console.error(
       `[db] 这个库由更高版本创建（v${fromVersion} > v${SCHEMA_VERSION}），请升级应用后再使用；已自动备份。`
     );
-    backupBeforeUpgrade(conn, `newer-${fromVersion}`);
+    const downgradeBackup = backupBeforeUpgrade(conn, `newer-${fromVersion}`);
+    if (!downgradeBackup.ok) noteSchemaWarning(`降级前备份失败：${downgradeBackup.error}`);
   } else if (fromVersion > 0 && fromVersion < SCHEMA_VERSION) {
     // 只在「真的要跑结构迁移」时备份：
     // 老库（fromVersion = 0）走的仍是幂等 reconcile（只补列/建索引，不删不改），
     // 对它做 VACUUM INTO 等于在启动路径上复制一整个可能几个 GB 的库，得不偿失。
-    backupBeforeUpgrade(conn, fromVersion);
+    //
+    // 备份失败必须中止：以前只 console.warn 就继续跑迁移，用户以为有回退点、实际没有；
+    // 迁移一旦失败（断电 / 磁盘满 / 老库结构异常）就没有任何可恢复的快照。
+    const backup = backupBeforeUpgrade(conn, fromVersion);
+    if (!backup.ok) {
+      throw new Error(
+        `升级前备份失败，已中止迁移（v${fromVersion} → v${SCHEMA_VERSION}）：${backup.error}。` +
+          '库结构未做任何改动；请先手动复制一份 gallery.db（或处理磁盘空间 / 权限）后重新启动。'
+      );
+    }
   }
 
   conn.exec('BEGIN');
@@ -291,6 +392,31 @@ CREATE TABLE IF NOT EXISTS clip_vec (
   image_id INTEGER PRIMARY KEY,
   dim INTEGER NOT NULL,
   vec BLOB NOT NULL,
+  created_at TEXT NOT NULL
+);
+
+-- 人脸：一张图可检出多张脸，每张脸存 512 维归一化特征（ArcFace）。
+-- vec 存原始 float32 小端字节（与 clip_vec 一致，不入库量化），对齐后的 112 裁剪按 bbox 现算。
+CREATE TABLE IF NOT EXISTS faces (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  image_id INTEGER NOT NULL,
+  person_id INTEGER,
+  x1 REAL NOT NULL, y1 REAL NOT NULL, x2 REAL NOT NULL, y2 REAL NOT NULL,
+  score REAL NOT NULL DEFAULT 0,
+  det REAL NOT NULL DEFAULT 0,
+  vec BLOB NOT NULL,
+  created_at TEXT NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_faces_image ON faces(image_id);
+CREATE INDEX IF NOT EXISTS idx_faces_person ON faces(person_id);
+
+-- 人物：聚类结果。centroid 存归一化质心，增量聚类时不必每次重算全表平均。
+CREATE TABLE IF NOT EXISTS persons (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  name TEXT NOT NULL DEFAULT '',
+  cover_face_id INTEGER,
+  count INTEGER NOT NULL DEFAULT 0,
+  centroid BLOB,
   created_at TEXT NOT NULL
 );
 
@@ -466,6 +592,9 @@ CREATE TABLE IF NOT EXISTS actions (
   name TEXT NOT NULL,
   icon TEXT NOT NULL DEFAULT '',
   steps TEXT NOT NULL DEFAULT '[]',
+  -- 执行条件（JSON：{combine:'and'|'or', rules:{...}}），与智能文件夹共用同一套规则语义；
+  -- 空串 = 无条件，对选区全量执行
+  conditions TEXT NOT NULL DEFAULT '',
   created_at TEXT NOT NULL,
   last_run_at TEXT NOT NULL DEFAULT ''
 );
@@ -528,6 +657,34 @@ END;
 CREATE TRIGGER IF NOT EXISTS trg_image_notes_delete AFTER DELETE ON images BEGIN
   SELECT delete_image_notes(OLD.id);
 END;
+-- 素材被彻底删除时一并清掉人脸记录：否则人物页会一直挂着已删素材的裁切图，
+-- 聚类质心也被幽灵向量污染。人物行本身保留（用户可能已改名，宁可空着也不丢名字）。
+CREATE TRIGGER IF NOT EXISTS trg_faces_delete AFTER DELETE ON images BEGIN
+  DELETE FROM faces WHERE image_id = OLD.id;
+END;
+-- 同理清掉「图 ↔ 文件夹」关联：以前只有回收站/导入两条路径手工清，
+-- 去重回滚与批量淘汰直接 DELETE images 就留下了孤儿 —— 侧栏张数虚高、封面指向已删图。
+CREATE TRIGGER IF NOT EXISTS trg_image_folders_delete AFTER DELETE ON images BEGIN
+  DELETE FROM image_folders WHERE image_id = OLD.id;
+END;
+CREATE TRIGGER IF NOT EXISTS trg_image_comments_delete AFTER DELETE ON images BEGIN
+  DELETE FROM image_comments WHERE image_id = OLD.id;
+END;
+-- 向量也要跟着走：去重回滚只删 images 行时，残留向量会让「相似图」把已删素材召回。
+CREATE TRIGGER IF NOT EXISTS trg_clip_vec_delete AFTER DELETE ON images BEGIN
+  DELETE FROM clip_vec WHERE image_id = OLD.id;
+END;
+-- 画质分 / 标注 / OCR 同样是 image_id 主键：以前只在业务路径手工清，
+-- 去重回滚、批量淘汰、清空回收站这些硬删除会留下孤儿（画质分还会被「整理」页当有效数据读）。
+CREATE TRIGGER IF NOT EXISTS trg_image_quality_delete AFTER DELETE ON images BEGIN
+  DELETE FROM image_quality WHERE image_id = OLD.id;
+END;
+CREATE TRIGGER IF NOT EXISTS trg_image_annotations_delete AFTER DELETE ON images BEGIN
+  DELETE FROM image_annotations WHERE image_id = OLD.id;
+END;
+CREATE TRIGGER IF NOT EXISTS trg_image_ocr_delete AFTER DELETE ON images BEGIN
+  DELETE FROM image_ocr WHERE image_id = OLD.id;
+END;
 `);
 
   // ---- 结构迁移（对当前连接执行，等价旧版顶层 ensureColumn）----
@@ -554,6 +711,10 @@ END;
   // 封面版本号：换/恢复自定义封面只重写缩略图文件、不动原文件，fs_mtime 不会变，
   // 单独用它让缩略图 URL 变化，避免浏览器 7 天强缓存里一直是旧封面
   ensureColumn('images', 'cover_ver', 'cover_ver INTEGER NOT NULL DEFAULT 0');
+  // 人脸扫描进度：0 = 还没扫过（含扫过但一张脸都没有的照片，扫完置 1）。
+  // 用部分索引只索引「待扫」的行，百万库清空后索引几乎为空，续扫不必全表反连接。
+  ensureColumn('images', 'face_scanned', 'face_scanned INTEGER NOT NULL DEFAULT 0');
+  conn.exec('CREATE INDEX IF NOT EXISTS idx_images_face_pending ON images(id) WHERE face_scanned = 0');
   // 文件夹封面：NULL = 自动用夹内最新一张；有值 = 用户手动指定的那一张
   ensureColumn('folders', 'cover_image_id', 'cover_image_id INTEGER');
   // 文件夹标签（Eagle：给文件夹打标签，里面素材自动带上）：只存逗号串，查询期沿路径继承，
@@ -611,6 +772,7 @@ END;
   conn.exec('CREATE INDEX IF NOT EXISTS idx_images_kind ON images(media_kind)');
   // Eagle 素材 id：从 .library 迁移时记下来，重复导入同一个库直接跳过（幂等），
   // 而不是每点一次「开始迁移」就多出一份副本
+  ensureColumn('actions', 'conditions', "conditions TEXT NOT NULL DEFAULT ''");
   ensureColumn('images', 'eagle_id', "eagle_id TEXT NOT NULL DEFAULT ''");
   conn.exec('CREATE INDEX IF NOT EXISTS idx_images_eagle ON images(eagle_id)');
   // 回收站整行快照（images 行的 JSON）：恢复时要还原 media_kind / rating / note /
@@ -629,14 +791,27 @@ END;
   ensureColumn('images', 'last_used_at', "last_used_at TEXT NOT NULL DEFAULT ''");
   conn.exec('CREATE INDEX IF NOT EXISTS idx_images_last_used ON images(last_used_at)');
 
+  // 人脸质量（0..1）/ 正面程度（0..1）/ 排除标记：
+  // quality、frontal 为 -1 表示老数据未评估，扫描或「清理模糊人脸」后回填；
+  // hidden: 0 正常、1 低质量自动排除（不聚类/不当封面/不显示）、2 用户手动保留。
+  ensureColumn('faces', 'quality', 'quality REAL NOT NULL DEFAULT -1');
+  ensureColumn('faces', 'frontal', 'frontal REAL NOT NULL DEFAULT -1');
+  ensureColumn('faces', 'hidden', 'hidden INTEGER NOT NULL DEFAULT 0');
+  conn.exec('CREATE INDEX IF NOT EXISTS idx_faces_quality ON faces(person_id, hidden, quality)');
+
+  // 封面脸的原图像素短边：0 表示「这个人没有够格当封面的清晰脸」。
+  // 存成列而不是每次 JOIN images 现算，是因为人物列表按它做筛选（默认只列有清晰封面的），
+  // 2241 个人物乘一次 JOIN 足够卡顿，而它只在聚簇重算/清理时变一次。
+  ensureColumn('persons', 'cover_px', 'cover_px REAL NOT NULL DEFAULT 0');
+
+  // 用户手动指定的封面：1 = 锁住，聚类重算 / 清理 / 扫描新增都不许再自动换人。
+  // 不加这一列的话，手动选了一张「不够清晰但好看」的封面，下一次扫描就会被 coverRank 顶掉，
+  // 用户会以为「设封面」这个功能根本没生效。
+  ensureColumn('persons', 'cover_locked', 'cover_locked INTEGER NOT NULL DEFAULT 0');
+
   // abs_path 唯一索引：watch 防抖回调与手动 rescan 可能同时进入，两边都判「不存在」就各插一条。
-  // 老库里若已经有重复路径，唯一索引建不起来（会抛错）——这里只告警、不阻断启动，
-  // 用去重面板清掉重复后再重启即可自动补上。
-  try {
-    conn.exec('CREATE UNIQUE INDEX IF NOT EXISTS idx_images_path_unique ON images(abs_path)');
-  } catch (err) {
-    console.warn('[db] abs_path 存在重复记录，唯一索引暂未建立：', err?.message || err);
-  }
+  // 老库里若已经有重复路径，唯一索引建不起来 —— 不阻断启动，但状态要能被界面读到（见 getPathIndexState）。
+  createPathIndex(conn);
 
   // hue 由单列整数改为多值文本（逗号分隔，最多 3 个色系；空串 = 黑白灰）。
   {
@@ -645,14 +820,34 @@ END;
       conn.exec("ALTER TABLE images ADD COLUMN hue_txt TEXT NOT NULL DEFAULT ''");
       conn.exec("UPDATE images SET hue_txt = CASE WHEN hue IS NULL OR hue < 0 THEN '' ELSE CAST(hue AS TEXT) END");
       conn.exec('DROP INDEX IF EXISTS idx_images_hue');
+      let stepError = '';
       try {
         conn.exec('ALTER TABLE images DROP COLUMN hue');
         conn.exec('ALTER TABLE images RENAME COLUMN hue_txt TO hue');
-      } catch {
-        try { conn.exec('ALTER TABLE images RENAME COLUMN hue TO hue_old'); } catch {}
-        try { conn.exec('ALTER TABLE images RENAME COLUMN hue_txt TO hue'); } catch {}
+      } catch (err) {
+        // 老 SQLite 不支持 DROP COLUMN：退化为「改名让位」两步走
+        stepError = String(err?.message || err).slice(0, 160);
+        try {
+          conn.exec('ALTER TABLE images RENAME COLUMN hue TO hue_old');
+          conn.exec('ALTER TABLE images RENAME COLUMN hue_txt TO hue');
+          stepError = '';
+        } catch (err2) {
+          stepError = String(err2?.message || err2).slice(0, 160);
+        }
       }
-      conn.exec('CREATE INDEX IF NOT EXISTS idx_images_hue ON images(hue)');
+      // 不假设「没抛错就等于改对了」：直接查表结构，改不动就明确记一条结构告警
+      const type = conn.prepare("SELECT type FROM pragma_table_info('images') WHERE name = 'hue'").get()?.type || '';
+      const leftover = conn.prepare("SELECT 1 AS x FROM pragma_table_info('images') WHERE name = 'hue_txt'").get();
+      if (/INT/i.test(String(type)) || leftover) {
+        noteSchemaWarning(
+          `hue 列迁移未完成（当前类型 ${type || '未知'}${leftover ? '，仍残留 hue_txt' : ''}${stepError ? `；${stepError}` : ''}），颜色筛选结果可能不正确`
+        );
+      }
+      try {
+        conn.exec('CREATE INDEX IF NOT EXISTS idx_images_hue ON images(hue)');
+      } catch (err) {
+        noteSchemaWarning(`hue 索引建立失败（${String(err?.message || err).slice(0, 120)}），颜色筛选会变慢`);
+      }
     }
   }
 
@@ -1168,8 +1363,9 @@ function ensureDefaultLibrary() {
     // 注意保留空表：连接还开着，且设置已改为按库存储（getSettings 会查这张表）
     try {
       db.exec('DELETE FROM settings');
-    } catch {
-      /* 忽略 */
+    } catch (err) {
+      // 一次性迁移：清不掉旧 settings 不致命，但静默会让人误以为双份来源已被清
+      console.warn('[db] 迁移后清空旧 settings 失败（可忽略，不影响启动）：', err?.message || err);
     }
     // 再把迁移到 global.db 的非全局键播种回默认库——设置分库后，
     // 默认库的第一份配置就来自这次迁移的结果（其他库在各自首次打开时播种）
@@ -1181,8 +1377,9 @@ function ensureDefaultLibrary() {
     try {
       const row = globalDb.prepare("SELECT value FROM settings WHERE key='storageDir'").get();
       if (row) return String(JSON.parse(row.value));
-    } catch {
-      /* fallthrough */
+    } catch (err) {
+      // 读不到 storageDir 就退回默认路径，但别静默 —— 用户改了存储位置却没生效会很困惑
+      console.warn('[db] 读取 storageDir 失败，回退默认路径：', err?.message || err);
     }
     return DEFAULT_STORAGE_DIR;
   })();

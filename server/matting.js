@@ -17,7 +17,12 @@ const MODEL_FILE = path.join(DIR, 'model.onnx');
 const CONFIG_FILE = path.join(DIR, 'preprocessor_config.json');
 const REPO = 'sunseeker001/U-2-Net-Human-Seg';
 const MIRRORS = ['https://hf-mirror.com/', 'https://huggingface.co/'];
-const fileUrls = (p) => MIRRORS.map((m) => `${m}${REPO}/resolve/main/${p}`);
+/**
+ * 镜像前缀：downloadModelFile 的契约是「前缀 + repoPath」自己拼完整 URL，
+ * 这里只能给到「…/resolve/main/」为止。以前把整条文件 URL 当前缀传入，
+ * 路径被拼成 xxx/preprocessor_config.jsonpreprocessor_config.json，永远 404。
+ */
+const MIRROR_BASES = MIRRORS.map((m) => `${m}${REPO}/resolve/main/`);
 const MODEL_KEY = `${REPO}/onnx/model.onnx`;
 
 let sessionPromise = null;
@@ -63,7 +68,9 @@ export function cancelMattingInstall() {
 export function startMattingInstall() {
   if (state.downloading) return { ok: true, started: false, ...mattingStatus() };
   installMatting().catch((err) => {
-    console.warn('[matting] 模型安装失败：', err?.message || err);
+    // cause 链里才是网络层真相（ECONNREFUSED / ETIMEDOUT / DNS 失败等），只记 message 排查不了
+    const deep = err?.cause?.cause?.code || err?.cause?.cause?.message || err?.cause?.code || err?.cause?.message;
+    console.warn('[matting] 模型安装失败：', err?.message || err, deep ? `| cause: ${deep}` : '');
   });
   return { ok: true, started: true, ...mattingStatus() };
 }
@@ -80,7 +87,7 @@ export async function installMatting() {
   const jobId = createJob({ kind: 'model-install', title: '去背景模型（U-2-Net）', payload: { model: 'matting' } });
   try {
     await downloadModelFile({
-      mirrors: fileUrls('preprocessor_config.json'),
+      mirrors: MIRROR_BASES,
       repoPath: 'preprocessor_config.json',
       dest: CONFIG_FILE,
       minBytes: 16,
@@ -94,7 +101,7 @@ export async function installMatting() {
     });
     state.message = '下载模型（约 4.5MB）…';
     await downloadModelFile({
-      mirrors: fileUrls('onnx/model.onnx'),
+      mirrors: MIRROR_BASES,
       repoPath: 'onnx/model.onnx',
       dest: MODEL_FILE,
       minBytes: 1024 * 1024,

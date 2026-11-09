@@ -178,13 +178,24 @@ export default function EnhanceSection({ settings, patch, onToast }: Props) {
   srLoadingRef.current = !!sr?.loading;
   const aiUpDownloadingRef = useRef(false);
   aiUpDownloadingRef.current = !!aiUp?.downloading;
+  const mattingDownloadingRef = useRef(false);
+  mattingDownloadingRef.current = !!matting?.downloading;
 
   useEffect(() => {
     const off = subscribeEvents('job', (d) => {
       try {
         // 去背景模型下载进度已并入 job 快照（服务端运行期 5s 心跳推一帧），
         // 不再每 1s 打一次 mattingStatus 接口
-        if (d?.matting) setMatting(d.matting);
+        if (d?.matting) {
+          const st = d.matting;
+          setMatting(st);
+          // 以前失败只写进状态里不弹提示，用户只看到按钮回到「未下载」，不知道败在哪
+          if (mattingDownloadingRef.current && !st.downloading) {
+            if (st.error) onToast(`去背景模型下载失败：${st.error}`, 'error');
+            else onToast(st.message || '去背景模型下载完成');
+          }
+          mattingDownloadingRef.current = !!st.downloading;
+        }
         if (d?.sr) {
           const st = d.sr;
           setSr(st);
@@ -198,7 +209,9 @@ export default function EnhanceSection({ settings, patch, onToast }: Props) {
           const st = d.aiUp;
           setAiUp(st);
           if (aiUpDownloadingRef.current && !st.downloading) {
-            onToast(st.installed ? 'AI 超分运行库安装完成' : '安装未完成');
+            // 运行库 / Real-CUGAN / 社区模型三类安装都走这里收尾；结果带在 message/installError 里
+            if (st.installError) onToast(`安装失败：${st.installError}`, 'error');
+            else onToast(st.message || '安装完成');
             reloadModels();
           }
           aiUpDownloadingRef.current = !!st.downloading;
@@ -409,17 +422,16 @@ export default function EnhanceSection({ settings, patch, onToast }: Props) {
             disabled={!aiUp?.installed || !!aiUp?.downloading}
             onClick={async () => {
               try {
-                await api.aiUpscaleInstallModel(m.id);
-                setAiUp(await api.aiUpscaleStatus());
-                setEnhanceModels(await api.enhanceModels());
-                onToast(`已安装模型：${m.label}`);
+                // 后台下载：接口立刻返回，进度/结果靠下方进度条与 job 心跳（以前同步等下载，按钮毫无反馈）
+                setAiUp(await api.aiUpscaleInstallModel(m.id));
+                onToast(`已开始后台下载 ${m.label}，进度见下方`);
               } catch (err) {
                 onToast((err as Error).message, 'error');
               }
             }}
             title={m.desc}
           >
-            {m.installed ? '✓ ' : '↓ '}
+            {m.installed ? '✓ ' : aiUp?.downloading ? '… ' : '↓ '}
             {m.label}
           </button>
         ))}
@@ -431,16 +443,21 @@ export default function EnhanceSection({ settings, patch, onToast }: Props) {
           disabled={!!aiUp?.downloading}
           onClick={async () => {
             try {
-              await api.aiUpscaleInstallCugan();
-              setAiUp(await api.aiUpscaleStatus());
-              setEnhanceModels(await api.enhanceModels());
-              onToast('Real-CUGAN 运行库安装完成');
+              // 后台下载：立刻返回，下载 / 解压 / 自检各阶段进度走 job 心跳
+              setAiUp(await api.aiUpscaleInstallCugan());
+              onToast('已开始后台下载 Real-CUGAN 运行库，进度见下方');
             } catch (err) {
               onToast((err as Error).message, 'error');
             }
           }}
         >
-          {aiUp?.cugan?.installed ? '重新安装 Real-CUGAN' : '↓ 安装 Real-CUGAN 运行库（约 30MB）'}
+          {aiUp?.downloading
+            ? aiUp.progress >= 0
+              ? `下载中 ${aiUp.progress}%`
+              : '下载中…'
+            : aiUp?.cugan?.installed
+              ? '重新安装 Real-CUGAN'
+              : '↓ 安装 Real-CUGAN 运行库（约 30MB）'}
         </button>
         <span style={{ fontSize: 12.5, color: 'var(--muted)' }}>
           {aiUp?.cugan?.installed
@@ -500,6 +517,11 @@ export default function EnhanceSection({ settings, patch, onToast }: Props) {
             : '未下载：去背景功能需要先下载模型（一次性）'}
         </span>
       </div>
+      {!!matting?.error && (
+        <div className="hint" style={{ color: 'var(--err, #e5484d)', marginTop: 6 }}>
+          {matting.error}
+        </div>
+      )}
 
       {/* 本地偏好模型：个性化推荐 */}
       <div className="settings-subtitle" style={{ marginTop: 14 }}>
@@ -562,10 +584,11 @@ export default function EnhanceSection({ settings, patch, onToast }: Props) {
           disabled={!!sr?.loading}
           onClick={async () => {
             try {
+              // 后台下载：接口立刻返回，进度/结果走 job 心跳
+              // （以前同步等几百 MB 下载，前端 20s 超时弹「请求超时」，其实后台还在下）
               const r = await api.aiSrLoad(m.id);
-              setSr(await api.aiSrStatus());
-              setEnhanceModels(await api.enhanceModels());
-              onToast(`${m.label}：${m.downloaded ? '已就绪' : '下载并加载完成'}`);
+              setSr(r);
+              onToast(`已开始后台下载 ${m.label}，进度见下方`);
             } catch (err) {
               onToast((err as Error).message, 'error');
             }

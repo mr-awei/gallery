@@ -19,6 +19,14 @@ export const SKIP_DIRS = new Set([
   'trash',
   'data',
   'thumbs',
+  // 同步盘的内部目录：库放在 OneDrive / Dropbox / Syncthing 里时，
+  // 这些目录装的是同步元数据与历史版本，吸进库就是几万条垃圾记录
+  '.dropbox',
+  '.dropbox.cache',
+  '.stfolder',
+  '.stversions',
+  '.onedrive',
+  '.sync',
   // 库数据目录：gallery.db + 整库缩略图。扫进来就是自己吃自己
   '.tuku',
   // 旧版本用过这个名字，老库里还留着；继续跳过，否则升级后第一次扫描
@@ -48,4 +56,21 @@ export function isSkippedPath(full) {
     .toLowerCase()
     .split(/[\\/]+/)
     .some((seg) => seg !== '' && shouldSkipDir(seg));
+}
+
+/**
+ * 同步盘产生的「冲突副本」文件名。
+ *
+ * 库放在 OneDrive / Dropbox / Syncthing 里时，两端同时改名就会多出一份
+ * `xxx.sync-conflict-20260101-120000-ABCD.jpg` 或 `xxx (冲突副本 2026-01-01).jpg`。
+ * 这类文件不能一律丢弃（可能装着更新的修改），但必须让用户知道，
+ * 否则同一张图会在库里出现两次而没人说得清哪份是对的。
+ */
+export function isSyncConflict(name) {
+  const s = String(name || '');
+  return (
+    /sync-conflict-\d{8}-\d{6}/i.test(s) ||
+    /冲突副本|conflicted copy/i.test(s) ||
+    /\(\s*\d{4}-\d{2}-\d{2}[^)]*\)\.[a-z0-9]+$/i.test(s)
+  );
 }

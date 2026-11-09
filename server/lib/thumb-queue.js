@@ -25,10 +25,23 @@ let syncRunning = 0;
 /** 失败计数与最后一条错误：以前 `.catch(() => '')` 把失败吞成空串，占位图永远不消失也无从排查 */
 let failed = 0;
 let lastError = '';
+/**
+ * 失败明细（桌面端要能看见「哪些图失败了、为什么」，而不是只有一个总数）。
+ * 上限 200 条：失败的往往集中在同一批坏文件，留太多只会撑内存。
+ * @type {Map<number, { id: number, reason: string, at: string }>}
+ */
+const failures = new Map();
 
 function noteFailure(id, err) {
   failed += 1;
   lastError = `#${id} ${err?.message || err}`;
+  if (Number.isFinite(Number(id)) && failures.size < 200) {
+    failures.set(Number(id), {
+      id: Number(id),
+      reason: String(err?.message || err || '未知错误').slice(0, 160),
+      at: new Date().toISOString(),
+    });
+  }
   // 只在前几次与每 50 次打一条：一次坏库可能是所有图都失败，逐条打会把日志刷爆
   if (failed <= 3 || failed % 50 === 0) {
     console.warn(`[thumb] 生成失败（累计 ${failed} 次）：${lastError}`);
@@ -37,7 +50,30 @@ function noteFailure(id, err) {
 
 /** 正在补图的队列长度（诊断用） */
 export function thumbQueueStats() {
-  return { pending: queue.length, running, syncRunning, failed, lastError };
+  return {
+    pending: queue.length,
+    running,
+    syncRunning,
+    failed,
+    lastError,
+    failures: [...failures.values()].sort((a, b) => (a.at < b.at ? 1 : -1)),
+  };
+}
+
+/** 把失败过的图重新排队（清空明细，便于观察这一轮的结果） */
+export function retryFailedThumbs() {
+  const ids = [...failures.keys()];
+  failures.clear();
+  let queuedCount = 0;
+  for (const id of ids) if (queueThumb(id)) queuedCount++;
+  return { requested: ids.length, queued: queuedCount };
+}
+
+/** 清空失败明细（不重试，只让面板恢复干净） */
+export function clearThumbFailures() {
+  failures.clear();
+  failed = 0;
+  lastError = '';
 }
 
 /** 切库时清空：队列里的 id 属于旧库，继续跑会拿旧 id 去新库的 thumbs 目录里生成 */

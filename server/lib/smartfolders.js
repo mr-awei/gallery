@@ -21,6 +21,7 @@ export function getSmartFolder(id) {
 export function createSmartFolder({ name, rules = {}, autoTags = [] }) {
   const n = String(name || '').trim();
   if (!n) throw new Error('智能文件夹名称不能为空');
+  assertSavable(rules);
   const now = new Date().toISOString();
   try {
     db.prepare(
@@ -42,6 +43,8 @@ export function updateSmartFolder(id, patch = {}) {
     db.prepare('UPDATE smart_folders SET name = ?, updated_at = ? WHERE id = ?').run(n, now, id);
   }
   if (patch.rules !== undefined) {
+    // 编辑时清空条件等同于「把这夹子变成全库」，与新建一样直接拒绝
+    assertSavable(patch.rules);
     db.prepare('UPDATE smart_folders SET rules = ?, updated_at = ? WHERE id = ?').run(
       JSON.stringify(patch.rules || {}),
       now,
@@ -69,16 +72,16 @@ function likeArg(s) {
 }
 
 /**
- * 把规则编译成 SQL 条件。
- *
- * 为什么不用「SELECT * FROM images 全取回来再 JS 过滤」：
- * 百万级库这么做等于把整库读进内存、逐行跑 JS（原来还会对每行再查一次 ai_desc），
- * 点一下智能夹就是几秒到几十秒的主进程卡死。规则本身都是可直接下推的条件。
- * matchSmartFolder（单行判断）保留给「导入后即时判断」这类小批量场景。
+ * 单组平坦条件 → SQL 片段与参数（供嵌套分组复用）。
+ * @param {any} rules
  */
-export function buildSmartFolderWhere(rules = {}) {
+function buildFlatWhere(rules = {}) {
   const where = [];
   const params = [];
+  /* 为什么不用「SELECT * FROM images 全取回来再 JS 过滤」：
+     百万级库这么做等于把整库读进内存、逐行跑 JS（原来还会对每行再查一次 ai_desc），
+     点一下智能夹就是几秒到几十秒的主进程卡死。规则本身都是可直接下推的条件。
+     matchSmartFolder（单行判断）保留给「导入后即时判断」这类小批量场景。 */
   if (rules.favorite === 'yes') where.push('favorite = 1');
   if (rules.favorite === 'no') where.push('favorite = 0');
   if (Number(rules.minRating) > 0) {
@@ -126,37 +129,142 @@ export function buildSmartFolderWhere(rules = {}) {
     );
     params.push(likeArg(kw));
   }
-  return { sql: where.length ? `WHERE ${where.join(' AND ')}` : '', params };
+  return { clauses: where, params };
+}
+
+/**
+ * 把规则编译成 SQL 条件。
+ *
+ * 支持一层分组（Eagle 式 AND/OR 嵌套的最小可用形态）：
+ *   rules.groups = [{ op:'or', rules:{ tagsInclude:['UI','图标'] } }, ...]
+ *   rules.combine = 'and' | 'or'     // 组与组之间怎么连，默认 and
+ * 顶层原有的平坦字段视为「第一个隐式组」，老数据无需迁移。
+ */
+export function buildSmartFolderWhere(rules = {}) {
+  const r = rules || {};
+  const groups = [];
+  const base = buildFlatWhere(r);
+  if (base.clauses.length) {
+    groups.push({ op: 'AND', sql: `(${base.clauses.join(' AND ')})`, params: base.params });
+  }
+  const list = Array.isArray(r.groups) ? r.groups : [];
+  for (const g of list) {
+    if (!g || typeof g !== 'object') continue;
+    const gRules = g.rules && typeof g.rules === 'object' ? g.rules : g;
+    const flat = buildFlatWhere(gRules);
+    if (!flat.clauses.length) continue; // 空组不参与组合，否则 OR 会命中全库
+    const op = String(g.op).toUpperCase() === 'OR' ? 'OR' : 'AND';
+    groups.push({ op, sql: `(${flat.clauses.join(` ${op} `)})`, params: flat.params });
+  }
+  // 一条生效条件都没有时绝不能返回空 WHERE —— 那会退化成「整库都是这个智能文件夹」，
+  // 用户看到的就是「没设条件却收了 7541 张」。宁可不命中，也不要把全库塞进来。
+  if (!groups.length) return { sql: 'WHERE 0', params: [] };
+  if (groups.length === 1) return { sql: `WHERE ${groups[0].sql}`, params: groups[0].params };
+  const top = String(r.combine).toUpperCase() === 'OR' ? 'OR' : 'AND';
+  const params = [];
+  for (const g of groups) params.push(...g.params);
+  return { sql: `WHERE (${groups.map((g) => g.sql).join(` ${top} `)})`, params };
+}
+
+/**
+ * 单组平坦规则的行内判断（与 buildFlatWhere 逐条等价：条件条数、op 展开方式都一致）。
+ * @param {any} row
+ * @param {any} rules
+ * @param {'AND'|'OR'} op 组内条件之间怎么连
+ */
+function matchFlat(row, rules = {}, op = 'AND') {
+  const tests = [];
+  if (rules.favorite === 'yes') tests.push(row.favorite === 1);
+  if (rules.favorite === 'no') tests.push(row.favorite !== 1);
+  if (Number(rules.minRating) > 0) tests.push((row.rating || 0) >= Number(rules.minRating));
+  if (Number(rules.minScore) > 0) tests.push((row.score ?? 100) >= Number(rules.minScore));
+  if (Number(rules.minWidth) > 0)
+    tests.push(Math.max(row.width || 0, row.height || 0) >= Number(rules.minWidth));
+  if (rules.orientation === 'landscape') tests.push(row.width > (row.height || 0) * 1.15);
+  if (rules.orientation === 'portrait') tests.push((row.width || 0) > 0 && row.height > row.width * 1.15);
+  if (rules.orientation === 'square')
+    tests.push(Math.abs((row.width || 0) - (row.height || 0)) <= (row.width || 1) * 0.15);
+  const tags = splitTags(row.tags);
+  for (const t of Array.isArray(rules.tagsInclude) ? rules.tagsInclude : []) {
+    const tag = String(t).trim();
+    if (tag) tests.push(tags.includes(tag));
+  }
+  for (const t of Array.isArray(rules.tagsExclude) ? rules.tagsExclude : []) {
+    const tag = String(t).trim();
+    if (tag) tests.push(!tags.includes(tag));
+  }
+  const hay = `${row.title} ${row.tags} ${row.keyword} ${row.note}`.toLowerCase();
+  for (const k of Array.isArray(rules.keywords) ? rules.keywords : []) {
+    const kw = String(k).trim().toLowerCase();
+    if (kw) tests.push(hay.includes(kw));
+  }
+  const aiKw = Array.isArray(rules.aiKeywords) ? rules.aiKeywords.map((k) => String(k).trim().toLowerCase()).filter(Boolean) : [];
+  if (aiKw.length) {
+    const desc = (aiDescText(row.id) || '').toLowerCase();
+    for (const kw of aiKw) tests.push(desc.includes(kw));
+  }
+  if (!tests.length) return true;
+  return op === 'OR' ? tests.some(Boolean) : tests.every(Boolean);
+}
+
+/**
+ * 单组平坦规则的行内判断（供「动作」的条件复用）：
+ * 与 matchFlat 同一实现，避免出现第二套「评分怎么算命中」的判断。
+ * @param {any} row
+ * @param {any} rules
+ * @param {'AND'|'OR'} op
+ */
+export function matchRules(row, rules, op = 'AND') {
+  return matchFlat(row, rules, op === 'OR' ? 'OR' : 'AND');
 }
 
 /** 判断一张图是否命中智能文件夹的规则（单行判断，语义与 buildSmartFolderWhere 保持一致） */
 export function matchSmartFolder(row, rules = {}) {
-  if (rules.favorite === 'yes' && row.favorite !== 1) return false;
-  if (rules.favorite === 'no' && row.favorite === 1) return false;
-  if (rules.minRating && (row.rating || 0) < rules.minRating) return false;
-  if (rules.minScore && (row.score ?? 100) < rules.minScore) return false;
-  if (rules.minWidth && Math.max(row.width || 0, row.height || 0) < rules.minWidth) return false;
-  if (rules.orientation === 'landscape' && !(row.width > (row.height || 0) * 1.15)) return false;
-  if (rules.orientation === 'portrait' && !((row.width || 0) > 0 && row.height > row.width * 1.15)) return false;
-  if (rules.orientation === 'square' && Math.abs((row.width || 0) - (row.height || 0)) > (row.width || 1) * 0.15)
-    return false;
-  if (Array.isArray(rules.tagsInclude) && rules.tagsInclude.length) {
-    const tags = splitTags(row.tags);
-    if (!rules.tagsInclude.every((t) => tags.includes(String(t).trim()))) return false;
+  const r = rules || {};
+  const checks = [];
+  if (hasFlatCondition(r)) checks.push(matchFlat(row, r, 'AND'));
+  for (const g of Array.isArray(r.groups) ? r.groups : []) {
+    if (!g || typeof g !== 'object') continue;
+    const gRules = g.rules && typeof g.rules === 'object' ? g.rules : g;
+    if (!hasFlatCondition(gRules)) continue;
+    checks.push(matchFlat(row, gRules, String(g.op).toUpperCase() === 'OR' ? 'OR' : 'AND'));
   }
-  if (Array.isArray(rules.tagsExclude) && rules.tagsExclude.length) {
-    const tags = splitTags(row.tags);
-    if (rules.tagsExclude.some((t) => tags.includes(String(t).trim()))) return false;
+  // 与 buildSmartFolderWhere 同一语义：无生效条件 = 一张都不命中
+  if (!checks.length) return false;
+  const top = String(r.combine).toUpperCase() === 'OR' ? 'OR' : 'AND';
+  // 组内的 AND/OR 已在 matchFlat 内部等价处理（tag 包含要求全部命中、排除任一即失败），
+  // 组间按 combine 组合；单个组时直接取该组结果。
+  return top === 'OR' ? checks.some(Boolean) : checks.every(Boolean);
+}
+
+/** 该组是否有任何生效条件（空组不能参与 OR 组合，否则会命中全库） */
+function hasFlatCondition(rules = {}) {
+  // 直接用编译器判定，避免「tagsInclude: ['  ']」这类空白项被算成有条件
+  return buildFlatWhere(rules).clauses.length > 0;
+}
+
+/**
+ * 规则里是否有任何生效条件（顶层平坦条件，或任一分组内有条件）。
+ * 智能文件夹必须有条件：无条件时它不是「全库」也不是「空」，而是配置错误，
+ * 所以保存阶段就拦下来，别让它以「命中 0 张」的形态静默存在。
+ * @param {any} rules
+ */
+export function hasSmartFolderCondition(rules = {}) {
+  const r = rules || {};
+  if (hasFlatCondition(r)) return true;
+  for (const g of Array.isArray(r.groups) ? r.groups : []) {
+    if (!g || typeof g !== 'object') continue;
+    const gRules = g.rules && typeof g.rules === 'object' ? g.rules : g;
+    if (hasFlatCondition(gRules)) return true;
   }
-  if (Array.isArray(rules.keywords) && rules.keywords.length) {
-    const hay = `${row.title} ${row.tags} ${row.keyword} ${row.note}`.toLowerCase();
-    if (!rules.keywords.every((k) => hay.includes(String(k).toLowerCase()))) return false;
+  return false;
+}
+
+/** 保存前的统一校验：名称非空 + 至少一条生效条件 */
+function assertSavable(rules) {
+  if (!hasSmartFolderCondition(rules)) {
+    throw new Error('智能文件夹至少要有一个筛选条件（不设条件的文件夹会命中整库，没有意义）');
   }
-  if (Array.isArray(rules.aiKeywords) && rules.aiKeywords.length) {
-    const desc = (aiDescText(row.id) || '').toLowerCase();
-    if (!rules.aiKeywords.every((k) => desc.includes(String(k).toLowerCase()))) return false;
-  }
-  return true;
 }
 
 /** 预览智能文件夹命中的图片（按评分倒序，分页） */

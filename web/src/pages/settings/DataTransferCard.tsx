@@ -280,6 +280,27 @@ export default function DataTransferCard({ onLibraryChanged, onToast }: Props) {
           >
             {busy === 'eagle-out' ? '导出中…' : '导出为 .library…'}
           </button>
+          <button
+            className="btn sm ghost"
+            disabled={!!busy}
+            title="先看看会导出多少素材与文件夹"
+            onClick={async () => {
+              setBusy('eagle-prev');
+              setLog('');
+              try {
+                const p = await api.eagleExportPreview();
+                setLog(
+                  `将导出 ${p.images} 个素材、${p.folders} 个文件夹（来自当前库：${p.storageDir || '默认资料库'}）`
+                );
+              } catch (e) {
+                setLog(`预览失败：${(e as Error).message}`);
+              } finally {
+                setBusy('');
+              }
+            }}
+          >
+            {busy === 'eagle-prev' ? '预览中…' : '预览将导出什么'}
+          </button>
         </div>
       </div>
 

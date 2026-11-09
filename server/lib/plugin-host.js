@@ -13,6 +13,7 @@ import path from 'node:path';
 import { spawn } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import { APP_ROOT, DATA_DIR } from '../config.js';
+import { getSettings, saveSettings } from '../db.js';
 import * as lib from '../library.js';
 import { dirMatchesId, resolvePluginEntry, sanitizePatch, validateManifest } from './plugin-manifest.js';
 
@@ -58,12 +59,35 @@ function inspectDir(root) {
   return found;
 }
 
+/** 已停用的插件 id（库级设置，随库走；默认全开） */
+export function disabledPluginIds() {
+  const list = getSettings().plugins?.disabled;
+  return Array.isArray(list) ? list.map((s) => String(s)) : [];
+}
+
+export function isPluginEnabled(id) {
+  return !disabledPluginIds().includes(String(id));
+}
+
+/** 启用 / 停用插件；不需要重启应用，下次执行即生效 */
+export function setPluginEnabled(id, enabled) {
+  const pid = String(id || '');
+  if (!pid) throw new Error('插件 id 不能为空');
+  if (!findPlugin(pid)) throw new Error(`插件不存在：${pid}`);
+  const cur = new Set(disabledPluginIds());
+  if (enabled) cur.delete(pid);
+  else cur.add(pid);
+  saveSettings({ plugins: { disabled: [...cur] } });
+  return { id: pid, enabled: !!enabled, disabled: [...cur] };
+}
+
 /** 列出可用插件；用户目录里的同 id 插件覆盖内置版本 */
 export function listPlugins() {
   const map = new Map();
   for (const root of PLUGIN_DIRS) for (const p of inspectDir(root)) map.set(p.id, p);
   // entry/dir 是宿主执行时要用的内部字段；对外输出由 routes/plugins.js 过滤掉
-  return [...map.values()];
+  const disabled = new Set(disabledPluginIds());
+  return [...map.values()].map((p) => ({ ...p, enabled: !disabled.has(p.id) }));
 }
 
 export function findPlugin(id) {
@@ -120,6 +144,7 @@ function imageSnapshot(row, canRead) {
 export async function runPlugin({ id, action = 'run', imageId = null, args = {} } = {}) {
   const plugin = findPlugin(String(id || ''));
   if (!plugin) return { ok: false, error: `插件不存在：${id || '(空)'}` };
+  if (!isPluginEnabled(plugin.id)) return { ok: false, error: `插件「${plugin.name}」已停用，请先在设置里启用` };
   if (!plugin.actions.includes(String(action))) return { ok: false, error: `插件不支持动作 ${action}` };
   let payload;
   try {

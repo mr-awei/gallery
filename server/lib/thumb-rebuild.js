@@ -6,6 +6,7 @@
  * 光靠「用户滚到哪补到哪」的在线队列，一屏几十张排队要十几秒，卡片等不到就显示异常，
  * 用户看到的就是「图片加载不出来」。这里一次性按批补完，进度写进任务表。
  */
+import fs from 'node:fs';
 import { db, getLibraryGeneration } from '../db.js';
 import { ensureThumb } from '../library.js';
 import { createJob, finishJob, jobProgress } from '../jobs.js';
@@ -22,6 +23,52 @@ let stats = { done: 0, failed: 0, total: 0, jobId: 0 };
 
 const MISSING_SQL =
   "SELECT id, abs_path FROM images WHERE COALESCE(thumb, '') = '' AND media_kind IN ('image', 'gif', 'raw', 'design')";
+
+/**
+ * 把「DB 里有 thumb 路径、磁盘上文件却没了」的行清理成空。
+ *
+ * 为什么必须有这一步：补图只挑 `thumb = ''` 的行，而这些行的 thumb 字段是好的、
+ * 文件被人为删掉（用户清过 thumbs 目录、同步软件漏掉、崩溃在 rm 之后写 DB 之前）。
+ * 结果是修图任务报「没有缺图」，卡片却永远是空白 —— 失败被伪装成了「不缺」。
+ * 全表 stat 一次是 O(行数)，只在补图任务开始时做，不在计数接口里做。
+ * @returns {number} 被清理的行数
+ */
+export function clearStaleThumbPaths() {
+  let cleared = 0;
+  try {
+    let cursor = Number.MAX_SAFE_INTEGER;
+    for (;;) {
+      const rows = db
+        .prepare(
+          `SELECT id, thumb FROM images WHERE COALESCE(thumb, '') <> '' AND id < ? ORDER BY id DESC LIMIT 500`
+        )
+        .all(cursor);
+      if (!rows.length) break;
+      cursor = rows[rows.length - 1].id;
+      const stale = rows.filter((r) => {
+        try {
+          return !fs.existsSync(String(r.thumb));
+        } catch {
+          return false;
+        }
+      });
+      if (!stale.length) continue;
+      const upd = db.prepare("UPDATE images SET thumb = '' WHERE id = ?");
+      db.exec('BEGIN');
+      try {
+        for (const r of stale) upd.run(r.id);
+        db.exec('COMMIT');
+      } catch (err) {
+        db.exec('ROLLBACK');
+        throw err;
+      }
+      cleared += stale.length;
+    }
+  } catch (err) {
+    console.warn('[thumb] 清理失效缩略图路径失败', err?.message || err);
+  }
+  return cleared;
+}
 
 export function thumbMissingCount() {
   try {
@@ -46,6 +93,8 @@ export function stopThumbRebuild() {
  */
 export function startThumbRebuild({ onProgress = null } = {}) {
   if (running) return { started: false, reason: 'running', ...thumbRebuildStatus() };
+  // 先把「字段有路径、文件其实没了」的行清理出来，否则它们永远不在补图范围内
+  clearStaleThumbPaths();
   const total = thumbMissingCount();
   if (!total) return { started: false, reason: 'nothing', total: 0 };
 

@@ -118,6 +118,27 @@ export function srStatus() {
   };
 }
 
+/**
+ * 后台加载 / 预热：立刻返回，进度走 job 心跳（sr 帧）。
+ * 以前接口同步等整个下载（几百 MB），前端 20s 超时弹「请求超时」，
+ * 用户以为失败了，其实下载还在后台继续——提示与事实相反，比没有提示更糟。
+ */
+export function startSrLoad(modelId) {
+  const model = srModelOf(modelId);
+  if (!model) return { ok: false, error: '未知的超分模型' };
+  if (pipes.has(model.repo)) return { ok: true, ...srStatus() };
+  if (state.loading) return { ok: true, busy: true, ...srStatus() };
+  // 先同步置「加载中」：保证响应第一帧就带 loading，前端立刻进进度显示
+  state.loading = model.repo;
+  state.progress = 0;
+  state.message = '准备下载…';
+  state.error = '';
+  loadSrModel(modelId).catch((err) =>
+    console.error('[sr] 模型下载失败', model.repo, err?.message || err, err?.cause?.code || '')
+  );
+  return { ok: true, ...srStatus() };
+}
+
 /** 加载 / 预热某个模型（首次会下载，带进度） */
 export async function loadSrModel(modelId) {
   const model = srModelOf(modelId);

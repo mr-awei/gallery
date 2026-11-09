@@ -187,6 +187,9 @@
   padding: 18px;
   min-height: 0;
   position: relative;
+  /* 放大到 800% 时图片必须被舞台裁掉，否则 transform 出来的画面会溢出到
+     缩略图条/详情面板/缩放徽标上面 —— 用户看到的就是「图片把界面糊住了」 */
+  overflow: hidden;
 }
 .lightbox-body img {
   max-width: 100%;
@@ -440,7 +443,8 @@
   border: 1px solid rgba(255, 255, 255, 0.16);
   color: #fff;
   font-size: 12px;
-  z-index: 2;
+  /* 压在放大后的图片之上：transform 会新建层叠上下文，徽标 z-index 低了就被盖住 */
+  z-index: 6;
 }
 .lightbox-zoom button {
   border: none;

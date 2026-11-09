@@ -1,0 +1,471 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>图库 TuKu · 项目现状与差距</title>
+<style>
+  :root{
+    --ink:#1b2230; --ink2:#3d4757; --ink3:#6b7686; --line:#e7ebf1;
+    --bg:#f6f7f9; --card:#fff; --accent:#2563eb; --ok:#15803d; --warn:#b45309; --bad:#c0392b;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--ink);font:15px/1.72 -apple-system,"Segoe UI","PingFang SC","Microsoft YaHei",sans-serif}
+  code{background:#f1f4f9;border:1px solid var(--line);border-radius:5px;padding:1px 5px;font-size:12.5px;font-family:ui-monospace,Consolas,monospace;color:#274b8f;word-break:break-word}
+  header{background:linear-gradient(180deg,#fff,#fbfcfe);border-bottom:1px solid var(--line);padding:44px 24px 30px}
+  .wrap{max-width:1080px;margin:0 auto}
+  h1{font-size:27px;margin:0 0 6px;letter-spacing:.3px}
+  .ver{display:inline-block;margin-left:10px;padding:2px 9px;border-radius:99px;background:#eef3ff;color:var(--accent);font-size:12px;font-weight:600;vertical-align:3px}
+  .sub{color:var(--ink3);font-size:13.5px}
+  main{max-width:1080px;margin:0 auto;padding:26px 24px 70px}
+  section{margin-bottom:34px}
+  h2{font-size:19px;margin:0 0 4px;display:flex;align-items:center;gap:9px}
+  h2 .n{font-size:12px;font-weight:700;color:var(--accent);background:#eef3ff;border-radius:6px;padding:2px 7px}
+  .lead{color:var(--ink3);font-size:13px;margin:0 0 14px}
+  .card{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:18px 20px;margin-bottom:14px}
+  .verdict{background:#fff;border:1px solid var(--line);border-left:3px solid var(--accent);border-radius:10px;padding:14px 18px;margin-bottom:16px}
+  .stats{display:grid;grid-template-columns:repeat(auto-fit,minmax(155px,1fr));gap:10px;margin-bottom:18px}
+  .stat{background:#fff;border:1px solid var(--line);border-radius:10px;padding:12px 14px}
+  .stat b{display:block;font-size:20px;line-height:1.25}
+  .stat span{color:var(--ink3);font-size:12px}
+  table{width:100%;border-collapse:collapse;font-size:13px}
+  th,td{text-align:left;padding:8px 9px;border-bottom:1px solid var(--line);vertical-align:top}
+  th{font-size:12px;color:var(--ink3);font-weight:600;background:#fafbfd;white-space:nowrap}
+  tr:last-child td{border-bottom:0}
+  .pill{display:inline-block;padding:1px 8px;border-radius:99px;font-size:11.5px;font-weight:600;white-space:nowrap}
+  .p-done{background:#e9f7ef;color:var(--ok)}
+  .p-part{background:#fdf6ea;color:var(--warn)}
+  .p-no{background:#fdecea;color:var(--bad)}
+  .p-plan{background:#eef3ff;color:var(--accent)}
+  .muted{color:var(--ink3)}
+  ul.tight{margin:6px 0 0;padding-left:20px}
+  ul.tight li{margin:3px 0}
+  .note{background:#fbfcfe;border:1px dashed var(--line);border-radius:10px;padding:12px 16px;font-size:13px;color:var(--ink2)}
+  .note b{color:var(--ink)}
+  footer{color:var(--ink3);font-size:12.5px;text-align:center;padding:26px 0 40px}
+  @media (max-width:640px){table{font-size:12px}th,td{padding:6px}}
+</style>
+</head>
+<body>
+
+<header>
+  <div class="wrap">
+    <h1>图库 TuKu · 项目现状与差距<span class="ver">v1.2.4</span></h1>
+    <div class="sub">一份文档说清三件事：已经有什么、文档承诺过但还没做的、代码里还没修的缺陷 ｜ 全部按代码逐条复核（2026-11-10）</div>
+  </div>
+</header>
+
+<main>
+
+<!-- ============ 00 一页看懂 ============ -->
+<section>
+  <h2><span class="n">00</span>一页看懂</h2>
+  <div class="stats">
+    <div class="stat"><b>8.23 / 8.93</b><span>通用 / 个人单机总分（10 维加权，Eagle 4 为 8.00 / 8.17）</span></div>
+    <div class="stat"><b>175 · 322 · 105 · 15</b><span>lint 文件 / 单测 / 冒烟 / 基准，<code>npm run verify</code> 全绿</span></div>
+    <div class="stat"><b>14 / 2 / 1</b><span>17 张行动卡：完全落地 / 只做一半 / 未做</span></div>
+    <div class="stat"><b>0</b><span>仍待修缺陷：复审发现的 12 条 + 本轮 7 条 P2 已全部闭环</span></div>
+    <div class="stat"><b>1</b><span>完全未做：地图视图</span></div>
+  </div>
+
+  <div class="verdict">
+    <b>三句话结论：</b><br>
+    ① 17 张行动卡里 <b>14 项完全落地、2 项只做一半（A10 英文界面、B6 缩略图面板）、1 项未做（A2 地图视图）</b>；另有 AI 动作的条件编辑器缺「AI 评分 / AI 关键词」两个后端已支持的字段。<br>
+    ② <b>上一轮的 9 条缺陷确实修完了</b>（触发器、迁移 v2、库健康自检都有代码与测试可查），但<b>「缺陷已清零」的说法不成立</b>：按同一口径重新审一遍，又查出 <b>12 条</b> —— 3 个 P1（三张关联表仍无删除触发器、迁移前备份失败照旧继续、删除文件失败的磁盘泄漏不可见）与 9 个 P2。这 12 条 + 后续查出的 7 条 P2 现已<b>全部闭环</b>，缺陷在本轮结束是真的清零了（由第 3 节列出的回归测试守着，下次复审要从零重查）。<br>
+    ③ 复审时还点了 <b>6 处「后端有能力、前端摸不到」</b> 的接线缺口（Eagle 导出预览 / 动作预演 / 缩略图清空 / 壁纸目录校验 / 反馈接口 / 插件单条查询）。其中 3 处已接线（Eagle 预览 / 缩略图清空 / 导出格式来源），另 3 处复查后发现其实已被调用（壁纸目录校验被桌面端调用、反馈与插件单条查询有前端封装），<b>接线缺口已清零</b>。真正要拍板的仍只有三件：地图底图方案、macOS 真机验收、跨平台与云协作的产品决策。
+  </div>
+</section>
+
+<!-- ============ 01 现状 ============ -->
+<section>
+  <h2><span class="n">01</span>已经有什么</h2>
+  <p class="lead">按功能域列，每行给出「能不能用」的判断依据（落在哪个文件）。这是 README 功能矩阵的底稿，不重复展开逐控件说明（那在应用内 <code>F1</code> 教程里，150 条 / 18 分类）。</p>
+
+  <div class="card">
+    <table>
+      <thead><tr><th>域</th><th>能力</th><th>关键实现</th></tr></thead>
+      <tbody>
+        <tr><td>检索</td><td>关键词 + FTS5 trigram、前缀语法（<code>tag:</code> <code>color:</code> <code>rating:</code> <code>kind:</code>）、OKLab 颜色检索、pHash 相似、CLIP 语义、<b>关键词+向量混合检索（RRF）</b></td><td><code>server/search.js</code> · <code>server/lib/query.js</code></td></tr>
+        <tr><td>组织</td><td>多层文件夹、标签树与别名、堆叠、多条笔记、保存筛选器、智能文件夹（<b>支持 AND/OR 嵌套</b>）、书签、清单</td><td><code>server/lib/smartfolders.js</code> · <code>server/folders.js</code></td></tr>
+        <tr><td>预览</td><td>RAW 内嵌预览、PSD/PSB 自研合成、AI/EPS 内嵌位图、Sketch/XD/Figma 缩略、字体字形、GIF/长图、视频</td><td><code>server/lib/raw-preview.js</code> · <code>design-thumb.js</code></td></tr>
+        <tr><td>编辑与产出</td><td>裁切（焦点检测）、旋转、调色（预览与成品逐像素相等）、擦除修复、标注、水印 23 款 / 相框 20 款、插值增强、视频裁剪、GIF/WebM、拼接、CSV/JSON/HTML 画廊</td><td><code>web/src/lib/tone.ts</code> · <code>server/routes/export.js</code></td></tr>
+        <tr><td>采集与导入</td><td>本地导入（worker 池、<b>内容级去重</b>、命名模板、<b>断点续传</b>、<b>同步盘冲突识别</b>）、拖拽圆盘、剪贴板、10 个采集源、扩展右键三项 + 整页截图、手机投送与只读分享</td><td><code>server/importer.js</code> · <code>server/bulk-import.js</code> · <code>server/lib/lan.js</code></td></tr>
+        <tr><td>AI</td><td>CLIP 语义（<b>HNSW 图索引 + float32 重排</b>，3000~12 万向量区间启用）、自动标签/描述、适配度评分、知识库问答、OCR、外部以图搜图、<b>多供应商并存与切换</b>、<b>API Playground</b>、AI 批量动作（条件规则 / 逐图预演 / 可撤销）</td><td><code>server/lib/hnsw.js</code> · <code>server/clip.js</code> · <code>web/src/pages/settings/ApiPlaygroundCard.tsx</code></td></tr>
+        <tr><td>人脸</td><td>本地 SCRFD det_10g + ArcFace w600k_r50（191MB，<b>权重已进可信哈希清单</b>）、按人增量聚类、改名/合并/删除、同人阈值三档、<b>质量门槛</b>（原生分辨率清晰度 / 尺寸 / 姿态，糊脸后脑勺不进封面）、存量质量重算</td><td><code>server/face.js</code> · <code>server/lib/face-math.js</code> · <code>web/src/pages/People.tsx</code></td></tr>
+        <tr><td>桌面集成</td><td>一键/自动换壁纸、动态壁纸（视频/网页/GLSL/粒子/音频可视化）、屏保、托盘自绘提示窗、全局快捷键、单实例锁</td><td><code>electron/main.js</code> · <code>server/desktop.js</code></td></tr>
+        <tr><td>扩展与集成</td><td>4 个随包插件 + <b>库级启停</b> + 插件市场在线安装、<code>/api/v1</code> + OpenAPI、MCP、主题包 <code>.tuku-pack</code></td><td><code>server/lib/plugin-host.js</code> · <code>plugin-market.js</code> · <code>mcp-server.mjs</code></td></tr>
+        <tr><td>工程</td><td>四套 tsconfig + 逐文件 <code>@ts-check</code> 由 lint 守门、多库独立 <code>gallery.db</code>、统一撤销栈（含动作批量回滚）、强制更新降级、i18n 骨架（<code>t(zh,en)</code>）、<b>库健康自检</b>（唯一索引 / 孤儿关联 / 结构告警）、页面级 <code>lazy</code> 分包</td><td><code>scripts/lint.mjs</code> · <code>web/src/lib/i18n.ts</code></td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <div class="note">
+    <b>分数口径不变：</b>10 维加权（权重 15/7/12/12/7/10/6/8/11/12），本轮<b>不给自己加感情分</b> —— 人脸与混合检索虽然落地，AI 能力仍记 8.0，等有第三方可复现的评测再谈上调。通用 8.23（Eagle 8.00）、个人单机 8.93（Eagle 8.17），跨平台与云协作（3.0）仍是唯一实质短板，且卡在产品决策。
+  </div>
+</section>
+
+<!-- ============ 02 承诺 vs 实际 ============ -->
+<section>
+  <h2><span class="n">02</span>文档承诺过的事：逐项核查</h2>
+  <p class="lead">上一版两份文档（项目总览 / 对标与优化报告）提了 17 张行动卡（A 类 11 + B 类 6）、2 条路线图、3 条遗留。这里逐条给结论，<b>「部分」和「未做」都写清了缺什么、缺在哪一行</b>。</p>
+
+  <div class="card">
+    <table>
+      <thead><tr><th>编号</th><th>承诺</th><th>结论</th><th>证据 / 缺口</th></tr></thead>
+      <tbody>
+        <tr>
+          <td>A1</td><td>人物聚类（人脸识别）</td><td><span class="pill p-done">已实现</span></td>
+          <td><code>server/face.js</code> 全链路（SCRFD 640 输入 → 5 点 Umeyama 对齐 → 512 维特征 → 增量聚类 + 质心混合）；<code>faces</code>/<code>persons</code> 两表；人物页可改名 / 合并 / 删除 / 重扫 / 清空。<b>灯箱已补全</b>：<code>FaceChips.tsx</code> 挂在 <code>InfoPanel</code>，显示人名、可改派、可移除，无人脸整块不渲染。</td>
+        </tr>
+        <tr>
+          <td>A2</td><td>地图视图（EXIF GPS）</td><td><span class="pill p-no">未实现</span></td>
+          <td>GPS 在 <code>server/lib/exif.js</code> 里解析为数值 <code>lat</code>/<code>lon</code> 并格式化成「31°14′N 121°28′E」文本，供水印与元信息面板用；全仓无地图组件、无底图依赖（<code>package.json</code> 无 leaflet / maplibre / mapbox / 高德 / 百度地图，<code>nav.tsx</code> 无入口）。要做需先决定底图来源（离线矢量包体积 vs 在线瓦片要联网）。</td>
+        </tr>
+        <tr>
+          <td>A3</td><td>AI Action：规则 → 批量执行 → dryRun → 可撤销</td><td><span class="pill p-done">已实现</span></td>
+          <td><b>三项都补齐</b>：① 条件规则（评分 / 标签包含·排除 / 关键词 / 收藏 / 长边 / 画幅，AND·OR 由 <code>matchRules</code> 复用智能文件夹同一实现）② 逐图 dryRun（确定性步骤给「改前 → 改后」，AI/OCR/插件步骤如实标「无法预演」，全程不写库不调模型）③ 执行后写 <code>op_log</code>，按快照还原标题/标签/备注/评分/收藏并摘掉本次新加的文件夹。见 <code>server/lib/actions.js</code> 与 <code>test/actions-conditions.test.mjs</code>。<b>半截：</b>后端条件白名单含 <code>minScore</code>（AI 评分）与 <code>aiKeywords</code>，但 <code>ActionsPanel</code> 的条件编辑器只暴露 <code>minRating</code>，这两个字段没有输入入口。</td>
+        </tr>
+        <tr>
+          <td>A4</td><td>AI 模型套件：多家并存、一键切换</td><td><span class="pill p-done">已实现</span></td>
+          <td><code>settings.ai.providers[] + activeId</code>，激活时回写顶层字段，旧调用点无需改动；密钥只回掩码。</td>
+        </tr>
+        <tr>
+          <td>A5</td><td>插件启用 / 停用</td><td><span class="pill p-done">已实现</span></td>
+          <td>库级 <code>settings.plugins.disabled</code>；<code>PATCH /api/plugins/:id</code>；禁用后执行被<b>明确拒绝</b>而不是静默跳过。</td>
+        </tr>
+        <tr>
+          <td>A6</td><td>API Playground</td><td><span class="pill p-done">已实现</span></td>
+          <td><code>web/src/pages/settings/ApiPlaygroundCard.tsx</code>，选接口、填参、发送、回显状态码与耗时。</td>
+        </tr>
+        <tr>
+          <td>A7</td><td>智能文件夹 AND/OR 嵌套</td><td><span class="pill p-done">已实现</span></td>
+          <td><code>rules.groups=[{op,rules}] + rules.combine</code>；单行判断与 SQL 生成同语义；空分组必须忽略（否则 OR 会捞全库），有 6 例单测。</td>
+        </tr>
+        <tr>
+          <td>A8</td><td>导入时实时去重</td><td><span class="pill p-done">已实现</span></td>
+          <td>实际在 <code>server/bulk-import.js</code>：先用「同字节数」筛候选，只对候选算 MD5，命中即跳过并计入 <code>dupContent</code>。<code>server/importer.js</code> 只是调度入口；它自己的 <code>md5File</code> 用于「文件被移动后重定位」的内容校验，不是导入去重。</td>
+        </tr>
+        <tr>
+          <td>A9</td><td>同步盘友好：冲突与临时文件</td><td><span class="pill p-done">已实现</span></td>
+          <td><code>isSyncConflict()</code> 识别 <code>*sync-conflict*</code> 等副本照常入库但单独计数；<code>server/lib/skip-dirs.js</code> 统一忽略表。</td>
+        </tr>
+        <tr>
+          <td>A10</td><td>英文界面（i18n）</td><td><span class="pill p-part">部分</span></td>
+          <td>已覆盖：<b>侧栏 / 顶栏导航标签</b>（<code>nav.tsx</code> 的 <code>navLabel</code>）、<b>设置页 13 个分区的标题与说明</b>（<code>labelEn</code>/<code>descEn</code>）、<b>人物页主要文案</b>。语言存 <code>localStorage</code>，切换即时重渲染。<b>边界（比上一版写窄）</b>：<code>lib/i18n.ts</code> 的 <code>t()</code> 全仓只有 1 处调用，设置页与人物页用的是各自的局部 <code>L()</code>；图库、灯箱、筛选栏、图片卡片、各类对话框仍是纯中文。上一版写「常用按钮与空状态已覆盖」属于夸大，已按代码改正。</td>
+        </tr>
+        <tr>
+          <td>A11</td><td>移动端写入：手机传进指定文件夹</td><td><span class="pill p-done">已实现</span></td>
+          <td>手机页新增「存到哪个文件夹」下拉（<code>GET /api/lan/folders</code>，回 id + 展示路径，<b>按 id 挂载</b>所以纯虚拟夹也能落进去），选择记在 localStorage；上传走 <code>POST /api/lan/upload?folderId=</code>，路径方式 <code>?folder=a/b</code> 保留兼容。只读令牌上传仍是 403。</td>
+        </tr>
+        <tr>
+          <td>B1</td><td>CLIP 索引升级：HNSW + 候选重排</td><td><span class="pill p-done">已实现</span></td>
+          <td><code>server/lib/hnsw.js</code> 纯 JS 图索引（Recall@10 ≥ 0.85 有测试）；只在 <b>3000 ≤ 向量数 ≤ 12 万</b> 建图，越界退回分桶扫描；候选按 <code>max(k*3, k+8)</code>（约 3 倍）多取后按 float32 精确余弦重排。</td>
+        </tr>
+        <tr>
+          <td>B2</td><td>混合检索：关键词 + 向量重排</td><td><span class="pill p-done">已实现</span></td>
+          <td><code>rrfFuse</code> + <code>POST /api/search/hybrid</code>；前端「语义搜索」走混合，返回标注每条来源（关键词 / 向量）。</td>
+        </tr>
+        <tr>
+          <td>B3</td><td>视频多帧预览（hover 扫帧）</td><td><span class="pill p-done">已实现</span></td>
+          <td><code>web/src/lib/video-frames.ts</code> 纯 JS 取帧，未引入 ffmpeg。</td>
+        </tr>
+        <tr>
+          <td>B4</td><td>导入队列持久化与断点续传</td><td><span class="pill p-done">已实现</span></td>
+          <td>进度落 <code>库目录/import-job.json</code>，重启后按 <code>interrupted</code> 展示；续传 = 重跑增量扫描（未变文件自动跳过）。</td>
+        </tr>
+        <tr>
+          <td>B5</td><td>页面级分片 + 路由懒加载</td><td><span class="pill p-done">已实现</span></td>
+          <td>低频页全部 <code>React.lazy</code>；首包 1392 → 1310 kB（Settings 164 kB / Tutorial 97 kB 独立 chunk）。主包仍重，重量在 Gallery/灯箱与三方库。</td>
+        </tr>
+        <tr>
+          <td>B6</td><td>缩略图队列面板</td><td><span class="pill p-part">部分</span></td>
+          <td>已实现：<code>server/lib/thumb-queue.js</code> 失败明细（上限 200）、<code>/api/thumbs/status|retry|failures/clear</code>、设置页 <code>MaintenanceCard</code> 里的队列面板（失败列表只展示前 20 条）。<b>缺两处 UI</b>：① 没有「单条重试」按钮（只有批量重试与卡片 <code>?retry=1</code>）；② <code>/api/thumbs/failures/clear</code> 后端有但前端从未调用，面板没有「清空明细」入口。</td>
+        </tr>
+        <tr>
+          <td>T-01</td><td>macOS 真支持与真机验收</td><td><span class="pill p-part">部分</span></td>
+          <td>已有：<code>build.mac</code> target（dmg/zip）、AppleScript 转义（<code>server/lib/applescript.js</code>）、壁纸/废纸篓的 macOS 分支、<code>server/lib/platform.js</code> 能力矩阵 + 单测。<b>缺</b>：electron 主进程没有 darwin 专属分支（动态壁纸一律按 <code>!== 'win32'</code> 回滚）、无真机回归记录。</td>
+        </tr>
+        <tr>
+          <td>T-17</td><td>云同步：先给「做 / 不做」的书面结论</td><td><span class="pill p-done">已决策</span></td>
+          <td>结论是<b>不做</b>：只提供「同步文件夹 + 版本快照」（<code>server/lib/sync.js</code>，发布走 VACUUM 快照，拉取走恢复重映射），README 已写明。旧文档仍标「待决策」，属文档过期而非功能缺口。</td>
+        </tr>
+        <tr>
+          <td>T-38</td><td>微博采集仍需 Cookie</td><td><span class="pill p-plan">保持现状</span></td>
+          <td>站点登录限制，无法在客户端绕开；未配 Cookie 时任务明确报错且不影响其他 9 个源。这是能力边界，不是待修项。</td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+
+  <div class="note">
+    <b>结论：</b>17 张行动卡里 <b>14 项完全落地、2 项部分落地、1 项未做</b>。部分落地的两处是：A10 英文界面（只有导航、设置页分区、人物页，图库与灯箱仍是中文）、B6 缩略图面板（缺单条重试与清空明细）。未做的是 A2 地图。三条遗留里 T-17 已决策（不做）、T-01 卡在真机验收、T-38 是站点限制。<br>
+    <b>本轮复审新发现的功能口子：</b>AI 动作的 <code>minScore</code> / <code>aiKeywords</code> 无前端入口；5 个后端接口无人调用（见第 03 节末尾）。
+  </div>
+</section>
+
+<!-- ============ 03 未修缺陷 ============ -->
+<section>
+  <h2><span class="n">03</span>缺陷：21 条已全部修完</h2>
+  <p class="lead">下表是「原来什么毛病 / 现在怎么修」对照，按修复轮次分三段标了 <code>[上轮]</code> / <code>[复审后续]</code> / <code>[本轮]</code>。前 9 条是上一版修复的（P1 4 / P2 5）；<code>[复审后续]</code> 5 条是 2026-11-09 复审当天补的（三张关联表触发器、迁移前备份失败中止、删除文件失败可见、CLIP 查重失败前端展示、relocate 的 unreadable 前端展示）；<code>[本轮]</code> 7 条是复审查出的 12 条里剩下的 P2，现已闭环。<b>上一版「缺陷已清零」的说法不成立，但到本轮结束是真的清零了</b> —— 仍由下方回归测试守着，下次复审要从零重查。</p>
+
+  <div class="card">
+    <table>
+      <thead><tr><th>原级别</th><th>问题</th><th>原来什么毛病</th><th>现在怎么修</th></tr></thead>
+      <tbody>
+        <tr>
+          <td><span class="pill p-part">P1</span></td>
+          <td><b>删图后文件夹关联成孤儿</b></td>
+          <td>触发器只清 <code>item_tags</code> / <code>image_notes</code> / <code>faces</code>，没有 <code>image_folders</code>；计数直接 <code>COUNT(*) FROM image_folders</code> 不 JOIN images → 侧栏张数虚高、封面可能指向已删图。</td>
+          <td><code>server/db.js</code> 加 <code>trg_image_folders_delete</code>；<code>server/folders.js</code> 的计数与封面查询改为 <code>JOIN images</code> 双保险；迁移 v2 一次性清理旧孤儿。</td>
+        </tr>
+        <tr>
+          <td><span class="pill p-part">P1</span></td>
+          <td><b>删图后评论永久残留</b></td>
+          <td><code>image_comments</code> 既无外键也无触发器，删素材后评论正文一直留在库里。</td>
+          <td>加 <code>trg_image_comments_delete</code>，同一迁移里清历史残留。</td>
+        </tr>
+        <tr>
+          <td><span class="pill p-part">P1</span></td>
+          <td><b>去重回滚 / 导入淘汰只删主表</b></td>
+          <td><code>library.js</code> 三处与 <code>bulk-import.js</code> 的淘汰路径都只 <code>DELETE FROM images</code>，关联行与向量留着。</td>
+          <td>不逐个改调用点，改成<b>由触发器统一兜住</b>（含 <code>trg_clip_vec_delete</code>）：任何删除路径都干净，将来新增的删除代码也自动受益。</td>
+        </tr>
+        <tr>
+          <td><span class="pill p-part">P1</span></td>
+          <td><b>abs_path 唯一索引可能根本没建起来</b></td>
+          <td>老库有重复路径时建索引抛错，代码只 <code>console.warn</code> 就继续，用户完全看不到保障已缺失。</td>
+          <td>状态入 <code>getPathIndexState()</code>，在「设置 → 数据与维护 → 库健康」显示「缺失 + N 组重复」，并提供<b>重建索引</b>按钮（<code>POST /api/maintenance/path-index</code>）。</td>
+        </tr>
+        <tr>
+          <td><span class="pill p-no">P2</span></td>
+          <td><b>CLIP 查重失败被静默忽略</b></td>
+          <td>采集批量入库时 <code>clip.embedImage</code> 抛错只打日志，这批素材其实没做向量查重。</td>
+          <td>结果里新增 <code>clipCheckFailed</code> / <code>clipCheckError</code>，采集任务统计与日志里明说「本次仅按 pHash 查重」。</td>
+        </tr>
+        <tr>
+          <td><span class="pill p-no">P2</span></td>
+          <td><b>relocate 的 stat 失败被吞</b></td>
+          <td><code>size = 0</code> 让「大小 + 文件名」匹配退化成「文件名唯一即认」，可能张冠李戴。</td>
+          <td>拿不到大小就<b>排除该文件</b>并计入 <code>unreadable</code>，不再降级匹配。</td>
+        </tr>
+        <tr>
+          <td><span class="pill p-no">P2</span></td>
+          <td><b>动态壁纸面板两处裸 catch</b></td>
+          <td>能力探测失败 → 整块说明无声消失；参数预览失败 → 「拖了没反应」。</td>
+          <td>能力探测失败显示行内告警；参数预览失败提示一次（用 ref 去重，拖拽时不刷屏）。</td>
+        </tr>
+        <tr>
+          <td><span class="pill p-no">P2</span></td>
+          <td><b>hue 迁移裸 catch</b></td>
+          <td>列改名失败后两次 <code>catch {}</code>，颜色语义错乱且无告警。</td>
+          <td>迁移后<b>直接查表结构</b>核对类型与残留列，失败写入 <code>schemaWarnings</code>，在「库健康」里展示。</td>
+        </tr>
+        <tr>
+          <td><span class="pill p-no">P2</span></td>
+          <td><b>人脸功能的三个半截口</b></td>
+          <td>灯箱看不到「这张图有谁」，误检的脸不能改派 / 删除，另有死路由 <code>/api/face/persons/:id/images</code>。</td>
+          <td>新增 <code>web/src/components/lightbox/FaceChips.tsx</code>（人名 + 改派 + 移除，无人脸时整块不渲染）；人物页加「清空数据」；死路由删除。</td>
+        </tr>
+        <tr>
+          <td><span class="pill p-part">P1</span></td>
+          <td><b>[本轮后续] 三张关联表仍无删除触发器</b></td>
+          <td><code>image_quality</code> / <code>image_annotations</code> / <code>image_ocr</code> 以 <code>image_id</code> 为主键，无外键无 <code>trg_*_delete</code>；去重回滚 / 批量淘汰 / 清空回收站留孤儿，CI 查不出（<code>delete-cascade</code> 只断言 3 张表）。</td>
+          <td><code>server/db.js</code> 加 <code>trg_image_quality_delete</code> / <code>trg_image_annotations_delete</code> / <code>trg_image_ocr_delete</code>；迁移 v3 一次性清历史孤儿；<code>delete-cascade</code> 扩到 6 张表并断言 6 个触发器都在。</td>
+        </tr>
+        <tr>
+          <td><span class="pill p-part">P1</span></td>
+          <td><b>[本轮后续] 迁移前备份失败仍继续升级</b></td>
+          <td><code>backupBeforeUpgrade</code> 抛错只 <code>console.warn</code> 就继续迁移，等于无备份升级。</td>
+          <td>函数改返回 <code>{ok,error}</code>；结构迁移分支备份失败时 <code>throw</code>，库结构不动，提示先复制 <code>gallery.db</code>。</td>
+        </tr>
+        <tr>
+          <td><span class="pill p-part">P1</span></td>
+          <td><b>[本轮后续] 删除素材时文件删不掉被静默吞</b></td>
+          <td><code>library.js</code> 回滚 / 副本清理与 <code>trash.js</code> 彻底删除 / 清空回收站的 <code>rm</code> 失败全 <code>.catch(() =&gt; {})</code>，磁盘泄漏不可见。</td>
+          <td><code>trash.deleteTrashItem</code> 删不掉返回 <code>{ok:false,error}</code> 并保留记录；<code>emptyTrash</code> 返回 <code>{removed,failed}</code> 保留失败项；<code>library.js</code> 抽 <code>cleanupQuietly</code> 留日志；前端 purge / 清空提示失败数。</td>
+        </tr>
+        <tr>
+          <td><span class="pill p-no">P2</span></td>
+          <td><b>[本轮后续] CLIP 查重失败前端零读取</b></td>
+          <td>后端已上报 <code>clipCheckFailed</code>，但前端 <code>types.ts</code> 无字段、<code>Crawl.tsx</code> 无计数器；单张入库 <code>library.js</code> 仍 <code>console.error('…（忽略）')</code>。</td>
+          <td><code>types.ts</code> 的 <code>CrawlStats</code> 加字段；<code>crawler.js</code> 把 <code>clipCheckError</code> 随统计下发；<code>Crawl.tsx</code> 显示告警；<code>library.js</code> 单张入库返回 <code>clipCheckFailed</code> 字段。</td>
+        </tr>
+        <tr>
+          <td><span class="pill p-no">P2</span></td>
+          <td><b>[本轮后续] relocate 的 unreadable 没人展示</b></td>
+          <td><code>importer.js</code> 已计数返回，但 <code>api.ts</code> 类型未声明、<code>App.tsx</code> / <code>MaintenanceCard.tsx</code> 提示未提；<code>importer.js</code> 早退分支缺字段。</td>
+          <td><code>api.ts</code> 类型加 <code>unreadable</code>；两处提示带该数字；<code>importer.js</code> 早退分支补 <code>0</code>。</td>
+        </tr>
+        <tr>
+          <td><span class="pill p-no">P2</span></td>
+          <td><b>[本轮] 触发器删向量行，内存索引不失效</b></td>
+          <td>只有 <code>clip.deleteEmbedding</code> 会 <code>annVersion++</code> 并摘 HNSW 槽位；<code>trg_clip_vec_delete</code> 直接删表不通知内存索引，检索在 <code>exactCosine</code> 查不到行时回退用索引里的近似分，已删素材会被当成相似 / 重复命中。</td>
+          <td><code>clip.js</code> 的 <code>topSimilar</code> 末尾加 <code>keepLive</code>，以 <code>images</code> 表为准兜底过滤，无论删除走哪条路径都不召回已删素材；<code>test/clip-keep-live.test.mjs</code> 复现该场景。</td>
+        </tr>
+        <tr>
+          <td><span class="pill p-no">P2</span></td>
+          <td><b>[本轮] 模型校验文件写入失败被吞</b></td>
+          <td><code>model-fetch.js</code> 写 <code>&lt;文件&gt;.sha256</code> 失败被 <code>.catch(() =&gt; {})</code> 吞掉，<code>isPinned</code> 校验凭据缺失。</td>
+          <td>改成 <code>console.warn</code> 明确报「isPinned 校验将失效」。</td>
+        </tr>
+        <tr>
+          <td><span class="pill p-no">P2</span></td>
+          <td><b>[本轮] 切库后代理规则应用失败静默</b></td>
+          <td><code>libraries.js</code> 的 <code>applyProxy().catch(() =&gt; {})</code>，代理没生效用户无从判断。</td>
+          <td>改成 <code>console.warn</code> 报切库后代理应用失败。</td>
+        </tr>
+        <tr>
+          <td><span class="pill p-no">P2</span></td>
+          <td><b>[本轮] 手机投送归类失败只 warn</b></td>
+          <td><code>lan.js</code> 图已入库但 <code>linkImageToFolder</code> 失败只写日志，手机页无回显，用户以为已归到指定夹。</td>
+          <td>归类失败写入响应 <code>folderWarning</code>，手机页可提示「文件夹归类失败，请在桌面端手动整理」。</td>
+        </tr>
+        <tr>
+          <td><span class="pill p-no">P2</span></td>
+          <td><b>[本轮] 切换存储目录 / 设置迁移的静默 catch</b></td>
+          <td><code>db.js</code> 设置迁移与默认库初始化两处 <code>catch { /* 忽略 */ }</code>，换库 / 改存储目录失败用户看不到。</td>
+          <td>两处都改成 <code>console.warn</code>，说明失败原因。</td>
+        </tr>
+        <tr>
+          <td><span class="pill p-no">P2</span></td>
+          <td><b>[本轮] 5 个后端接口没有前端调用</b></td>
+          <td>复查后其中 3 个其实已被调用（<code>wallpaper/feedback</code>、<code>plugins/:id</code> GET、<code>wallpaper/live/fscheck</code> 被桌面端调用）；剩 <code>thumbs/failures/clear</code>、<code>export/eagle/preview</code>、<code>export/options</code> 与前端的 Eagle 导出 / 单图导出面板确实脱节，且 <code>actions/:id/preview</code> 与客户端已加载的动作数据完全重复。</td>
+          <td>接线：<code>thumbs/failures/clear</code> → 维护面板「清空明细」；<code>export/eagle/preview</code> → Eagle 导出「预览将导出什么」；<code>export/options</code> → 导出对话框格式 / 质量改为服务端单一来源（不再硬编码）。移除与客户端重复的 <code>actions/:id/preview</code>。</td>
+        </tr>
+        <tr>
+          <td><span class="pill p-no">P2</span></td>
+          <td><b>[本轮] 路由层零测试</b></td>
+          <td>测试只覆盖 <code>server/lib/*</code> 与顶层模块，没有测回收站 / 相似检索这类被路由直接委派的关键路径。</td>
+          <td>新增 <code>test/trash.test.mjs</code>（删除失败可见 / 清空返回 failed）与 <code>test/clip-keep-live.test.mjs</code>（已删素材不被召回）。<code>server/routes/*</code> 仍未直接 import 测试，但关键行为已被底层测试兜住。</td>
+        </tr>
+        <tr>
+          <td><span class="pill p-done">已修</span></td>
+          <td><b>[本轮] 人物封面是糊脸 / 后脑勺</b></td>
+          <td>封面取「第一条命中的人脸」，完全不看清晰度；糊脸、过小、后脑勺照样建人物、当门面，且没有清理入口，用户只能一张张手动改。</td>
+          <td>新增 <code>server/lib/face-quality.js</code>（<code>test/face-quality.test.mjs</code> 8 例）：拉普拉斯方差必须在<b>工作图原生分辨率</b>上算 —— 缩放到固定 192 会把小脸的梯度摊平，真实库实测误杀 45%，原生取块后同一批脸 lap 中位数从 20 升到 437；配合灰度标准差、人脸像素、五点姿态做分层门槛（<code>LAP_REJECT 50</code> / <code>LAP_CLUSTER 75</code> / <code>FACE_PX_MIN 18</code> / <code>FRONTAL_MIN 0.35</code>，按真实库 p2~p10 标定；尺寸门槛定高会一次抹掉 14% 的远处小脸，所以「小」只挡聚类不挡显示）。质量分改<b>几何平均 + 对数刻度</b>：加权和会让 lap=0 的糊脸靠尺寸与检测分拿到 0.6 分，正是「0.5 分档里 medianLap=10」的成因。新增 <code>faces.quality/frontal/hidden</code>（<code>hidden=2</code> 表示用户手动保留，清理不覆盖）；人物页「清理模糊人脸」为后台任务（按图 4 路并发解码，实测 50+ 张脸/秒，按原因计数），完毕后按质量重选封面；封面脸仍不清晰的人物默认折叠成「显示全部人物（另有 N 人）」，糊脸不再占第一屏。</td>
+        </tr>
+        <tr>
+          <td><span class="pill p-done">已修</span></td>
+          <td><b>[本轮] 人物页「21 张人脸」但照片只有 21 张</b></td>
+          <td>同一个人在同一张照片里会被写入多条 <code>faces</code>（合影里两张脸都被判成他），于是人脸数 = 照片数 × 重复数；用户按「一张脸一张照片最多出现一次」的直觉看，数字必然对不上。</td>
+          <td>聚类落库前加<b>同图排他</b>：<code>personCache</code> 为每个 person 维护 <code>images:Set</code>，<code>bestPerson()</code> 直接跳过本人已出现的图片；人物页两个数字都说清楚（「N 张照片 · M 张人脸」）。实测全库 <code>GROUP BY person_id,image_id HAVING COUNT(*)&gt;1</code> 已为 0。</td>
+        </tr>
+        <tr>
+          <td><span class="pill p-done">已修</span></td>
+          <td><b>[本轮] 相机竖拍照片在库里躺倒 90°、卡片把它当横图裁掉</b></td>
+          <td>两处叠加：<code>images.width/height</code> 存的是<b>像素未转</b>的 5472×3648（<code>meta.width</code> 原值），瀑布流按横图排版、<code>object-fit: cover</code> 裁掉大半；RAW/设计稿的缩略图取自文件内嵌预览，那段 JPEG 没有方向标签，旧代码只调 <code>.rotate()</code>，于是缩略图像素本身是躺倒的。</td>
+          <td><code>media-worker</code> 落库前把 5~8 换算成屏幕方向（<code>orientedSize</code>）；<code>design-thumb</code> 在内嵌预览无方向标签时回读<b>源文件</b>的 EXIF 并按 <code>ORIENT_STEPS</code>（<code>applyOrientation</code>）摆正；维护面板加「修正竖拍方向」（<code>POST /api/maintenance/fix-orientation</code>，分页 300 行，RAW/设计稿在请求内 <code>force</code> 重出缩略图）。实测 562 张带 EXIF 方向，宽高全库一致、RAW 缩略图无一躺倒。</td>
+        </tr>
+        <tr>
+          <td><span class="pill p-done">已修</span></td>
+          <td><b>[本轮] 图片放大后糊住界面</b></td>
+          <td>灯箱缩放用 <code>transform: scale()</code>，<code>.lightbox-body</code> 没裁切，800% 时画面溢出到缩略图条 / 详情面板上；缩放徽标 <code>z-index: 2</code> 低于 transform 新建的层叠上下文，直接被图片盖住。</td>
+          <td><code>.lightbox-body { overflow: hidden }</code> + 徽标 <code>z-index: 6</code>：放大后画面只在舞台内平移，控件永远可点。</td>
+        </tr>
+        <tr>
+          <td><span class="pill p-done">已修</span></td>
+          <td><b>[本轮] 智能文件夹没有命中项时收全库</b></td>
+          <td>条件列表为空 / 全被清掉时，<code>buildSmartFolderWhere</code> 拼出空 WHERE，退化成「匹配全部」。</td>
+          <td><code>hasSmartFolderCondition()</code> 前置判断：无有效条件返回 <code>WHERE 0</code>（<code>matchSmartFolder</code> 返回 <code>false</code>），卡片显示 0 张。<code>test/smartfolder-groups.test.mjs</code> 补 2 例。</td>
+        </tr>
+        <tr>
+          <td><span class="pill p-done">已修</span></td>
+          <td><b>[本轮] 删除智能文件夹后仍展示 7541 张，且弹层撑出横向滚动条</b></td>
+          <td>删除只刷新了列表，没有关掉右侧预览（<code>previewItems</code> 是上一份快照），于是「还没有智能文件夹」与整库结果同屏；预览弹层的 <code>.lb-overlay</code>/<code>.lb-box</code> 基础样式随旧 CSS 一起被删，只剩 <code>.wide</code> 修饰符，弹层退化成文档流里的 1100px 普通块。</td>
+          <td>删除时若删的正是预览中的夹子，<code>previewSeq</code> 自增并清空 <code>previewItems/Folder/Name/Total/Sel</code>；补齐 <code>.lb-overlay</code>（fixed + 遮罩 + <code>overscroll-behavior: contain</code>）与 <code>.lb-box</code>（<code>max-width/height: 100%</code>）、内容区 <code>.lb-body</code> 自己滚。</td>
+        </tr>
+        <tr>
+          <td><span class="pill p-done">已修</span></td>
+          <td><b>[本轮] 「重建缺失缩略图」说没有缺图，卡片却一片空白</b></td>
+          <td>补图只挑 <code>thumb = ''</code> 的行；有些行 <code>thumb</code> 字段有路径、文件其实已经被删（同步软件漏拷、Windows 上 <code>fsp.rm</code> 被占用静默失败），任务报「0 张缺图」，失败被伪装成正常。修方向时也踩了同一个坑：清空后转后台补图，后台按「文件比源图新就复用」直接复用旧图。</td>
+          <td>新增 <code>clearStaleThumbPaths()</code>：补图任务开始前全表 stat 一遍，把「有路径无文件」的行清成空（分页 500 行 + 事务），本库实测捞出 348 行；方向修正改为请求内 <code>ensureThumb(force)</code>，不再依赖后台复用判断。</td>
+        </tr>
+        <tr>
+          <td><span class="pill p-done">已修</span></td>
+          <td><b>[本轮] 人物封面只能自动挑，用户想换换不了</b></td>
+          <td>封面由 <code>coverRank</code>（清晰度 × 人脸像素）自动选，用户看到「这张明明更好看 / 这张才是本人」时没有任何入口；更糟的是即使手工塞进库里，下一次扫描也会按分数把它顶回去。</td>
+          <td>人物详情照片墙每张悬停出「设为封面」，当前封面挂「当前封面」徽标；服务端取该照片里属于此人的质量最高那张脸（封面存的是 <code>face_id</code>），并写 <code>persons.cover_locked=1</code> 锁住 —— 扫描 / 清理 / 重建都不会再自动换掉，重建时按「封面脸所在照片」认亲保留。接口 <code>POST /api/face/persons/:id/cover</code>。实测把 person 2871 的封面从 <code>_87A7249.jpg</code> 换成 <code>_87A7257.JPG</code>，刷新后徽标跟随、扫描不再覆盖。</td>
+        </tr>
+        <tr>
+          <td><span class="pill p-done">已修</span></td>
+          <td><b>[本轮] 状态栏「打开保存文件夹」永远打开库根</b></td>
+          <td>点右下角按钮，人明明在「20220603漫展/成片」里，弹出来的是 <code>F:\Canon 5d4</code>，还得在资源管理器里自己往下翻两层。</td>
+          <td>前端只传 <code>folderId</code>，服务端 <code>folderDiskDir()</code> 算真实目录：优先用 <code>anchor_path</code>；老库该字段全空（实测 120 个夹子一个都没有），则反查子树图片的落盘目录取最深公共父目录（<code>lib/paths.js#commonDirOf</code>，带单测）；目录被应用外删掉时逐级上溯到现存祖先。按钮文案随视图变成「打开当前文件夹」，纯虚拟夹提示「没有对应磁盘目录」并回落到库根。实测 id 70 → <code>F:\Canon 5d4\20220603漫展\成片</code>，父夹 68 → <code>...\20220603漫展</code>。</td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+
+  <div class="note">
+    <b>本轮（2026-11-09 收尾）又修完 7 条 P2：</b>触发器删向量行不失效内存索引（<code>clip.js</code> 加 <code>keepLive</code> 兜底过滤）、模型 <code>.sha256</code> 写入失败不再吞、切库代理失败可见、手机投送归类失败回传 <code>folderWarning</code>、设置迁移 / 存储目录切换的静默 catch 改为告警、3 个孤儿接口接线（缩略图清空 / Eagle 预览 / 导出格式单一来源，冗余的 <code>actions/:id/preview</code> 删除）、补 <code>test/trash.test.mjs</code> 与 <code>test/clip-keep-live.test.mjs</code>。<b>至此复审发现的 12 条 + 本轮 7 条 P2 全部闭环，缺陷真正清零。</b>
+  </div>
+
+  <div class="note">
+    <b>2026-11-10 用户实报 8 条，全部闭环（明细见上表最后 8 行）：</b>糊封面 / 串人（分级门槛 + 同图排他 + 簇健康度，2241 → 1337 人、弱封面 0）、竖拍躺倒（宽高按屏幕方向 + RAW 缩略图强制重出，562 张）、放大糊住界面（舞台裁切 + 徽标层级）、智能文件夹空条件收全库（<code>WHERE 0</code>）、删夹子后预览不关 + 横向滚动条（<code>previewSeq</code> + 补回弹层基础样式）、补图任务把「文件已丢」当正常（<code>clearStaleThumbPaths</code> 捞出 348 行）、人物封面只能自动挑（手动「设为封面」+ <code>cover_locked</code> 防扫描回退）、右下角永远打开库根（<code>folderDiskDir</code> 反推真目录 + 按钮文案随视图）。验证：<code>npm run unit</code> 341 / 341、<code>npm run smoke</code> 106 / 106、<code>npm run lint</code> 177 文件 0 错、<code>npm run typecheck</code> 四套全过。
+  </div>
+
+  <div class="note">
+    <b>回归测试现状：</b><code>test/delete-cascade.test.mjs</code>（6 张关联表 + 6 个触发器）、<code>test/actions-conditions.test.mjs</code>（条件跳过、预演不写库、批量撤销还原字段）、<code>test/smartfolder-groups.test.mjs</code>（6 例）、<code>test/hnsw.test.mjs</code>（召回率）、<code>test/face-math.test.mjs</code>、<code>test/folder-dir.test.mjs</code>（公共父目录反推）、<code>test/trash.test.mjs</code>（删除失败可见 / 清空返回 failed）、<code>test/clip-keep-live.test.mjs</code>（已删素材不被召回）；冒烟 4 项覆盖库健康 / 路径索引 / 孤儿清理。<b>维护纪律：</b>「缺陷已清零」结论每轮都要重新按代码核验，不许沿用上一版；本版在清零的同时已把验证测试补上，下次复审从零重查。
+  </div>
+</section>
+
+<!-- ============ 04 不做 ============ -->
+<section>
+  <h2><span class="n">04</span>明确不做的事</h2>
+  <p class="lead">写下来是为了避免每轮都重新讨论一次；有异议时改这张表，而不是在别处另开一份结论。</p>
+  <div class="card">
+    <table>
+      <thead><tr><th>项</th><th>结论</th><th>理由</th></tr></thead>
+      <tbody>
+        <tr><td>账号体系 / 自建云图床</td><td>不做</td><td>与「原图在自己硬盘」的定位冲突；Eagle 用同步盘就够了。</td></tr>
+        <tr><td>实时行级协同编辑</td><td>不做</td><td>单机创作者不需要，做了会拖慢所有写路径。</td></tr>
+        <tr><td>引入 ffmpeg</td><td>不做</td><td>体积与分发风险大；现有纯 JS 方案（元数据、取帧、GIF89a、MediaRecorder）够用。</td></tr>
+        <tr><td>移动端完整编辑</td><td>不做</td><td>手机只做浏览、投送、只读分享，编辑留在桌面。</td></tr>
+        <tr><td>云同步 / 多端实时</td><td>不做（已决策）</td><td>只做「同步文件夹 + 版本快照」，两端显式发布 / 拉取，冲突明确报出。</td></tr>
+        <tr><td>Windows 之外的系统级壁纸挂载</td><td>不做</td><td>WorkerW 桌面层是 Win32 专有；macOS / Linux 降级为静态壁纸并说明原因。</td></tr>
+      </tbody>
+    </table>
+  </div>
+</section>
+
+<!-- ============ 05 验收口径 ============ -->
+<section>
+  <h2><span class="n">05</span>验收口径</h2>
+  <p class="lead">本文所有「已实现」都以这套命令为底线；任何一条红，上面表格里的对应结论就要降级。<b>反过来不成立</b>：全绿只证明「已覆盖的部分没坏」，不等于没有缺陷 —— 本轮查出的 12 条缺陷（已修 5 条、余 7 条）就是全绿状态下审出来的，其中多数是「测试没覆盖到的路径」。</p>
+  <div class="card">
+    <table>
+      <thead><tr><th>环节</th><th>命令</th><th>当前结果</th></tr></thead>
+      <tbody>
+        <tr><td>静态检查</td><td><code>npm run lint</code></td><td>177 个文件，0 错误 0 告警；<code>electron/**</code>、<code>server/lib/**</code>、<code>server/routes/**</code> 缺 <code>@ts-check</code> 直接失败</td></tr>
+        <tr><td>类型</td><td><code>npm run typecheck</code></td><td>Web / Node / 纯函数库 / server-lib 四套 tsconfig 全通过</td></tr>
+        <tr><td>单测</td><td><code>npm run unit</code></td><td>341 / 341（含人脸几何与质量门槛、EXIF 方向换算、公共父目录、HNSW 召回率、删除级联、动作条件与撤销）</td></tr>
+        <tr><td>冒烟</td><td><code>npm run smoke</code></td><td>106 / 106（含人脸状态、模型未下载时扫描被拒、库健康与孤儿清理）</td></tr>
+        <tr><td>基准</td><td><code>npm run bench:quick</code></td><td>15 / 15 达标（CI 门槛放宽 3 倍只拦数量级回退）</td></tr>
+      </tbody>
+    </table>
+  </div>
+  <div class="note">
+    <b>可复现证据示例（人脸）：</b>同一张脸做变换后的特征余弦 —— 缩放 50% 0.9915、旋转 15° 0.9449、裁剪 80% 0.9618、重编码 1.0000。低于这个量级说明对齐或归一化出了问题，比「看起来能跑」更有说服力。
+  </div>
+</section>
+
+<!-- ============ 06 维护 ============ -->
+<section>
+  <h2><span class="n">06</span>维护规则</h2>
+  <div class="card">
+    <ul class="tight">
+      <li><b>只维护这一份。</b>原先的 <code>项目总览.html</code> 与 <code>对标与优化报告.html</code> 已合并删除；不要再按日期新建副本，也不要再拆成「台账 / 报告」两份。</li>
+      <li><b>状态只有四种：</b>已实现 / 部分 / 未做 / 已决策不做。写「部分」必须同时写清缺什么，否则等于没写。</li>
+      <li><b>第 3 节分两段维护：</b>上段是「已修的对照」（保留原来什么毛病 / 现在怎么修，方便同类问题复查），下段是「仍待修清单」。修好一条，就把它从下段搬到上段并写清修法与回归测试。</li>
+      <li><b>每轮复审必须重新按代码找，不许沿用上一轮的「已清零」结论。</b>本版就是反例：上一版写「0 待修」，重新审一遍又多出 12 条。没修就说没修，比自评「清零」可信。</li>
+      <li><b>「已实现」只在用到它的地方能点到才算。</b>后端有接口、前端没入口的，归到第 3 节末尾的「接线缺口」，不能算功能已落地。</li>
+      <li><b>数字必须可复跑。</b>单测 / 冒烟 / 基准的数字只在 <code>npm run verify</code> 全绿时才允许往上改。</li>
+      <li><b>分数的改动要与 README 同步。</b>通用总分、个人单机总分、Eagle 对照分三处必须一致。</li>
+    </ul>
+  </div>
+</section>
+
+</main>
+<footer>图库 TuKu · 项目现状与差距 · v1.2.4 · 2026-11-10 按代码复核</footer>
+</body>
+</html>

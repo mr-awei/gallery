@@ -1,6 +1,8 @@
+import fs from 'node:fs';
 import path from 'node:path';
-import { db, getSettings, withTransaction } from './db.js';
+import { db, getLibraryGeneration, getSettings, withTransaction } from './db.js';
 import { isFolderVisible, lockedFolders } from './lib/privacy.js';
+import { commonDirOf } from './lib/paths.js';
 
 /**
  * 文件夹树：Eagle 式「虚拟树 + 一图多夹」，但导入时按磁盘真实目录自动建树。
@@ -9,29 +11,40 @@ import { isFolderVisible, lockedFolders } from './lib/privacy.js';
  * - 一张图可挂到多个文件夹（image_folders 多对多）
  */
 
-/** 相对目录（'白底图/2508季'）→ find-or-create 层级节点，返回叶子 folder id */
-export function ensureFolderByRelDir(relDir) {
+/**
+ * 相对目录（'白底图/2508季'）→ find-or-create 层级节点，返回叶子 folder id。
+ * @param {string} relDir 相对当前库素材根的目录
+ * @param {number} [expectGen] 调用方开始时的库代数；与当前不一致说明中途切了库，直接放弃（防串库）
+ */
+export function ensureFolderByRelDir(relDir, expectGen = null) {
   if (!relDir) return null;
+  if (expectGen != null && expectGen !== getLibraryGeneration()) return null;
   const parts = String(relDir).split(/[\\/]+/).filter(Boolean);
   if (!parts.length) return null;
   let parentId = null;
   let parentPath = '/';
   let leaf = null;
+  let anchor = '';
   const now = new Date().toISOString();
-  const find = db.prepare('SELECT id, path FROM folders WHERE name = ? AND parent_id IS ?');
+  const find = db.prepare('SELECT id, path, anchor_path FROM folders WHERE name = ? AND parent_id IS ?');
   const insert = db.prepare(
     'INSERT INTO folders(name, parent_id, path, sort_order, anchor_path, created_at, updated_at) VALUES (?, ?, ?, 0, ?, ?, ?)'
   );
   const setPath = db.prepare('UPDATE folders SET path = ? WHERE id = ?');
+  const setAnchor = db.prepare('UPDATE folders SET anchor_path = ? WHERE id = ?');
   for (const name of parts) {
+    // anchor 逐级累积成磁盘相对路径：幽灵夹判定与 fs.watch 同步都靠它
+    anchor = anchor ? `${anchor}/${name}` : name;
     const row = find.get(name, parentId);
     if (row) {
+      // 历史数据 anchor 为空（老版本恒写空串），命中真实磁盘目录时按需补上
+      if (!row.anchor_path) setAnchor.run(anchor, row.id);
       leaf = row.id;
       parentPath = row.path;
       parentId = row.id;
       continue;
     }
-    const ins = insert.run(name, parentId, '', '', now, now);
+    const ins = insert.run(name, parentId, '', anchor, now, now);
     const id = Number(ins.lastInsertRowid);
     const selfPath = parentPath + id + '/';
     setPath.run(selfPath, id);
@@ -76,10 +89,16 @@ export function listFolderTree() {
   const unlockedIds = new Set(lockedInfo.filter((f) => f.unlocked).map((f) => f.id));
   const hiddenPrefixes = lockedInfo.filter((f) => !f.unlocked).map((f) => f.path);
   const isHiddenPath = (p) => hiddenPrefixes.some((pre) => String(p).startsWith(pre));
-  // 与列表口径一致：堆叠成员不单独计数，否则侧栏显示 46、点开只有 45
-  const stackVisible = 'image_id NOT IN (SELECT id FROM images WHERE stack_id <> 0 AND stack_id <> id)';
+  // 与列表口径一致：堆叠成员不单独计数，否则侧栏显示 46、点开只有 45。
+  // 必须 JOIN images：任何一条漏清关联的删除路径都会让计数虚高、封面指向已删图；
+  // 删除触发器已经补上，这里再兜一层（旧库在迁移前也可能留着孤儿）。
+  const stackVisible = 'f.image_id NOT IN (SELECT id FROM images WHERE stack_id <> 0 AND stack_id <> id)';
   const counts = db
-    .prepare(`SELECT folder_id, COUNT(*) AS c FROM image_folders WHERE ${stackVisible} GROUP BY folder_id`)
+    .prepare(
+      `SELECT f.folder_id, COUNT(*) AS c FROM image_folders f
+       JOIN images i ON i.id = f.image_id
+       WHERE ${stackVisible} GROUP BY f.folder_id`
+    )
     .all();
   const countMap = new Map(counts.map((r) => [r.folder_id, r.c]));
   // 封面：手动指定优先；没指定就用夹内最新的一张（MAX(image_id) 一条 GROUP BY 拿全库，不做逐夹子查询）。
@@ -87,7 +106,9 @@ export function listFolderTree() {
   const latest = new Map(
     db
       .prepare(
-        `SELECT folder_id, MAX(image_id) AS image_id FROM image_folders WHERE ${stackVisible} GROUP BY folder_id`
+        `SELECT f.folder_id, MAX(f.image_id) AS image_id FROM image_folders f
+         JOIN images i ON i.id = f.image_id
+         WHERE ${stackVisible} GROUP BY f.folder_id`
       )
       .all()
       .map((r) => [r.folder_id, r.image_id])
@@ -232,6 +253,103 @@ export function backfillMissingFolderLinks(rootPath = getSettings().storageDir, 
     if (!changed || rows.length < pageSize) break;
   }
   return linked;
+}
+
+/**
+ * 文件夹对应的磁盘绝对目录。
+ *
+ * 存在的意义：状态栏「打开文件夹」原来只会打开库根（storageDir），
+ * 用户明明在「成片」里却弹出 F:\Canon 5d4，得自己在资源管理器里再找一层。
+ *
+ * 两条来源，按可信度取：
+ *   1) anchor_path（新库/扫描建树时写）—— 直接相对 storageDir 拼；
+ *   2) 老库这个字段全是空串（实测 120 个夹子一个都没有），只能反查子树里的图片
+ *      落地在哪：取「所有图片所在目录的最深公共父目录」，父夹聚合子夹时也成立。
+ *
+ * @param {number} folderId
+ * @param {string} [rootPath] 素材根目录，默认取设置里的 storageDir
+ * @returns {{dir: string, virtual: boolean, exists: boolean}}
+ *   virtual：既没磁盘锚点、子树里也没有图，没有可打开的真实目录
+ */
+export function folderDiskDir(folderId, rootPath = getSettings().storageDir) {
+  const row = db.prepare('SELECT name, path, anchor_path FROM folders WHERE id = ?').get(Number(folderId));
+  if (!row) throw new Error('文件夹不存在');
+  const root = path.resolve(rootPath || '');
+  const anchor = String(row.anchor_path || '').replace(/^[\\/]+/, '');
+  let dir = '';
+  if (anchor) dir = path.resolve(root, anchor);
+  if (!dir) {
+    // 子树（含自身）里所有图片的实际所在目录
+    const rows = db
+      .prepare(
+        `SELECT DISTINCT i.abs_path AS p FROM image_folders mf JOIN images i ON i.id = mf.image_id
+         WHERE mf.folder_id IN (SELECT id FROM folders WHERE path = ? OR path LIKE ?)
+         LIMIT 20000`
+      )
+      .all(row.path, `${row.path}%`);
+    if (!rows.length) return { dir: root, virtual: true, exists: fs.existsSync(root) };
+    dir = commonDirOf(rows.map((r) => path.dirname(String(r.p))));
+  }
+  // 目录可能被用户在资源管理器里删了：逐级上溯到最近的现存祖先，
+  // 传一个不存在的路径给 explorer 只会得到「此电脑」
+  while (dir.length > root.length && !fs.existsSync(dir)) dir = path.dirname(dir);
+  // 公共父目录有可能一路升到库根之外（跨盘/UNC），超出范围就老实回库根
+  if (dir.length < root.length || !dir.toLowerCase().startsWith(root.toLowerCase())) dir = root;
+  return { dir, virtual: !fs.existsSync(dir), exists: fs.existsSync(dir) };
+}
+
+/**
+ * 找幽灵文件夹：磁盘上已不存在、且子树里一张图都没有的节点。
+ *
+ * 为什么需要：应用外删目录、或历史上「扫描时库根指向过别处」都会留下这类行，
+ * 侧栏会冒出「另一个库的文件夹」（张数 0），看起来就是串库。
+ * 判定必须同时满足三条，宁可漏杀不可误杀（虚拟夹与真实空目录要靠 anchor_path 区分）：
+ *   1) 子树（含后代、按 path 前缀）没有任何 image_folders 关联
+ *   2) 子树没有任何封面
+ *   3) 有 anchor_path 时磁盘必须已不存在；anchor 为空（老数据的纯虚拟夹）时只靠前两条，
+ *      因此必须走 dryRun 让用户先看清单
+ */
+export function findGhostFolders(rootPath = getSettings().storageDir) {
+  const all = db
+    .prepare('SELECT id, name, parent_id, path, anchor_path, cover_image_id FROM folders ORDER BY id')
+    .all();
+  const linked = new Map();
+  for (const r of db.prepare('SELECT folder_id, COUNT(*) AS c FROM image_folders GROUP BY folder_id').all()) {
+    linked.set(r.folder_id, r.c);
+  }
+  const out = [];
+  for (const f of all) {
+    const subtree = all.filter((x) => x.path === f.path || String(x.path).startsWith(f.path));
+    const hasImage = subtree.some((x) => (linked.get(x.id) || 0) > 0);
+    const hasCover = subtree.some((x) => x.cover_image_id);
+    if (hasImage || hasCover) continue;
+    if (f.anchor_path) {
+      const abs = path.join(rootPath || '', f.anchor_path);
+      if (fs.existsSync(abs)) continue; // 磁盘上还在，是正常空目录
+    }
+    out.push({ id: f.id, name: f.name, path: f.path, anchor: f.anchor_path || '' });
+  }
+  return out;
+}
+
+/**
+ * 清理幽灵文件夹（默认只列不删）。删父之前先删后代，image_folders 一并清掉（本来就没有）。
+ * @returns {{dryRun: boolean, candidates: Array<{id:number,name:string,path:string,anchor:string}>, deleted: number}}
+ */
+export function pruneGhostFolders({ dryRun = true, rootPath = getSettings().storageDir } = {}) {
+  const candidates = findGhostFolders(rootPath);
+  if (dryRun || !candidates.length) return { dryRun: true, candidates, deleted: 0 };
+  const ids = candidates.map((c) => c.id);
+  const del = db.prepare('DELETE FROM folders WHERE id = ?');
+  const unlink = db.prepare('DELETE FROM image_folders WHERE folder_id = ?');
+  withTransaction(() => {
+    // 深的先删，避免父夹被删后子夹 path 前缀查询失效
+    for (const c of candidates.slice().sort((a, b) => b.path.length - a.path.length)) {
+      unlink.run(c.id);
+      del.run(c.id);
+    }
+  });
+  return { dryRun: false, candidates, deleted: ids.length };
 }
 
 /* ------------------------- 虚拟文件夹管理（Eagle 式，不碰磁盘） ------------------------- */

@@ -5,7 +5,7 @@ import os from 'node:os';
 import path from 'node:path';
 import sharp from 'sharp';
 import JSZip from 'jszip';
-import { designThumbJpeg, largestJpeg } from '../server/lib/design-thumb.js';
+import { designThumbJpeg, largestJpeg, orientedSize } from '../server/lib/design-thumb.js';
 import { kindOfPath } from '../server/lib/media-kind.js';
 
 const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'tuku-design-'));
@@ -139,6 +139,32 @@ test('designThumbJpeg：PSD 的 RLE 压缩也能解', async () => {
   // 解出来的颜色要对（否则 RLE 行长/字节序错了也能「成功」）
   const { data } = await sharp(r.buffer).raw().toBuffer({ resolveWithObject: true });
   assert.ok(Math.abs(data[0] - 200) < 12, `R 通道应接近 200，实际 ${data[0]}`);
+});
+
+test('orientedSize：5~8 表示画面转了 90°，宽高必须互换', () => {
+  assert.deepEqual(orientedSize(5472, 3648, 1), { width: 5472, height: 3648 });
+  assert.deepEqual(orientedSize(5472, 3648, 3), { width: 5472, height: 3648 });
+  for (const o of [5, 6, 7, 8]) {
+    assert.deepEqual(orientedSize(5472, 3648, o), { width: 3648, height: 5472 }, `orientation ${o}`);
+  }
+});
+
+test('designThumbJpeg：竖拍 RAW（内嵌预览带 orientation=6）要摆正并互换宽高', async () => {
+  // 相机竖拍的典型数据：像素是横的 1400×1000，靠 EXIF 说「要顺时针转 90°」
+  const landscape = await sharp({ create: { width: 1400, height: 1000, channels: 3, background: '#f59e0b' } })
+    .withMetadata({ orientation: 6 })
+    .jpeg()
+    .toBuffer();
+  const file = path.join(tmp, 'portrait.nef');
+  fs.writeFileSync(file, Buffer.concat([Buffer.alloc(2048, 0x55), landscape]));
+
+  const r = await designThumbJpeg(file);
+  assert.ok(r, '应抽出缩略图');
+  assert.equal(r.width, 1000, '宽高要按屏幕方向给出');
+  assert.equal(r.height, 1400);
+  const meta = await sharp(r.buffer).metadata();
+  assert.equal(meta.width, 640, '缩略图缩到 640 宽');
+  assert.ok(meta.height > meta.width, `缩略图像素本身也要摆正（以前是躺倒的 640×457），实际 ${meta.width}×${meta.height}`);
 });
 
 test('designThumbJpeg：什么都抽不出来时返回 null，不抛错', async () => {

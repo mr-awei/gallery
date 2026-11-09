@@ -1,6 +1,120 @@
+import { useCallback, useEffect, useState } from 'react';
+import { api } from '../../api';
+import type { AiProviderInfo } from '../../types';
 import Card from './Card';
 import Select from '../../components/Select';
 import type { SettingsForm } from './useSettingsForm';
+
+/**
+ * 模型套件：把「当前表单里的这套配置」存成一家供应商，可以并存多家、随时切换。
+ * 密钥进的是同一份库外共享配置，这里只展示掩码。
+ */
+function ProviderKit({ settings, onToast }: { settings: SettingsForm['settings']; onToast?: (m: string) => void }) {
+  const [list, setList] = useState<AiProviderInfo[]>([]);
+  const [activeId, setActiveId] = useState('');
+  const [busy, setBusy] = useState('');
+  const [err, setErr] = useState('');
+
+  const load = useCallback(async () => {
+    try {
+      const r = await api.aiProviders();
+      setList(r.providers || []);
+      setActiveId(r.activeId || '');
+    } catch (e) {
+      setErr((e as Error).message);
+    }
+  }, []);
+
+  useEffect(() => {
+    void load();
+  }, [load]);
+
+  const saveCurrent = async () => {
+    if (!settings?.ai) return;
+    const name = window.prompt('给这套配置起个名字（如「DeepSeek 便宜档」）', settings.ai.model || '新配置');
+    if (!name) return;
+    setBusy('save');
+    setErr('');
+    try {
+      await api.saveAiProvider({
+        label: name,
+        provider: settings.ai.provider || 'custom',
+        baseUrl: settings.ai.baseUrl || '',
+        model: settings.ai.model || '',
+        visionModel: settings.ai.visionModel || '',
+      });
+      await load();
+      onToast?.(`已存为「${name}」`);
+    } catch (e) {
+      setErr((e as Error).message);
+    } finally {
+      setBusy('');
+    }
+  };
+
+  const activate = async (id: string) => {
+    setBusy(id);
+    try {
+      await api.activateAiProvider(id);
+      await load();
+      onToast?.('已切换，刷新后生效');
+      setTimeout(() => window.location.reload(), 600);
+    } catch (e) {
+      setErr((e as Error).message);
+    } finally {
+      setBusy('');
+    }
+  };
+
+  const remove = async (id: string) => {
+    if (!window.confirm('删除这家供应商的配置？（已保存的密钥一并删除）')) return;
+    setBusy(id);
+    try {
+      await api.removeAiProvider(id);
+      await load();
+    } catch (e) {
+      setErr((e as Error).message);
+    } finally {
+      setBusy('');
+    }
+  };
+
+  return (
+    <div style={{ marginTop: 18, borderTop: '1px solid var(--line)', paddingTop: 14 }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}>
+        <b style={{ fontSize: 13 }}>模型套件</b>
+        <span className="hint" style={{ flex: 1 }}>
+          可以并存多家，切换时只改指针，不用重填
+        </span>
+        <button className="btn sm" disabled={!!busy} onClick={() => void saveCurrent()}>
+          {busy === 'save' ? '保存中…' : '把当前配置存为一家'}
+        </button>
+      </div>
+      {list.length === 0 && <div className="hint">还没有保存过多套配置。</div>}
+      {list.map((p) => (
+        <div
+          key={p.id}
+          style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '6px 0', fontSize: 12.5 }}
+        >
+          <span style={{ minWidth: 110, fontWeight: p.id === activeId ? 700 : 400 }}>
+            {p.label}
+            {p.id === activeId ? ' ·当前' : ''}
+          </span>
+          <span className="hint" style={{ flex: 1, overflow: 'hidden', textOverflow: 'ellipsis' }}>
+            {p.model || '(未填模型)'} · {p.baseUrl || '(未填地址)'} · {p.hasKey ? p.keyMask : '无密钥'}
+          </span>
+          <button className="btn ghost sm" disabled={!!busy || p.id === activeId} onClick={() => void activate(p.id)}>
+            切换
+          </button>
+          <button className="btn ghost sm" disabled={!!busy} onClick={() => void remove(p.id)}>
+            删除
+          </button>
+        </div>
+      ))}
+      {err && <div className="danger small">{err}</div>}
+    </div>
+  );
+}
 
 /** AI 接入区块：从 Settings.tsx 拆出，直接消费同一个 form 对象，不再逐层透传 props。 */
 export default function AiSection({ form }: { form: SettingsForm }) {
@@ -182,6 +296,7 @@ export default function AiSection({ form }: { form: SettingsForm }) {
         </button>
       </div>
       {aiError && <div className="ai-result" style={{ borderColor: 'rgba(248,113,113,0.4)' }}>{aiError}</div>}
+      <ProviderKit settings={settings} />
       <div className="hint" style={{ marginTop: 10, lineHeight: 1.9 }}>
         · 密钥只保存在本机数据库，不外传
         <br />· 不配置也能用：删除原因会直接转成规则

@@ -12,6 +12,15 @@ interface Props {
   }) => Promise<void> | void;
 }
 
+/** 一组条件：组内按 op 连接（「UI 或 图标」就是一个 or 组） */
+type GroupForm = {
+  op: 'and' | 'or';
+  tagsInclude: string;
+  tagsExclude: string;
+  keywords: string;
+  minRating: string;
+};
+
 type Form = {
   name: string;
   favorite: '' | 'yes' | 'no';
@@ -24,6 +33,9 @@ type Form = {
   keywords: string;
   aiKeywords: string;
   autoTags: string;
+  /** 组与组之间怎么连 */
+  combine: 'and' | 'or';
+  groups: GroupForm[];
 };
 
 const EMPTY: Form = {
@@ -38,6 +50,8 @@ const EMPTY: Form = {
   keywords: '',
   aiKeywords: '',
   autoTags: '',
+  combine: 'and',
+  groups: [],
 };
 
 const csv = (s: string) =>
@@ -65,8 +79,24 @@ function formOf(f: SmartFolder | null | undefined): Form {
     keywords: Array.isArray(r.keywords) ? (r.keywords as string[]).join('，') : '',
     aiKeywords: Array.isArray(r.aiKeywords) ? (r.aiKeywords as string[]).join('，') : '',
     autoTags: (f.autoTags || []).join('，'),
+    combine: String(r.combine).toUpperCase() === 'OR' ? 'or' : 'and',
+    groups: (Array.isArray(r.groups) ? r.groups : []).map((g) => {
+      const gr = ((g as Record<string, unknown>)?.rules || g || {}) as Record<string, unknown>;
+      const list = (v: unknown) => (Array.isArray(v) ? (v as string[]).join('，') : '');
+      return {
+        op: String((g as Record<string, unknown>)?.op).toUpperCase() === 'OR' ? 'or' : 'and',
+        tagsInclude: list(gr.tagsInclude),
+        tagsExclude: list(gr.tagsExclude),
+        keywords: list(gr.keywords),
+        minRating: num(gr.minRating),
+      };
+    }),
   };
 }
+
+const GROUP_EMPTY: GroupForm = { op: 'and', tagsInclude: '', tagsExclude: '', keywords: '', minRating: '' };
+const groupHasRule = (g: GroupForm) =>
+  !!(csv(g.tagsInclude).length || csv(g.tagsExclude).length || csv(g.keywords).length || Number(g.minRating) > 0);
 
 /**
  * 智能文件夹编辑器（对标 Eagle 的条件面板）。
@@ -101,14 +131,39 @@ export default function SmartFolderEditor({ initial, onClose, onSubmit }: Props)
     put('tagsExclude', csv(form.tagsExclude));
     put('keywords', csv(form.keywords));
     put('aiKeywords', csv(form.aiKeywords));
+    // 分组：只写有内容的分组，空组会污染 OR 组合（会命中全库）
+    const groups = form.groups.filter(groupHasRule).map((g) => {
+      const rulesOfGroup: Record<string, unknown> = {};
+      if (csv(g.tagsInclude).length) rulesOfGroup.tagsInclude = csv(g.tagsInclude);
+      if (csv(g.tagsExclude).length) rulesOfGroup.tagsExclude = csv(g.tagsExclude);
+      if (csv(g.keywords).length) rulesOfGroup.keywords = csv(g.keywords);
+      if (Number(g.minRating) > 0) rulesOfGroup.minRating = Number(g.minRating);
+      return { op: g.op, rules: rulesOfGroup };
+    });
+    if (groups.length) {
+      base.groups = groups;
+      base.combine = form.combine;
+    } else {
+      delete base.groups;
+      delete base.combine;
+    }
     return base;
   }, [form, initial]);
 
-  const condCount = Object.keys(rules).length;
+  const condCount = Object.keys(rules).filter((k) => k !== 'groups' && k !== 'combine').length +
+    (Array.isArray(rules.groups) ? rules.groups.length : 0);
+
+  const setGroup = (i: number, patch: Partial<GroupForm>) =>
+    setForm((p) => ({ ...p, groups: p.groups.map((g, idx) => (idx === i ? { ...g, ...patch } : g)) }));
 
   const submit = async () => {
     if (!form.name.trim()) {
       setErr('请填写名称');
+      return;
+    }
+    // 没有条件就不是「全库」而是「什么都没配」：后端会直接拒绝，这里先说清楚
+    if (condCount === 0) {
+      setErr('请至少添加一个筛选条件（不设条件的文件夹会命中整库，没有意义）');
       return;
     }
     setBusy(true);
@@ -243,6 +298,76 @@ export default function SmartFolderEditor({ initial, onClose, onSubmit }: Props)
             />
           </div>
           <div className="field">
+            <label>
+              条件分组（可选，用于 AND/OR 嵌套）
+              {form.groups.length > 0 && (
+                <select
+                  className="input"
+                  style={{ width: 110, display: 'inline-block', marginLeft: 8 }}
+                  value={form.combine}
+                  onChange={(e) => set('combine', e.target.value as Form['combine'])}
+                >
+                  <option value="and">组间：全部满足</option>
+                  <option value="or">组间：任一满足</option>
+                </select>
+              )}
+            </label>
+            <p className="muted small" style={{ margin: '2px 0 6px' }}>
+              上面的条件算第一组；下面的每行是一组，组内可选「全部满足 / 任一满足」。例：(标签 UI 或 图标) 且 (蓝色 或 绿色)。
+            </p>
+            {form.groups.map((g, i) => (
+              <div key={i} className="sf-grid" style={{ marginBottom: 6 }}>
+                <select
+                  className="input"
+                  value={g.op}
+                  onChange={(e) => setGroup(i, { op: e.target.value as GroupForm['op'] })}
+                >
+                  <option value="and">组内：全部</option>
+                  <option value="or">组内：任一</option>
+                </select>
+                <input
+                  className="input"
+                  value={g.tagsInclude}
+                  placeholder="包含标签，逗号分隔"
+                  onChange={(e) => setGroup(i, { tagsInclude: e.target.value })}
+                />
+                <input
+                  className="input"
+                  value={g.tagsExclude}
+                  placeholder="排除标签"
+                  onChange={(e) => setGroup(i, { tagsExclude: e.target.value })}
+                />
+                <input
+                  className="input"
+                  value={g.keywords}
+                  placeholder="关键词"
+                  onChange={(e) => setGroup(i, { keywords: e.target.value })}
+                />
+                <input
+                  className="input"
+                  type="number"
+                  min={0}
+                  max={5}
+                  value={g.minRating}
+                  placeholder="最低星"
+                  onChange={(e) => setGroup(i, { minRating: e.target.value })}
+                />
+                <button
+                  className="btn ghost sm"
+                  onClick={() => setForm((p) => ({ ...p, groups: p.groups.filter((_, idx) => idx !== i) }))}
+                >
+                  删除
+                </button>
+              </div>
+            ))}
+            <button
+              className="btn ghost sm"
+              onClick={() => setForm((p) => ({ ...p, groups: [...p.groups, { ...GROUP_EMPTY }] }))}
+            >
+              + 加一组条件
+            </button>
+          </div>
+          <div className="field">
             <label>自动标签（命中的图片可一键继承这些标签）</label>
             <input
               className="input"
@@ -253,7 +378,7 @@ export default function SmartFolderEditor({ initial, onClose, onSubmit }: Props)
           </div>
 
           <p className="muted small">
-            共 {condCount} 个条件{condCount === 0 ? '（无条件 = 命中全部图片，建议至少加一条）' : ''}
+            共 {condCount} 个条件{condCount === 0 ? '（至少要有一条，否则不能保存）' : ''}
           </p>
           {err && <p className="danger small">{err}</p>}
         </div>

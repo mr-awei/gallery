@@ -1,6 +1,6 @@
 import fs from 'node:fs';
 import sharp from 'sharp';
-import { db, getSettings } from './db.js';
+import { db, getSettings, saveSettings } from './db.js';
 import { httpFetch } from './http.js';
 
 /** 内置厂家预设（全部为 OpenAI 兼容接口） */
@@ -57,14 +57,103 @@ export const AI_PRESETS = {
 
 function aiConfig() {
   const raw = getSettings().ai || {};
+  // 模型套件：providers 里可以并存多家（省得换供应商就重填），activeId 指向当前生效的那家。
+  // 顶层字段仍然保留，既兼容只填过一份配置的老用户，也让「激活」变成一次显式覆盖。
+  const active = Array.isArray(raw.providers) ? raw.providers.find((p) => p && p.id === raw.activeId) : null;
+  const merged = active ? { ...raw, ...active } : raw;
   // 粘贴密钥时常见的首尾空格/换行会导致 401
   return {
-    ...raw,
-    baseUrl: String(raw.baseUrl || '').trim().replace(/\/+$/, ''),
-    apiKey: String(raw.apiKey || '').trim(),
-    model: String(raw.model || '').trim(),
-    visionModel: String(raw.visionModel || '').trim(),
+    ...merged,
+    baseUrl: String(merged.baseUrl || '').trim().replace(/\/+$/, ''),
+    apiKey: String(merged.apiKey || '').trim(),
+    model: String(merged.model || '').trim(),
+    visionModel: String(merged.visionModel || '').trim(),
   };
+}
+
+/* ------------------------------- 模型套件 -------------------------------- */
+/* 目标：多家供应商并存，按需切换；密钥只在本地库外共享配置里，接口只回掩码。 */
+
+const PROVIDER_FIELDS = ['label', 'provider', 'baseUrl', 'apiKey', 'model', 'visionModel'];
+
+function maskKey(key) {
+  const k = String(key || '');
+  if (!k) return '';
+  return k.length <= 8 ? '****' : `****${k.slice(-4)}`;
+}
+
+function publicProvider(p, activeId) {
+  return {
+    id: p.id,
+    label: String(p.label || p.provider || p.id),
+    provider: String(p.provider || 'custom'),
+    baseUrl: String(p.baseUrl || ''),
+    model: String(p.model || ''),
+    visionModel: String(p.visionModel || ''),
+    hasKey: !!p.apiKey,
+    keyMask: maskKey(p.apiKey),
+    active: p.id === activeId,
+  };
+}
+
+export function listProviders() {
+  const raw = getSettings().ai || {};
+  const providers = Array.isArray(raw.providers) ? raw.providers : [];
+  return {
+    activeId: String(raw.activeId || ''),
+    providers: providers.map((p) => publicProvider(p, raw.activeId)),
+    // 顶层那份「未命名配置」也展示出来，否则老用户会以为配置丢了
+    legacy: raw.baseUrl || raw.apiKey ? publicProvider({ id: '', ...pickLegacy(raw) }, raw.activeId) : null,
+  };
+}
+
+function pickLegacy(raw) {
+  const out = {};
+  for (const f of PROVIDER_FIELDS) if (raw[f]) out[f] = raw[f];
+  out.label = out.label || '当前配置';
+  return out;
+}
+
+/**
+ * 新增或更新一家供应商（id 相同即更新；不传 id 则新建）。
+ * 只覆盖传进来的字段，避免「改个模型名把密钥清空」。
+ */
+export function upsertProvider(input = {}) {
+  const raw = getSettings().ai || {};
+  const list = Array.isArray(raw.providers) ? [...raw.providers] : [];
+  const id = String(input.id || '').trim() || `p_${Date.now().toString(36)}`;
+  const idx = list.findIndex((p) => p && p.id === id);
+  const base = idx >= 0 ? list[idx] : { id };
+  const next = { ...base, id };
+  for (const f of PROVIDER_FIELDS) {
+    if (input[f] !== undefined) next[f] = String(input[f] ?? '').trim();
+  }
+  if (!next.label) next.label = next.provider || id;
+  if (idx >= 0) list[idx] = next;
+  else list.push(next);
+  saveSettings({ ai: { providers: list } });
+  return listProviders();
+}
+
+export function removeProvider(id) {
+  const raw = getSettings().ai || {};
+  const list = (Array.isArray(raw.providers) ? raw.providers : []).filter((p) => p && p.id !== String(id));
+  const patch = { providers: list };
+  // 删掉正在用的那家：清掉 activeId，回到顶层配置，避免 aiStatus 指向已删除的对象
+  if (String(raw.activeId) === String(id)) patch.activeId = '';
+  saveSettings({ ai: patch });
+  return listProviders();
+}
+
+/** 激活某一家：把它的字段写到顶层，所有既有调用点（aiStatus / 打标 / 描述）无需改动 */
+export function activateProvider(id) {
+  const raw = getSettings().ai || {};
+  const target = (Array.isArray(raw.providers) ? raw.providers : []).find((p) => p && p.id === String(id));
+  if (!target) throw new Error(`供应商不存在：${id}`);
+  const patch = { activeId: String(id) };
+  for (const f of PROVIDER_FIELDS) if (target[f] !== undefined) patch[f] = target[f];
+  saveSettings({ ai: patch });
+  return aiStatus();
 }
 
 /** 把接口的报错翻译成人话 */

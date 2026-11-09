@@ -51,6 +51,23 @@ export async function removeFileRetry(p, attempts = 4) {
   return false;
 }
 
+/**
+ * 回滚 / 去重失败时清掉已生成的缩略图或落盘副本。
+ * 清理失败不能掩盖真正的失败原因（duplicate / aiFilter），但也不能一声不吭：
+ * 以前这些点全是 `.catch(() => {})`，磁盘越用越大时完全对不上账。
+ * @returns {Promise<boolean>} 是否删干净
+ */
+export async function cleanupQuietly(p, label = '文件') {
+  if (!p) return true;
+  try {
+    await removeFileRetry(p);
+    return true;
+  } catch (err) {
+    console.warn(`[cleanup] ${label}删除失败：`, p, err?.message || err);
+    return false;
+  }
+}
+
 /** 标记为「已翻译」，避免被二次包装 */
 function markFriendly(err) {
   err.friendly = true;
@@ -915,7 +932,7 @@ export async function ingest(params, settings = getSettings()) {
   if (!info.changes) {
     // 同一路径已被另一个流程写进去了（并发导入）：原路径的文件绝不能删；
     // 但如果是我们刚复制出来的副本，就没人认领了，清掉免得留孤儿
-    if (finalPath !== absPath) await fsp.rm(finalPath, { force: true }).catch(() => {});
+    if (finalPath !== absPath) await cleanupQuietly(finalPath, '重复路径副本');
     return { ok: false, reason: KEEP_REASONS.duplicate };
   }
 
@@ -937,26 +954,29 @@ export async function ingest(params, settings = getSettings()) {
     const dupId = findDuplicateByPhash(phash, threshold);
     if (dupId) {
       db.prepare('DELETE FROM images WHERE id = ?').run(id);
-      if (thumb) await removeFileRetry(thumb).catch(() => {});
-      if (buffer || copyToStorage) await removeFileRetry(finalPath);
+      if (thumb) await cleanupQuietly(thumb, '缩略图');
+      if (buffer || copyToStorage) await cleanupQuietly(finalPath, '回滚素材副本');
       return { ok: false, reason: KEEP_REASONS.duplicate, duplicateOf: dupId };
     }
   }
 
   // CLIP 深度特征查重（第二道防线）：裁剪/旋转/加滤镜的图 pHash 挡不住，向量余弦能识别。
   // 模型未就绪时跳过（首次启动后台加载，加载完成前入库的图由「补算」任务覆盖）。
+  /** 向量查重失败时如实记下来：调用方与前端要能说「本次只按 pHash 查重」，而不是假装查过 */
+  let clipCheckError = '';
   if (!skipPhashDupe && clip.clipReady()) {
     try {
       const vec = await clip.embedImage(finalPath);
       const dup = await clip.topSimilar(vec, { k: 1, minCos: 0.965 });
       if (dup.length) {
         db.prepare('DELETE FROM images WHERE id = ?').run(id);
-        if (thumb) await removeFileRetry(thumb).catch(() => {});
-        if (buffer || copyToStorage) await removeFileRetry(finalPath);
+        if (thumb) await cleanupQuietly(thumb, '缩略图');
+        if (buffer || copyToStorage) await cleanupQuietly(finalPath, '回滚素材副本');
         return { ok: false, reason: KEEP_REASONS.duplicate, duplicateOf: dup[0].id, clipCos: +dup[0].cos.toFixed(4) };
       }
     } catch (err) {
-      console.error('[clip] 入库查重失败（忽略）', finalPath, err?.message || err);
+      clipCheckError = String(err?.message || err);
+      console.error('[clip] 入库查重失败，本次仅按 pHash 查重：', finalPath, clipCheckError);
     }
   }
 
@@ -968,8 +988,8 @@ export async function ingest(params, settings = getSettings()) {
   );
   if (settings.aiFilterEnabled !== false && score < Number(settings.scoreThreshold)) {
     db.prepare('DELETE FROM images WHERE id = ?').run(id);
-    if (thumb) await removeFileRetry(thumb).catch(() => {});
-    if (buffer || copyToStorage) await removeFileRetry(finalPath);
+    if (thumb) await cleanupQuietly(thumb, '缩略图');
+    if (buffer || copyToStorage) await cleanupQuietly(finalPath, '回滚素材副本');
     return { ok: false, reason: KEEP_REASONS.aiFilter, score, reasons };
   }
 
@@ -1011,7 +1031,7 @@ export async function ingest(params, settings = getSettings()) {
     /* 建树失败不影响入库 */
   }
 
-  return { ok: true, id, image: toDTO(getImage(id)) };
+  return { ok: true, id, image: toDTO(getImage(id)), clipCheckFailed: !!clipCheckError, clipCheckError };
 }
 
 export function setFavorite(id, favorite) {

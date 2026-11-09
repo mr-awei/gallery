@@ -158,7 +158,14 @@ export default function RecycleBinCard({ onLibraryChanged, onToast }: Props) {
             if (!(await confirmDialog(`清空回收站？将永久删除 ${total} 个文件，不可恢复。`))) return;
             try {
               const res = await api.emptyTrash();
-              onToast(`已彻底删除 ${res.removed} 个文件`);
+              if (res.failed?.length) {
+                onToast(
+                  `已删除 ${res.removed} 个；${res.failed.length} 个文件删不掉（多半被其它程序占用），记录已保留可重试`,
+                  'error'
+                );
+              } else {
+                onToast(`已彻底删除 ${res.removed} 个文件`);
+              }
               loadTrash();
             } catch (err) {
               onToast((err as Error).message, 'error');

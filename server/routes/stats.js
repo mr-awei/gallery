@@ -188,6 +188,26 @@ export function register(app, ctx) {
   app.get('/api/ai/presets', (_req, res) => res.json(ai.AI_PRESETS));
   app.get('/api/ai/status', (_req, res) => res.json(ai.aiStatus()));
 
+  /* 模型套件：多家供应商并存，切换只改 activeId，密钥只回掩码 */
+  app.get('/api/ai/providers', (_req, res) => res.json({ ok: true, ...ai.listProviders() }));
+  app.post('/api/ai/providers', (req, res) => {
+    try {
+      res.json({ ok: true, ...ai.upsertProvider(req.body || {}) });
+    } catch (err) {
+      res.status(400).json({ ok: false, error: err.message });
+    }
+  });
+  app.post('/api/ai/providers/:id/activate', (req, res) => {
+    try {
+      res.json({ ok: true, status: ai.activateProvider(req.params.id) });
+    } catch (err) {
+      res.status(400).json({ ok: false, error: err.message });
+    }
+  });
+  app.delete('/api/ai/providers/:id', (req, res) => {
+    res.json({ ok: true, ...ai.removeProvider(req.params.id) });
+  });
+
   app.post(
     '/api/ai/test',
     asyncRoute(async (_req, res) => {
@@ -252,6 +272,22 @@ export function register(app, ctx) {
       } catch (err) {
         res.status(500).json({ error: err.message });
       }
+    })
+  );
+
+  /** 混合检索：关键词与 CLIP 两路各取 top-N，RRF 融合（两路各有盲区，融合兜住） */
+  app.post(
+    '/api/search/hybrid',
+    asyncRoute(async (req, res) => {
+      const query = String(req.body?.query || req.body?.q || '').trim();
+      if (!query) return res.status(400).json({ error: '缺少 query 参数' });
+      const limit = Math.min(300, Math.max(1, Number(req.body?.limit) || 60));
+      const w = Number(req.body?.vectorWeight);
+      const r = await search.hybridSearch(query, {
+        limit,
+        vectorWeight: Number.isFinite(w) && w > 0 ? Math.min(4, w) : 1,
+      });
+      res.json({ query, ...r });
     })
   );
 
@@ -533,14 +569,17 @@ export function register(app, ctx) {
   app.delete(
     '/api/trash/:id',
     asyncRoute(async (req, res) => {
-      res.json({ ok: await lib.deleteTrashItem(Number(req.params.id)) });
+      // 文件删不掉时记录会保留：返回 ok:false + error，让前端能提示「没删掉，可重试」
+      const result = await lib.deleteTrashItem(Number(req.params.id));
+      res.status(result.ok ? 200 : 500).json(result);
     })
   );
 
   app.post(
     '/api/trash/empty',
     asyncRoute(async (_req, res) => {
-      res.json({ ok: true, removed: await lib.emptyTrash() });
+      const result = await lib.emptyTrash();
+      res.json({ ok: result.failed.length === 0, removed: result.removed, failed: result.failed });
     })
   );
 

@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { api, desktop, formatDate, getAppInfo, isDesktop, prettyHotkey, quiet } from '../../api';
 import type { AppInfo } from '../../api';
 import type {
@@ -50,10 +50,12 @@ export default function WallpaperSection({ settings, patch, onToast }: Props) {
   const [live, setLive] = useState<LiveWallpaperConfig | null>(null);
   const [platformCaps, setPlatformCaps] = useState<{ summary: string; liveWallpaper: boolean; gpuMeter: boolean } | null>(null);
 
+  // 能力探测失败以前是裸 catch：整块「本机能力」说明会无声消失，用户只会觉得缺了点什么
+  const [capsError, setCapsError] = useState('');
   useEffect(() => {
     api.platform()
       .then((r) => setPlatformCaps({ summary: r.summary, liveWallpaper: r.liveWallpaper, gpuMeter: r.gpuMeter }))
-      .catch(() => {});
+      .catch((err) => setCapsError(`无法读取本机能力：${(err as Error).message}`));
   }, []);
 
   // 初始加载（原样迁自父组件）
@@ -111,9 +113,19 @@ export default function WallpaperSection({ settings, patch, onToast }: Props) {
   const saveAutoDebounced = useDebouncedCommit<AutoConfig>(saveAuto, 300);
   const applyLiveDebounced = useDebouncedCommit<LiveWallpaperConfig>(applyLive, 300);
 
-  /** 拖参数滑块：只推桌面层窗口，不落库、不重载窗口（松手由 onPatch 防抖保存） */
+  /**
+   * 拖参数滑块：只推桌面层窗口，不落库、不重载窗口（松手由 onPatch 防抖保存）。
+   * 推送失败以前是裸 catch —— 表现是「拖了没反应」，最难排查。这里只提示一次，
+   * 拖拽时每帧弹 toast 反而更烦。
+   */
+  const previewBroken = useRef(false);
   const previewParams = (p: Partial<LiveWallpaperParams>) => {
-    if (isDesktop && desktop?.setLiveParams) void desktop.setLiveParams(p).catch(() => {});
+    if (!isDesktop || !desktop?.setLiveParams) return;
+    void desktop.setLiveParams(p).catch((err) => {
+      if (previewBroken.current) return;
+      previewBroken.current = true;
+      onToast(`动态壁纸参数预览不可用：${(err as Error).message}`, 'error');
+    });
   };
 
   const switchNow = async () => {
@@ -304,6 +316,11 @@ export default function WallpaperSection({ settings, patch, onToast }: Props) {
                         {platformCaps.summary}
                         {!platformCaps.liveWallpaper && '；开启动态壁纸会被明确回滚并提示，不会假装在动。'}
                         {!platformCaps.gpuMeter && '；GPU 占用阈值与「指定 App 前台」暂停规则在此平台不可用。'}
+                      </div>
+                    )}
+                    {capsError && (
+                      <div className="hint" style={{ color: 'var(--warn)', marginBottom: 10 }}>
+                        {capsError}
                       </div>
                     )}
                     {!isDesktop && (

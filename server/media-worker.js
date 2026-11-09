@@ -31,10 +31,21 @@ async function decodeOnce(source, file) {
       .raw()
       .toBuffer({ resolveWithObject: true });
     const meta = await sharp(source, { failOn: 'none' }).metadata();
+    /**
+     * 库里存的宽高必须是「屏幕上看到的」那一组：像素已经按 orientation 摆正，
+     * 竖拍照片（orientation 6/8）原始元数据仍是 5472×3648，直接存下去
+     * 卡片就按横图排版，图片被 object-fit: cover 裁掉大半。
+     */
+    const o = Number(meta.orientation) || 1;
+    const swap = o >= 5 && o <= 8;
     return {
       data: pixels.data,
       info: pixels.info,
-      meta: { width: meta.width || 0, height: meta.height || 0, format: (meta.format || '').toLowerCase() },
+      meta: {
+        width: swap ? meta.height || 0 : meta.width || 0,
+        height: swap ? meta.width || 0 : meta.height || 0,
+        format: (meta.format || '').toLowerCase(),
+      },
     };
   } catch (err) {
     if (!file) throw err;

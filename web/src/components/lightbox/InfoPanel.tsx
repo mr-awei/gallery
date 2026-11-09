@@ -17,6 +17,7 @@ import {
 } from '../../api';
 import { buildASE, buildPngSheet, downloadBlob } from '../../lib/palette';
 import NotesPanel from './NotesPanel';
+import FaceChips from './FaceChips';
 
 interface Props {
   item: ImageItem;
@@ -241,6 +242,9 @@ export default function InfoPanel({
               </span>
             </div>
           </section>
+
+          {/* 没有检出人脸时整块不渲染，不给空标题占高度 */}
+          <FaceChips imageId={item.id} onToast={(m) => onChangeToast?.(m)} />
 
           <section className="lb-group">
             <h5>归类整理</h5>

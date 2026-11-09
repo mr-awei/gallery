@@ -18,6 +18,7 @@ import { startCrawl, stopCrawl } from '../crawler.js';
 import { cancelEditJob, startEditJob } from '../edit-job.js';
 import { cancelJob as cancelEnhanceJob, startJob as startEnhanceJob } from '../enhance-job.js';
 import { cancelMattingInstall, installMatting } from '../matting.js';
+import { cancelFaceInstall, cancelFaceScan, startFaceInstall, startFaceScan } from '../face.js';
 
 /* ------------------------------ 撤销执行器 ------------------------------ */
 
@@ -91,6 +92,48 @@ registerUndoer('trash', async (p) => {
   return { restored: n, failed: failed.length };
 });
 
+/**
+ * 动作（AI Action）→ 按快照把标题 / 标签 / 备注 / 评分 / 收藏恢复，
+ * 并只摘掉本次执行新加的文件夹归属（执行前已有的归属不动）。
+ * 走 lib.* 而不是裸 SQL：标签有倒排表，直接 UPDATE 会让标签筛选与标签云不一致。
+ */
+registerUndoer('action', async (p) => {
+  let restored = 0;
+  const failed = [];
+  for (const it of p.rows || []) {
+    const id = Number(it.id);
+    try {
+      const cur = db
+        .prepare('SELECT title, tags, note, rating, favorite FROM images WHERE id = ?')
+        .get(id);
+      if (!cur) {
+        failed.push(id);
+        continue;
+      }
+      if (String(cur.title || '') !== String(it.title || '')) lib.renameTitle(id, String(it.title || ''));
+      if (String(cur.tags || '') !== String(it.tags || '')) {
+        lib.setTags(
+          id,
+          String(it.tags || '')
+            .split(',')
+            .map((t) => t.trim())
+            .filter(Boolean)
+        );
+      }
+      if (String(cur.note || '') !== String(it.note || '')) lib.setNote(id, String(it.note || ''));
+      if (Number(cur.rating || 0) !== Number(it.rating || 0)) lib.setRating(id, Number(it.rating) || 0);
+      if (!!Number(cur.favorite) !== !!Number(it.favorite)) lib.setFavorite(id, !!Number(it.favorite));
+      for (const fid of Array.isArray(it.addedFolders) ? it.addedFolders : []) {
+        removeImagesFromFolder(Number(fid), [id]);
+      }
+      restored++;
+    } catch {
+      failed.push(id);
+    }
+  }
+  return { restored, failed: failed.length };
+});
+
 /** 回收站恢复 → 再删回去（仍走回收站，不会真删文件） */
 registerUndoer('restore', async (p) => {
   let n = 0;
@@ -138,6 +181,7 @@ const KIND_TITLE = {
   edit: '批量编辑',
   enhance: '画质增强',
   'model-install': '模型下载',
+  'face-scan': '人脸扫描',
 };
 
 export function register(app) {
@@ -167,7 +211,10 @@ export function register(app) {
     // 前端 if (ok) 恒为真，取消失败也显示「已请求停止」。
     else if (job.kind === 'edit') ok = !!cancelEditJob()?.cancelled;
     else if (job.kind === 'enhance') ok = !!cancelEnhanceJob()?.cancelled;
-    else if (job.kind === 'model-install') ok = cancelMattingInstall();
+    else if (job.kind === 'model-install') {
+      // 人脸模型与去背景模型都走 model-install，取消要落到真正在下的那个
+      ok = cancelMattingInstall() || cancelFaceInstall();
+    } else if (job.kind === 'face-scan') ok = cancelFaceScan();
     res.json({ ok, message: ok ? '已请求停止' : '该任务不支持从任务中心停止' });
   });
 
@@ -187,7 +234,11 @@ export function register(app) {
       else if (job.kind === 'edit') out = startEditJob(p.ids || [], p.op, p.params || {});
       else if (job.kind === 'enhance') out = startEnhanceJob(p.ids || [], p.model, p.standard);
       else if (job.kind === 'model-install') {
-        out = p.model === 'sr' ? { ok: false, message: '超分模型按需加载，无需预下载' } : installMatting();
+        if (p.model === 'sr') out = { ok: false, message: '超分模型按需加载，无需预下载' };
+        else if (p.model === 'face') out = startFaceInstall();
+        else out = installMatting();
+      } else if (job.kind === 'face-scan') {
+        out = startFaceScan({ limit: p.limit || 0, force: p.force === true, minCos: p.minCos || 0 });
       } else out = { ok: false, message: '未知任务类型' };
       if (out?.ok === false) return res.status(400).json({ error: out.message || '重试失败' });
       res.json({ ok: true });

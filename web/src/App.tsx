@@ -1,17 +1,19 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { api, desktop, downloadFile, isDesktop, onApiError, openFolder, quiet } from './api';
+import { Suspense, lazy, useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { api, desktop, downloadFile, isDesktop, onApiError, openFolder, openFolderById, quiet } from './api';
 import { subscribeEvents } from './events';
 import type { Filters, ImageItem, Library, SavedFilter, TagNode, View, ViewMode } from './types';
 import Dashboard from './pages/Dashboard';
 import GalleryPage from './pages/Gallery';
-import Crawl from './pages/Crawl';
-import SettingsPage from './pages/Settings';
-import Knowledge from './pages/Knowledge';
-import Playlists from './pages/Playlists';
-import Tidy from './pages/Tidy';
-import EnhancePage from './pages/Enhance';
-import Search from './pages/Search';
-import Smart from './pages/Smart';
+const Crawl = lazy(() => import('./pages/Crawl'));
+// 低频且体积大的页面按需加载：设置页（含各分区面板）与教程（150 条文案）
+// 不该拖进首包。仪表盘与图库保持静态导入，避免首屏闪骨架。
+const SettingsPage = lazy(() => import('./pages/Settings'));
+const Knowledge = lazy(() => import('./pages/Knowledge'));
+const Playlists = lazy(() => import('./pages/Playlists'));
+const Tidy = lazy(() => import('./pages/Tidy'));
+const EnhancePage = lazy(() => import('./pages/Enhance'));
+const Search = lazy(() => import('./pages/Search'));
+const Smart = lazy(() => import('./pages/Smart'));
 import Lightbox from './components/Lightbox';
 import GlobalImport from './components/GlobalImport';
 import ScreenshotOverlay from './components/ScreenshotOverlay';
@@ -32,8 +34,9 @@ import CreateLibraryDialog from './components/CreateLibraryDialog';
 import OnboardingTour from './components/OnboardingTour';
 import TagMetaDialog from './components/TagMetaDialog';
 import { applyTheme, getStoredTheme, type Theme } from './theme';
-import Bookmarks from './pages/Bookmarks';
-import Tutorial from './pages/Tutorial';
+const Bookmarks = lazy(() => import('./pages/Bookmarks'));
+const People = lazy(() => import('./pages/People'));
+const Tutorial = lazy(() => import('./pages/Tutorial'));
 import CommandPalette, { type PaletteCommand } from './components/CommandPalette';
 import { buildRoute, parseRoute, sameRoute, type RouteState } from './lib/route';
 import { THUMB_DEFAULT, clampThumbWidth } from './lib/thumb-size';
@@ -899,6 +902,7 @@ export default function App() {
     return [
       go('gallery', '图库'),
       go('dashboard', '仪表盘'),
+      go('people', '人物（人脸分组）'),
       go('search', '语义搜索'),
       go('tidy', '整理（重复 / 相似）'),
       go('smart', '智能文件夹'),
@@ -1157,10 +1161,12 @@ export default function App() {
   const relocateMissing = useCallback(async () => {
     try {
       const res = await api.relocateMissing();
+      const unreadable = res.unreadable || 0;
+      const unreadableNote = unreadable ? `；另有 ${unreadable} 个文件读不到大小，未参与重关联` : '';
       showToast(
         res.relocated
-          ? `已找回 ${res.relocated} 张图片的路径${res.remaining ? `，仍有 ${res.remaining} 张未找到` : ''}`
-          : `没有找回任何图片（${res.remaining} 张仍未找到，可能已被删除）`
+          ? `已找回 ${res.relocated} 张图片的路径${res.remaining ? `，仍有 ${res.remaining} 张未找到` : ''}${unreadableNote}`
+          : `没有找回任何图片（${res.remaining} 张仍未找到，可能已被删除）${unreadableNote}`
       );
     } catch (err) {
       showToast((err as Error).message);
@@ -1323,6 +1329,7 @@ export default function App() {
         <div className="content" ref={contentRef}>
           {/* 页面级错误边界：单个页面渲染崩了只影响内容区，不会整窗白屏 */}
           <ErrorBoundary resetKey={view}>
+          <Suspense fallback={<div style={{ padding: 40, color: 'var(--muted)' }}>正在加载…</div>}>
           {view === 'dashboard' && (
             <Dashboard
               stats={stats}
@@ -1410,6 +1417,8 @@ export default function App() {
             />
           )}
 
+          {view === 'people' && <People onToast={showToast} onOpen={openItem} />}
+
           {view === 'tidy' && (
             <Tidy
               onToast={showToast}
@@ -1475,22 +1484,29 @@ export default function App() {
             />
           )}
 
-          {view === 'tutorial' && <Tutorial />}
+          {view === 'tutorial' && (
+            <Suspense fallback={<div style={{ padding: 40, color: 'var(--muted)' }}>正在加载教程…</div>}>
+              <Tutorial />
+            </Suspense>
+          )}
 
           {view === 'settings' && (
-            <SettingsPage
-              onToast={showToast}
-              tourDone={tourDone === true}
-              onStartTour={startTour}
-              onOpenTutorial={() => setView('tutorial')}
-              onLibraryChanged={() => {
-                pageRef.current = 1;
-                load(1, true);
-                refreshStats();
-                followImport();
-              }}
-            />
+            <Suspense fallback={<div style={{ padding: 40, color: 'var(--muted)' }}>正在加载设置…</div>}>
+              <SettingsPage
+                onToast={showToast}
+                tourDone={tourDone === true}
+                onStartTour={startTour}
+                onOpenTutorial={() => setView('tutorial')}
+                onLibraryChanged={() => {
+                  pageRef.current = 1;
+                  load(1, true);
+                  refreshStats();
+                  followImport();
+                }}
+              />
+            </Suspense>
           )}
+          </Suspense>
           </ErrorBoundary>
         </div>
 
@@ -1499,7 +1515,21 @@ export default function App() {
           stats={stats}
           importing={importing}
           isDesktop={isDesktop}
-          onOpenFolder={() => openFolder()}
+          folderName={activeFolder?.name || null}
+          onOpenFolder={() => {
+            // 在某个文件夹里就打开它自己那一层，而不是永远弹库根（用户得再手动往下找）
+            if (folderId == null || !activeFolder) {
+              openFolder().catch(quiet);
+              return;
+            }
+            openFolderById(folderId).catch((err) => {
+              const msg = (err as Error).message || '打开文件夹失败';
+              if (activeFolder.anchor_path) showToast(`打开失败：${msg}`, 'error');
+              // 虚拟文件夹本来就没有磁盘目录，退回打开库根并说清楚原因
+              else showToast('这个文件夹只是虚拟分类，没有对应的磁盘目录，已打开素材库根目录');
+              openFolder().catch(quiet);
+            });
+          }}
         />
       </main>
       </div>{/* /.app-body */}

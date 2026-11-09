@@ -486,6 +486,10 @@ function makeJob(config, dbJobId = 0) {
       saved: 0,
       failed: 0,
       skipped: 0,
+      /** 向量查重没生效的张数（模型异常时如实上报，不静默降级成「只查了 pHash」） */
+      clipCheckFailed: 0,
+      /** 第一条失败原因，随统计下发到前端，避免用户只看到一个数字 */
+      clipCheckError: '',
       dropped: { lowres: 0, small: 0, format: 0, duplicate: 0, oversize: 0, aiFilter: 0 },
     },
     failures: [],
@@ -860,10 +864,20 @@ async function ingestLoop(jobRef, settings, generation, ingestQueue, isClosed) {
       title: e.item.keyword,
     }));
     try {
-      await bulkIngestBuffers(items, {
+      const r = await bulkIngestBuffers(items, {
         libGeneration: generation,
-        onEach: (i, r) => applyIngestResult(jobRef, batch[i].item, r),
+        onEach: (i, r2) => applyIngestResult(jobRef, batch[i].item, r2),
       });
+      // 向量查重没跑成时不能假装查过：计数进统计，并在日志里明说一次
+      if (r?.clipCheckFailed) {
+        if (!jobRef.stats.clipCheckFailed) {
+          log(jobRef, 'warn', `向量查重有 ${r.clipCheckFailed} 张未生效（${r.clipCheckError || '模型不可用'}），仅按 pHash 查重`);
+        }
+        jobRef.stats.clipCheckFailed += r.clipCheckFailed;
+        if (!jobRef.stats.clipCheckError && r.clipCheckError) {
+          jobRef.stats.clipCheckError = String(r.clipCheckError).slice(0, 160);
+        }
+      }
     } catch (err) {
       // 批量整体异常：逐条按失败统计（与下载失败同一出口）
       for (const e of batch) {

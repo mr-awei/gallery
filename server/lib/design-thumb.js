@@ -159,6 +159,48 @@ function readHead(file, bytes = RAW_SCAN_BYTES) {
   }
 }
 
+/**
+ * EXIF orientation → sharp 变换序列。
+ * 5~8 都是「像素躺倒 + 需要互换宽高」，相机竖拍最常见的就是 6/8。
+ */
+const ORIENT_STEPS = {
+  2: [['flop']],
+  3: [['rotate', 180]],
+  4: [['flip']],
+  5: [['rotate', 90], ['flop']],
+  6: [['rotate', 90]],
+  7: [['rotate', 270], ['flop']],
+  8: [['rotate', 270]],
+};
+
+/** 按 EXIF orientation 摆正（sharp 的 .rotate() 只认输入自带的方向标签） */
+export function applyOrientation(input, orientation) {
+  const steps = ORIENT_STEPS[Number(orientation) || 1];
+  if (!steps) return input;
+  let out = input;
+  for (const [fn, arg] of steps) out = arg === undefined ? out[fn]() : out[fn](arg);
+  return out;
+}
+
+/** 方向 5~8 表示画面被转了 90°，宽高换算成「屏幕看到的」那一组 */
+export function orientedSize(width, height, orientation) {
+  const o = Number(orientation) || 1;
+  return o >= 5 && o <= 8 ? { width: height || 0, height: width || 0 } : { width, height };
+}
+
+/**
+ * 读源文件头部的 EXIF 方向（只读文件头，不解码像素）。
+ * CR2/NEF/ARW 这类 RAW 用 sharp 读 metadata 没问题 —— 它们本身就是 TIFF 容器。
+ */
+export async function sourceOrientation(absPath) {
+  try {
+    const m = await sharp(absPath, { failOn: 'none' }).metadata();
+    return Number(m.orientation) || 1;
+  } catch {
+    return 1;
+  }
+}
+
 /** PSD/PSB：解出合成图（RGBA）交给 sharp */
 async function psdSharp(file) {
   const { default: Psd } = await import('@webtoon/psd');
@@ -268,12 +310,20 @@ export async function designThumbJpeg(absPath, { width = 640, quality = 80 } = {
 
   try {
     const meta = await input.metadata();
-    const buffer = await input
-      .rotate()
+    /**
+     * 方向：内嵌预览自带 EXIF orientation 时以它为准（那才是这些像素的显示方向）；
+     * 没有时（Canon CR2 的预览段就是裸 JPEG）退回**源文件**的 orientation。
+     * 以前只调 .rotate()，等于只认内嵌标签 —— 相机竖拍的照片在库里全部躺倒 90°，
+     * 而且 DB 里存的还是 5472×3648，卡片按横图排版，人物脸也是侧着的。
+     */
+    let ori = Number(meta.orientation) || 1;
+    if (ori === 1 && isRawExt(ext)) ori = await sourceOrientation(absPath);
+    const buffer = await applyOrientation(input, ori)
       .resize({ width, withoutEnlargement: true })
       .jpeg({ quality, mozjpeg: true })
       .toBuffer();
-    return { buffer, width: meta.width || 0, height: meta.height || 0 };
+    const size = orientedSize(meta.width || 0, meta.height || 0, ori);
+    return { buffer, width: size.width, height: size.height };
   } catch (err) {
     console.warn('[design-thumb] 缩略图编码失败', path.basename(absPath), err?.message);
     return null;

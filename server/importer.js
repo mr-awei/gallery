@@ -83,22 +83,109 @@ export function cancelLocalImport() {
   if (scanRunning) scanCancel = true;
 }
 
+/* --------------------------- 导入任务的持久化记录 --------------------------- */
+/**
+ * 把「这次导入干到哪了」写到库目录下的 import-job.json。
+ *
+ * 为什么要落盘：大库导入动辄十几分钟，用户中途关软件 / 断电后，重启只能看到
+ * 「库还是半截」，既不知道导了多少、也说不清哪些失败了。有了这份记录，
+ * 重启后能明确告诉用户「上次导入被中断：已保存 N 张、失败 M 张」，并给出继续入口。
+ * 真正「接着导」靠的是增量扫描（已登记且指纹未变的文件直接跳过），所以重跑即续传，
+ * 不需要维护逐文件的断点文件。
+ */
+function importJobPath() {
+  const root = getActiveLibrary()?.path;
+  return root ? path.join(root, 'import-job.json') : '';
+}
+
+export function readImportJob() {
+  const p = importJobPath();
+  if (!p) return null;
+  try {
+    const job = JSON.parse(fs.readFileSync(p, 'utf8'));
+    if (!job || typeof job !== 'object') return null;
+    // 记录里是 running 但进程已经重启过：一律按「被中断」对待，别骗用户说还在跑
+    if (job.status === 'running') return { ...job, status: 'interrupted' };
+    return job;
+  } catch {
+    return null;
+  }
+}
+
+function writeImportJob(job) {
+  const p = importJobPath();
+  if (!p) return;
+  try {
+    fs.writeFileSync(p, JSON.stringify(job, null, 2), 'utf8');
+  } catch (err) {
+    console.warn('[import] 写入导入进度失败', err?.message || err);
+  }
+}
+
 /**
  * 扫描素材目录并入库。走 bulk-import 的流水线：
  * 解码/编码/pHash/主色在 worker 池里并行，主线程只做批量 SQLite 写入。
  */
 export async function importLocalImages(options = {}) {
   const settings = getSettings();
-  const { dirs = [settings.storageDir || LEGACY_DIRS[0]], keyword = '', onProgress = null } =
-    options;
+  const {
+    dirs = [settings.storageDir || LEGACY_DIRS[0]],
+    keyword = '',
+    dedupe = true,
+    onProgress = null,
+  } = options;
   scanRunning = true;
   scanCancel = false;
+  const startedAt = new Date().toISOString();
+  let lastWrite = 0;
+  writeImportJob({ status: 'running', startedAt, dirs, saved: 0, total: 0, errors: 0, duplicate: 0 });
   try {
     return await bulkImportLocal({
       dirs,
       keyword,
-      onProgress,
+      dedupe,
+      onProgress: (progress, file, result) => {
+        // 节流落盘：每张图写一次会让磁盘 IO 变成新的瓶颈
+        const now = Date.now();
+        if (now - lastWrite > 1500) {
+          lastWrite = now;
+          writeImportJob({
+            status: 'running',
+            startedAt,
+            dirs,
+            progress,
+            saved: result?.saved ?? 0,
+            total: result?.total ?? 0,
+            errors: result?.errors ?? 0,
+            duplicate: result?.duplicate ?? 0,
+          });
+        }
+        onProgress?.(progress, file, result);
+      },
       isCancelled: () => scanCancel,
+    }).then((r) => {
+      writeImportJob({
+        status: scanCancel ? 'cancelled' : 'done',
+        startedAt,
+        finishedAt: new Date().toISOString(),
+        dirs,
+        saved: r?.saved ?? 0,
+        total: r?.total ?? 0,
+        errors: r?.errors ?? 0,
+        duplicate: r?.duplicate ?? 0,
+        syncConflicts: r?.syncConflicts ?? 0,
+        dupSamples: (r?.dupSamples || []).slice(0, 20),
+      });
+      return r;
+    }).catch((err) => {
+      writeImportJob({
+        status: 'failed',
+        startedAt,
+        finishedAt: new Date().toISOString(),
+        dirs,
+        error: String(err?.message || err).slice(0, 300),
+      });
+      throw err;
     });
   } finally {
     scanRunning = false;
@@ -336,15 +423,22 @@ export function purgeMissing() {
  */
 export async function relocateMissing() {
   const missing = findMissing();
-  if (!missing.length) return { relocated: 0, remaining: 0 };
+  // 早退也要带 unreadable，保持返回值形状稳定（否则前端读不到这个字段会以为「没有读不了的文件」）
+  if (!missing.length) return { relocated: 0, remaining: 0, unreadable: 0 };
 
   const byName = new Map(); // 文件名(小写) -> [{ absPath, size }]
+  let unreadable = 0;
   for (const file of scanLocalImages([getSettings().storageDir || LEGACY_DIRS[0]])) {
-    let size = 0;
     // 异步 stat：大目录里几千个文件用 statSync 会把事件循环按住
+    let size;
     try {
       size = (await fsp.stat(file)).size;
-    } catch {}
+    } catch {
+      // 拿不到大小就无法确认是同一张：不能退化成「只按文件名认」（同名不同图会张冠李戴），
+      // 直接排除并计数，让用户知道有多少文件这次没能参与重关联。
+      unreadable++;
+      continue;
+    }
     const key = path.basename(file).toLowerCase();
     if (!byName.has(key)) byName.set(key, []);
     byName.get(key).push({ absPath: file, size });
@@ -376,5 +470,5 @@ export async function relocateMissing() {
     relocated++;
   }
   invalidateMissingCache();
-  return { relocated, remaining: findMissing().length };
+  return { relocated, remaining: findMissing().length, unreadable };
 }

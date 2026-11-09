@@ -346,6 +346,113 @@ export async function semanticSearch(query, { limit = 60, minCos = 0.18 } = {}) 
   return { ...fallback, degraded: true, reason: reason || fallback.reason };
 }
 
+/* ------------------------------- 混合检索（关键词 + 向量） ------------------------------- */
+
+/**
+ * RRF（Reciprocal Rank Fusion）融合两路排名。
+ *
+ * 为什么不用「分数相加」：FTS 的 bm25 分和余弦相似度量纲完全不同，直接相加是玄学；
+ * RRF 只看名次，天然免疫量纲，也是搜索引擎里最稳的默认融合方式。
+ * k=60 是 Cormack 等人给出的经验值：名次差在前几位时区分度足够，又不至于把
+ * 两路的长尾压死。
+ */
+export function rrfFuse(listA = [], listB = [], { k = 60, weightB = 1 } = {}) {
+  const score = new Map();
+  const from = new Map();
+  const add = (ids, w, tag) => {
+    ids.forEach((id, i) => {
+      score.set(id, (score.get(id) || 0) + w / (k + i + 1));
+      if (!from.has(id)) from.set(id, []);
+      from.get(id).push(tag);
+    });
+  };
+  add(listA, 1, 'keyword');
+  add(listB, weightB, 'clip');
+  return [...score.entries()]
+    .sort((a, b) => b[1] - a[1])
+    .map(([id, s]) => ({ id, score: s, sources: from.get(id) }));
+}
+
+/**
+ * 混合检索：关键词（标题/标签/描述）与 CLIP 语义两路各取 top-N，再用 RRF 融合。
+ *
+ * 两路各有盲区：关键词搜不到「描述性说法」，向量搜不到「专有代号/文件名」。
+ * 融合的意义不是「更聪明的排序」，而是让两类查询都能出结果，并且如实告诉用户
+ * 每条是怎么命中的（sources）。
+ */
+export async function hybridSearch(query, { limit = 60, vectorWeight = 1 } = {}) {
+  const q = String(query || '').trim();
+  if (!q) return { items: [], engine: 'keyword', keywords: [], degraded: false, reason: '', sources: {} };
+
+  // 关键词侧：走既有筛选 SQL（含 tag:/color: 等前缀语法）
+  let kwIds = [];
+  try {
+    const kw = lib.listImages({ q, pageSize: Math.min(120, Math.max(limit, 24)) });
+    kwIds = (kw.items || []).map((it) => it.id);
+  } catch (err) {
+    console.warn('[search] 混合检索的关键词侧失败', err?.message || err);
+  }
+
+  // 向量侧：沿用语义检索的加载等待与降级策略
+  let vecIds = [];
+  let vecReason = '';
+  let covered = null;
+  if (clip.textEncoderReady() || clip.embeddingCount() > 0) {
+    try {
+      if (!clip.textEncoderReady()) {
+        const loading = clip.textEncoderLoad();
+        loading.catch(() => {});
+        await Promise.race([
+          loading.then(() => true).catch(() => true),
+          new Promise((r) => setTimeout(() => r(false), 4000)),
+        ]);
+      }
+      if (clip.textEncoderReady()) {
+        const vec = await clip.embedText(q);
+        const hits = await clip.topSimilar(vec, { k: limit, minCos: 0.15 });
+        vecIds = hits.map((h) => h.id);
+        covered = { indexed: clip.embeddingCount(), total: db.prepare('SELECT COUNT(*) AS c FROM images').get().c };
+      } else {
+        vecReason = clip.textEncoderError() ? '文本模型加载失败' : '文本模型加载中';
+      }
+    } catch (err) {
+      vecReason = `语义侧失败：${String(err?.message || err).slice(0, 120)}`;
+    }
+  } else {
+    vecReason = '向量索引为空（先在设置里建立 CLIP 索引）';
+  }
+
+  const fused = rrfFuse(kwIds, vecIds, { weightB: vectorWeight }).slice(0, limit);
+  if (!fused.length) {
+    return {
+      items: [],
+      total: 0,
+      engine: vecIds.length || kwIds.length ? 'hybrid' : 'keyword',
+      keywords: [],
+      degraded: false,
+      reason: '',
+      sources: {},
+    };
+  }
+  const byId = new Map(fused.map((f, i) => [f.id, { ...f, rank: i }]));
+  const rows = db
+    .prepare(`SELECT * FROM images WHERE id IN (${fused.map(() => '?').join(',')})`)
+    .all(...fused.map((f) => f.id));
+  rows.sort((a, b) => byId.get(a.id).rank - byId.get(b.id).rank);
+  const sources = {};
+  for (const f of fused) sources[f.id] = f.sources;
+  return {
+    items: rows.map((r) => ({ ...lib.toDTO(r), sources: byId.get(r.id).sources })),
+    total: rows.length,
+    engine: 'hybrid',
+    keywords: [],
+    degraded: !vecIds.length,
+    reason: vecIds.length ? '' : vecReason,
+    covered,
+    sources,
+  };
+}
+
 /* ------------------------------- AI 语义 / 视觉搜索 ------------------------------- */
 
 /**

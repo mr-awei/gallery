@@ -117,6 +117,9 @@ export default function Smart({ onToast, onTagsChanged, onOpenItem }: Props) {
         const r = await api.updateSmartFolder(editing.id, payload);
         setFolders(r.folders);
         onToast(`已更新「${payload.name}」`);
+        // 改完条件，正在看的预览要按新条件重查，否则标题变了内容还是旧的
+        const next = r.folders.find((f) => f.id === editing.id);
+        if (next && previewFolder?.id === editing.id) void preview(next);
       } else {
         const r = await api.createSmartFolder(payload);
         setFolders(r.folders);
@@ -202,6 +205,16 @@ export default function Smart({ onToast, onTagsChanged, onOpenItem }: Props) {
     try {
       const r = await api.deleteSmartFolder(id);
       setFolders(r.folders);
+      // 删掉的正是预览中的那个夹子：必须把预览一起关掉，否则"还没有智能文件夹"
+      // 与 7541 张旧结果同屏显示，用户会以为删不掉
+      if (previewFolder?.id === id) {
+        previewSeq.current++;
+        setPreviewItems(null);
+        setPreviewFolder(null);
+        setPreviewName('');
+        setPreviewTotal(0);
+        setPreviewSel(new Set());
+      }
       onToast('已删除智能文件夹');
     } catch (err) {
       onToast(`删除失败：${(err as Error).message}`, 'error');
@@ -290,8 +303,8 @@ export default function Smart({ onToast, onTagsChanged, onOpenItem }: Props) {
                 关闭
               </button>
             </div>
-            {/* 弹窗内容超出 90vh 滚动，MasonryGrid 会自动探测滚动容器做虚拟化 */}
-            <div style={{ padding: 16 }}>
+            {/* 内容区自己滚（.lb-body），MasonryGrid 探测这个滚动容器做虚拟化 */}
+            <div className="lb-body" style={{ padding: 16 }}>
               <MasonryGrid
                 items={previewItems}
                 renderItem={(it) => (

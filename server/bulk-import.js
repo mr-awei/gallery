@@ -20,7 +20,8 @@ import {
 import { ensureFolderByRelDir, linkImageByPath } from './folders.js';
 import { ingestMedia, isMediaPath, MEDIA_EXTS } from './lib/media.js';
 import { SCAN_IMAGE_EXTS, mimeOfPath } from './lib/media-kind.js';
-import { shouldSkipDir } from './lib/skip-dirs.js';
+import { shouldSkipDir, isSyncConflict } from './lib/skip-dirs.js';
+import { md5File } from './lib/hash.js';
 import { thumbPathFor } from './thumbs.js';
 import { mapLimit } from './lib/utils.js';
 import { renderNameTemplate, uniqueTargetName } from './lib/name-template.js';
@@ -299,6 +300,8 @@ async function materializeLocalChunk(files, settings, keyword, seq, onError) {
 export async function bulkImportLocal({
   dirs,
   keyword = '',
+  /** 内容级实时去重：同尺寸候选算 MD5，命中的不再入库（默认开，用户可显式关掉） */
+  dedupe = true,
   onProgress = null,
   isCancelled = () => false,
 } = {}) {
@@ -312,6 +315,11 @@ export async function bulkImportLocal({
     total: 0, saved: 0, duplicate: 0, dropped: 0, errors: 0, cancelled: 0, unchanged: 0,
     /** 因为超过深度上限而没扫的目录（非空时前端要提示用户，不能假装导入完整） */
     depthSkippedDirs: [],
+    /** 被判为内容重复而跳过的样例文件名（最多 20 个） */
+    dupSamples: [],
+    /** 同步盘冲突副本：照常入库（可能装着更新的修改），但要让用户知道 */
+    syncConflicts: 0,
+    syncConflictSamples: [],
   };
   const pool = new MediaPool(mediaPoolSize());
 
@@ -345,7 +353,8 @@ export async function bulkImportLocal({
     const rel = path.relative(root, path.dirname(file));
     if (!rel || rel.startsWith('..') || path.isAbsolute(rel)) return null;
     if (folderCache.has(rel)) return folderCache.get(rel);
-    const id = ensureFolderByRelDir(rel);
+    // 带上开始时的库代数：中途切库就放弃建夹，否则会把 A 库的目录写进 B 库（串库）
+    const id = ensureFolderByRelDir(rel, generation);
     folderCache.set(rel, id);
     return id;
   };
@@ -486,6 +495,11 @@ export async function bulkImportLocal({
       result.total++;
       const row = known.get(m.file);
       if (!row) {
+        // 同步盘冲突副本照常入库，但记一笔，前端提示用户人工确认哪份是对的
+        if (isSyncConflict(path.basename(m.file))) {
+          result.syncConflicts++;
+          if (result.syncConflictSamples.length < 20) result.syncConflictSamples.push(path.basename(m.file));
+        }
         work.push({ ...m, update: false });
         continue;
       }
@@ -504,6 +518,41 @@ export async function bulkImportLocal({
     if (!work.length) {
       finished += meta.length;
       continue;
+    }
+
+    // 3.0) 实时去重：同一张图换个文件名/换个子目录，不该在库里再出现一次。
+    // 先用「字节数相同」筛候选项（库里同尺寸的行通常极少），只对候选项算 MD5，
+    // 避免为了去重把每个新文件都读一遍。
+    if (dedupe && work.some((m) => !m.update)) {
+      const sizes = [...new Set(work.filter((m) => !m.update).map((m) => m.size))];
+      /** @type {Map<number, Set<string>>} */
+      const bySize = new Map();
+      for (let i = 0; i < sizes.length; i += QUERY_CHUNK) {
+        const part = sizes.slice(i, i + QUERY_CHUNK);
+        const rows = db
+          .prepare(
+            `SELECT size_bytes, md5 FROM images WHERE md5 <> '' AND size_bytes IN (${part.map(() => '?').join(',')})`
+          )
+          .all(...part);
+        for (const r of rows) {
+          if (!bySize.has(r.size_bytes)) bySize.set(r.size_bytes, new Set());
+          bySize.get(r.size_bytes).add(String(r.md5));
+        }
+      }
+      const checked = work.filter((m) => !m.update && bySize.has(m.size));
+      await mapLimit(checked, 4, async (m) => {
+        const md5 = await md5File(m.file).catch(() => '');
+        if (!md5) return;
+        m.md5 = md5;
+        if (bySize.get(m.size)?.has(md5)) m.dupContent = true;
+      });
+      const dupFiles = work.filter((m) => m.dupContent);
+      if (dupFiles.length) {
+        result.duplicate += dupFiles.length;
+        result.dupSamples = result.dupSamples || [];
+        for (const m of dupFiles.slice(0, 20)) result.dupSamples.push(path.basename(m.file));
+        work = work.filter((m) => !m.dupContent);
+      }
     }
 
     // 3) 批量 INSERT 先拿 id（缩略图文件名 = id.jpg），整批一个事务
@@ -645,7 +694,16 @@ export async function bulkIngestBuffers(items, { onEach = null, libGeneration = 
   const minLong = Number(settings.minResolution);
   const phashThreshold = Number(settings.phashThreshold);
 
-  const result = { total: items.length, saved: 0, duplicate: 0, dropped: 0, failed: 0 };
+  const result = {
+    total: items.length,
+    saved: 0,
+    duplicate: 0,
+    dropped: 0,
+    failed: 0,
+    /** 向量查重没跑成的张数 + 首个原因：模型异常时不能假装「查过了」 */
+    clipCheckFailed: 0,
+    clipCheckError: '',
+  };
   const report = (i, r) => onEach && onEach(i, r);
 
   /* 1) 预检（只读文件头，失败/不合格的直接拒绝，不占 worker） */
@@ -834,7 +892,10 @@ export async function bulkIngestBuffers(items, { onEach = null, libGeneration = 
           continue;
         }
       } catch (err) {
-        console.error('[clip] 采集批量查重失败（忽略）', a.finalPath, err?.message || err);
+        // 不中断导入，但必须计数上报：以前只打日志，用户以为这批做过向量查重
+        result.clipCheckFailed++;
+        if (!result.clipCheckError) result.clipCheckError = String(err?.message || err).slice(0, 160);
+        console.warn('[clip] 采集批量查重失败', a.finalPath, err?.message || err);
       }
     }
     const { score, reasons } = scoreImage(

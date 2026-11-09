@@ -158,7 +158,11 @@ export function listCommunityModels() {
   return COMMUNITY_MODELS.map((m) => ({ ...m, installed: communityInstalled(m.name) }));
 }
 
-let installState = { downloading: false, progress: 0, message: '' };
+/**
+ * 下载/安装状态随 job 心跳（app.js 每帧带 aiUp）推给前端。
+ * error 不为空表示上一次安装失败（前端据此弹错误而不是「安装完成」）。
+ */
+let installState = { downloading: false, progress: 0, message: '', error: '' };
 let lastCheck = { gpu: null, ok: null, error: '' };
 let lastCuganCheck = { ok: null, error: '' };
 
@@ -168,6 +172,8 @@ export function aiStatus() {
     downloading: installState.downloading,
     progress: installState.progress,
     message: installState.message,
+    // 安装失败原因独立成键：error 一直是自检/显卡错误，两种失败混在一个字段里会互相覆盖
+    installError: installState.error || '',
     gpu: lastCheck.gpu,
     usable: lastCheck.ok,
     error: lastCheck.error,
@@ -184,25 +190,49 @@ export function aiStatus() {
   };
 }
 
-/** 安装一个社区模型（param + bin，各几 MB） */
+/** 安装一个社区模型（param + bin，各几 MB）；进度写 installState，随 job 心跳推给前端 */
 export async function installCommunityModel(modelId) {
   const model = communityModelOf(modelId);
   if (!model) throw new Error('未知的模型');
   if (!runtimeInstalled()) throw new Error('请先安装 AI 超分运行库');
   await fsp.mkdir(MODELS_DIR, { recursive: true });
-  for (const ext of ['param', 'bin']) {
-    await downloadFile(
-      `${COMMUNITY_BASE}/${model.name}.${ext}`,
-      path.join(MODELS_DIR, `${model.name}.${ext}`)
-    );
+  installState = { downloading: true, progress: 0, message: `准备下载 ${model.label}…`, error: '' };
+  try {
+    installState.message = `下载 ${model.name}.param…`;
+    await downloadFile(`${COMMUNITY_BASE}/${model.name}.param`, path.join(MODELS_DIR, `${model.name}.param`));
+    installState.progress = 50;
+    installState.message = `下载 ${model.name}.bin…（几 MB，稍候）`;
+    await downloadFile(`${COMMUNITY_BASE}/${model.name}.bin`, path.join(MODELS_DIR, `${model.name}.bin`));
+    installState = { downloading: false, progress: 100, message: `${model.label} 安装完成`, error: '' };
+    return { ok: true, model: { ...model, installed: communityInstalled(model.name) } };
+  } catch (err) {
+    installState = { downloading: false, progress: 0, message: `安装失败：${err.message || err}`, error: String(err.message || err) };
+    throw err;
   }
-  return { ok: true, model: { ...model, installed: communityInstalled(model.name) } };
+}
+
+/**
+ * 后台安装社区模型：立刻返回，进度/结果走 job 心跳（前端订阅 job 事件的 aiUp 帧）。
+ * 以前接口同步等整个下载，期间按钮毫无反馈，用户以为点了没反应。
+ */
+export function startCommunityInstall(modelId) {
+  const model = communityModelOf(modelId);
+  if (!model) return { ok: false, error: '未知的模型' };
+  if (!runtimeInstalled()) return { ok: false, error: '请先安装 AI 超分运行库' };
+  if (installState.downloading) return { ok: true, busy: true, ...aiStatus() };
+  // 先同步置「下载中」再起后台任务：否则响应里 downloading 还是 false，
+  // 前端第一帧看不到「下载中」，进度条要等下一次心跳才出现
+  installState = { downloading: true, progress: 0, message: `准备下载 ${model.label}…`, error: '' };
+  installCommunityModel(modelId).catch((err) =>
+    console.error('[ai] 社区模型安装失败', model.label, err?.message || err)
+  );
+  return { ok: true, ...aiStatus() };
 }
 
 /** 安装 Real-CUGAN 运行库（两级增强的降噪前置引擎） */
 export async function installCuganRuntime() {
   if (installState.downloading) throw new Error('正在下载中，请稍候');
-  installState = { downloading: true, progress: 0, message: '准备下载 Real-CUGAN…' };
+  installState = { downloading: true, progress: 0, message: '准备下载 Real-CUGAN…', error: '' };
   try {
     await fsp.mkdir(TMP_DIR, { recursive: true });
     const zip = path.join(TMP_DIR, 'realcugan.zip');
@@ -231,10 +261,15 @@ export async function installCuganRuntime() {
     await writeSidecar(CUGAN_EXE);
     installState.message = '自检中…';
     await cuganSelfTest();
-    installState = { downloading: false, progress: 100, message: 'Real-CUGAN 安装完成' };
+    installState = { downloading: false, progress: 100, message: 'Real-CUGAN 安装完成', error: '' };
     return aiStatus().cugan;
   } catch (err) {
-    installState = { downloading: false, progress: 0, message: `安装失败：${err.message || err}` };
+    installState = {
+      downloading: false,
+      progress: 0,
+      message: `安装失败：${err.message || err}`,
+      error: String(err.message || err),
+    };
     throw err;
   } finally {
     await fsp.rm(TMP_DIR, { recursive: true, force: true }).catch(() => {});
@@ -553,7 +588,7 @@ function findRuntimeRoot(dir, exeName = 'realesrgan-ncnn-vulkan.exe') {
 
 export async function installRuntime() {
   if (installState.downloading) throw new Error('正在下载中，请稍候');
-  installState = { downloading: true, progress: 0, message: '准备下载…' };
+  installState = { downloading: true, progress: 0, message: '准备下载…', error: '' };
   try {
     await fsp.mkdir(TMP_DIR, { recursive: true });
     const zip = path.join(TMP_DIR, 'realesrgan.zip');
@@ -586,10 +621,15 @@ export async function installRuntime() {
     installState.message = '自检中…';
     await selfTest();
 
-    installState = { downloading: false, progress: 100, message: '安装完成' };
+    installState = { downloading: false, progress: 100, message: '安装完成', error: '' };
     return aiStatus();
   } catch (err) {
-    installState = { downloading: false, progress: 0, message: `安装失败：${err.message || err}` };
+    installState = {
+      downloading: false,
+      progress: 0,
+      message: `安装失败：${err.message || err}`,
+      error: String(err.message || err),
+    };
     throw err;
   } finally {
     await fsp.rm(TMP_DIR, { recursive: true, force: true }).catch(() => {});

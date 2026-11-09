@@ -1,6 +1,6 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { createPortal } from 'react-dom';
-import { downloadFile, exportImageUrl, exportZipUrl, formatSize } from '../api';
+import { api, downloadFile, exportImageUrl, exportZipUrl, formatSize } from '../api';
 import type { ImageItem } from '../types';
 import { IconClose } from './Icons';
 
@@ -40,6 +40,21 @@ export default function ExportDialog({ item, ids, onClose, onToast }: Props) {
   const [quality, setQuality] = useState(90);
   const [maxSide, setMaxSide] = useState(0);
   const [busy, setBusy] = useState(false);
+
+  // 格式 / 质量 / 尺寸候选来自服务端单一来源（/api/export/options），避免前端硬编码与后端漂移；
+  // 拉取失败则回退到下面这组内置默认值，导出功能不至于整体不可用。
+  const [opts, setOpts] = useState<{
+    formats: { key: string; label: string; ext: string; note: string }[];
+    qualities: number[];
+    maxSides: number[];
+  } | null>(null);
+  useEffect(() => {
+    api.exportOptions().then(setOpts).catch(() => {});
+  }, []);
+  const Fs = opts?.formats || FORMATS;
+  const Qs = opts?.qualities || QUALITIES;
+  // 尺寸档位是稳定的展示文案，保留前端硬编码；只有格式 / 质量这类可能随后端演化的才走服务端
+  const Ss = SIDES;
 
   const url = useMemo(() => {
     if (list) return exportZipUrl(list, { format: format || undefined, quality, maxSide });
@@ -103,7 +118,7 @@ export default function ExportDialog({ item, ids, onClose, onToast }: Props) {
                     保持原格式
                   </button>
                 )}
-                {FORMATS.map((f) => (
+                {Fs.map((f) => (
                   <button key={f.key} className={`exp-chip${format === f.key ? ' on' : ''}`} title={f.note} onClick={() => setFormat(f.key)}>
                     {f.label}
                   </button>
@@ -113,7 +128,7 @@ export default function ExportDialog({ item, ids, onClose, onToast }: Props) {
             <div className="exp-field">
               <label>质量</label>
               <div className="exp-chips">
-                {QUALITIES.map((q) => (
+                {Qs.map((q) => (
                   <button
                     key={q}
                     className={`exp-chip${quality === q ? ' on' : ''}`}
@@ -130,7 +145,7 @@ export default function ExportDialog({ item, ids, onClose, onToast }: Props) {
             <div className="exp-field">
               <label>尺寸</label>
               <div className="exp-chips">
-                {SIDES.map((s) => (
+                {Ss.map((s) => (
                   <button key={s.v} className={`exp-chip${maxSide === s.v ? ' on' : ''}`} onClick={() => setMaxSide(s.v)}>
                     {s.l}
                   </button>

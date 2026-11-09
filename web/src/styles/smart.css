@@ -537,18 +537,51 @@
   gap: 8px;
 }
 
-/* 预览弹层（复用 lb-overlay / lb-box） */
+/* 预览弹层：.lb-overlay / .lb-box 的基础样式曾随旧 CSS 一起被删，只剩 .wide 修饰符，
+   于是弹层退化成文档流里的普通块级元素 —— 既没遮罩，又比内容区宽（1100px），
+   横向滚动条就是这么来的。这里补齐基础层，宽度一律以视口为上限。 */
+.lb-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 95;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+  background: rgba(0, 0, 0, 0.58);
+  /* 弹层自己吃掉滚轮，别让底下的列表跟着滚 */
+  overscroll-behavior: contain;
+}
+.lb-box {
+  display: flex;
+  flex-direction: column;
+  max-width: 100%;
+  max-height: 100%;
+  background: var(--bg-soft, #101018);
+  border: 1px solid var(--border-strong, rgba(255, 255, 255, 0.16));
+  border-radius: var(--radius, 14px);
+  box-shadow: 0 24px 70px rgba(0, 0, 0, 0.5);
+  overflow: hidden;
+}
 .lb-box.wide {
-  width: min(calc(1100px * var(--ui-scale, 1)), 94vw);
-  max-height: 90vh;
-  overflow: auto;
+  width: min(calc(1100px * var(--ui-scale, 1)), 100%);
+  max-height: min(90vh, 100%);
 }
 .lb-head {
+  flex: none;
   display: flex;
   align-items: center;
   justify-content: space-between;
+  gap: 12px;
   padding: 14px 18px;
   border-bottom: 1px solid var(--border);
+}
+/* 内容区自己滚，头不跟着滚（MasonryGrid 会探测这个滚动容器做虚拟化） */
+.lb-box > .lb-body {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+  overscroll-behavior: contain;
 }
 .btn.sm.ghost {
   background: transparent;

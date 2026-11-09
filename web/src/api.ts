@@ -9,6 +9,7 @@ import type {
   EditResult,
   EditSaveOptions,
   AiPreset,
+  AiProviderInfo,
   AiStatus,
   AiUpscaleStatus,
   AutoWallpaperConfig,
@@ -363,6 +364,18 @@ export async function openFolder(path?: string) {
   });
 }
 
+/**
+ * 打开某个文件夹对应的磁盘目录。
+ * 只传 id，真实路径由服务端按 anchor_path 解析（前端拿不到 storageDir，也不该拿）。
+ * 纯虚拟夹没有磁盘目录，服务端回 409，这里抛给调用方去提示。
+ */
+export async function openFolderById(folderId: number) {
+  return request<{ ok: boolean; path: string }>('/api/system/open-folder', {
+    method: 'POST',
+    body: JSON.stringify({ folderId }),
+  });
+}
+
 export async function revealFile(path: string) {
   if (desktop) return desktop.revealFile(path);
   return request<{ ok: boolean }>('/api/system/reveal', {
@@ -664,6 +677,83 @@ export function buildQuery(filters: Filters, page: number, pageSize: number) {
   params.set('page', String(page));
   params.set('pageSize', String(pageSize));
   return params.toString();
+}
+
+/** 人脸识别状态（对应 GET /api/face/status） */
+export interface FaceStatus {
+  downloaded: boolean;
+  downloading: boolean;
+  progress: number;
+  message: string;
+  error: string;
+  cancelled: boolean;
+  model: string;
+  size: number;
+  /** true = 两个权重都与随包可信哈希一致 */
+  verified: boolean;
+  persons: number;
+  faces: number;
+  /** 还没扫过的图片数 */
+  pending: number;
+  /** 被自动排除的低质量脸数量（模糊 / 太小 / 后脑勺） */
+  hiddenFaces?: number;
+  /** 封面脸不够清晰的人物数（默认折叠在「全部人物」里） */
+  weakCoverPersons?: number;
+  /** 服务端「不够清晰」判定线，界面只用来显示，不自己算 */
+  softQuality?: number;
+  /** 还没有质量分的老数据数量（点「清理」后回填） */
+  unassessedFaces?: number;
+  scanning: boolean;
+  /** 本次扫描实际使用的同人余弦阈值 */
+  matchCos: number;
+  /** 后台「清理模糊人脸并重选封面」任务 */
+  cleaning?: boolean;
+  cleanDone?: number;
+  cleanTotal?: number;
+  cleanHidden?: number;
+  /** 已排除的按原因分类计数：模糊 / 人脸过小 / 几乎没有纹理 / 非正面 / 清晰度不足 */
+  cleanReasons?: Record<string, number>;
+  cleanMessage?: string;
+  cleanError?: string;
+  /** 后台「重建人物分组」任务（只重算聚类与封面，不解码图片） */
+  rebuilding?: boolean;
+  rebuildDone?: number;
+  rebuildTotal?: number;
+  rebuildMessage?: string;
+  rebuildError?: string;
+  /** 实际生效的质量门槛（界面如实显示，避免与后端不一致） */
+  qualityGates?: {
+    LAP_REJECT: number;
+    LAP_CLUSTER: number;
+    LAP_FULL: number;
+    FACE_PX_MIN: number;
+    FACE_PX_CLUSTER: number;
+    STD_MIN: number;
+    FRONTAL_MIN: number;
+    FRONTAL_CLUSTER: number;
+    COVER_PX_MIN?: number;
+    COVER_Q_MIN?: number;
+    COVER_SCORE_MIN?: number;
+    SCORE_CLUSTER?: number;
+  };
+}
+
+export interface FacePerson {
+  id: number;
+  name: string;
+  /** 人脸数（同一张合影里出现两次会算两条） */
+  count: number;
+  /** 去重后的照片数 —— 界面上一律写「N 张照片」，别再拿人脸数当张数 */
+  photoCount?: number;
+  coverFaceId: number | null;
+  /** 封面脸所在照片 id：人像照片墙据此标「当前封面」 */
+  coverImageId?: number | null;
+  /** 用户手动指定过封面（自动挑选不会再覆盖它） */
+  coverLocked?: boolean;
+  /** 封面脸在原图里的短边像素；0 表示这个人没有够格当封面的清晰脸 */
+  coverPx?: number;
+  /** 封面脸的质量分（低分说明这个人暂时没有清晰正脸） */
+  coverQuality?: number;
 }
 
 export const api = {
@@ -974,6 +1064,90 @@ export const api = {
       method: 'POST',
       body: JSON.stringify({ limit }),
     }),
+  // 导入任务：上次导到哪、是否被中断；续传 = 重跑增量扫描（未变文件自动跳过）
+  importJob: () =>
+    request<{
+      ok: boolean;
+      running: boolean;
+      job: {
+        status: 'running' | 'interrupted' | 'done' | 'cancelled' | 'failed';
+        startedAt?: string;
+        finishedAt?: string;
+        saved?: number;
+        total?: number;
+        errors?: number;
+        duplicate?: number;
+        syncConflicts?: number;
+        error?: string;
+      } | null;
+    }>('/api/import/job'),
+  resumeImport: () =>
+    request<{ ok: boolean; saved?: number; total?: number; errors?: number; duplicate?: number }>(
+      '/api/import/resume',
+      { method: 'POST', body: '{}' }
+    ),
+
+  /**
+   * Playground 专用：原样返回状态码与文本，不做 JSON 解析、不抛业务错误。
+   * 调试页要看到「后端真正回了什么」，而不是被 api 层翻译后的结果。
+   */
+  playground: async (method: string, path: string, body?: string) => {
+    const token = await getApiToken();
+    const res = await fetch(`${BASE}${path}`, {
+      method,
+      headers: {
+        ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        ...(body ? { 'Content-Type': 'application/json' } : {}),
+      },
+      body: body && method !== 'GET' ? body : undefined,
+    });
+    const text = await res.text();
+    let pretty = text;
+    try {
+      pretty = JSON.stringify(JSON.parse(text), null, 2);
+    } catch {
+      /* 不是 JSON 就原样显示 */
+    }
+    return { status: res.status, text: pretty };
+  },
+
+  // 缩略图后台队列：看得见待生成 / 进行中 / 失败原因，并能一键重试
+  thumbQueueStatus: () =>
+    request<{
+      ok: boolean;
+      pending: number;
+      running: number;
+      syncRunning: number;
+      failed: number;
+      lastError: string;
+      missing: number;
+      failures: { id: number; reason: string; at: string }[];
+    }>('/api/thumbs/status'),
+  retryThumbs: () =>
+    request<{ ok: boolean; requested: number; queued: number }>('/api/thumbs/retry', {
+      method: 'POST',
+      body: '{}',
+    }),
+  // 清空缩略图失败明细（批量重试救不回的，清掉以免列表越堆越长）
+  clearThumbFailures: () =>
+    request<{ ok: boolean }>('/api/thumbs/failures/clear', { method: 'POST', body: '{}' }),
+
+  // 库健康：路径唯一索引是否真的建起来了 + 删除是否留下孤儿关联
+  libraryHealth: () =>
+    request<{
+      ok: boolean;
+      pathIndex: { ok: boolean; duplicates: number; error: string };
+      orphans: { folders: number; comments: number; clipVec: number };
+      warnings: string[];
+    }>('/api/maintenance/health'),
+  rebuildPathIndex: () =>
+    request<{ ok: boolean; duplicates: number; error: string }>('/api/maintenance/path-index', { method: 'POST' }),
+  cleanOrphans: () =>
+    request<{ ok: boolean; removed: number; after: { folders: number; comments: number; clipVec: number } }>(
+      '/api/maintenance/orphans/clean',
+      { method: 'POST' }
+    ),
+
   // 维护工具：库体检 / 重建缩略图 / 清理孤儿缩略图 / 压缩数据库 / 重新扫描
   maintenanceStatus: () =>
     request<{
@@ -992,6 +1166,16 @@ export const api = {
       '/api/maintenance/rebuild-thumbs',
       { method: 'POST', body: JSON.stringify({ limit, beforeId }) }
     ),
+  /** 修正 EXIF 方向：宽高换算成屏幕方向 + 清掉躺倒的 RAW/设计稿缩略图（等后台重出） */
+  maintenanceFixOrientation: (limit = 300, beforeId = 0) =>
+    request<{
+      ok: boolean;
+      rotated: number;
+      dims: number;
+      cleared: number;
+      failed: number;
+      nextBeforeId: number;
+    }>('/api/maintenance/fix-orientation', { method: 'POST', body: JSON.stringify({ limit, beforeId }) }),
   /** 后台补齐所有缺缩略图的记录（旧库合并 / 上次导入被打断后的自愈） */
   maintenanceRebuildMissing: () =>
     request<{ ok: boolean; started: boolean; total?: number; reason?: string }>('/api/maintenance/rebuild-missing', {
@@ -1002,6 +1186,15 @@ export const api = {
       '/api/maintenance/orphan-thumbs',
       { method: 'POST', body: JSON.stringify({ dryRun }) }
     ),
+
+  /** 幽灵文件夹：磁盘已不存在、子树无任何素材的残留夹（侧栏「另一个库的文件夹」多为此） */
+  maintenanceGhostFolders: (dryRun = true) =>
+    request<{
+      ok: boolean;
+      dryRun: boolean;
+      deleted: number;
+      candidates: { id: number; name: string; path: string; anchor: string }[];
+    }>('/api/maintenance/ghost-folders', { method: 'POST', body: JSON.stringify({ dryRun }) }),
   maintenanceVacuum: () =>
     request<{ ok: boolean; integrity: string; before: number; after: number; saved: number }>(
       '/api/maintenance/vacuum',
@@ -1171,6 +1364,13 @@ export const api = {
   },
   // 插件 / 脚本宿主
   plugins: () => request<{ ok: boolean; plugins: PluginInfo[]; permissions: string[] }>('/api/plugins'),
+
+  /** 启用 / 停用插件（不卸载；停用后执行会被明确拒绝） */
+  setPluginEnabled: (id: string, enabled: boolean) =>
+    request<{ ok: boolean; id: string; enabled: boolean }>(`/api/plugins/${encodeURIComponent(id)}`, {
+      method: 'PATCH',
+      body: JSON.stringify({ enabled }),
+    }),
   pluginMarket: () => request<PluginMarketView>('/api/plugins/market'),
   refreshPluginMarket: (url: string) =>
     request<PluginMarketView>('/api/plugins/market/refresh', { method: 'POST', body: JSON.stringify({ url }) }),
@@ -1294,6 +1494,21 @@ export const api = {
   // AI
   aiPresets: () => request<Record<string, AiPreset>>('/api/ai/presets'),
   aiStatus: () => request<AiStatus>('/api/ai/status'),
+
+  /** 模型套件：多家供应商并存，activate 只改指针 */
+  aiProviders: () =>
+    request<{ ok: boolean; activeId: string; providers: AiProviderInfo[]; legacy: AiProviderInfo | null }>(
+      '/api/ai/providers'
+    ),
+  saveAiProvider: (p: Partial<AiProviderInfo> & { apiKey?: string }) =>
+    request<{ ok: boolean }>('/api/ai/providers', { method: 'POST', body: JSON.stringify(p) }),
+  activateAiProvider: (id: string) =>
+    request<{ ok: boolean; status: AiStatus }>(`/api/ai/providers/${encodeURIComponent(id)}/activate`, {
+      method: 'POST',
+      body: '{}',
+    }),
+  removeAiProvider: (id: string) =>
+    request<{ ok: boolean }>(`/api/ai/providers/${encodeURIComponent(id)}`, { method: 'DELETE' }),
   aiTest: () =>
     request<{ ok: boolean; model?: string; models?: string[]; reply?: string }>('/api/ai/test', { method: 'POST' }),
   aiModels: () => request<{ ok: boolean; models: string[] }>('/api/ai/models', { method: 'POST' }),
@@ -1364,13 +1579,14 @@ export const api = {
   enhanceJobCancel: () => request<{ ok: boolean } & EnhanceJobStatus>('/api/enhance/job/cancel', { method: 'POST' }),
   aiUpscaleStatus: () => request<AiUpscaleStatus>('/api/ai/upscale/status'),
   aiUpscaleInstall: () => request<{ ok: boolean } & AiUpscaleStatus>('/api/ai/upscale/install', { method: 'POST' }),
+  // 两个安装接口都是后台任务：立刻返回当前状态，进度/结果靠订阅 job 事件的 aiUp 帧
   aiUpscaleInstallModel: (id: string) =>
-    request<{ ok: boolean; model?: { id: string; label: string; installed: boolean } }>('/api/ai/upscale/install-model', {
+    request<{ ok: boolean } & AiUpscaleStatus>('/api/ai/upscale/install-model', {
       method: 'POST',
       body: JSON.stringify({ id }),
     }),
   aiUpscaleInstallCugan: () =>
-    request<{ ok: boolean; installed?: boolean; models?: string[] }>('/api/ai/upscale/install-cugan', {
+    request<{ ok: boolean; busy?: boolean } & AiUpscaleStatus>('/api/ai/upscale/install-cugan', {
       method: 'POST',
     }),
   aiSrStatus: () =>
@@ -1381,12 +1597,14 @@ export const api = {
       error: string;
       models: { id: string; repo: string; label: string; desc: string; scale: number; downloaded: boolean; loaded: boolean }[];
     }>('/api/ai/sr/status'),
+  // 后台加载：立刻返回当前状态（含 loading/error），进度/结果走 job 心跳
   aiSrLoad: (id: string) =>
-    request<{ ok: boolean } & {
+    request<{ ok: boolean; busy?: boolean } & {
       loading: string;
       progress: number;
       message: string;
-      models: { id: string; label: string; downloaded: boolean }[];
+      error: string;
+      models: { id: string; repo: string; label: string; desc: string; scale: number; downloaded: boolean; loaded: boolean }[];
     }>('/api/ai/sr/load', { method: 'POST', body: JSON.stringify({ id }) }),
   aiUpscaleSelfTest: () =>
     request<{ ok: boolean; gpu: string | null; error: string }>('/api/ai/upscale/selftest', { method: 'POST' }),
@@ -1489,9 +1707,12 @@ export const api = {
   missingFiles: () => request<{ count: number; ids: number[] }>('/api/library/missing'),
   purgeMissing: () => request<{ ok: boolean; removed: number }>('/api/library/purge-missing', { method: 'POST' }),
   relocateMissing: () =>
-    request<{ ok: boolean; relocated: number; remaining: number }>('/api/library/relocate-missing', {
-      method: 'POST',
-    }),
+    request<{ ok: boolean; relocated: number; remaining: number; unreadable: number }>(
+      '/api/library/relocate-missing',
+      {
+        method: 'POST',
+      }
+    ),
 
   // 清单
   playlists: () => request<Playlist[]>('/api/playlists'),
@@ -1705,8 +1926,15 @@ export const api = {
     return request<{ items: TrashItem[]; total: number }>(`/api/trash?${qs}`);
   },
   restoreTrash: (id: number) => request<ImageItem>(`/api/trash/${id}/restore`, { method: 'POST' }),
-  deleteTrash: (id: number) => request<{ ok: boolean }>(`/api/trash/${id}`, { method: 'DELETE' }),
-  emptyTrash: () => request<{ ok: boolean; removed: number }>('/api/trash/empty', { method: 'POST' }),
+  deleteTrash: (id: number) =>
+    request<{ ok: boolean; error?: string }>(`/api/trash/${id}`, { method: 'DELETE' }),
+  emptyTrash: () =>
+    request<{
+      ok: boolean;
+      removed: number;
+      /** 文件没删掉、记录仍保留在回收站里的条目 */
+      failed: Array<{ id: number; path: string; error: string }>;
+    }>('/api/trash/empty', { method: 'POST' }),
   clearLibrary: () =>
     request<{
       ok: boolean;
@@ -1739,6 +1967,19 @@ export const api = {
     }>('/api/search/semantic', {
       method: 'POST',
       body: JSON.stringify({ query, limit }),
+    }),
+  // 混合检索：关键词 + CLIP 两路 RRF 融合；sources 说明每条是被哪一路召回的
+  hybridSearch: (query: string, limit = 60, vectorWeight = 1) =>
+    request<{
+      total: number;
+      items: (ImageItem & { sources?: string[]; cos?: number })[];
+      engine?: 'hybrid' | 'keyword' | 'loading';
+      degraded?: boolean;
+      reason?: string;
+      covered?: { indexed: number; total: number };
+    }>('/api/search/hybrid', {
+      method: 'POST',
+      body: JSON.stringify({ query, limit, vectorWeight }),
     }),
   // engine 是后端真实用的通道（llm 抽词 / 纯关键词），degraded=配了 AI 但解析失败
   aiSearch: (query: string, limit = 60) =>
@@ -1929,21 +2170,37 @@ export const api = {
       types: Record<string, { label: string; desc: string }>;
       actions: ActionDef[];
     }>('/api/actions'),
-  saveAction: (action: { id?: number; name: string; icon?: string; steps: ActionStep[] }) =>
+  saveAction: (action: {
+    id?: number;
+    name: string;
+    icon?: string;
+    steps: ActionStep[];
+    conditions?: ActionConditions;
+  }) =>
     request<{ ok: boolean; id: number }>(action.id ? `/api/actions/${action.id}` : '/api/actions', {
       method: action.id ? 'PUT' : 'POST',
       body: JSON.stringify(action),
     }),
   deleteAction: (id: number) => request<{ ok: boolean }>(`/api/actions/${id}`, { method: 'DELETE' }),
-  runAction: (id: number, ids: number[]) =>
+  /** dryRun=true 只预演不写库（不调模型、不改数据） */
+  runAction: (id: number, ids: number[], opts: { dryRun?: boolean } = {}) =>
     request<{
       ok: boolean;
+      dryRun?: boolean;
       action: { id: number; name: string };
       total: number;
       okCount: number;
+      skipped: number;
       failed: number;
-      items: { id: number; ok: boolean; error?: string; logs: string[] }[];
-    }>(`/api/actions/${id}/run`, { method: 'POST', body: JSON.stringify({ ids }) }),
+      items: {
+        id: number;
+        ok: boolean;
+        skipped?: string;
+        error?: string;
+        logs: string[];
+        preview?: ActionPreviewStep[];
+      }[];
+    }>(`/api/actions/${id}/run`, { method: 'POST', body: JSON.stringify({ ids, dryRun: !!opts.dryRun }) }),
   actionCount: (ids: number[]) =>
     request<{ ok: boolean; count: number }>('/api/actions/count', {
       method: 'POST',
@@ -2002,6 +2259,16 @@ export const api = {
       timeoutMs: 15 * 60 * 1000,
     }),
 
+  /* 导出前的预览：当前库会被写成 Eagle 库的内容规模（不写任何文件） */
+  eagleExportPreview: () =>
+    request<{ images: number; folders: number; storageDir: string }>('/api/export/eagle/preview'),
+  /* 导出面板可用的格式 / 质量 / 尺寸候选（服务端单一来源，避免前端硬编码） */
+  exportOptions: () =>
+    request<{
+      formats: { key: string; label: string; ext: string; note: string }[];
+      qualities: number[];
+      maxSides: number[];
+    }>('/api/export/options'),
   /* 反向互通：当前库 → Eagle 4 的 .library（父目录选好后由服务端建 <库名>.library） */
   exportEagle: (destDir: string, name?: string) =>
     request<{
@@ -2030,6 +2297,88 @@ export const api = {
     if (opts.title) q.set('title', opts.title);
     return `/api/export/stitch?${q.toString()}`;
   },
+
+  /* ------------------------------ 人脸识别 ------------------------------ */
+  faceStatus: () => request<FaceStatus>('/api/face/status'),
+  faceInstall: () => request<FaceStatus & { ok: boolean; started: boolean }>('/api/face/install', { method: 'POST' }),
+  faceInstallCancel: () => request<{ ok: boolean }>('/api/face/install/cancel', { method: 'POST' }),
+  faceScan: (opts: { limit?: number; force?: boolean; minCos?: number } = {}) =>
+    request<FaceStatus & { ok: boolean }>('/api/face/scan', { method: 'POST', body: JSON.stringify(opts) }),
+  faceScanCancel: () => request<{ ok: boolean }>('/api/face/scan/cancel', { method: 'POST' }),
+  facePersons: (opts: { limit?: number; offset?: number; minCount?: number; q?: string; all?: boolean } = {}) => {
+    const q = new URLSearchParams();
+    if (opts.limit) q.set('limit', String(opts.limit));
+    if (opts.offset) q.set('offset', String(opts.offset));
+    if (opts.minCount) q.set('minCount', String(opts.minCount));
+    if (opts.q) q.set('q', opts.q);
+    if (opts.all) q.set('all', '1');
+    const qs = q.toString();
+    // total = 当前筛选下的人物数（不受 limit 影响），allTotal = 不筛封面质量时的总数
+    return request<{ persons: FacePerson[]; total: number; allTotal: number }>(
+      `/api/face/persons${qs ? `?${qs}` : ''}`
+    );
+  },
+  /** 某个人的图（直接给 DTO，灯箱/网格都能直接用） */
+  facePersonItems: (id: number, opts: { limit?: number; offset?: number } = {}) => {
+    const q = new URLSearchParams();
+    if (opts.limit) q.set('limit', String(opts.limit));
+    if (opts.offset) q.set('offset', String(opts.offset));
+    const qs = q.toString();
+    // total = 这个人的去重图片总数（不受 limit 影响）
+    return request<{ items: ImageItem[]; total: number }>(`/api/face/persons/${id}/items${qs ? `?${qs}` : ''}`);
+  },
+  faceRename: (id: number, name: string) =>
+    request<{ ok: boolean; id: number; name: string }>(`/api/face/persons/${id}`, {
+      method: 'PATCH',
+      body: JSON.stringify({ name }),
+    }),
+  /** 手动指定人物封面：传那张照片的 imageId，服务端取该照片里属于这个人的脸 */
+  facePersonCover: (id: number, imageId: number) =>
+    request<{ ok: boolean; id: number; coverFaceId: number; coverImageId: number; coverPx: number }>(
+      `/api/face/persons/${id}/cover`,
+      { method: 'POST', body: JSON.stringify({ imageId }) }
+    ),
+  faceDeletePerson: (id: number) =>
+    request<{ ok: boolean; removedFaces: number }>(`/api/face/persons/${id}`, { method: 'DELETE' }),
+  faceMerge: (fromId: number, toId: number) =>
+    request<{ ok: boolean; moved: number }>('/api/face/persons/merge', {
+      method: 'POST',
+      body: JSON.stringify({ fromId, toId }),
+    }),
+  /** 这张图里有谁（灯箱侧栏用）；hidden=低质量被自动排除，可手动收录 */
+  imageFaces: (imageId: number) =>
+    request<{
+      faces: {
+        id: number;
+        personId: number | null;
+        name: string;
+        box: number[];
+        score: number;
+        quality: number;
+        hidden: boolean;
+        /** 质量偏低：仍显示、计入人物，但不当封面／不建新人物 */
+        soft: boolean;
+      }[];
+    }>(`/api/images/${imageId}/faces`),
+  /** 存量质量重算 + 重选封面（后台任务，进度走 faceStatus 轮询） */
+  faceQualityCleanup: () => request<FaceStatus & { ok: boolean; busy?: boolean }>('/api/face/quality/cleanup', { method: 'POST' }),
+  faceQualityCancel: () => request<{ ok: boolean }>('/api/face/quality/cancel', { method: 'POST' }),
+  /** 用已有特征重建人物分组（清掉「一堆后脑勺凑成一个人」），进度走 faceStatus 轮询 */
+  faceRebuild: () => request<FaceStatus & { ok: boolean }>('/api/face/rebuild', { method: 'POST' }),
+  faceRebuildCancel: () => request<{ ok: boolean }>('/api/face/rebuild/cancel', { method: 'POST' }),
+  /** 手动保留（hidden=false）/ 重新排除（hidden=true）一张低质量脸 */
+  faceSetHidden: (faceId: number, hidden: boolean) =>
+    request<{ ok: boolean; id: number; hidden: boolean }>(`/api/face/faces/${faceId}/hidden`, {
+      method: 'POST',
+      body: JSON.stringify({ hidden }),
+    }),
+  faceDelete: (faceId: number) => request<{ ok: boolean }>(`/api/face/faces/${faceId}`, { method: 'DELETE' }),
+  faceAssign: (faceId: number, personId: number | null) =>
+    request<{ ok: boolean; personId: number }>(`/api/face/faces/${faceId}/person`, {
+      method: 'POST',
+      body: JSON.stringify({ personId }),
+    }),
+  faceReset: () => request<{ ok: boolean }>('/api/face/reset', { method: 'POST' }),
 };
 
 export interface SmartFolder {
@@ -2067,13 +2416,39 @@ export interface ActionStep {
   target?: string;
 }
 
+/** 动作的执行条件：与智能文件夹同一套规则语义（一层平坦条件） */
+export interface ActionConditions {
+  combine: 'and' | 'or';
+  rules: {
+    favorite?: 'yes' | 'no';
+    minRating?: number;
+    minScore?: number;
+    minWidth?: number;
+    orientation?: 'landscape' | 'portrait' | 'square';
+    tagsInclude?: string[];
+    tagsExclude?: string[];
+    keywords?: string[];
+    aiKeywords?: string[];
+  };
+}
+
 export interface ActionDef {
   id: number;
   name: string;
   icon: string;
   steps: ActionStep[];
+  conditions?: ActionConditions;
   createdAt: string;
   lastRunAt: string;
+}
+
+/** 预演结果：确定性步骤给出改前改后，AI/OCR/插件步骤如实标注无法预演 */
+export interface ActionPreviewStep {
+  type: string;
+  label: string;
+  diffs: { field: string; before: string; after: string }[];
+  willSkip: string;
+  unknown: string;
 }
 
 /** 给 <img>/<iframe>/下载链接补上本地 API 令牌（仅 GET 生效） */

@@ -117,6 +117,8 @@ async function readSidecar(dest) {
  * @param {number}  [opts.maxBytes] 最大合法体积（0 = 不限，防超大响应写爆磁盘）
  * @param {string}  [opts.sha256]   期望哈希（空则回退 sidecar 记录）
  * @param {(p:number, done:number, total:number)=>void} [opts.onProgress] 0~1
+ * @param {AbortSignal} [opts.signal] 取消下载（任务中心/设置页的「取消」）
+ * @param {boolean} [opts.allowPrivate] 允许本机/内网镜像（测试 / 本地代理场景）
  */
 export async function downloadModelFile({
   mirrors,
@@ -127,6 +129,7 @@ export async function downloadModelFile({
   sha256 = '',
   onProgress,
   signal,
+  allowPrivate = false,
 }) {
   await fsp.mkdir(path.dirname(dest), { recursive: true });
   const part = `${dest}.part`;
@@ -136,7 +139,10 @@ export async function downloadModelFile({
   for (const base of mirrors) {
     if (aborted()) throw new Error('已取消下载');
     try {
-      const res = await httpFetch(`${base}${repoPath}`, { redirect: 'follow', signal });
+      // 防御：以前 matting/face 把整条文件 URL 当前缀传入，路径被拼成
+      // xxx.onnxmodels/xxx.onnx（永远 404）。前缀已带 repoPath 时不再重复拼。
+      const url = base.endsWith(repoPath) ? base : `${base}${repoPath}`;
+      const res = await httpFetch(url, { redirect: 'follow', signal }, { allowPrivate });
       if (!res.ok || !res.body) throw new Error(`HTTP ${res.status}`);
       const total = Number(res.headers.get('content-length')) || 0;
       if (maxBytes && total > maxBytes) throw new Error('文件超出预期大小');
@@ -172,20 +178,34 @@ export async function downloadModelFile({
       }
 
       await fsp.rename(part, dest);
-      await fsp.writeFile(`${dest}.sha256`, `${digest}\n`, 'utf8').catch(() => {});
+      // 失败不能静默吞：这个 sidecar 是 isPinned 校验的本地凭据，写不掉会让「是否已校验」
+      // 永远退化成「只自洽」，用户却以为模型已通过可信校验。
+      await fsp
+        .writeFile(`${dest}.sha256`, `${digest}\n`, 'utf8')
+        .catch((err) => console.warn('[model-fetch] 校验文件写入失败（isPinned 校验将失效）：', err?.message || err));
       // 只有「随包清单」或调用方显式给出的期望哈希才算外部参照；
       // sidecar 只是自洽，不能谎报 verified=true
       return { size, sha256: digest, verified: !!(pinned || sha256) };
     } catch (err) {
       lastErr = err;
       await fsp.rm(part, { force: true }).catch(() => {});
+      // 按镜像记录失败原因：只看最终 message 会丢掉「哪个源、什么错误码」
+      console.warn(
+        '[model-fetch] 镜像下载失败：',
+        `${base}${repoPath}`,
+        err?.message,
+        err?.cause?.code || err?.cause?.message || ''
+      );
       // 取消 / 主动中止时不要再试下一个镜像：那会把「取消」变成「换源继续下」
       if (aborted() || err?.name === 'AbortError' || /已取消/.test(String(err?.message || ''))) {
         throw new Error('已取消下载', { cause: err });
       }
     }
   }
-  throw new Error(`模型下载失败：${lastErr?.message || '镜像与官方源都不可达'}`);
+  throw new Error(`模型下载失败：${lastErr?.message || '镜像与官方源都不可达'}`, {
+    // cause 才是网络层真相（ECONNREFUSED / ETIMEDOUT / DNS 失败），日志必须带上才能排查
+    cause: lastErr,
+  });
 }
 
 /**

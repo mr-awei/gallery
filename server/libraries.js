@@ -138,7 +138,8 @@ export function activateLibrary(id) {
   // 素材文件夹变了，重挂 fs.watch 监听目标
   watchStorageDir();
   // 网络代理也是按库独立的设置：切库后让 Chromium 网络栈应用新库的代理配置
-  applyProxy().catch(() => {});
+  // 失败不能静默：代理没生效，整库的网络采集与模型下载会莫名变慢 / 失败，用户无从判断
+  applyProxy().catch((err) => console.warn('[libraries] 切库后代理规则应用失败：', err?.message || err));
   return lib;
 }
 

@@ -10,7 +10,8 @@ import FolderTree from '../components/FolderTree';
 import LibrarySwitcher from '../components/LibrarySwitcher';
 import SavedFilterList from '../components/SavedFilterList';
 import TagPanel from '../components/TagPanel';
-import { MORE_NAV, PENDING_ITEMS, PRIMARY_NAV } from './nav';
+import { MORE_NAV, PENDING_ITEMS, PRIMARY_NAV, navLabel } from './nav';
+import { useLang } from '../lib/i18n';
 import { SideSection, useSideSections } from './SideSection';
 
 interface Props {
@@ -134,6 +135,8 @@ export default function Sidebar({
   onToast,
 }: Props) {
   const { open: sections, toggle: toggleSection, setAll: setAllSections, allOpen } = useSideSections();
+  // 订阅语言：切中英文时整条侧栏按新语言重渲染（文案在 navLabel 里取）
+  useLang();
   const pendingTotal = pendingCounts ? PENDING_ITEMS.filter((p) => pendingCounts[p.key] > 0).length : 0;
 
   return (
@@ -166,11 +169,11 @@ export default function Sidebar({
             key={n.key}
             className={`nav-item${view === n.key ? ' active' : ''}`}
             onClick={() => onNav(n.key)}
-            title={n.label}
+            title={navLabel(n)}
             data-tour={`nav:${n.key}`}
           >
             {n.icon}
-            <span>{n.label}</span>
+            <span>{navLabel(n)}</span>
             {n.key === 'gallery' && stats?.total ? <span className="badge">{stats.total}</span> : null}
           </button>
         ))}
@@ -183,11 +186,11 @@ export default function Sidebar({
             key={n.key}
             className={`nav-item${view === n.key ? ' active' : ''}`}
             onClick={() => onNav(n.key)}
-            title={n.label}
+            title={navLabel(n)}
             data-tour={`nav:${n.key}`}
           >
             {n.icon}
-            <span>{n.label}</span>
+            <span>{navLabel(n)}</span>
             {n.key === 'favorites' && stats?.favorite ? <span className="badge">{stats.favorite}</span> : null}
           </button>
         ))}
@@ -204,10 +207,10 @@ export default function Sidebar({
             key={p.key}
             className={`nav-item pending${filters.pending === p.key && view === 'gallery' ? ' active' : ''}`}
             onClick={() => onOpenPending(p.key)}
-            title={p.hint}
+            title={navLabel(p)}
           >
             <span className="pending-dot" />
-            <span>{p.label}</span>
+            <span>{navLabel(p)}</span>
             {pendingCounts && pendingCounts[p.key] > 0 && <span className="badge">{pendingCounts[p.key]}</span>}
           </button>
         ))}

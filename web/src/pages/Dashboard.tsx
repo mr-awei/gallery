@@ -9,18 +9,28 @@ function UsageBoard() {
     items: { id: number; title: string; copyCount: number; exportCount: number; thumbUrl: string }[];
     totals: { copies: number | null; exports: number | null };
   } | null>(null);
+  const [error, setError] = useState('');
 
   useEffect(() => {
     let alive = true;
     api
       .usageStats()
       .then((r) => alive && setData({ items: r.items, totals: r.totals }))
-      .catch(() => undefined);
+      // 不能 catch(quiet)：统计读取失败时整块消失，用户只以为「没有使用记录」
+      .catch((err) => alive && setError(String(err?.message || err)));
     return () => {
       alive = false;
     };
   }, []);
 
+  if (error) {
+    return (
+      <div className="card" style={{ marginTop: 14 }}>
+        <h4 className="section-title">使用统计</h4>
+        <div className="hint" style={{ color: 'var(--err, #e5484d)' }}>读取失败：{error}</div>
+      </div>
+    );
+  }
   if (!data || !data.items.length) return null;
   return (
     <div className="card" style={{ marginTop: 14 }}>
@@ -43,6 +53,11 @@ function UsageBoard() {
           </div>
         ))}
       </div>
+      {data.items.length > 8 && (
+        <div className="hint" style={{ marginTop: 8 }}>
+          仅显示使用最多的前 8 项（共 {data.items.length} 项有使用记录）
+        </div>
+      )}
     </div>
   );
 }

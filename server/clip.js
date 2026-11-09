@@ -323,8 +323,83 @@ async function runScan(payload) {
   });
 }
 
+/* ------------------------- HNSW 图索引（近似召回 + 精确重排） ------------------------- */
+/**
+ * 分桶扫描的解是「桶内逐条点积」，候选集随命中桶增长；HNSW 把候选集压到 ef 个点。
+ * 但图索引要吃内存（512 维 float32 ≈ 2KB/条），所以：
+ * - 少于 ANN_MIN 条：分桶扫描已经够快，建图反而拖慢首查；
+ * - 多于 ANN_MAX 条：主线程建图会明显卡顿，宁可留给后续放到 worker 里做；
+ * - 中间的区间才建图，且只建一次，向量增删就让版本号自增、下次重建。
+ * 不论走哪条路，最后都按 float32 精确余弦重排 top-K：
+ * 分桶索引里的分数是 int16 量化值，直接拿它做最终排序等于把误差当成结论。
+ */
+const ANN_MIN = 3000;
+const ANN_MAX = 120000;
+let annVersion = 0;
+/** @type {{ dim: number, version: number, index: import('./lib/hnsw.js').Hnsw } | null} */
+let annCache = null;
+let annBuilding = null;
+
+export function annStatus() {
+  const count = embeddingCount();
+  return {
+    enabled: count >= ANN_MIN && count <= ANN_MAX,
+    built: !!annCache && annCache.version === annVersion,
+    size: annCache?.index?.size || 0,
+    count,
+    min: ANN_MIN,
+    max: ANN_MAX,
+  };
+}
+
+async function annReady(dim) {
+  if (annCache && annCache.dim === dim && annCache.version === annVersion) return annCache.index;
+  if (annBuilding) return annBuilding;
+  annBuilding = (async () => {
+    const { Hnsw } = await import('./lib/hnsw.js');
+    const index = new Hnsw({ M: 16, efConstruction: 160, efSearch: 80 });
+    const stmt = db.prepare('SELECT image_id, vec FROM clip_vec WHERE dim = ?');
+    const rows = typeof stmt.iterate === 'function' ? stmt.iterate(dim) : stmt.all(dim);
+    let n = 0;
+    for (const r of rows) {
+      const v = normalizeInPlace(new Float32Array(r.vec.buffer, r.vec.byteOffset, dim));
+      index.insert(r.image_id, v);
+      // 每 4000 条让出一次事件循环：建图期间 HTTP 不能整段卡死
+      if (++n % 4000 === 0) await new Promise((res) => setImmediate(res));
+    }
+    annCache = { dim, version: annVersion, index };
+    return index;
+  })();
+  try {
+    return await annBuilding;
+  } finally {
+    annBuilding = null;
+  }
+}
+
+/** 从 DB 取指定 id 的精确向量，用于把量化分重排成真实余弦 */
+function exactCosine(q, ids, dim) {
+  if (!ids.length) return new Map();
+  const out = new Map();
+  for (let i = 0; i < ids.length; i += 500) {
+    const part = ids.slice(i, i + 500);
+    const rows = db
+      .prepare(`SELECT image_id, vec FROM clip_vec WHERE dim = ? AND image_id IN (${part.map(() => '?').join(',')})`)
+      .all(dim, ...part);
+    for (const r of rows) {
+      const v = new Float32Array(r.vec.buffer, r.vec.byteOffset, dim);
+      let s = 0;
+      for (let j = 0; j < dim; j++) s += q[j] * v[j];
+      out.set(r.image_id, s / (Math.sqrt(v.reduce((a, b) => a + b * b, 0)) || 1));
+    }
+  }
+  return out;
+}
+
 /** 切库后必须调用：旧库索引文件里的 id 会和别库撞，留着会误判重复 */
 export function resetVecCache() {
+  annCache = null;
+  annVersion++;
   for (const index of indexes.values()) index.close();
   indexes.clear();
   if (searchWorker) {
@@ -344,6 +419,7 @@ export function saveEmbedding(imageId, vec) {
     'INSERT INTO clip_vec(image_id, dim, vec, created_at) VALUES (?, ?, ?, ?) ON CONFLICT(image_id) DO UPDATE SET dim = excluded.dim, vec = excluded.vec'
   ).run(imageId, vec.length, Buffer.from(vec.buffer, vec.byteOffset, vec.byteLength), new Date().toISOString());
   const dim = vec.length;
+  annVersion++; // 图索引失效：下次查询重建（增量插入几千条比重建更贵，也不差这点时间）
   try {
     indexFor(dim).upsert(imageId, vec);
   } catch (err) {
@@ -355,6 +431,7 @@ export function saveEmbedding(imageId, vec) {
 
 export function deleteEmbedding(imageId) {
   db.prepare('DELETE FROM clip_vec WHERE image_id = ?').run(imageId);
+  annVersion++;
   // 不知道该向量属于哪个维度：清掉已加载索引里的槽位；
   // 尚未加载的索引下次 ensure 时因 count 变化自动重建，不会留下陈旧向量
   for (const index of indexes.values()) {
@@ -394,17 +471,68 @@ function scanFromDb(q, dim, { k, minCos, excludeId }) {
     if (cos >= minCos) hits.push({ id: r.image_id, cos });
   }
   hits.sort((a, b) => b.cos - a.cos);
-  return hits.slice(0, k);
+  return keepLive(hits.slice(0, k));
+}
+
+/**
+ * 只保留 images 表中仍存在的 id。
+ * 删除素材走触发器直接删 clip_vec 行，不会通知内存里的 HNSW / 分桶索引，
+ * 已删素材的向量可能残留在索引里、被当成「相似 / 重复」命中（exactCosine 查不到
+ * DB 行时会回退用索引里的近似分 c.sim）。这里以 images 表为准兜底过滤，
+ * 无论删除走哪条路径（去重回滚 / 批量淘汰 / 清空回收站），已删素材都不会被召回。
+ */
+function keepLive(hits) {
+  if (!hits.length) return hits;
+  const ids = hits.map((h) => h.id);
+  const live = new Set(
+    db
+      .prepare(`SELECT id FROM images WHERE id IN (${ids.map(() => '?').join(',')})`)
+      .all(...ids)
+      .map((r) => r.id)
+  );
+  return hits.filter((h) => live.has(h.id));
 }
 
 /** 全库中与 vec 余弦最高的前 k 个（排除自身），返回 [{ id, cos }] */
-export async function topSimilar(vec, { k = 24, minCos = 0.8, excludeId = 0 } = {}) {
+export async function topSimilar(vec, { k = 24, minCos = 0.8, excludeId = 0, ann = true } = {}) {
   const dim = vec.length;
   const q = normalizeInPlace(Float32Array.from(vec));
+  const count = embeddingCount();
+
+  // 规模合适时走 HNSW：候选放大 3 倍，再按 float32 精确余弦重排
+  if (ann && count >= ANN_MIN && count <= ANN_MAX) {
+    try {
+      const graph = await annReady(dim);
+      const cand = graph
+        .search(q, Math.max(k * 3, k + 8), Math.max(80, k * 4))
+        .filter((h) => h.id !== excludeId);
+      if (cand.length) {
+        const exact = exactCosine(q, cand.map((c) => c.id), dim);
+        const hits = cand
+          .map((c) => ({ id: c.id, cos: exact.get(c.id) ?? c.sim }))
+          .filter((h) => h.cos >= minCos)
+          .sort((a, b) => b.cos - a.cos)
+          .slice(0, k);
+        if (hits.length) return keepLive(hits);
+      }
+    } catch (err) {
+      console.warn('[clip] HNSW 召回失败，回退分桶扫描：', err?.message || err);
+    }
+  }
+
   try {
     const buckets = indexFor(dim).plan(q, minCos);
     if (!buckets.length) return [];
-    return await runScan({ dim, buckets, query: q, k, minCos, excludeId });
+    // 分桶索引里的分数是 int16 量化值：多取一倍候选，按精确余弦重排后再截断
+    const raw = await runScan({ dim, buckets, query: q, k: k * 2, minCos, excludeId });
+    if (!raw.length) return [];
+    const exact = exactCosine(q, raw.map((h) => h.id), dim);
+    return keepLive(
+      raw
+        .map((h) => ({ id: h.id, cos: exact.get(h.id) ?? h.cos }))
+        .sort((a, b) => b.cos - a.cos)
+        .slice(0, k)
+    );
   } catch (err) {
     // 切库会让 db 的 live binding 指向新库：拿旧库的 query 去新库兜底比对只会误判重复
     if (/已切换资源库/.test(String(err?.message || ''))) return [];

@@ -323,6 +323,64 @@ try {
   const retryMissing = await fetch(`${BASE}/api/jobs/999999/retry`, { method: 'POST', ...auth });
   check('重试不存在的任务返回 404', retryMissing.status === 404);
 
+  // 人脸：路由注册漏了会让整个服务起不来，模型未下载时又必须给出可读的原因而不是 500
+  const faceSt = await fetch(`${BASE}/api/face/status`, auth);
+  const faceStj = faceSt.ok ? await faceSt.json() : null;
+  check(
+    '人脸状态接口可用（含下载/扫描/计数）',
+    faceSt.status === 200 && faceStj && typeof faceStj.downloaded === 'boolean' && Number.isFinite(faceStj.pending),
+    `${faceSt.status} ${JSON.stringify(faceStj)?.slice(0, 120)}`
+  );
+  const facePpl = await fetch(`${BASE}/api/face/persons`, auth);
+  const facePplj = facePpl.ok ? await facePpl.json() : null;
+  // total 是「显示不全」的防线：没有它，前端被 limit 截断时无法提示用户
+  check(
+    '人物列表可用（空库返回空数组 + total）',
+    facePpl.status === 200 && Array.isArray(facePplj?.persons) && Number.isFinite(facePplj?.total)
+  );
+  const faceItems = await fetch(`${BASE}/api/face/persons/1/items`, auth);
+  const faceItemsj = faceItems.ok ? await faceItems.json() : null;
+  check(
+    '单人图片接口返回 total（超出 limit 才能提示「只显示了一部分」）',
+    faceItems.status === 200 && Array.isArray(faceItemsj?.items) && Number.isFinite(faceItemsj?.total)
+  );
+  // 只在没下载模型时断言拒绝：真下过模型的话这一下会启动全库扫描，冒烟不该干这种事
+  if (!faceStj?.downloaded) {
+    const faceScan = await fetch(`${BASE}/api/face/scan`, {
+      method: 'POST',
+      headers: { ...auth.headers, 'Content-Type': 'application/json' },
+      body: JSON.stringify({}),
+    });
+    const faceScanj = faceScan.ok ? null : await faceScan.json().catch(() => null);
+    check('未下载模型时扫描明确拒绝（400 且有原因）', faceScan.status === 400 && !!faceScanj?.error);
+  }
+  const faceMerge = await fetch(`${BASE}/api/face/persons/merge`, {
+    method: 'POST',
+    headers: { ...auth.headers, 'Content-Type': 'application/json' },
+    body: JSON.stringify({}),
+  });
+  check('人物合并缺参数返回 400', faceMerge.status === 400);
+
+  // 库健康：路径唯一索引是否真的建起来、删图有没有留孤儿 —— 以前这两件事用户完全看不见
+  const health = await fetch(`${BASE}/api/maintenance/health`, auth);
+  const healthj = health.ok ? await health.json() : null;
+  check(
+    '库健康接口可用（索引状态 + 孤儿计数 + 结构告警）',
+    health.status === 200 &&
+      healthj?.pathIndex &&
+      typeof healthj.pathIndex.ok === 'boolean' &&
+      healthj.orphans &&
+      Array.isArray(healthj.warnings),
+    `${health.status}`
+  );
+  check('新建库的 abs_path 唯一索引已建立', healthj?.pathIndex?.ok === true, JSON.stringify(healthj?.pathIndex));
+  const idx = await fetch(`${BASE}/api/maintenance/path-index`, { method: 'POST', ...auth });
+  const idxj = idx.ok ? await idx.json() : null;
+  check('补建路径索引幂等（已存在时不报错）', idx.status === 200 && idxj?.ok === true);
+  const orphan = await fetch(`${BASE}/api/maintenance/orphans/clean`, { method: 'POST', ...auth });
+  const orphanj = orphan.ok ? await orphan.json() : null;
+  check('清理孤儿关联接口可用', orphan.status === 200 && orphanj?.ok === true && orphanj.after);
+
   // 撤销栈端到端：入库 → 打标 → 撤销、重命名 → 撤销、删除 → 撤销。
   // 这三条是「统一操作日志」的核心承诺，出错时是静默的数据不一致（标签没回滚、文件名没改回），
   // 只测接口形状是发现不了的，必须在真实库里跑一遍逆操作。

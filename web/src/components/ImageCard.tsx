@@ -4,6 +4,7 @@ import type { ImageItem } from '../types';
 import { BASE, SOURCE_LABELS, api, copyText, desktop, formatSize as fmtSize, revealFile } from '../api';
 import { confirmDialog, promptDialog } from './Dialogs';
 import { fontFrameDataUrl, imageFrameDataUrl, videoElementDataUrl, videoFrameDataUrl } from '../lib/coverFrame';
+import { captureVideoSprite, frameIndexAt, type SpriteResult } from '../lib/video-frames';
 import { IMAGE_MIME, TAG_MIME } from '../lib/dnd';
 import { IconDownload, IconExpand, IconHeart } from './Icons';
 
@@ -104,9 +105,37 @@ function VideoThumb({
   onFrame?: (v: HTMLVideoElement) => void;
 }) {
   const [failed, setFailed] = useState(false);
+  const [sprite, setSprite] = useState<SpriteResult | null>(null);
+  const [scrub, setScrub] = useState<number | null>(null);
   if (failed) return <MediaGlyph kind="video" size={0} title="" label="" />;
   return (
-    <div className="media-video">
+    <div
+      className="media-video"
+      onMouseEnter={() => {
+        // 悬停才解码：一张卡不 hover 就完全不抽帧
+        if (sprite) return;
+        void captureVideoSprite(src, 6).then(setSprite);
+      }}
+      onMouseMove={(e) => {
+        if (!sprite) return;
+        const box = e.currentTarget.getBoundingClientRect();
+        setScrub(frameIndexAt((e.clientX - box.left) / (box.width || 1), sprite.frames));
+      }}
+      onMouseLeave={() => setScrub(null)}
+    >
+      {sprite && scrub !== null && (
+        <span
+          aria-hidden
+          style={{
+            position: 'absolute',
+            inset: 0,
+            backgroundImage: `url(${sprite.url})`,
+            backgroundSize: `${sprite.frames * 100}% 100%`,
+            backgroundPosition: `${(scrub / Math.max(1, sprite.frames - 1)) * 100}% 0`,
+            backgroundRepeat: 'no-repeat',
+          }}
+        />
+      )}
       <video
         src={src}
         poster={poster}

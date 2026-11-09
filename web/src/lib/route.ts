@@ -9,6 +9,7 @@ export const VIEWS = [
   'dashboard',
   'gallery',
   'favorites',
+  'people',
   'tidy',
   'playlists',
   'crawl',

@@ -103,6 +103,19 @@ export interface AiStatus {
   ready: boolean;
 }
 
+/** 模型套件里一家供应商（密钥只回掩码） */
+export interface AiProviderInfo {
+  id: string;
+  label: string;
+  provider: string;
+  baseUrl: string;
+  model: string;
+  visionModel?: string;
+  hasKey: boolean;
+  keyMask?: string;
+  active?: boolean;
+}
+
 export interface AiPreset {
   label: string;
   baseUrl: string;
@@ -371,6 +384,10 @@ export interface CrawlStats {
   saved: number;
   failed: number;
   skipped: number;
+  /** 向量查重没生效的张数（模型异常时如实上报，不静默降级成「只查了 pHash」） */
+  clipCheckFailed?: number;
+  /** 第一条失败原因，避免用户只看到一个数字 */
+  clipCheckError?: string;
   dropped: { lowres: number; small: number; format: number; duplicate: number; oversize: number; aiFilter: number };
 }
 
@@ -679,6 +696,8 @@ export interface PluginInfo {
   permissions: string[];
   actions: string[];
   builtin: boolean;
+  /** 停用后不再参与批量动作，执行会被明确拒绝（不需要卸载） */
+  enabled?: boolean;
 }
 
 export interface PluginRunResult {
@@ -811,6 +830,8 @@ export interface AiUpscaleStatus {
   downloading: boolean;
   progress: number;
   message: string;
+  /** 安装/下载失败原因（与 error 分开：error 是自检/显卡错误） */
+  installError?: string;
   gpu: string | null;
   usable: boolean | null;
   error: string;
@@ -1184,6 +1205,7 @@ export type View =
   | 'dashboard'
   | 'gallery'
   | 'favorites'
+  | 'people'
   | 'tidy'
   | 'playlists'
   | 'crawl'

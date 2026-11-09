@@ -58,7 +58,10 @@ function trashDirFor(absPath) {
 export async function removeImage(id, { reason = '' } = {}) {
   const row = getImage(id);
   if (!row) return { ok: false, error: '图片不存在' };
-  await fsp.rm(row.thumb, { force: true }).catch(() => {});
+  // 缩略图只是缓存：清不掉不影响删除结果，但不能一声不吭 —— 排查「磁盘越用越大」时要能对上账
+  await fsp.rm(row.thumb, { force: true }).catch((err) => {
+    console.warn('[trash] 缩略图清理失败（不影响删除）', row.thumb, err?.message || err);
+  });
 
   const settings = getSettings();
   const policy = settings.deletePolicy || 'trash';
@@ -253,19 +256,46 @@ export async function restoreFromTrash(id) {
   return toDTO(getImage(newId));
 }
 
+/**
+ * 彻底删除回收站里的一项。
+ * 文件删不掉时**不能**删记录：否则文件永远留在 trash 目录，界面上也再没有入口去清它。
+ * @returns {Promise<{ ok: boolean, error?: string }>}
+ */
 export async function deleteTrashItem(id) {
   const row = db.prepare('SELECT * FROM trash WHERE id = ?').get(id);
-  if (!row) return false;
-  await fsp.rm(row.trash_path, { force: true }).catch(() => {});
+  if (!row) return { ok: false, error: '回收站记录不存在' };
+  try {
+    await fsp.rm(row.trash_path, { force: true });
+  } catch (err) {
+    const message = String(err?.message || err);
+    console.error('[trash] 彻底删除失败，保留记录以便重试：', row.trash_path, message);
+    return { ok: false, error: `删除文件失败：${message}` };
+  }
   db.prepare('DELETE FROM trash WHERE id = ?').run(id);
-  return true;
+  return { ok: true };
 }
 
+/**
+ * 清空回收站。删不掉的项保留记录并单独返回，不再「吞掉错误后整表 DELETE」。
+ * @returns {Promise<{ removed: number, failed: Array<{ id: number, path: string, error: string }> }>}
+ */
 export async function emptyTrash() {
   const rows = db.prepare('SELECT * FROM trash').all();
-  for (const row of rows) await fsp.rm(row.trash_path, { force: true }).catch(() => {});
-  db.prepare('DELETE FROM trash').run();
-  return rows.length;
+  const failed = [];
+  let removed = 0;
+  for (const row of rows) {
+    try {
+      await fsp.rm(row.trash_path, { force: true });
+      db.prepare('DELETE FROM trash WHERE id = ?').run(row.id);
+      removed++;
+    } catch (err) {
+      failed.push({ id: row.id, path: row.trash_path, error: String(err?.message || err) });
+    }
+  }
+  if (failed.length) {
+    console.error(`[trash] 清空回收站有 ${failed.length} 个文件没删掉，记录已保留以便重试`);
+  }
+  return { removed, failed };
 }
 
 /** 重命名磁盘文件并同步标题（壁纸库文件夹管理） */
@@ -354,14 +384,22 @@ export async function clearLibrary() {
     for (const row of cleared) del.run(row.id);
   });
 
+  let thumbCleanupFailed = 0;
   for (const row of cleared) {
-    if (row.thumb) await fsp.rm(row.thumb, { force: true }).catch(() => {});
+    if (row.thumb) {
+      await fsp.rm(row.thumb, { force: true }).catch(() => {
+        thumbCleanupFailed++;
+      });
+    }
     clip.deleteEmbedding(row.id);
     invalidateQuality(row.id);
     // 有失败项时索引不能整表清空，逐个摘掉已删除的 id
     if (failed.length) removePhash(row.id);
   }
   if (!failed.length) clearPhashIndex();
+  if (thumbCleanupFailed) {
+    console.warn(`[trash] 清空图库时有 ${thumbCleanupFailed} 张缩略图没删掉（缓存，可重建）`);
+  }
 
   return { removed: cleared.length, failed };
 }

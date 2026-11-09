@@ -22,6 +22,7 @@ import { qrSvg } from './qr.js';
 import { lanIconPng } from './lan-icon.js';
 import { existingThumbPath } from '../thumbs.js';
 import { hiddenImagesClause } from './privacy.js';
+import { ensureFolderByRelDir, linkImageToFolder } from '../folders.js';
 
 const TOKEN_FILE = path.join(DATA_DIR, '.lan-token');
 const MAX_UPLOAD = 60 * 1024 * 1024;
@@ -158,6 +159,12 @@ button.act { width:100%; margin-top:16px; padding:13px; border:0; border-radius:
   <div class="tab${readOnly ? '' : ' on'}" data-tab="upload"${readOnly ? ' hidden' : ''}>投送</div>
 </div>
 <div id="pane-upload"${readOnly ? ' hidden' : ''}>
+  <div style="margin-bottom:10px">
+    <div style="font-size:12px;color:#8b95b2;margin-bottom:4px">存到哪个文件夹</div>
+    <select id="target" style="width:100%;padding:10px;border-radius:10px;border:1px solid #262a3a;background:#1b1e2a;color:#f4f4f8;font-size:14px">
+      <option value="">库根目录（不归类）</option>
+    </select>
+  </div>
   <label class="drop" for="files"><b>点这里选择文件</b><span>可多选，单文件不超过设置里的大小上限</span></label>
   <input id="files" type="file" multiple accept="image/*,video/*,audio/*,.pdf,.psd,.heic"/>
   <div id="list"></div>
@@ -214,13 +221,43 @@ button.act { width:100%; margin-top:16px; padding:13px; border:0; border-radius:
     row.appendChild(a); row.appendChild(b); list.insertBefore(row, list.firstChild);
   }
 
+  // 目标文件夹：后端按 id 挂载（纯虚拟夹没有磁盘路径，按路径挂不进去）
+  var target = document.getElementById('target');
+  if (target) {
+    try {
+      var savedFolder = localStorage.getItem('tuku_lan_folder');
+      fetch('/api/lan/folders', { headers: { 'x-lan-token': token } })
+        .then(function (r) {
+          if (!r.ok) throw new Error('HTTP ' + r.status);
+          return r.json();
+        })
+        .then(function (j) {
+        (j.folders || []).forEach(function (f) {
+          var o = document.createElement('option');
+          o.value = String(f.id); o.textContent = f.label;
+          target.appendChild(o);
+        });
+        if (savedFolder && target.querySelector('option[value="' + savedFolder + '"]')) target.value = savedFolder;
+      }).catch(function () {
+        var hint = document.createElement('div');
+        hint.className = 'row';
+        hint.textContent = '文件夹列表读取失败，本次只能传到库根目录';
+        target.parentNode.appendChild(hint);
+      });
+      target.addEventListener('change', function () {
+        try { localStorage.setItem('tuku_lan_folder', target.value); } catch (e) {}
+      });
+    } catch (e) {}
+  }
+
   var files = document.getElementById('files');
   if (files) files.addEventListener('change', async function (e) {
     var picked = Array.from(e.target.files || []).slice(0, 20);
+    var folderId = target ? target.value : '';
     for (var i = 0; i < picked.length; i++) {
       var f = picked[i]; add(f.name, '上传中…', true);
       try {
-        var r = await fetch('/api/lan/upload?filename=' + encodeURIComponent(f.name), {
+        var r = await fetch('/api/lan/upload?filename=' + encodeURIComponent(f.name) + (folderId ? '&folderId=' + encodeURIComponent(folderId) : ''), {
           method: 'POST', headers: { 'x-lan-token': token, 'Content-Type': 'application/octet-stream' }, body: f
         });
         var j = await r.json();
@@ -576,6 +613,29 @@ export function buildLanApp(tokenOrGetter) {
     });
   });
 
+  /**
+   * 手机端可选的目标文件夹：只回 id + 展示路径（不含磁盘绝对路径）。
+   * 上限 800 个，够用且不至于让手机上拉一个几 MB 的 JSON。
+   */
+  app.get('/api/lan/folders', (_req, res) => {
+    try {
+      const rows = db.prepare('SELECT id, name, parent_id FROM folders ORDER BY name').all();
+      const byId = new Map(rows.map((r) => [r.id, r]));
+      const labelOf = (r) => {
+        const parts = [];
+        let cur = r;
+        for (let guard = 0; cur && guard < 16; guard++) {
+          parts.unshift(String(cur.name || ''));
+          cur = cur.parent_id == null ? null : byId.get(cur.parent_id);
+        }
+        return parts.filter(Boolean).join(' / ');
+      };
+      res.json({ folders: rows.slice(0, 800).map((r) => ({ id: r.id, label: labelOf(r) })) });
+    } catch (err) {
+      res.status(500).json({ error: `读取文件夹失败：${err.message}` });
+    }
+  });
+
   app.post(
     '/api/lan/upload',
     express.raw({ type: '*/*', limit: MAX_UPLOAD }),
@@ -592,7 +652,39 @@ export function buildLanApp(tokenOrGetter) {
         // 与拖拽入库同一条管线：多媒体格式走 ingestMedia，其余走 lib.ingest
         const r = isMediaPath(filename) ? await ingestMedia(base) : await lib.ingest(base, settings);
         if (!r.ok) return res.status(400).json({ error: '该格式暂不支持或内容重复' });
-        return res.json({ ok: true, id: r.id, image: lib.toDTO(lib.getImage(r.id)) });
+        // 手机上可以直接指定落到哪个文件夹（支持 a/b 这种多级路径）：
+        // 以前只能进「手机投送」来源、再回桌面手动归位，等于「能传不能整理」。
+        const folderPath = String(req.query?.folder || '')
+          .replace(/\\/g, '/')
+          .replace(/^\/+|\/+$/g, '')
+          .slice(0, 120);
+        // 手机页直接选的是「已有文件夹」，按 id 挂更精确：
+        // 路径方式只对物化到磁盘的夹有效，纯虚拟夹没有相对目录，按 id 才能落进去。
+        const wantId = Number(req.query?.folderId) || 0;
+        let folderId = null;
+        // 归类失败不能只 warn：图已经入库了，手机页如果只看 folderId 会以为「传进去并归到指定夹了」，
+        // 实际只在库里裸着。这里把失败带回响应，手机页能提示「文件夹归类失败，请在桌面端手动整理」。
+        let folderWarning = null;
+        try {
+          if (wantId && db.prepare('SELECT 1 AS x FROM folders WHERE id = ?').get(wantId)) {
+            linkImageToFolder(r.id, wantId);
+            folderId = wantId;
+          } else if (folderPath) {
+            folderId = ensureFolderByRelDir(folderPath);
+            if (folderId) linkImageToFolder(r.id, folderId);
+          }
+        } catch (err) {
+          folderWarning = `归类到文件夹失败：${err?.message || err}`;
+          console.warn('[lan] 手机投送归类失败', folderWarning);
+        }
+        return res.json({
+          ok: true,
+          id: r.id,
+          folder: folderPath || null,
+          folderId,
+          folderWarning,
+          image: lib.toDTO(lib.getImage(r.id)),
+        });
       } catch (err) {
         return res.status(400).json({ error: String(err?.message || err).slice(0, 200) });
       }

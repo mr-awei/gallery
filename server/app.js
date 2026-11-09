@@ -51,11 +51,12 @@ import { register as registerPlugins } from './routes/plugins.js';
 import { register as registerLan } from './routes/lan.js';
 import { register as registerWorkshop } from './routes/workshop.js';
 import { register as registerSync } from './routes/sync.js';
+import { register as registerFace } from './routes/face.js';
 import { capabilitiesFor, platformSummary } from './lib/platform.js';
 import { markInterruptedJobs, pruneJobs } from './jobs.js';
 import { startThumbRebuild, thumbMissingCount } from './lib/thumb-rebuild.js';
 import { autoMergeLegacy, refreshMergedRows } from './lib/legacy-db.js';
-import { backfillMissingFolderLinks } from './folders.js';
+import { backfillMissingFolderLinks, folderDiskDir } from './folders.js';
 import { attachStackInfo } from './lib/stacks.js';
 
 const asyncRoute = (fn) => (req, res, next) => Promise.resolve(fn(req, res, next)).catch(next);
@@ -455,6 +456,7 @@ export function buildApp({ desktop = false } = {}) {
   registerLan(app, ctx);
   registerWorkshop(app, ctx);
   registerSync(app, ctx);
+  registerFace(app, ctx);
 
   /* -------------------------------- 系统能力 ------------------------------- */
   app.get('/api/platform', (_req, res) => {
@@ -478,7 +480,18 @@ export function buildApp({ desktop = false } = {}) {
       // 路径必须落在素材库根目录内：本地服务对任何进程开放，不校验就等于给了
       // 「用系统文件管理器打开任意目录」的能力（UNC 路径还能外带凭据）
       const root = lib.resolveStorageDir(getSettings());
-      const dir = req.body?.path ? path.resolve(String(req.body.path)) : root;
+      // folderId 优先：前端只知道自己「在哪个文件夹」，真实目录由服务端按 anchor_path 算，
+      // 免得状态栏永远只打开库根
+      let dir = root;
+      if (req.body?.folderId != null) {
+        const info = folderDiskDir(Number(req.body.folderId), root);
+        if (info.virtual) {
+          return res.status(409).json({ error: '这是虚拟文件夹，没有对应的磁盘目录', virtual: true });
+        }
+        dir = info.dir;
+      } else if (req.body?.path) {
+        dir = path.resolve(String(req.body.path));
+      }
       if (!isInsideDir(root, dir)) {
         return res.status(400).json({ error: '只能打开素材库目录内的文件夹' });
       }

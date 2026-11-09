@@ -6,7 +6,13 @@
 import express from 'express';
 import { openFolder } from '../desktop.js';
 import { PLUGIN_PERMISSIONS } from '../lib/plugin-manifest.js';
-import { ensureUserPluginDir, findPlugin, listPlugins, runPlugin } from '../lib/plugin-host.js';
+import {
+  ensureUserPluginDir,
+  findPlugin,
+  listPlugins,
+  runPlugin,
+  setPluginEnabled,
+} from '../lib/plugin-host.js';
 import {
   downloadPluginPackage,
   installPluginPackage,
@@ -27,6 +33,7 @@ const publicView = (p) => ({
   permissions: p.permissions,
   actions: p.actions,
   builtin: p.builtin,
+  enabled: p.enabled !== false,
 });
 
 /** 安装失败一律给明确原因，不静默吞掉 */
@@ -39,6 +46,17 @@ export function register(app, ctx) {
 
   app.get('/api/plugins', (_req, res) => {
     res.json({ ok: true, plugins: listPlugins().map(publicView), permissions: PLUGIN_PERMISSIONS });
+  });
+
+  /** 启用 / 停用：不解包、不卸载，只记库级开关；停用后执行直接拒绝 */
+  app.patch('/api/plugins/:id', (req, res) => {
+    try {
+      const enabled = req.body?.enabled !== false;
+      const r = setPluginEnabled(req.params.id, enabled);
+      res.json({ ok: true, ...r });
+    } catch (err) {
+      fail(res, err);
+    }
   });
 
   app.get('/api/plugins/market', (_req, res) => {

@@ -88,32 +88,36 @@ let upscaleChecking = false;
     res.json(st);
   });
 
-  // 安装社区模型（param + bin，各几 MB）
+  // 安装社区模型（param + bin，各几 MB）：后台下载立刻返回，进度/结果走 job 心跳（aiUp）。
+  // 以前同步等整个下载，请求挂着不动，界面上按钮毫无反馈，用户以为点了没反应。
   app.post(
     '/api/ai/upscale/install-model',
-    asyncRoute(async (req, res) => {
+    (req, res) => {
       const modelId = String(req.body?.id || '');
       if (!modelId) return res.status(400).json({ error: '缺少模型 id' });
-      res.json({ ok: true, ...(await aiUpscale.installCommunityModel(modelId)) });
-    })
+      const r = aiUpscale.startCommunityInstall(modelId);
+      if (!r.ok) return res.status(400).json({ error: r.error });
+      res.json(r);
+    }
   );
 
-  // Transformer 超分（Swin2SR）状态与模型下载 / 预热
+  // Transformer 超分（Swin2SR）状态与模型下载 / 预热：
+  // 下载（几百 MB）走后台，立刻返回，进度/结果走 job 心跳（以前同步等下载，前端 20s 必超时）
   app.get('/api/ai/sr/status', (_req, res) => res.json(srDeep.srStatus()));
-  app.post(
-    '/api/ai/sr/load',
-    asyncRoute(async (req, res) => {
-      res.json({ ok: true, ...(await srDeep.loadSrModel(String(req.body?.id || ''))) });
-    })
-  );
+  app.post('/api/ai/sr/load', (req, res) => {
+    const r = srDeep.startSrLoad(String(req.body?.id || ''));
+    if (!r.ok) return res.status(400).json({ error: r.error });
+    res.json(r);
+  });
 
-  // 安装 Real-CUGAN 运行库（两级增强的降噪前置引擎）
-  app.post(
-    '/api/ai/upscale/install-cugan',
-    asyncRoute(async (_req, res) => {
-      res.json({ ok: true, ...(await aiUpscale.installCuganRuntime()) });
-    })
-  );
+  // 安装 Real-CUGAN 运行库（两级增强的降噪前置引擎）：与运行库安装一样后台执行，
+  // 进度（含下载 / 解压 / 自检各阶段）走 job 心跳，前端不挂请求干等。
+  app.post('/api/ai/upscale/install-cugan', (_req, res) => {
+    const st = aiUpscale.aiStatus();
+    if (st.downloading) return res.json({ ok: true, busy: true, ...st });
+    aiUpscale.installCuganRuntime().catch((err) => console.error('[ai] CUGAN 安装失败', err?.message || err));
+    res.json({ ok: true, ...aiUpscale.aiStatus() });
+  });
 
   app.post(
     '/api/ai/upscale/install',

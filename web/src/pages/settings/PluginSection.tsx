@@ -28,6 +28,18 @@ export default function PluginSection({ onToast, onOpenMarket }: Props) {
   };
   useEffect(load, []);
 
+  /** 停用只记开关、不卸载：关掉后执行会被明确拒绝，不用重启 */
+  const toggle = async (id: string, enabled: boolean) => {
+    setPlugins((list) => list.map((p) => (p.id === id ? { ...p, enabled } : p)));
+    try {
+      await api.setPluginEnabled(id, enabled);
+      onToast(enabled ? `已启用 ${id}` : `已停用 ${id}`);
+    } catch (err) {
+      onToast(`切换失败：${(err as Error).message}`, 'error');
+      load();
+    }
+  };
+
   const run = async (id: string) => {
     if (running) return;
     setRunning(id);
@@ -106,9 +118,29 @@ export default function PluginSection({ onToast, onOpenMarket }: Props) {
                           {p.id} · v{p.version}
                         </span>
                       </div>
-                      <button className="btn sm" disabled={!!running} onClick={() => void run(p.id)}>
-                        {running === p.id ? '运行中…' : '试运行（不写库）'}
-                      </button>
+                      <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+                        <label
+                          className="hint"
+                          style={{ display: 'flex', gap: 6, alignItems: 'center', cursor: 'pointer' }}
+                          title="停用后不再出现在批量动作里，执行会被明确拒绝；不需要卸载"
+                        >
+                          <input
+                            type="checkbox"
+                            checked={p.enabled !== false}
+                            disabled={!!running}
+                            onChange={(e) => void toggle(p.id, e.target.checked)}
+                          />
+                          {p.enabled === false ? '已停用' : '启用'}
+                        </label>
+                        <button
+                          className="btn sm"
+                          disabled={!!running || p.enabled === false}
+                          title={p.enabled === false ? '插件已停用，先启用再试运行' : undefined}
+                          onClick={() => void run(p.id)}
+                        >
+                          {running === p.id ? '运行中…' : '试运行（不写库）'}
+                        </button>
+                      </div>
                     </div>
                     <div className="hint">{p.description}</div>
                     <div className="hint">

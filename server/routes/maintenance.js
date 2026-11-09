@@ -5,13 +5,17 @@
 // DB 涨到几个 G，用户只能删库重来。这里收敛成一组可手动触发的维护动作。
 import fs from 'node:fs';
 import path from 'node:path';
-import { db, getThumbDir } from '../db.js';
+import sharp from 'sharp';
+import { db, getPathIndexState, getSchemaWarnings, getThumbDir, retryPathIndex } from '../db.js';
 import * as lib from '../library.js';
-import { getMissingCached, importLocalImages } from '../importer.js';
+import { getMissingCached, importLocalImages, readImportJob } from '../importer.js';
 import { existingThumbPath } from '../thumbs.js';
+import { thumbQueueStats, retryFailedThumbs, clearThumbFailures } from '../lib/thumb-queue.js';
+import { thumbMissingCount } from '../lib/thumb-rebuild.js';
 import { computePHash } from '../phash.js';
 import { probeMedia } from '../lib/media-probe.js';
 import { thumbRebuildStatus } from '../lib/thumb-rebuild.js';
+import { pruneGhostFolders } from '../folders.js';
 
 function dbFilePath() {
   try {
@@ -197,6 +201,67 @@ export function register(app, ctx) {
   );
 
   /**
+   * 修正 EXIF 方向造成的两类错：
+   * 1) images.width/height 存的是「像素没转」的尺寸（5D4 竖拍 5472×3648），
+   *    瀑布流按横图排版，图片被 object-fit: cover 裁掉大半；
+   * 2) RAW/设计稿的缩略图来自文件内嵌预览，那段 JPEG 里没有方向标签，
+   *    以前只调 .rotate() → 竖拍照片在库里整个躺倒 90°。
+   *
+   * 第 2 类只能重出图。以前这里只「删文件 + thumb 置空」，指望后台补图任务重画，
+   * 但 ensureThumb 的缓存判断是「缩略图文件比源图新就能复用」—— Windows 上文件被
+   * 占用时 fsp.rm 会静默失败，后台任务看到旧文件还在就直接复用，缩略图永远是躺倒的。
+   * 所以这里直接 force 重画（RAW 抽取内嵌预览只要几十毫秒，一批 300 张在请求内能跑完）。
+   */
+  app.post(
+    '/api/maintenance/fix-orientation',
+    asyncRoute(async (req, res) => {
+      const limit = Math.min(2000, Math.max(1, Number(req.body?.limit) || 300));
+      const beforeId = Math.max(0, Number(req.body?.beforeId) || 0);
+      const sql = `SELECT id, abs_path, width, height, media_kind, thumb FROM images
+        WHERE COALESCE(abs_path, '') <> '' AND media_kind IN ('image', 'gif', 'raw', 'design')
+        ${beforeId ? 'AND id < ?' : ''} ORDER BY id DESC LIMIT ?`;
+      const rows = beforeId ? db.prepare(sql).all(beforeId, limit) : db.prepare(sql).all(limit);
+      let rotated = 0;
+      let dims = 0;
+      let cleared = 0;
+      let failed = 0;
+      const px = sharp;
+      for (const r of rows) {
+        try {
+          if (!fs.existsSync(r.abs_path)) continue;
+          const meta = await px(r.abs_path, { failOn: 'none' }).metadata();
+          const ori = Number(meta.orientation) || 1;
+          if (ori < 5 || ori > 8) continue;
+          rotated++;
+          if (r.media_kind === 'raw' || r.media_kind === 'design') {
+            // 宽高由 ensureThumb 按「屏幕方向」写回（designThumbJpeg 已经过 orientedSize），
+            // 这里不能再自己换一次，否则会换回去
+            const p = await lib.ensureThumb(r.id, r.abs_path, { force: true });
+            if (p) cleared++;
+            else failed++;
+            continue;
+          }
+          // orientation 5~8 = 画面被转 90°：屏幕上的宽高要互换
+          const w = Number(meta.height) || 0;
+          const h = Number(meta.width) || 0;
+          if (w && h && (Number(r.width) !== w || Number(r.height) !== h)) {
+            db.prepare('UPDATE images SET width = ?, height = ?, cover_ver = cover_ver + 1 WHERE id = ?').run(
+              w,
+              h,
+              r.id
+            );
+            dims++;
+          }
+        } catch {
+          failed++;
+        }
+      }
+      const nextBeforeId = rows.length ? Number(rows[rows.length - 1].id) : 0;
+      res.json({ ok: true, rotated, dims, cleared, failed, nextBeforeId });
+    })
+  );
+
+  /**
    * 一键补齐所有缺缩略图的记录（后台任务，不阻塞请求）。
    * 与上面的 rebuild-thumbs 的区别：那个是「前端一轮轮点」，这个是服务端自己按记录补完，
    * 进度写进任务表，适合「旧库合并进来 / 上次导入被强杀」这种成片缺图。
@@ -250,6 +315,19 @@ export function register(app, ctx) {
         }
       }
       res.json({ ok: true, dryRun, found: files.length, removed, errors, sample: files.slice(0, 5) });
+    })
+  );
+
+  /**
+   * 清理幽灵文件夹：磁盘上已不存在、子树一张图都没有的夹。
+   * 侧栏冒出「另一个库的文件夹」通常就是这类残留，默认 dryRun 先给清单。
+   */
+  app.post(
+    '/api/maintenance/ghost-folders',
+    asyncRoute(async (req, res) => {
+      const dryRun = req.body?.dryRun !== false;
+      const r = pruneGhostFolders({ dryRun });
+      res.json({ ok: true, ...r });
     })
   );
 
@@ -328,12 +406,99 @@ export function register(app, ctx) {
   /** 重新扫描存储目录（补进应用外新增的文件） */
   app.post(
     '/api/maintenance/rescan',
-    asyncRoute(async (_req, res) => {
+    asyncRoute(async (req, res) => {
       if (ctx.importState && ctx.importState().running) {
         return res.json({ ok: false, message: '导入任务正在运行' });
       }
-      const r = await importLocalImages();
+      // dedupe 默认开：同尺寸候选会算 MD5，命中已有素材就跳过（用户可显式传 false）
+      const r = await importLocalImages({ dedupe: req.body?.dedupe !== false });
       res.json({ ok: true, ...r });
     })
   );
+
+  /* ------------------------------ 导入任务状态 ------------------------------ */
+  /* 上次导入干到哪了：中断 / 失败 / 完成都有记录，重启后不再只是「库是半截的」 */
+  app.get('/api/import/job', (_req, res) => {
+    res.json({ ok: true, running: ctx.importState?.().running ?? false, job: readImportJob() });
+  });
+
+  app.post(
+    '/api/import/resume',
+    asyncRoute(async (req, res) => {
+      if (ctx.importState && ctx.importState().running) {
+        return res.json({ ok: false, message: '导入任务正在运行' });
+      }
+      // 续传 = 重跑增量扫描：已登记且指纹未变的文件会被直接跳过，只补没进来的
+      const r = await importLocalImages({ dedupe: req.body?.dedupe !== false });
+      res.json({ ok: true, ...r });
+    })
+  );
+
+  /* ------------------------------ 缩略图队列 ------------------------------ */
+  /* 「失败被伪装成空白卡片」是这个项目里反复出现的坑：这里把队列、失败原因、
+     缺图数量一起暴露出来，面板上能看见、能重试，而不是只会在日志里叹气。 */
+  app.get('/api/thumbs/status', (_req, res) => {
+    const q = thumbQueueStats();
+    res.json({ ok: true, ...q, missing: thumbMissingCount() });
+  });
+
+  app.post('/api/thumbs/retry', (_req, res) => {
+    res.json({ ok: true, ...retryFailedThumbs() });
+  });
+
+  app.post('/api/thumbs/failures/clear', (_req, res) => {
+    clearThumbFailures();
+    res.json({ ok: true });
+  });
+
+  /* ------------------------------ 库健康 ------------------------------ */
+  /* 「唯一索引悄悄没建起来」与「删除留下孤儿关联」都属于用户看不见的坏状态：
+     前者让并发导入能插入重复路径，后者让文件夹张数与封面撒谎。这里一次性暴露出来。 */
+  const countOrphans = () => {
+    const one = (sql) => {
+      try {
+        return Number(db.prepare(sql).get()?.c) || 0;
+      } catch {
+        return -1; // 表还不存在（极老的库）：不算问题，也不假装是 0
+      }
+    };
+    return {
+      folders: one('SELECT COUNT(*) AS c FROM image_folders WHERE image_id NOT IN (SELECT id FROM images)'),
+      comments: one('SELECT COUNT(*) AS c FROM image_comments WHERE image_id NOT IN (SELECT id FROM images)'),
+      clipVec: one('SELECT COUNT(*) AS c FROM clip_vec WHERE image_id NOT IN (SELECT id FROM images)'),
+    };
+  };
+
+  app.get('/api/maintenance/health', (_req, res) => {
+    res.json({
+      ok: true,
+      pathIndex: getPathIndexState(),
+      orphans: countOrphans(),
+      // 结构层「修失败了但还能跑」的问题（如 hue 列迁移不完整），以前完全不可见
+      warnings: getSchemaWarnings(),
+    });
+  });
+
+  /** 重复路径清干净后补建唯一索引（启动时建不上只会告警，不会阻断） */
+  app.post('/api/maintenance/path-index', (_req, res) => {
+    res.json({ ok: true, ...retryPathIndex() });
+  });
+
+  app.post('/api/maintenance/orphans/clean', (_req, res) => {
+    const before = countOrphans();
+    let removed = 0;
+    try {
+      for (const n of Object.values(before)) {
+        if (n > 0) removed += n;
+      }
+      db.exec(`
+        DELETE FROM image_folders  WHERE image_id NOT IN (SELECT id FROM images);
+        DELETE FROM image_comments WHERE image_id NOT IN (SELECT id FROM images);
+        DELETE FROM clip_vec       WHERE image_id NOT IN (SELECT id FROM images);
+      `);
+    } catch (err) {
+      return res.status(500).json({ error: `清理失败：${err.message}` });
+    }
+    res.json({ ok: true, removed, after: countOrphans() });
+  });
 }

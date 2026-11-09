@@ -82,6 +82,37 @@ export default function MaintenanceCard({ onLibraryChanged, onToast }: Props) {
       onLibraryChanged();
     });
 
+  /**
+   * 修正 EXIF 方向：竖拍照片在库里躺倒 90°、卡片按横图裁切。
+   * RAW/设计稿的缩略图由后端在同一个请求里 force 重画（不再转后台补图：
+   * 旧文件在 Windows 上偶尔删不掉，后台会把它当缓存复用，图仍然是躺倒的）。
+   */
+  const fixOrientation = () =>
+    run('orient', async () => {
+      let rotated = 0;
+      let dims = 0;
+      let cleared = 0;
+      let failed = 0;
+      let beforeId = 0;
+      for (let round = 0; round < 80; round++) {
+        const r = await api.maintenanceFixOrientation(300, beforeId);
+        rotated += r.rotated;
+        dims += r.dims;
+        cleared += r.cleared;
+        failed += r.failed;
+        if (!r.nextBeforeId) break;
+        beforeId = r.nextBeforeId;
+      }
+      const failPart = failed ? `，失败 ${failed} 张（文件不在或没有内嵌预览）` : '';
+      onToast(
+        rotated
+          ? `已修正 ${rotated} 张竖拍照片（改宽高 ${dims} 张${cleared ? `，重出缩略图 ${cleared} 张` : ''}${failPart}）`
+          : '没有需要修正方向的照片',
+        failed ? 'error' : 'info'
+      );
+      onLibraryChanged();
+    });
+
   const cleanOrphans = () =>
     run('orphan', async () => {
       const dry = await api.maintenanceOrphanThumbs(true);
@@ -92,6 +123,22 @@ export default function MaintenanceCard({ onLibraryChanged, onToast }: Props) {
       if (!ok) return;
       const r = await api.maintenanceOrphanThumbs(false);
       onToast(`已清理 ${r.removed} 个孤立缩略图`);
+    });
+
+  /** 幽灵文件夹：磁盘已删 / 历史跨库残留，侧栏会显示成「另一个库的文件夹」且张数 0 */
+  const cleanGhostFolders = () =>
+    run('ghost', async () => {
+      const dry = await api.maintenanceGhostFolders(true);
+      if (!dry.candidates.length) return onToast('没有幽灵文件夹');
+      const names = dry.candidates.slice(0, 5).map((c) => c.name).join('、');
+      const more = dry.candidates.length > 5 ? ` 等 ${dry.candidates.length} 个` : '';
+      const ok = await confirmDialog(
+        `发现 ${dry.candidates.length} 个幽灵文件夹（${names}${more}）：磁盘上已不存在，且里面一张图都没有。删除它们？（只删文件夹节点，不动任何素材）`
+      );
+      if (!ok) return;
+      const r = await api.maintenanceGhostFolders(false);
+      onToast(`已删除 ${r.deleted} 个幽灵文件夹`);
+      onLibraryChanged();
     });
 
   const vacuum = () =>
@@ -126,7 +173,10 @@ export default function MaintenanceCard({ onLibraryChanged, onToast }: Props) {
   const relocate = () =>
     run('relocate', async () => {
       const r = await api.relocateMissing();
-      onToast(`找回 ${r.relocated} 张，仍有 ${r.remaining} 张缺失`);
+      const unreadable = r.unreadable || 0;
+      onToast(
+        `找回 ${r.relocated} 张，仍有 ${r.remaining} 张缺失${unreadable ? `；${unreadable} 个文件读不到大小，未参与重关联` : ''}`
+      );
       onLibraryChanged();
     });
 
@@ -183,6 +233,15 @@ export default function MaintenanceCard({ onLibraryChanged, onToast }: Props) {
           {busy === 'thumb' ? '重建中…' : '重建缺失缩略图'}
         </button>
         <button className="btn sm" disabled={!!busy}
+          title={
+            busy
+              ? '有维护任务正在进行，等它结束再点'
+              : '相机竖拍的照片会带 EXIF 方向标记：修好宽高与缩略图，避免卡片把竖图当横图裁掉、RAW 躺倒 90°'
+          }
+          onClick={fixOrientation}>
+          {busy === 'orient' ? '修正中…' : '修正竖拍方向'}
+        </button>
+        <button className="btn sm" disabled={!!busy}
           title={busy ? '有维护任务正在进行，等它结束再点' : undefined} onClick={cleanOrphans}>
           {busy === 'orphan' ? '清理中…' : '清理孤立缩略图'}
         </button>
@@ -197,6 +256,10 @@ export default function MaintenanceCard({ onLibraryChanged, onToast }: Props) {
         <button className="btn sm" disabled={!!busy}
           title={busy ? '有维护任务正在进行，等它结束再点' : undefined} onClick={probeMedia}>
           {busy === 'probe' ? '探测中…' : '补算音视频时长'}
+        </button>
+        <button className="btn sm" disabled={!!busy}
+          title="侧栏里张数为 0、磁盘上已不存在的文件夹（切换资源库后残留的那种）" onClick={cleanGhostFolders}>
+          {busy === 'ghost' ? '清理中…' : '清理幽灵文件夹'}
         </button>
       </div>
 
@@ -309,6 +372,242 @@ export default function MaintenanceCard({ onLibraryChanged, onToast }: Props) {
           </button>
         </div>
       </div>
+      <ImportJobPanel onToast={onToast} />
+      <ThumbQueuePanel onToast={onToast} />
+      <HealthPanel onToast={onToast} />
     </Card>
+  );
+}
+
+/**
+ * 上次导入干了什么：中断 / 失败 / 完成都有记录。
+ * 「接着导」靠的是增量扫描：已登记且指纹未变的文件直接跳过，所以重跑即续传。
+ */
+function ImportJobPanel({ onToast }: { onToast: (msg: string, kind?: 'info' | 'error') => void }) {
+  const [job, setJob] = useState<Awaited<ReturnType<typeof api.importJob>> | null>(null);
+  const [busy, setBusy] = useState(false);
+
+  const load = useCallback(() => {
+    api.importJob().then(setJob).catch(quiet);
+  }, []);
+  useEffect(() => {
+    load();
+  }, [load]);
+
+  const j = job?.job;
+  if (!j) return null;
+  const label: Record<string, string> = {
+    running: '正在导入',
+    interrupted: '上次导入被中断',
+    done: '上次导入已完成',
+    cancelled: '上次导入已取消',
+    failed: '上次导入失败',
+  };
+  const canResume = j.status === 'interrupted' || j.status === 'failed';
+
+  const resume = async () => {
+    setBusy(true);
+    try {
+      const r = await api.resumeImport();
+      onToast(`继续导入完成：本次新增 ${r.saved ?? 0} 张`);
+      load();
+    } catch (e) {
+      onToast(`继续导入失败：${(e as Error).message}`, 'error');
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <div style={{ marginTop: 18, borderTop: '1px solid var(--line)', paddingTop: 14 }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
+        <b style={{ fontSize: 13 }}>{label[j.status] || '导入记录'}</b>
+        <span className="hint" style={{ flex: 1, minWidth: 200 }}>
+          已保存 {j.saved ?? 0} 张 · 跳过重复 {j.duplicate ?? 0} · 失败 {j.errors ?? 0}
+          {j.syncConflicts ? ` · 同步冲突副本 ${j.syncConflicts}` : ''}
+          {j.startedAt ? ` · ${new Date(j.startedAt).toLocaleString()}` : ''}
+        </span>
+        {canResume && (
+          <button className="btn sm" disabled={busy} onClick={() => void resume()}>
+            {busy ? '继续中…' : '继续导入（只补没进来的）'}
+          </button>
+        )}
+      </div>
+      {j.error && <div className="danger small" style={{ marginTop: 6 }}>{j.error}</div>}
+    </div>
+  );
+}
+
+/**
+ * 缩略图队列：看得见「还在跑几张、哪些失败了、为什么」。
+ * 之前失败只进日志，用户看到的就是一直转圈 —— 典型的「把失败伪装成空」。
+ */
+function HealthPanel({ onToast }: { onToast: (msg: string, kind?: 'info' | 'error') => void }) {
+  const [h, setH] = useState<Awaited<ReturnType<typeof api.libraryHealth>> | null>(null);
+  const [busy, setBusy] = useState('');
+
+  const load = useCallback(() => {
+    api.libraryHealth().then(setH).catch(quiet);
+  }, []);
+  useEffect(() => {
+    load();
+  }, [load]);
+
+  const rebuild = async () => {
+    setBusy('index');
+    try {
+      const r = await api.rebuildPathIndex();
+      onToast(r.ok ? '路径唯一索引已建立' : `仍有 ${r.duplicates} 组重复路径，先去「整理 → 重复」清理`);
+      load();
+    } catch (e) {
+      onToast(`重建失败：${(e as Error).message}`, 'error');
+    } finally {
+      setBusy('');
+    }
+  };
+
+  const clean = async () => {
+    setBusy('orphans');
+    try {
+      const r = await api.cleanOrphans();
+      onToast(r.removed ? `已清理 ${r.removed} 条孤儿关联` : '没有需要清理的孤儿关联');
+      load();
+    } catch (e) {
+      onToast(`清理失败：${(e as Error).message}`, 'error');
+    } finally {
+      setBusy('');
+    }
+  };
+
+  if (!h) return null;
+  const orphans = h.orphans;
+  const orphanTotal = [orphans.folders, orphans.comments, orphans.clipVec].reduce((s, n) => s + Math.max(0, n), 0);
+
+  return (
+    <div style={{ marginTop: 18, borderTop: '1px solid var(--line)', paddingTop: 14 }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 8, flexWrap: 'wrap' }}>
+        <b style={{ fontSize: 13 }}>库健康</b>
+        <span className="hint" style={{ flex: 1 }}>
+          {h.pathIndex.ok
+            ? '素材路径唯一索引：已建立'
+            : `素材路径唯一索引：缺失（${h.pathIndex.duplicates} 组重复路径），并发导入可能写入重复记录`}
+        </span>
+        {!h.pathIndex.ok && (
+          <button className="btn sm" disabled={!!busy} onClick={() => void rebuild()}>
+            {busy === 'index' ? '重建中…' : '重建索引'}
+          </button>
+        )}
+      </div>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
+        <span className="hint" style={{ flex: 1 }}>
+          孤儿关联：文件夹 {orphans.folders} · 评论 {orphans.comments} · 向量 {orphans.clipVec}
+          {orphanTotal === 0 ? '（正常）' : '（会让人物 / 文件夹计数虚高，建议清理）'}
+        </span>
+        {orphanTotal > 0 && (
+          <button className="btn sm" disabled={!!busy} onClick={() => void clean()}>
+            {busy === 'orphans' ? '清理中…' : '清理孤儿关联'}
+          </button>
+        )}
+      </div>
+      {!!h.warnings?.length && (
+        <ul style={{ margin: '8px 0 0', paddingLeft: 18, color: 'var(--warn)', fontSize: 12.5 }}>
+          {h.warnings.map((w) => (
+            <li key={w}>{w}</li>
+          ))}
+        </ul>
+      )}
+    </div>
+  );
+}
+
+function ThumbQueuePanel({ onToast }: { onToast: (msg: string, kind?: 'info' | 'error') => void }) {
+  const [st, setSt] = useState<{
+    pending: number;
+    running: number;
+    failed: number;
+    missing: number;
+    lastError: string;
+    failures: { id: number; reason: string; at: string }[];
+  } | null>(null);
+  const [busy, setBusy] = useState('');
+
+  const load = useCallback(() => {
+    api
+      .thumbQueueStatus()
+      .then(setSt)
+      .catch(quiet);
+  }, []);
+
+  useEffect(() => {
+    load();
+    // 队列是后台在推进的，5 秒刷一次即可；页面不可见时不刷
+    const t = setInterval(() => {
+      if (document.visibilityState === 'visible') load();
+    }, 5000);
+    return () => clearInterval(t);
+  }, [load]);
+
+  const retry = async () => {
+    setBusy('retry');
+    try {
+      const r = await api.retryThumbs();
+      onToast(r.queued ? `已重新排队 ${r.queued} 张` : '没有可重试的失败项');
+      load();
+    } catch (e) {
+      onToast(`重试失败：${(e as Error).message}`, 'error');
+    } finally {
+      setBusy('');
+    }
+  };
+
+  // 失败明细是「排查用」的，批量重试也救不回的（文件已删之类）会一直留着；
+  // 提供清空入口，避免列表越堆越长、还让用户误以为还有东西没处理。
+  const clearFailures = async () => {
+    setBusy('clear');
+    try {
+      await api.clearThumbFailures();
+      onToast('已清空失败明细');
+      load();
+    } catch (e) {
+      onToast(`清空失败：${(e as Error).message}`, 'error');
+    } finally {
+      setBusy('');
+    }
+  };
+
+  if (!st) return null;
+  return (
+    <div style={{ marginTop: 18, borderTop: '1px solid var(--line)', paddingTop: 14 }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 8 }}>
+        <b style={{ fontSize: 13 }}>缩略图队列</b>
+        <span className="hint" style={{ flex: 1 }}>
+          待生成 {st.pending} · 生成中 {st.running} · 累计失败 {st.failed} · 库里缺图 {st.missing}
+        </span>
+        <button className="btn sm" disabled={!!busy || !st.failures.length} onClick={() => void retry()}>
+          {busy === 'retry' ? '排队中…' : '重试失败项'}
+        </button>
+        <button
+          className="btn sm ghost"
+          disabled={!!busy || !st.failures.length}
+          onClick={() => void clearFailures()}
+          title="清空失败明细（重试仍失败的条目）"
+        >
+          {busy === 'clear' ? '清空中…' : '清空明细'}
+        </button>
+      </div>
+      {st.failures.length === 0 ? (
+        <div className="hint">没有失败记录。缺图 {st.missing} 张会在后台按顺序补，不需要手动干预。</div>
+      ) : (
+        <div style={{ maxHeight: 180, overflow: 'auto', fontSize: 12.2 }}>
+          {st.failures.slice(0, 20).map((f) => (
+            <div key={f.id} style={{ display: 'flex', gap: 8, padding: '3px 0' }}>
+              <span style={{ color: 'var(--muted)', minWidth: 54 }}>#{f.id}</span>
+              <span style={{ flex: 1 }}>{f.reason}</span>
+            </div>
+          ))}
+          {st.failures.length > 20 && <div className="hint">还有 {st.failures.length - 20} 条…</div>}
+        </div>
+      )}
+    </div>
   );
 }

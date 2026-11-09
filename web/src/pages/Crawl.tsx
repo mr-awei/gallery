@@ -426,6 +426,14 @@ export default function Crawl({ onToast }: { onToast: (msg: string, kind?: 'info
             </div>
           </div>
 
+          {!!stats?.clipCheckFailed && (
+            <div style={{ marginTop: 8, fontSize: 12, color: 'var(--warn)' }}>
+              注意：本次有 {stats.clipCheckFailed} 张图的向量查重没跑成
+              {stats.clipCheckError ? `（${stats.clipCheckError}）` : ''}，只做了 pHash 查重 ——
+              这些图可能与库里已有素材重复。
+            </div>
+          )}
+
           <div style={{ display: 'flex', gap: 6, margin: '12px 0 8px' }}>
             <button className={`chip${tab === 'log' ? ' active' : ''}`} onClick={() => setTab('log')}>
               实时日志

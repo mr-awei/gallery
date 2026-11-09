@@ -17,6 +17,15 @@ export const IconHeart = ({ filled }: { filled?: boolean }) => (
   </svg>
 );
 
+/** 人物：一个人头 + 肩线（与 Eagle 的「人物」入口视觉一致） */
+export const IconUsers = () => (
+  <svg {...base}>
+    <circle cx="10" cy="8" r="3.4" />
+    <path d="M3.6 20c.5-3.4 3.2-5.4 6.4-5.4s5.9 2 6.4 5.4" />
+    <path d="M17.4 5.6a3 3 0 0 1 0 5.6M19.6 14.9c1.6.7 2.6 2 2.9 3.9" />
+  </svg>
+);
+
 export const IconDownload = () => (
   <svg {...base}>
     <path d="M12 3v12m0 0 4-4m-4 4-4-4M4 17v2a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-2" />

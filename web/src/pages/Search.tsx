@@ -68,28 +68,28 @@ export default function Search({ onToast, onOpenItem }: Props) {
     runSearch(async () => {
       const q = query.trim();
       if (!q) return onToast('请输入想找的图，例如「白底人像」「暖色调的日落海边」');
-      let r = await api.semanticSearch(q, 60);
+      let r = await api.hybridSearch(q, 60);
       // 文本塔首次加载要下载 ~85MB：后端会先回 loading，这里等它，最多等约 25 秒
       let tries = 0;
       while (r.engine === 'loading' && tries < 10) {
         tries++;
         setEngineNote(`正在加载本地语义模型（首次约 85MB）… ${tries}/10`);
         await new Promise((res) => setTimeout(res, 2500));
-        r = await api.semanticSearch(q, 60);
+        r = await api.hybridSearch(q, 60);
       }
       setItems(r.items);
       setTotal(r.total);
       const cov = r.covered?.total ? `，已建模 ${r.covered.indexed}/${r.covered.total} 张` : '';
       setEngineNote(
-        r.engine === 'clip'
-          ? `匹配方式：本地 CLIP 语义检索（理解画面内容，不靠标题/标签）${cov}`
+        r.engine === 'hybrid'
+          ? `匹配方式：混合检索（关键词 + 本地 CLIP 语义，按名次融合）${cov}`
           : r.engine === 'loading'
             ? '语义模型仍在加载，稍等几秒再点一次「搜索」'
             : r.degraded
-              ? `语义检索不可用，已退回关键词/抽词（${r.reason || '原因未知'}）`
+              ? `语义侧不可用，当前只按关键词匹配（${r.reason || '原因未知'}）`
               : `按关键词「${q}」匹配标题 / 标签 / 采集词 / AI 描述（不是语义理解）`
       );
-      if (!r.items.length && r.engine === 'clip') onToast('没有足够相似的图（换个说法，或等向量索引建完）');
+      if (!r.items.length) onToast('没有找到匹配的图（换个说法，或等向量索引建完）');
     });
 
   const byImage = (file: File) =>

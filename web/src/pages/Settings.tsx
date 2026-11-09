@@ -18,10 +18,12 @@ import {
   IconWallpaper,
 } from '../components/Icons';
 import Card from './settings/Card';
+import Select from '../components/Select';
+import { useLang } from '../lib/i18n';
+import ApiPlaygroundCard from './settings/ApiPlaygroundCard';
 import AliasCard from './settings/AliasCard';
 import ShortcutSection from './settings/ShortcutSection';
 import WatchCard from './settings/WatchCard';
-import Select from '../components/Select';
 import EnhanceSection from './settings/EnhanceSection';
 import WallpaperSection from './settings/WallpaperSection';
 import RecycleBinCard from './settings/RecycleBinCard';
@@ -40,55 +42,176 @@ import { useSettingsForm, type SectionKey } from './settings/useSettingsForm';
 import ImportNameTemplateCard from './settings/ImportNameTemplateCard';
 import PluginMarket from './settings/PluginMarket';
 
-type SectionMeta = { key: SectionKey; label: string; desc: string; icon: React.ReactNode };
+/** 分区标题双语内联：与 lib/i18n 同一套做法，不为 13 个标题另建词典 */
+type SectionMeta = {
+  key: SectionKey;
+  label: string;
+  labelEn: string;
+  desc: string;
+  descEn: string;
+  icon: React.ReactNode;
+};
 
 /**
  * 侧栏按「使用顺序」分组，不再 14 项平铺：先搞清楚存哪里，再管素材，
  * 然后才是由采集衍生出来的智能、桌面、外部连接，最后是运行状态。
  */
-const NAV_GROUPS: { label: string; items: SectionMeta[] }[] = [
+const NAV_GROUPS: { label: string; labelEn: string; items: SectionMeta[] }[] = [
   {
     label: '开始使用',
+    labelEn: 'Getting started',
     items: [
-      { key: 'general', label: '通用', desc: '图片保存位置、删除行为与编辑偏好', icon: <IconFolder /> },
-      { key: 'guide', label: '教程', desc: '分步导览、可搜索说明与常用入口', icon: <IconGrid /> },
+      {
+        key: 'general',
+        label: '通用',
+        labelEn: 'General',
+        desc: '图片保存位置、删除行为与编辑偏好',
+        descEn: 'Where images are stored, delete behaviour and edit preferences',
+        icon: <IconFolder />,
+      },
+      {
+        key: 'guide',
+        label: '教程',
+        labelEn: 'Tutorials',
+        desc: '分步导览、可搜索说明与常用入口',
+        descEn: 'Guided tour, searchable docs and entry points',
+        icon: <IconGrid />,
+      },
     ],
   },
   {
     label: '素材与整理',
+    labelEn: 'Media & organization',
     items: [
-      { key: 'crawl', label: '采集', desc: '采集源、关键词与质量过滤', icon: <IconSpider /> },
-      { key: 'tags', label: '标签与别名', desc: '同义词只影响搜索，不改图片标签', icon: <IconLayers /> },
-      { key: 'data', label: '数据与维护', desc: '本地导入、备份恢复与回收站', icon: <IconImages /> },
+      {
+        key: 'crawl',
+        label: '采集',
+        labelEn: 'Crawl',
+        desc: '采集源、关键词与质量过滤',
+        descEn: 'Sources, keywords and quality filters',
+        icon: <IconSpider />,
+      },
+      {
+        key: 'tags',
+        label: '标签与别名',
+        labelEn: 'Tags & aliases',
+        desc: '同义词只影响搜索，不改图片标签',
+        descEn: 'Synonyms affect search only, never the image tags',
+        icon: <IconLayers />,
+      },
+      {
+        key: 'data',
+        label: '数据与维护',
+        labelEn: 'Data & maintenance',
+        desc: '本地导入、备份恢复与回收站',
+        descEn: 'Local import, backup / restore and trash',
+        icon: <IconImages />,
+      },
     ],
   },
   {
     label: '智能与画质',
+    labelEn: 'AI & image quality',
     items: [
-      { key: 'ai', label: 'AI 接入', desc: '智能评分与知识库的大模型配置', icon: <IconBrain /> },
-      { key: 'enhance', label: '画质增强', desc: '目标标准、增强模型与线上服务', icon: <IconWand /> },
+      {
+        key: 'ai',
+        label: 'AI 接入',
+        labelEn: 'AI providers',
+        desc: '智能评分与知识库的大模型配置',
+        descEn: 'Model settings for scoring and the knowledge base',
+        icon: <IconBrain />,
+      },
+      {
+        key: 'enhance',
+        label: '画质增强',
+        labelEn: 'Enhance',
+        desc: '目标标准、增强模型与线上服务',
+        descEn: 'Target presets, upscale models and cloud services',
+        icon: <IconWand />,
+      },
     ],
   },
   {
     label: '桌面与操作',
+    labelEn: 'Desktop & controls',
     items: [
-      { key: 'wallpaper', label: '壁纸', desc: '设壁纸的填充方式与定时自动切换', icon: <IconWallpaper /> },
-      { key: 'shortcut', label: '快捷键', desc: '自定义主窗口的全局键位', icon: <IconGear /> },
+      {
+        key: 'wallpaper',
+        label: '壁纸',
+        labelEn: 'Wallpaper',
+        desc: '设壁纸的填充方式与定时自动切换',
+        descEn: 'Fill mode and scheduled rotation',
+        icon: <IconWallpaper />,
+      },
+      {
+        key: 'shortcut',
+        label: '快捷键',
+        labelEn: 'Shortcuts',
+        desc: '自定义主窗口的全局键位',
+        descEn: 'Customise global hotkeys for the main window',
+        icon: <IconGear />,
+      },
     ],
   },
   {
     label: '连接与扩展',
+    labelEn: 'Connections & extensions',
     items: [
-      { key: 'network', label: '网络', desc: '代理设置，对采集、下载、AI 生效', icon: <IconGlobe /> },
-      { key: 'extension', label: '浏览器扩展', desc: '在哪里、怎么装、怎么用', icon: <IconLink /> },
-      { key: 'plugins', label: '插件', desc: '脚本宿主与已安装插件', icon: <IconWand /> },
-      { key: 'market', label: '插件市场', desc: '浏览权限声明、一键安装与在线安装', icon: <IconLink /> },
-      { key: 'lan', label: '手机投送', desc: '同一 Wi-Fi 扫码上传与只读分享', icon: <IconGlobe /> },
+      {
+        key: 'network',
+        label: '网络',
+        labelEn: 'Network',
+        desc: '代理设置，对采集、下载、AI 生效',
+        descEn: 'Proxy used by crawling, downloads and AI',
+        icon: <IconGlobe />,
+      },
+      {
+        key: 'extension',
+        label: '浏览器扩展',
+        labelEn: 'Browser extension',
+        desc: '在哪里、怎么装、怎么用',
+        descEn: 'Where to install it and how to use it',
+        icon: <IconLink />,
+      },
+      {
+        key: 'plugins',
+        label: '插件',
+        labelEn: 'Plugins',
+        desc: '脚本宿主与已安装插件',
+        descEn: 'Script host and installed plugins',
+        icon: <IconWand />,
+      },
+      {
+        key: 'market',
+        label: '插件市场',
+        labelEn: 'Plugin market',
+        desc: '浏览权限声明、一键安装与在线安装',
+        descEn: 'Review permissions, one-click and online install',
+        icon: <IconLink />,
+      },
+      {
+        key: 'lan',
+        label: '手机投送',
+        labelEn: 'Send to phone',
+        desc: '同一 Wi-Fi 扫码上传与只读分享',
+        descEn: 'Same-Wi-Fi upload and read-only sharing',
+        icon: <IconGlobe />,
+      },
     ],
   },
   {
     label: '运行状态',
-    items: [{ key: 'tasks', label: '任务与撤销', desc: '后台任务历史与操作回滚', icon: <IconRotateCcw /> }],
+    labelEn: 'Runtime',
+    items: [
+      {
+        key: 'tasks',
+        label: '任务与撤销',
+        labelEn: 'Tasks & undo',
+        desc: '后台任务历史与操作回滚',
+        descEn: 'Background job history and rollback',
+        icon: <IconRotateCcw />,
+      },
+    ],
   },
 ];
 
@@ -111,6 +234,7 @@ export default function Settings({
 }) {
   // 状态、加载与全部写操作都在 useSettingsForm 里；这里只解构渲染真正用到的字段。
   const form = useSettingsForm({ onToast, onLibraryChanged });
+  const { lang, setLang } = useLang();
   const {
     section, setSection, settings, dirty, save, patch, setDirty,
     keywords, newKw, setNewKw, wbLogin, sourceList,
@@ -128,16 +252,25 @@ export default function Settings({
   }
 
   const current = SECTIONS.find((s) => s.key === section) ?? SECTIONS[0];
+  // 双语取词：英文名缺失时回退中文，不显示空标签
+  const L = (zh: string, en: string) => (lang === 'en' && en ? en : zh);
 
   return (
     <div>
       <div className="page-head">
         <div>
-          <h1 className="page-title">设置</h1>
-          <div className="page-sub">按用途分组，左侧切换分类，改完点右上角保存</div>
+          <h1 className="page-title">{L('设置', 'Settings')}</h1>
+          <div className="page-sub">
+            {L('按用途分组，左侧切换分类，改完点右上角保存', 'Grouped by purpose — pick a section on the left, then save at the top right')}
+          </div>
           <div className="settings-scope">
-            <span><b>按资源库独立</b> 采集源 / AI 评分 / 壁纸 / 删除策略 / 保存位置</span>
-            <span><b>跨库共享</b> 微博 Cookie / AI 接入 / 网络代理</span>
+            <span>
+              <b>{L('按资源库独立', 'Per library')}</b>{' '}
+              {L('采集源 / AI 评分 / 壁纸 / 删除策略 / 保存位置', 'sources · AI scoring · wallpaper · delete policy · storage location')}
+            </span>
+            <span>
+              <b>{L('跨库共享', 'Shared across libraries')}</b> <span>{L('微博 Cookie / AI 接入 / 网络代理', 'Weibo cookie · AI providers · proxy')}</span>
+            </span>
           </div>
         </div>
         <button
@@ -146,25 +279,26 @@ export default function Settings({
           title={dirty ? '有未保存的改动' : '当前没有需要保存的改动'}
           style={dirty ? { boxShadow: '0 0 0 2px rgba(255,77,141,.35)' } : undefined}
         >
-          保存设置{dirty ? ' ●' : ''}
+          {L('保存设置', 'Save')}
+          {dirty ? ' ●' : ''}
         </button>
       </div>
 
       <div className="settings-shell">
-        <nav className="settings-nav" aria-label="设置分类">
-          <div className="nav-label">设置分类</div>
+        <nav className="settings-nav" aria-label={L('设置分类', 'Settings sections')}>
+          <div className="nav-label">{L('设置分类', 'Sections')}</div>
           {NAV_GROUPS.map((g) => (
             <div className="nav-group" key={g.label}>
-              <div className="nav-group-title">{g.label}</div>
+              <div className="nav-group-title">{L(g.label, g.labelEn)}</div>
               {g.items.map((s) => (
                 <button
                   key={s.key}
                   className={section === s.key ? 'active' : ''}
                   onClick={() => setSection(s.key)}
-                  title={s.desc}
+                  title={L(s.desc, s.descEn)}
                 >
                   {s.icon}
-                  <span>{s.label}</span>
+                  <span>{L(s.label, s.labelEn)}</span>
                 </button>
               ))}
             </div>
@@ -175,8 +309,8 @@ export default function Settings({
           <div className="settings-panel-head">
             <span className="settings-panel-icon">{current.icon}</span>
             <div className="settings-panel-head-text">
-              <h2>{current.label}</h2>
-              <p>{current.desc}</p>
+              <h2>{L(current.label, current.labelEn)}</h2>
+              <p>{L(current.desc, current.descEn)}</p>
             </div>
             {dirty && <span className="settings-badge">有未保存的改动</span>}
           </div>
@@ -184,6 +318,23 @@ export default function Settings({
           {/* ------------------------------ 通用 ------------------------------ */}
           {section === 'general' && (
             <Card title="通用" desc="决定素材落在哪里、删除时怎么处理，以及编辑与评分偏好。">
+              <div className="settings-subhead">界面语言</div>
+              <div className="field">
+                <label>Language</label>
+                <Select
+                  className="select"
+                  style={{ width: '100%' }}
+                  value={lang}
+                  onChange={(v) => setLang(v as 'zh' | 'en')}
+                >
+                  <option value="zh">简体中文</option>
+                  <option value="en">English（部分覆盖）</option>
+                </Select>
+                <div className="hint" style={{ marginTop: 6 }}>
+                  覆盖范围：侧栏与顶栏、设置页全部分区标题、人物页、常用按钮与空状态。对话框正文、教程与长文档仍是中文 ——
+                  不做「假装已英文化」。
+                </div>
+              </div>
               <div className="settings-subhead">存储与删除</div>
               <div className="field">
                 <label>图片保存文件夹</label>
@@ -395,7 +546,12 @@ export default function Settings({
           {section === 'network' && <NetworkSection form={form} onToast={onToast} />}
 
           {/* --------------------------- 浏览器扩展 --------------------------- */}
-          {section === 'extension' && <ExtensionSection onToast={onToast} />}
+          {section === 'extension' && (
+            <>
+              <ExtensionSection onToast={onToast} />
+              <ApiPlaygroundCard onToast={onToast} />
+            </>
+          )}
 
           {/* ------------------------------ 插件 ------------------------------ */}
           {section === 'plugins' && <PluginSection onToast={onToast} onOpenMarket={() => setSection('market')} />}
