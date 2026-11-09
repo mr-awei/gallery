@@ -1,9 +1,13 @@
 {
   "_note": "随包可信哈希清单（只读资源，打包进 asar）。models 的键是 HuggingFace 仓库内路径，zips 的键是 release 下载 URL。用 npm run pin-models -- <已核对的本地文件> <键> 固化；提交前必须核对官方发布来源。运行时可用 TUKU_MODEL_SHA256_FILE 指向同结构 JSON 覆盖。",
-  "_source": "现有条目取自官方仓库 Xenova/clip-vit-base-patch32 的 q8 ONNX 权重：由 transformers.js 下载到本机模型缓存后按字节固化，随代码提交。发布前请用官方源重新下载比对，再执行 npm run pin-models 更新。清单在打包后不可修改；CLIP 加载前会核对缓存文件，替换权重会直接报错。zips 为空是因为两个 Real-ESRGAN/Real-CUGAN release 官方未提供 digest，发布前需自行核对后固化。",
+  "_source": "models：CLIP 两条取自官方仓库 Xenova/clip-vit-base-patch32 的 q8 ONNX 权重（transformers.js 下载到本机缓存后按字节固化）；sunseeker001/U-2-Net-Human-Seg 的 onnx/model.onnx 于 2026-11-09 经 hf-mirror resolve 下载两次，哈希稳定且与 302 响应头 X-Linked-Etag 一致（注意该响应头在跟随重定向后显示的是 Xet CAS id，不是内容 sha256，核对时必须看未跟随重定向的那一跳）。zips：两个 release 官方都不提供 digest，于 2026-11-09 从上面记录的官方 release URL 直接下载、校验包内目录结构（Real-ESRGAN 含 models/*.param|bin，Real-CUGAN 含 models-pro/models-nose）后固化，替换渠道镜像不会改这份清单。发布前请用官方源重新下载比对，再执行 npm run pin-models 更新。清单在打包后不可修改，加载/安装前都会核对，权重被替换会直接报错。",
   "models": {
     "Xenova/clip-vit-base-patch32/onnx/vision_model_quantized.onnx": "583fd1110a514667812fee7d684952aaf82a99b959760c8d7dca7e0ab9839299",
-    "Xenova/clip-vit-base-patch32/onnx/text_model_quantized.onnx": "73baab855d406190da9faa498cfedf65f15cf309f4cc7385b7b032e6d08e5c3a"
+    "Xenova/clip-vit-base-patch32/onnx/text_model_quantized.onnx": "73baab855d406190da9faa498cfedf65f15cf309f4cc7385b7b032e6d08e5c3a",
+    "sunseeker001/U-2-Net-Human-Seg/onnx/model.onnx": "309c8469258dda742793dce0ebea8e6dd393174f89934733ecc8b14c76f4ddd8"
   },
-  "zips": {}
+  "zips": {
+    "https://github.com/xinntao/Real-ESRGAN/releases/download/v0.2.5.0/realesrgan-ncnn-vulkan-20220424-windows.zip": "abc02804e17982a3be33675e4d471e91ea374e65b70167abc09e31acb412802d",
+    "https://github.com/nihui/realcugan-ncnn-vulkan/releases/download/20220728/realcugan-ncnn-vulkan-20220728-windows.zip": "c6e08d46c11704b1e3a1ada9ddd591cb5005f52f132136c8633ba25def400e01"
+  }
 }

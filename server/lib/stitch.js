@@ -1,3 +1,4 @@
+// @ts-check
 // 图片拼接 / 联系表（contact sheet）
 //
 // 对齐 Eagle 4 Build 21 的「拼接工具」：N 张图按固定列数排成一张对照图，
@@ -16,7 +17,7 @@ function parseColor(input) {
 }
 
 /**
- * @param {{ids:number[], columns?:number, gap?:number, bg?:string, cell?:number, format?:string, quality?:number}} opts
+ * @param {{ids?:number[], columns?:number, gap?:number, bg?:string, cell?:number, format?:string, quality?:number}} opts
  */
 export async function buildStitch(opts = {}) {
   const ids = (Array.isArray(opts.ids) ? opts.ids : [])

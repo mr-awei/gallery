@@ -48,6 +48,21 @@ import {
   IconWand,
 } from './Icons';
 
+/**
+ * 灯箱底部缩略图条的一格。
+ * 以前只给 image/gif 渲染 <img>：RAW / 设计稿明明有内嵌 JPEG 缩略图，却整条只显示 📄。
+ * 现在「有画面」的类型都加载缩略图；后端还没生成时带 retry=1 补一次，
+ * 两次都失败才回退文件图标，避免 404 破图。
+ */
+function LbThumb({ item, fallback }: { item: ImageItem; fallback: React.ReactNode }) {
+  const [stage, setStage] = useState(0);
+  if (stage >= 2) return <>{fallback}</>;
+  const sep = item.thumbUrl.includes('?') ? '&' : '?';
+  const src = stage
+    ? `${BASE}${item.thumbUrl}${sep}retry=1&grt=${item.id}`
+    : `${BASE}${item.thumbUrl}`;
+  return <img src={src} alt="" loading="lazy" draggable={false} onError={() => setStage((s) => s + 1)} />;
+}
 
 interface Props {
   items: ImageItem[];
@@ -341,7 +356,8 @@ export default function Lightbox({
     for (const it of [items[index + 1], items[index - 1]]) {
       if (!it) continue;
       const kind = it.mediaKind || 'image';
-      if (kind !== 'image' && kind !== 'gif') continue;
+      // RAW / 设计稿的预览图同样来自内嵌 JPEG，翻页前一起预取，换过去立刻有画面
+      if (!['image', 'gif', 'raw', 'design'].includes(kind)) continue;
       const thumb = new Image();
       thumb.src = BASE + (it.thumbUrl || it.url);
       preloaded.push(thumb);
@@ -1489,23 +1505,34 @@ export default function Lightbox({
             el.scrollLeft += e.deltaMode === 1 ? raw * 40 : raw;
           }}
         >
-          {strip.map((it, i) => (
-            <button
-              key={it.id}
-              data-thumb={it.id}
-              className={`lb-thumb${from + i === index ? ' on' : ''}`}
-              title={it.title}
-              onClick={() => onIndex(from + i)}
-            >
-              {it.mediaKind && it.mediaKind !== 'image' && it.mediaKind !== 'gif' && !(it.coverTs > 0) ? (
-                <span className="lb-thumb-glyph">
-                  {it.mediaKind === 'video' ? '🎬' : it.mediaKind === 'audio' ? '🎵' : it.mediaKind === 'font' ? 'Aa' : '📄'}
-                </span>
-              ) : (
-                <img src={it.thumbUrl} alt="" loading="lazy" draggable={false} />
-              )}
-            </button>
-          ))}
+          {strip.map((it, i) => {
+            const kind = it.mediaKind || 'image';
+            const glyph =
+              kind === 'video' ? '🎬' : kind === 'audio' ? '🎵' : kind === 'font' ? 'Aa' : '📄';
+            // RAW / 设计稿 / 书签都有真实缩略图；视频取过封面帧（coverTs）同样有画面
+            const hasBitmap =
+              kind === 'image' ||
+              kind === 'gif' ||
+              kind === 'raw' ||
+              kind === 'design' ||
+              kind === 'bookmark' ||
+              it.coverTs > 0;
+            return (
+              <button
+                key={it.id}
+                data-thumb={it.id}
+                className={`lb-thumb${from + i === index ? ' on' : ''}`}
+                title={it.title}
+                onClick={() => onIndex(from + i)}
+              >
+                {hasBitmap ? (
+                  <LbThumb item={it} fallback={<span className="lb-thumb-glyph">{glyph}</span>} />
+                ) : (
+                  <span className="lb-thumb-glyph">{glyph}</span>
+                )}
+              </button>
+            );
+          })}
           {to - from < items.length && (
             <span className="lb-thumb-more" title={`共 ${items.length} 张，左右滚动切换到的缩略图会随之更新`}>
               共 {items.length} 张

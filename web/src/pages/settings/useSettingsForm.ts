@@ -31,6 +31,7 @@ export type SectionKey =
   | 'shortcut'
   | 'enhance'
   | 'plugins'
+  | 'market'
   | 'lan'
   | 'tasks';
 
@@ -193,7 +194,7 @@ export function useSettingsForm({
     try {
       const saved = await api.saveSettings({ tourDone: done });
       setSettings((s) => (s ? { ...s, ...saved } : s));
-      onToast(done ? '已关闭自动提醒：可以在本页随时重新播放' : '已重置：下次启动时会自动弹出新手教程');
+      onToast(done ? '已关闭自动提醒：可以在本页随时重新播放' : '已重置：下次启动时会自动弹出教程');
     } catch (err) {
       onToast(`保存失败：${(err as Error).message}`, 'error');
     }

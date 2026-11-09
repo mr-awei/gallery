@@ -1,3 +1,4 @@
+// @ts-check
 // 画质增强：内置模型清单、标准档位判定、本地/AI 超分调用、线上增强服务与连通性测试（从 library.js 拆出）
 import fs from 'node:fs';
 import fsp from 'node:fs/promises';
@@ -156,7 +157,8 @@ async function enhanceImageInner(id, modelId, opts = {}) {
 
   const newW = Math.round(curW * scale);
   const newH = Math.round(curH * scale);
-  let pipeline = sharp(row.abs_path, { failOn: 'none' }).resize(newW, newH, { kernel: model.kernel });
+  const kernel = /** @type {keyof import('sharp').KernelEnum} */ (String(model.kernel || 'lanczos3'));
+  let pipeline = sharp(row.abs_path, { failOn: 'none' }).resize(newW, newH, { kernel });
   if (model.sharpen) pipeline = pipeline.sharpen({ sigma: model.sharpen, m1: 0.5, m2: 0.2 });
   if (model.blur) pipeline = pipeline.blur(model.blur);
   if (format === 'png') pipeline = pipeline.png();
@@ -228,7 +230,10 @@ function isNoisyImage(row, curW, curH) {
   return bpp < 0.3; // 典型高质量 JPEG 约 0.5~1.5 B/像素
 }
 
-/** 单次超分：返回 { outPath, isTemp } */
+/**
+ * 单次超分：返回 { outPath, isTemp }。denoise / conservative 只有 Real-CUGAN 引擎才用。
+ * @param {{engine?:string, name?:string, scale?:number, denoise?:number, conservative?:boolean}} spec
+ */
 async function runOneStage({ engine, name, scale, denoise, conservative }, inputPath, curW, curH, onProgress) {
   const tmpOut = `${inputPath}.stage-${engine}.png`;
   const tile = curW * curH > 1_500_000 ? 256 : 0;
@@ -403,6 +408,7 @@ function buildMultipart(parts, file) {
 async function callRemoteService(service, buf, mime) {
   if (!service?.uploadUrl) throw new Error('未配置上传地址');
 
+  /** @type {Record<string,string>} */
   const headers = {};
   if (service.apiKey) headers.Authorization = `Bearer ${service.apiKey}`;
   for (const h of service.headers || []) {

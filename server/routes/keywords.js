@@ -1,3 +1,4 @@
+// @ts-check
 // 关键词 / 设置 / 图库文件夹与多资源库路由（从 app.js 拆出）
 import { applyProxy } from '../network.js';
 import { CRAWL_LIMITS, SOURCES, getJobStatus, startCrawl, stopCrawl } from '../crawler.js';
@@ -37,6 +38,7 @@ import {
 } from '../libraries.js';
 import { watchStorageDir } from '../importer.js';
 import { autoMergeLegacy, refreshMergedRows } from '../lib/legacy-db.js';
+import { NAME_TEMPLATE_PRESETS, NAME_TEMPLATE_TOKENS, previewNameTemplate } from '../lib/name-template.js';
 import { logOp } from '../oplog.js';
 import { db, getSettings, saveSettings, listKeywords, addKeyword, updateKeyword, deleteKeyword } from '../db.js';
 
@@ -457,6 +459,39 @@ export function register(app, ctx) {
   // importState / startLocalImport 已在模块顶层定义（bootstrap 复用）
 
   app.get('/api/import/status', (_req, res) => res.json(importStateRef()));
+
+  // 命名模板预览：用库里最近 20 张真实素材渲染，空库时用示例数据，避免「设置好却看不到效果」
+  app.post(
+    '/api/import/name-preview',
+    asyncRoute(async (req, res) => {
+      const tpl = String(req.body?.template || '').trim().slice(0, 200);
+      const count = Math.min(20, Math.max(1, Number(req.body?.count) || 20));
+      const meta = { presets: NAME_TEMPLATE_PRESETS, tokens: NAME_TEMPLATE_TOKENS, ok: true };
+      if (!tpl) return res.json({ ...meta, names: [], sample: false });
+      let rows;
+      try {
+        rows = db
+          .prepare('SELECT title, abs_path, keyword, source, width, height, created_at FROM images ORDER BY id DESC LIMIT ?')
+          .all(count);
+      } catch {
+        rows = [];
+      }
+      const sample = !rows.length;
+      if (sample) {
+        const now = new Date().toISOString();
+        rows = Array.from({ length: Math.min(count, 5) }, (_, i) => ({
+          title: `示例素材 ${i + 1}.jpg`,
+          abs_path: `示例素材 ${i + 1}.jpg`,
+          keyword: '壁纸',
+          source: 'local',
+          width: 1920,
+          height: 1080,
+          created_at: now,
+        }));
+      }
+      res.json({ ...meta, names: previewNameTemplate(tpl, rows), sample });
+    })
+  );
 
   app.post(
     '/api/import/local',

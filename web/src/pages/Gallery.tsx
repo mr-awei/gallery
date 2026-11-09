@@ -2,7 +2,7 @@ import React, { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useSta
 import { createPortal } from 'react-dom';
 import { api, downloadFile, exportZipUrl, formatSize, openFolder, quiet } from '../api';
 import { UPLOAD_HINT, importFiles } from '../lib/importer';
-import type { Filters, ImageItem, FolderNode, Playlist } from '../types';
+import type { Filters, ImageItem, FolderNode, Playlist, ViewMode } from '../types';
 import FilterBar from '../components/FilterBar';
 import ImageCard from '../components/ImageCard';
 import { promptDialog } from '../components/Dialogs';
@@ -20,7 +20,7 @@ import ToolbarCustomizer from '../components/ToolbarCustomizer';
 import WatermarkStudio from '../components/WatermarkStudio';
 import { usePinnedActions } from '../lib/pinned';
 import { IMAGE_MIME, TAG_MIME } from '../lib/dnd';
-import FolderCards from '../components/FolderCards';
+import FolderGroupView from '../components/FolderGroupView';
 
 interface Props {
   title: string;
@@ -45,8 +45,8 @@ interface Props {
   onUpdateItem?: (item: ImageItem) => void;
   /** 右键菜单：移入回收站后从列表移除 */
   onDeleteItem?: (item: ImageItem) => void;
-  viewMode: 'masonry' | 'grid' | 'list';
-  onViewMode: (mode: 'masonry' | 'grid' | 'list') => void;
+  viewMode: ViewMode;
+  onViewMode: (mode: ViewMode) => void;
   /** 缩略图尺寸滑块（列宽 px） */
   colWidth?: number;
   onColWidth?: (w: number) => void;
@@ -98,12 +98,25 @@ interface Props {
   onQuickClassify?: () => void;
   /** 把拖来的图叠到某张上（目标是组主则并入该组，否则两张成组） */
   onStackDrop?: (dragIds: number[], target: ImageItem) => void;
-  /** 图库页顶部的文件夹卡片（收藏 / 清单等视图不显示） */
-  showFolderCards?: boolean;
+  /** 文件夹收纳视图需要的当前层级文件夹树 */
   folders?: FolderNode[];
   onOpenFolder?: (id: number) => void;
   onDropImagesOnFolder?: (folderId: number, ids: number[]) => void;
+  /** 文件夹收纳视图：回到全库 / 当前库名 / 灯箱池 / 未归档 */
+  onOpenRoot?: () => void;
+  rootName?: string;
+  onOpenImageFromFolder?: (item: ImageItem, pool: ImageItem[]) => void;
+  unfiledCount?: number;
+  onShowUnfiled?: () => void;
 }
+
+/** 页头右侧的展示方式徽标，切换视图时一眼知道自己在哪种模式 */
+const VIEW_LABELS: Record<ViewMode, string> = {
+  masonry: '图片展开 · 瀑布流',
+  grid: '图片展开 · 网格',
+  list: '图片展开 · 列表',
+  folder: '按文件夹收纳',
+};
 
 /** 「重置筛选」的完整目标态：新增筛选字段必须同步，否则重置后条件仍残留 */
 const RESET_FILTERS: Partial<Filters> = {
@@ -308,7 +321,7 @@ function Gallery(props: Props) {
     );
     io.observe(el);
     return () => io.disconnect();
-  }, [hasMore, loading, onLoadMore]);
+  }, [hasMore, loading, onLoadMore, viewMode]);
 
   /* 列表视图窗口化：.list-row 行高固定 58px（grid.css），可以按固定行高切片渲染，
      上万张时只建视口附近几十个 DOM 节点，而不是一次性几万个。 */
@@ -608,6 +621,10 @@ function Gallery(props: Props) {
           <h1 className="page-title">{props.title}</h1>
           <div className="page-sub">{props.subtitle}</div>
         </div>
+        <div className="page-head-meta">
+          <span className="page-view-badge">{VIEW_LABELS[viewMode]}</span>
+          <span className="page-count">共 {total.toLocaleString('zh-CN')} 张</span>
+        </div>
       </div>
 
       {!!props.missingCount && !missingDismissed && (
@@ -670,14 +687,13 @@ function Gallery(props: Props) {
           onViewMode={props.onViewMode}
           colWidth={props.colWidth}
           onColWidth={props.onColWidth}
-          total={total}
           hideFavorite={props.hideFavorite}
           canManualSort={!!props.folderId}
           onMarkAllSeen={props.onMarkAllSeen}
         />
       </div>
 
-      {!items.length && !loading && (
+      {viewMode !== 'folder' && !items.length && !loading && (
         <div className="empty">
           <div className="big">🖼️</div>
           <h3>
@@ -704,16 +720,23 @@ function Gallery(props: Props) {
         </div>
       )}
 
-      {props.showFolderCards && props.folders && props.onOpenFolder && (
-        <FolderCards
-          folders={props.folders}
+      {/* 图片展开视图只平铺素材本身（文件夹里的图也在内），不再插一排文件夹卡片；
+          按文件夹浏览统一交给「按文件夹收纳」视图 */}
+      {viewMode === 'folder' ? (
+        <FolderGroupView
+          folders={props.folders || []}
           folderId={props.folderId ?? null}
-          onOpenFolder={props.onOpenFolder}
+          rootName={props.rootName || '当前资源库'}
+          onOpenRoot={props.onOpenRoot || (() => undefined)}
+          onOpenFolder={props.onOpenFolder || (() => undefined)}
+          onOpenImage={props.onOpenImageFromFolder || (() => undefined)}
           onDropImages={props.onDropImagesOnFolder}
+          onShowUnfiled={props.onShowUnfiled}
+          unfiledCount={props.unfiledCount}
+          refreshSeq={props.refreshSeq}
+          totalImages={total}
         />
-      )}
-
-      {viewMode === 'list' ? (
+      ) : viewMode === 'list' ? (
         /* 列表视图（Eagle List View）：一屏看更多，靠标签/日期/大小做整理 */
         <div className="list-view" ref={listRef}>
           <div className="list-head">
@@ -884,17 +907,19 @@ function Gallery(props: Props) {
         />
       )}
 
-      <div className="load-more" ref={sentinel}>
-        {loading ? (
-          <span className="spinner" />
-        ) : hasMore ? (
-          <button className="btn sm" onClick={onLoadMore}>
-            加载更多
-          </button>
-        ) : items.length ? (
-          '已经到底啦'
-        ) : null}
-      </div>
+      {viewMode !== 'folder' && (
+        <div className="load-more" ref={sentinel}>
+          {loading ? (
+            <span className="spinner" />
+          ) : hasMore ? (
+            <button className="btn sm" onClick={onLoadMore}>
+              加载更多
+            </button>
+          ) : items.length ? (
+            '已经到底啦'
+          ) : null}
+        </div>
+      )}
 
       {selected.size > 0 && (
         <div className="bulk-bar">

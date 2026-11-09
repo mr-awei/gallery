@@ -1,9 +1,10 @@
+// @ts-check
 /**
  * 局域网 / 手机扫码投送。
  *
  * 安全设计（对应遗留总表 T-25 的验收）：
  * - 主服务永远只绑 127.0.0.1，普通接口、设置、凭据一个都不暴露给局域网；
- * - 开启时另起一个独立 Express 实例绑 0.0.0.0 的随机端口，这个实例只注册
+ * - 开启时另起一个独立 Express 实例绑 0.0.0.0 的独立端口（优先固定），这个实例只注册
  *   「投送页 / 上传 / info」三个路径，其余一律 404，不共享主 app 的路由与中间件；
  * - 独立投送令牌（data/.lan-token），只能访问上面那三个路径，拿不到完整 API_TOKEN；
  * - 默认关闭。关闭时外部设备扫不到任何端口。
@@ -18,11 +19,30 @@ import { db, getSettings } from '../db.js';
 import * as lib from '../library.js';
 import { ingestMedia, isMediaPath } from './media.js';
 import { qrSvg } from './qr.js';
+import { lanIconPng } from './lan-icon.js';
 import { existingThumbPath } from '../thumbs.js';
 import { hiddenImagesClause } from './privacy.js';
 
 const TOKEN_FILE = path.join(DATA_DIR, '.lan-token');
 const MAX_UPLOAD = 60 * 1024 * 1024;
+/**
+ * PWA 外壳资源必须免投送令牌：浏览器请求 manifest / service worker / 图标时
+ * 无法带自定义头，也拿不到查询令牌。这几个资源里只有静态字节，没有任何库数据或令牌，
+ * 放行不等于放开接口——下面所有 /api/** 仍要过鉴权。
+ */
+const PWA_PUBLIC_PATHS = new Set([
+  '/manifest.webmanifest',
+  '/sw.js',
+  '/offline.html',
+  '/icon-192.png',
+  '/icon-512.png',
+]);
+/**
+ * 固定优先端口。以前每次 listen(0) 都由系统随机分配，应用重启 / 关开一次投送
+ * 端口就变，已经扫过或收藏的二维码全部失效（手机表现为「网站暂时无法打开」）。
+ * 被别的程序占用时才退回随机端口；无论哪种情况都以 status.port / qrText 为准。
+ */
+const PREFERRED_LAN_PORT = 53317;
 
 let lanServer = null;
 let lanPort = 0;
@@ -37,7 +57,7 @@ export function lanIpv4List() {
   const out = [];
   for (const list of Object.values(os.networkInterfaces() || {})) {
     for (const it of list || []) {
-      if (!it || (it.family !== 'IPv4' && it.family !== 4) || it.internal) continue;
+      if (!it || it.family !== 'IPv4' || it.internal) continue;
       if (!/^\d+\.\d+\.\d+\.\d+$/.test(it.address)) continue;
       if (!out.includes(it.address)) out.push(it.address);
     }
@@ -90,7 +110,16 @@ function mobilePage(token, readOnly = false) {
   return `<!doctype html>
 <html lang="zh-CN"><head><meta charset="utf-8"/>
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"/>
-<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; img-src 'self' data:; connect-src 'self'; form-action 'none'; base-uri 'none'"/>
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; img-src 'self' data:; connect-src 'self'; worker-src 'self'; manifest-src 'self'; form-action 'none'; base-uri 'none'"/>
+<meta name="theme-color" content="#ff4d8d"/>
+<meta name="color-scheme" content="dark"/>
+<meta name="apple-mobile-web-app-capable" content="yes"/>
+<meta name="mobile-web-app-capable" content="yes"/>
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent"/>
+<meta name="apple-mobile-web-app-title" content="图库"/>
+<link rel="manifest" href="/manifest.webmanifest${readOnly ? '?mode=read' : ''}"/>
+<link rel="icon" href="/icon-192.png"/>
+<link rel="apple-touch-icon" href="/icon-192.png"/>
 <title>${readOnly ? '浏览图库' : '投送到图库'}</title>
 <style>
 :root { color-scheme: dark; }
@@ -116,7 +145,12 @@ button.act { width:100%; margin-top:16px; padding:13px; border:0; border-radius:
 .cell .cap { position:absolute; left:0; right:0; bottom:0; padding:2px 5px; font-size:10.5px; color:#dfe3ee; background:linear-gradient(transparent,rgba(0,0,0,.72)); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
 .more { margin-top:14px; }
 [hidden] { display:none !important; }
+.pwa { display:flex; gap:8px; align-items:center; margin:0 0 14px; padding:9px 11px; border-radius:10px; background:#1c2540; border:1px solid #2c3a63; font-size:12px; color:#c7d2ef; }
+.pwa span { flex:1; line-height:1.5; }
+.pwa button { flex:0 0 auto; border:0; border-radius:8px; padding:6px 10px; background:#ff4d8d; color:#fff; font-size:12px; }
+.pwa button.ghost { background:#2a3350; color:#c7d2ef; }
 </style></head><body><div class="wrap">
+<div class="pwa" id="pwa"><span id="pwa-txt">用浏览器菜单「添加到主屏幕」，下次打开无需再扫码。离线浏览需要 HTTPS 访问。</span><button id="pwa-install" hidden>安装到桌面</button><button class="ghost" id="pwa-close">知道了</button></div>
 <h1>${readOnly ? '图库（只读）' : '投送到图库'}</h1>
 <p id="sub">${readOnly ? '这是只读分享链接，可以浏览与搜索，不能上传。' : '与电脑连接同一个 Wi-Fi。上传会直接写入电脑上的当前资源库。'}</p>
 <div class="tabs" id="tabs">
@@ -137,8 +171,38 @@ button.act { width:100%; margin-top:16px; padding:13px; border:0; border-radius:
 </div>
 </div><script>
 (function(){
-  var token = new URLSearchParams(location.search).get('token') || ${JSON.stringify(token)};
+  // 按模式分别记住令牌：只读链接添加到主屏幕后，不能被上一次的投送令牌顶掉。
+  // 只读页面不内联完整投送令牌，token 只能来自分享链接本身。
+  var storeKey = ${readOnly ? "'tuku_lan_token_read'" : "'tuku_lan_token_full'"};
+  var token = new URLSearchParams(location.search).get('token');
+  try {
+    if (token) localStorage.setItem(storeKey, token);
+    else token = localStorage.getItem(storeKey) || '';
+  } catch (e) { token = token || ${JSON.stringify(token)}; }
+  token = token || ${JSON.stringify(token)};
   var readOnly = ${readOnly ? 'true' : 'false'};
+
+  var pwa = document.getElementById('pwa');
+  try { if (localStorage.getItem('tuku_pwa_hint') === '1') pwa.hidden = true; } catch (e) {}
+  document.getElementById('pwa-close').addEventListener('click', function () {
+    pwa.hidden = true;
+    try { localStorage.setItem('tuku_pwa_hint', '1'); } catch (e) {}
+  });
+  var deferred = null;
+  window.addEventListener('beforeinstallprompt', function (e) {
+    e.preventDefault(); deferred = e;
+    document.getElementById('pwa-install').hidden = false;
+  });
+  document.getElementById('pwa-install').addEventListener('click', function () {
+    if (!deferred) return;
+    deferred.prompt(); deferred = null;
+    document.getElementById('pwa-install').hidden = true;
+  });
+  // 局域网 http://192.168.x.x 不是安全上下文，SW 不会注册；HTTPS 反代下才启用离线外壳
+  if ('serviceWorker' in navigator && window.isSecureContext) {
+    navigator.serviceWorker.register('/sw.js').catch(function () {});
+  }
+
   var list = document.getElementById('list');
   var grid = document.getElementById('grid');
   var page = 1, busy = false, ended = false, q = '';
@@ -233,16 +297,44 @@ button.act { width:100%; margin-top:16px; padding:13px; border:0; border-radius:
 
 /**
  * 只读分享令牌：只活在内存里，重启即失效——不做持久化，避免一条链接永久可访问。
- * 与投送令牌的区别只有权限：read 只能浏览 / 搜索，不能上传。
+ * 与投送令牌的区别除了「不能上传」，还有可见范围：整库 / 指定素材 / 单个文件夹。
  */
 const shareTokens = new Map();
+const SHARE_SCOPES = new Set(['library', 'selection', 'folder']);
 
-export function createShareToken(minutes = 60) {
+/**
+ * 归一化分享范围；非法参数直接拒绝，绝不能悄悄退化成「整库可见」
+ * @param {{scope?:string, ids?:number[], folderId?:number|string, title?:string}} [opts]
+ */
+export function normalizeShareScope({ scope, ids, folderId, title } = {}) {
+  const kind = SHARE_SCOPES.has(String(scope)) ? String(scope) : 'library';
+  const cleanIds = Array.isArray(ids)
+    ? [...new Set(ids.map(Number).filter((n) => Number.isInteger(n) && n > 0))].slice(0, 2000)
+    : [];
+  if (kind === 'selection' && !cleanIds.length) throw new Error('按选区分享需要至少一张素材');
+  const fId = Number(folderId);
+  if (kind === 'folder' && !(Number.isInteger(fId) && fId > 0)) throw new Error('按文件夹分享需要有效的文件夹 id');
+  return {
+    scope: kind,
+    ids: kind === 'selection' ? cleanIds : [],
+    folderId: kind === 'folder' ? fId : 0,
+    title: String(title || '').replace(/[<>]/g, '').slice(0, 60),
+  };
+}
+
+/**
+ * @param {number} minutes
+ * @param {{ scope?: string, ids?: number[], folderId?: number, title?: string, ttlMs?: number }} [opts]
+ * ttlMs 只用于单测验证「过期即失效」，HTTP 路由不会传它。
+ */
+export function createShareToken(minutes = 60, opts = {}) {
   const ttlMin = Math.max(1, Math.min(7 * 24 * 60, Number(minutes) || 60));
+  const scope = normalizeShareScope(opts);
+  const ttlMs = Number.isFinite(Number(opts.ttlMs)) && Number(opts.ttlMs) > 0 ? Number(opts.ttlMs) : ttlMin * 60000;
   const token = crypto.randomBytes(18).toString('base64url');
-  const expiresAt = Date.now() + ttlMin * 60000;
-  shareTokens.set(token, { expiresAt, createdAt: Date.now() });
-  return { token, expiresAt, minutes: ttlMin };
+  const expiresAt = Date.now() + ttlMs;
+  shareTokens.set(token, { expiresAt, createdAt: Date.now(), ...scope });
+  return { token, expiresAt, minutes: ttlMin, ...scope };
 }
 
 function pruneShares() {
@@ -252,7 +344,15 @@ function pruneShares() {
 
 export function listShareTokens() {
   pruneShares();
-  return [...shareTokens].map(([token, v]) => ({ token, expiresAt: v.expiresAt, createdAt: v.createdAt }));
+  return [...shareTokens].map(([token, v]) => ({
+    token,
+    expiresAt: v.expiresAt,
+    createdAt: v.createdAt,
+    scope: v.scope,
+    ids: v.ids || [],
+    folderId: v.folderId || 0,
+    title: v.title || '',
+  }));
 }
 
 export function revokeShareTokens() {
@@ -261,11 +361,75 @@ export function revokeShareTokens() {
   return n;
 }
 
+/** 单条撤销：分享链接要能按条管理，不能只能「全部撤销」 */
+export function revokeShareToken(token) {
+  pruneShares();
+  return shareTokens.delete(String(token || ''));
+}
+
+/** 只读令牌能否看到这张图。列表与缩略图都必须过这道闸，否则换个 id 就能越权 */
+export function shareAllowsImage(share, id) {
+  if (!share) return true; // 完整投送令牌
+  if (share.scope === 'library') return true;
+  if (share.scope === 'selection') return (share.ids || []).includes(Number(id));
+  if (share.scope === 'folder') {
+    const row = db
+      .prepare('SELECT 1 AS ok FROM image_folders WHERE image_id = ? AND folder_id = ? LIMIT 1')
+      .get(Number(id), Number(share.folderId));
+    return !!row;
+  }
+  return false;
+}
+
+/** 把分享范围拼进图片列表的 WHERE；全用参数化占位符，不拼用户输入 */
+function shareClause(share) {
+  if (!share || share.scope === 'library') return { sql: '', params: [] };
+  if (share.scope === 'selection') {
+    const ids = share.ids || [];
+    return { sql: ` AND id IN (${ids.map(() => '?').join(',')})`, params: ids };
+  }
+  return {
+    sql: ' AND id IN (SELECT image_id FROM image_folders WHERE folder_id = ?)',
+    params: [Number(share.folderId)],
+  };
+}
+
 /** 分享链接（只读，带过期时间）；同样按可用局域网 IP 生成多条 */
 export function shareUrls(port, token) {
   if (!port) return [];
   const q = encodeURIComponent(token);
   return lanIpv4List().map((ip) => `http://${ip}:${port}/?token=${q}&mode=read`);
+}
+
+/** Service Worker：只缓存 PWA 外壳。数据接口一律不缓存——令牌会轮换、链接会过期 */
+const SW_SCRIPT = `const CACHE='tuku-lan-shell-v1';
+const SHELL=['/offline.html','/icon-192.png','/icon-512.png','/manifest.webmanifest'];
+self.addEventListener('install',function(e){e.waitUntil(caches.open(CACHE).then(function(c){return c.addAll(SHELL);}).then(function(){return self.skipWaiting();}));});
+self.addEventListener('activate',function(e){e.waitUntil(self.clients.claim());});
+self.addEventListener('fetch',function(e){
+  var u=new URL(e.request.url);
+  if(e.request.method!=='GET'||u.origin!==self.location.origin)return;
+  if(u.pathname.indexOf('/api/')===0)return;
+  if(e.request.mode==='navigate'){
+    e.respondWith(fetch(e.request).catch(function(){return caches.match('/offline.html');}));
+    return;
+  }
+  if(SHELL.indexOf(u.pathname)>=0){
+    e.respondWith(caches.match(e.request).then(function(hit){return hit||fetch(e.request);}));
+  }
+});`;
+
+const OFFLINE_PAGE = `<!doctype html><html lang="zh-CN"><head><meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1"/><title>暂时离线</title>
+<style>body{margin:0;padding:40px 22px;background:#11131a;color:#f4f4f8;font:15px/1.7 -apple-system,"PingFang SC",sans-serif;text-align:center}
+h1{font-size:20px}p{color:#9a9cb0;font-size:13px}a{color:#ff4d8d}</style></head>
+<body><h1>暂时连不上图库</h1><p>请确认手机和电脑在同一 Wi-Fi、图库仍在运行，然后点下方重试。<br/>如果链接已过期，请重新扫电脑上的二维码。</p>
+<p><a href="/">重新连接</a></p></body></html>`;
+
+const ICON_CACHE = new Map();
+function pwaIcon(size) {
+  if (!ICON_CACHE.has(size)) ICON_CACHE.set(size, lanIconPng(size));
+  return ICON_CACHE.get(size);
 }
 
 function tokenMatches(got, expected) {
@@ -276,31 +440,89 @@ function tokenMatches(got, expected) {
 }
 
 /** 独立的小 Express 实例：只注册投送 / 浏览相关路径，绝不复用主 app 的路由 */
-export function buildLanApp(token) {
+export function buildLanApp(tokenOrGetter) {
+  // 生产传 getter：轮换令牌时正在跑的服务立刻用新令牌，不必重启（重启会换端口、让二维码失效）。
+  // 单测仍可直接传固定字符串。
+  const currentToken = typeof tokenOrGetter === 'function' ? tokenOrGetter : () => tokenOrGetter;
   const app = express();
   app.disable('x-powered-by');
   app.use((req, res, next) => {
     res.set('Cache-Control', 'no-store');
     res.set('X-Content-Type-Options', 'nosniff');
     res.set('Content-Security-Policy', "default-src 'self'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; img-src 'self' data:; connect-src 'self'; form-action 'none'; base-uri 'none'");
+    // PWA 外壳是纯静态字节：manifest / SW / 图标 / 离线页不含任何库数据或令牌，
+    // 浏览器请求它们时也无法带自定义头，因此只放行这五个路径的 GET。
+    if (PWA_PUBLIC_PATHS.has(req.path) && req.method === 'GET') return next();
     const got = String(req.headers['x-lan-token'] || req.query?.token || '');
-    if (tokenMatches(got, token)) {
+    if (tokenMatches(got, currentToken())) {
       req.lanScope = 'full';
+      req.lanShare = null;
       return next();
     }
     const share = shareTokens.get(got);
     if (share && share.expiresAt > Date.now()) {
       req.lanScope = 'read';
+      req.lanShare = share;
       return next();
     }
     if (share) shareTokens.delete(got);
     return res.status(401).json({ error: '链接已失效或令牌无效' });
   });
 
-  app.get('/', (req, res) =>
-    res.type('html').send(mobilePage(token, req.lanScope === 'read' || req.query?.mode === 'read'))
+  app.get('/manifest.webmanifest', (req, res) => {
+    const readOnly = req.query?.mode === 'read';
+    res.set('Content-Type', 'application/manifest+json; charset=utf-8');
+    res.send(
+      JSON.stringify({
+        id: readOnly ? '/?mode=read' : '/',
+        name: readOnly ? '图库 · 只读浏览' : '图库 · 手机投送',
+        short_name: '图库',
+        description: '浏览电脑上的图库，或把照片投送到电脑',
+        start_url: readOnly ? '/?mode=read' : '/',
+        scope: '/',
+        display: 'standalone',
+        orientation: 'any',
+        background_color: '#11131a',
+        theme_color: '#ff4d8d',
+        icons: [192, 512].map((n) => ({
+          src: `/icon-${n}.png`,
+          sizes: `${n}x${n}`,
+          type: 'image/png',
+          purpose: 'any maskable',
+        })),
+      })
+    );
+  });
+  app.get('/sw.js', (_req, res) => {
+    res.set('Content-Type', 'application/javascript; charset=utf-8');
+    res.set('Service-Worker-Allowed', '/');
+    res.send(SW_SCRIPT);
+  });
+  app.get('/offline.html', (_req, res) => res.type('html').send(OFFLINE_PAGE));
+  for (const size of [192, 512]) {
+    app.get(`/icon-${size}.png`, (_req, res) => {
+      res.set('Content-Type', 'image/png');
+      res.set('Cache-Control', 'public, max-age=86400');
+      res.send(pwaIcon(size));
+    });
+  }
+
+  app.get('/', (req, res) => {
+    const readOnly = req.lanScope === 'read' || req.query?.mode === 'read';
+    // 只读页面绝不内联完整投送令牌，否则只读访客扫码就能拿到上传权限
+    res.type('html').send(mobilePage(readOnly ? '' : currentToken(), readOnly));
+  });
+  app.get('/api/lan/info', (req, res) =>
+    res.json({
+      ok: true,
+      name: req.lanShare?.title || (req.lanScope === 'read' ? '图库 · 只读浏览' : '图库 · 手机投送'),
+      version: 3,
+      mode: req.lanScope === 'read' ? 'read' : 'full',
+      scope: req.lanShare?.scope || 'library',
+      title: req.lanShare?.title || '',
+      expiresAt: req.lanShare?.expiresAt || 0,
+    })
   );
-  app.get('/api/lan/info', (_req, res) => res.json({ ok: true, name: '图库 TuKu 投送', version: 2 }));
 
   // 只读浏览：分页列表 + 缩略图。两边都套隐私锁与堆叠口径，和桌面端一致。
   app.get('/api/lan/images', (req, res) => {
@@ -320,15 +542,17 @@ export function buildLanApp(token) {
         const like = `%${q}%`;
         params.push(like, like, like);
       }
-      const sqlWhere = where.join(' AND ');
-      const total = Number(db.prepare(`SELECT COUNT(*) AS c FROM images WHERE ${sqlWhere}`).get(...params)?.c || 0);
+      const scope = shareClause(req.lanShare);
+      const sqlWhere = where.join(' AND ') + scope.sql;
+      const scoped = [...params, ...scope.params];
+      const total = Number(db.prepare(`SELECT COUNT(*) AS c FROM images WHERE ${sqlWhere}`).get(...scoped)?.c || 0);
       const items = db
         .prepare(
           `SELECT id, title, width, height, media_kind, tags, favorite
              FROM images WHERE ${sqlWhere}
             ORDER BY created_at DESC, id DESC LIMIT ? OFFSET ?`
         )
-        .all(...params, pageSize, (pageNo - 1) * pageSize);
+        .all(...scoped, pageSize, (pageNo - 1) * pageSize);
       res.json({ ok: true, total, page: pageNo, pageSize, items });
     } catch (err) {
       res.status(500).json({ error: String(err?.message || err).slice(0, 200) });
@@ -338,6 +562,8 @@ export function buildLanApp(token) {
   app.get('/api/lan/thumb/:id', (req, res) => {
     const id = Number(req.params.id);
     if (!Number.isFinite(id)) return res.status(400).json({ error: '素材 id 无效' });
+    // 只读链接不能靠猜 id 拿到范围外的缩略图：列表和单图必须用同一道闸
+    if (!shareAllowsImage(req.lanShare, id)) return res.status(403).json({ error: '该素材不在此分享链接范围内' });
     const row = lib.getImage(id);
     if (!row) return res.status(404).json({ error: '素材不存在' });
     const cache = existingThumbPath(id, 0);
@@ -381,21 +607,16 @@ export function buildLanApp(token) {
  * 启动（幂等）。返回 { enabled, port, urls }。
  * host 可注入是为了单测能绑 127.0.0.1（不惊动 Windows 防火墙）；生产默认 0.0.0.0。
  */
-export async function startLanServer(host = '0.0.0.0') {
-  if (lanServer) return lanStatus();
-  const token = readOrCreateLanToken();
-  const app = buildLanApp(token);
-  await new Promise((resolve, reject) => {
+function listenOn(app, port, host) {
+  return new Promise((resolve, reject) => {
     // Node 25 + Express 5 的坑：失败时 listen 回调也会先跑一次且 address() 为 null。
     // 这里只认真正的 'listening' 事件，并且只在 address() 有值时才算启动成功。
-    const server = app.listen(0, host);
+    const server = app.listen(port, host);
     const onListening = () => {
       const addr = server.address();
       if (!addr) return;
       server.removeListener('error', onError);
-      lanServer = server;
-      lanPort = addr.port;
-      resolve();
+      resolve(server);
     };
     const onError = (err) => {
       server.removeListener('listening', onListening);
@@ -409,6 +630,23 @@ export async function startLanServer(host = '0.0.0.0') {
     server.once('listening', onListening);
     server.once('error', onError);
   });
+}
+
+export async function startLanServer(host = '0.0.0.0') {
+  if (lanServer) return lanStatus();
+  readOrCreateLanToken();
+  const app = buildLanApp(readOrCreateLanToken);
+  let server;
+  try {
+    server = await listenOn(app, PREFERRED_LAN_PORT, host);
+  } catch (err) {
+    if (err?.code !== 'EADDRINUSE' && err?.code !== 'EACCES') throw err;
+    // 端口被别的程序占了才退回系统分配，并在界面上如实显示实际端口
+    console.info('[lan] 优先端口被占用（' + err.code + '），改用系统分配端口');
+    server = await listenOn(app, 0, host);
+  }
+  lanServer = server;
+  lanPort = server.address().port;
   console.info('[lan] 投送服务已开启，端口', lanPort);
   return lanStatus();
 }
@@ -437,8 +675,12 @@ export async function stopLanServer() {
   return lanStatus();
 }
 
-export function lanQrText() {
-  return lanUrls(lanPort, readOrCreateLanToken())[0] || '';
+/** 二维码内容；ip 必须是本机枚举出的地址，防止把任意字符串塞进二维码 */
+export function lanQrText(ip = '') {
+  if (!lanPort) return '';
+  const ips = lanIpv4List();
+  const host = ips.includes(ip) ? ip : ips[0];
+  return host ? `http://${host}:${lanPort}/?token=${encodeURIComponent(readOrCreateLanToken())}` : '';
 }
 
 export function lanStatus() {
@@ -447,12 +689,39 @@ export function lanStatus() {
     ok: true,
     enabled,
     port: enabled ? lanPort : 0,
+    ips: lanIpv4List(),
     urls: enabled ? lanUrls(lanPort, readOrCreateLanToken()) : [],
     qrText: enabled ? lanQrText() : '',
     // 桌面端设置页要显示，方便用户输入到没有相机的设备；主接口仍要求正常鉴权
     token: readOrCreateLanToken(),
     note: enabled ? '' : '局域网投送未开启：主服务仍只监听 127.0.0.1',
   };
+}
+
+/**
+ * 本机连通性自检：从电脑上逐个请求自己的局域网 IP，能抓出「服务没起来 / 网卡选错」。
+ * 注意：本机访问不受 Windows 防火墙入站规则限制，自检通过不等于手机一定能连，
+ * 防火墙与「同一 Wi-Fi」仍需在手机上确认。
+ */
+export async function lanSelfCheck() {
+  if (!lanServer) return { ok: false, port: 0, results: [] };
+  const token = readOrCreateLanToken();
+  const results = await Promise.all(
+    lanIpv4List().map(async (ip) => {
+      const url = `http://${ip}:${lanPort}/api/lan/info?token=${encodeURIComponent(token)}`;
+      const controller = new AbortController();
+      const timer = setTimeout(() => controller.abort(), 2500);
+      try {
+        const res = await fetch(url, { signal: controller.signal });
+        return { ip, ok: res.ok, status: res.status };
+      } catch (err) {
+        return { ip, ok: false, error: String(err?.message || err).slice(0, 120) };
+      } finally {
+        clearTimeout(timer);
+      }
+    })
+  );
+  return { ok: results.some((r) => r.ok), port: lanPort, results };
 }
 
 /** 跟随设置变化启停（幂等，设置总线与 toggle 路由会各调一次也无妨） */
@@ -463,8 +732,8 @@ export async function syncLanSetting(settings) {
 }
 
 /** 二维码 SVG；未开启时返回 null，让路由给 409 而不是画一张扫不出来的图 */
-export function lanQrcodeSvg() {
-  const text = lanQrText();
+export function lanQrcodeSvg(ip = '') {
+  const text = lanQrText(ip);
   return text ? qrSvg(text) : null;
 }
 

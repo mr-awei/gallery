@@ -1,3 +1,4 @@
+// @ts-check
 /**
  * CLIP 磁盘向量索引的扫描内核：纯函数，不依赖 DB / Electron / worker。
  * worker 线程与主线程兜底共用这一份实现，保证两条路径算出来的 topK 完全一致。

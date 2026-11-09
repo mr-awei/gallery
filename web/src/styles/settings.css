@@ -9,11 +9,11 @@
   align-items: start;
 }
 
-/* GitHub 式设置：左分类导航 + 右单栏面板 */
+/* GitHub 式设置：左分组导航 + 右单栏面板 */
 .settings-shell {
   display: grid;
-  grid-template-columns: 208px minmax(0, 1fr);
-  gap: 16px;
+  grid-template-columns: 216px minmax(0, 1fr);
+  gap: 18px;
   align-items: start;
 }
 .settings-nav {
@@ -21,29 +21,50 @@
   top: 16px;
   display: flex;
   flex-direction: column;
-  gap: 3px;
-  padding: 10px;
+  gap: 0;
+  padding: 8px;
   background: var(--panel);
   border: 1px solid var(--border);
   border-radius: var(--radius);
+  /* 分组后共 20 行，超过窗口高度时侧栏自己滚，别把整页撑长 */
+  max-height: calc(100vh - 120px);
+  overflow-y: auto;
+  scrollbar-width: thin;
 }
 .settings-nav .nav-label {
   font-size: 11px;
   color: #6f6f8c;
-  padding: 4px 12px 8px;
+  padding: 6px 12px 10px;
   letter-spacing: 0.08em;
+}
+.nav-group {
+  padding-bottom: 8px;
+  margin-bottom: 6px;
+  border-bottom: 1px solid var(--border);
+}
+.nav-group:last-child {
+  border-bottom: none;
+  margin-bottom: 0;
+  padding-bottom: 0;
+}
+.nav-group-title {
+  font-size: 10.5px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  color: #6f6f8c;
+  padding: 4px 12px 5px;
 }
 .settings-nav button {
   display: flex;
   align-items: center;
-  gap: 10px;
+  gap: 9px;
   width: 100%;
-  padding: 9px 12px;
+  padding: 7px 11px;
   border: none;
-  border-radius: 9px;
+  border-radius: 8px;
   background: transparent;
   color: var(--muted);
-  font-size: 13.5px;
+  font-size: 13px;
   text-align: left;
   transition: background 0.15s, color 0.15s;
 }
@@ -62,7 +83,82 @@
   min-width: 0;
   display: flex;
   flex-direction: column;
-  gap: 14px;
+  gap: 12px;
+}
+/* 右栏分类头：切到任何一栏都能立刻看出「我在哪、这栏管什么」 */
+.settings-panel-head {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 14px 16px;
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+}
+.settings-panel-icon {
+  display: grid;
+  place-items: center;
+  width: 34px;
+  height: 34px;
+  flex: 0 0 34px;
+  border-radius: 10px;
+  background: rgba(255, 77, 141, 0.12);
+  color: var(--accent);
+}
+.settings-panel-head-text {
+  min-width: 0;
+  flex: 1;
+}
+.settings-panel-head h2 {
+  font-size: 16px;
+  margin: 0;
+}
+.settings-panel-head p {
+  font-size: 12px;
+  color: var(--muted);
+  margin: 2px 0 0;
+}
+/* 一栏里卡片较多时，用子标题再切一层，避免一长串同级卡片 */
+.settings-subhead {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  color: #8a8ca5;
+  margin: 4px 0 -6px;
+}
+.settings-subhead::before {
+  content: '';
+  width: 3px;
+  height: 12px;
+  border-radius: 2px;
+  background: var(--accent);
+  opacity: 0.75;
+}
+/* 卡片内部不是 flex 列，负边距会把内容往上拽；这里改成常规上下留白 */
+.card .settings-subhead {
+  margin: 14px 0 10px;
+}
+.card .settings-subhead:first-of-type {
+  margin-top: 2px;
+}
+.settings-scope {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 18px;
+  margin-top: 8px;
+  font-size: 11.5px;
+  color: #8a8ca5;
+}
+.settings-scope b {
+  color: var(--text);
+  font-weight: 600;
+  margin-right: 4px;
+}
+.settings-panel .hint {
+  line-height: 1.75;
 }
 .settings-desc {
   font-size: 12.5px;
@@ -85,9 +181,26 @@
     position: static;
     flex-direction: row;
     flex-wrap: wrap;
+    gap: 6px;
+    max-height: none;
+    overflow: visible;
   }
   .settings-nav .nav-label {
     width: 100%;
+    padding: 4px 8px;
+  }
+  .nav-group {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 4px;
+    border-bottom: none;
+    margin: 0;
+    padding: 0;
+  }
+  .nav-group-title {
+    width: 100%;
+    padding: 4px 8px 2px;
   }
   .settings-nav button {
     width: auto;

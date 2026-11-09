@@ -1,3 +1,4 @@
+// @ts-check
 /**
  * 旧版单库（<素材目录>/gallery.db）的识别与合并。
  *
@@ -90,7 +91,7 @@ function backupLegacy(file, dir) {
 /**
  * 把旧库合并进「当前激活的库」。
  * 只在目标库为空时才该调用（有数据的库交给用户手动决定，避免合并出重复记录）。
- * @returns {{ok:boolean, images:number, folders:number, backup:string, error?:string}}
+ * @returns {{ok:boolean, images:number, folders:number, backup:string, legacyTotal?:number, error?:string}}
  */
 export function mergeLegacyDb(file, { rootPath = '', backupParent = '' } = {}) {
   const info = inspectLegacyDb(file, rootPath);

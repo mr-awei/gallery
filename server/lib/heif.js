@@ -1,3 +1,4 @@
+// @ts-check
 /**
  * HEIC / HEIF 解码（iPhone 默认拍照格式）。
  *

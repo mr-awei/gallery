@@ -1,3 +1,4 @@
+// @ts-check
 // 整理概览 / 相似图整理路由：CLIP 聚类、pHash 相似、格式重复、旋转重命名（从 app.js 拆出）
 import * as ai from '../ai.js';
 import * as clip from '../clip.js';

@@ -1,3 +1,4 @@
+// @ts-check
 // 图内文字识别（OCR）：识别一次 -> 存 image_ocr -> 关键词搜索自动命中
 // 系统引擎（Windows.Media.Ocr）离线、零下载；非 Windows 明确告知不可用，不假装能跑。
 import fs from 'node:fs';

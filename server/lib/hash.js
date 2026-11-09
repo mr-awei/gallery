@@ -1,3 +1,4 @@
+// @ts-check
 // 内容指纹（MD5）：完全重复检测用，与 pHash（相似）互补。
 // 单独成文件是为了让 library.js 与 lib/media.js 都能引用，避免两者互相 import 成环。
 import fs from 'node:fs';

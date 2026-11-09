@@ -1,3 +1,4 @@
+// @ts-check
 /**
  * /api/v1 的 scope 纯逻辑（不碰 config / 请求对象，便于单测）。
  *

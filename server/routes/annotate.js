@@ -1,3 +1,4 @@
+// @ts-check
 // 标注 / 评论（对标 Eagle 4 的 Annotations）
 //
 // 数据形态：一张图 = 一个标注图层，整层 JSON 数组存 image_annotations.data，

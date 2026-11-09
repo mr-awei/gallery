@@ -1,3 +1,4 @@
+// @ts-check
 // 文件服务路由：原图/缩略图直出、批量打包下载 zip（从 app.js 拆出）
 import archiver from 'archiver';
 import fs from 'node:fs';

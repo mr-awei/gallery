@@ -1,3 +1,4 @@
+// @ts-check
 // 素材「来源」相关：外部以图搜图、一键换大图
 import sharp from 'sharp';
 import * as lib from '../library.js';

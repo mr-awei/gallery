@@ -1,3 +1,4 @@
+// @ts-check
 /**
  * 插件宿主：清单发现 + 独立进程执行 + 按权限回写。
  *
@@ -114,6 +115,7 @@ function imageSnapshot(row, canRead) {
 /**
  * 执行一次插件。父进程负责超时、输出限额、权限过滤与回写。
  * 返回 { ok, logs, patch, applied, result }，失败一定带 error，不静默吞掉。
+ * @param {{id?:string, action?:string, imageId?:number|null, args?:object}} [opts]
  */
 export async function runPlugin({ id, action = 'run', imageId = null, args = {} } = {}) {
   const plugin = findPlugin(String(id || ''));

@@ -1,3 +1,4 @@
+// @ts-check
 // 清单（playlist）路由：分组管理的增删改查与批量加入（从 app.js 拆出）
 import * as lib from '../library.js';
 import { db, withTransaction } from '../db.js';

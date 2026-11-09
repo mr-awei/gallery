@@ -1,3 +1,4 @@
+// @ts-check
 // 图片编辑路由：裁切（预设比例/原比例/自由框）+ Camera Raw 调色，单张与批量
 import fs from 'node:fs';
 import { CROP_RATIOS, ADJUST_DEFAULTS, adjustImage, cropImage } from '../lib/edit.js';

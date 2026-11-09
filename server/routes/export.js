@@ -1,3 +1,4 @@
+// @ts-check
 // 导出类路由：把图库里的图按需转成 jpg / png / webp / avif 另存（对标 Eagle 的「导出」）
 // 以及导出为 HTML 网页画廊（单文件、图片内嵌，可离线打开/分享）
 import path from 'node:path';

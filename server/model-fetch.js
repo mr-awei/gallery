@@ -59,22 +59,33 @@ export const KNOWN_SHA256 = Object.freeze({ ...PINS.models });
 /** 已知 release zip 的强校验哈希（hex，键 = 下载 URL） */
 export const KNOWN_ZIP_SHA256 = Object.freeze({ ...PINS.zips });
 
-/** 该仓库路径是否有固定过的可信哈希（false = 只有 sidecar 自记录，不能算校验通过） */
-export function isPinned(repoPath) {
-  return /^[0-9a-f]{64}$/i.test(String(KNOWN_SHA256[repoPath] || ''));
-}
-
 /**
- * 取清单里的期望哈希：downloadModelFile 必须优先用它，不能被 sidecar 覆盖。
- * 调用方有时传相对路径（如 matting 的 `onnx/model.onnx`），而清单键为完整
- * `仓库/路径`；后缀唯一时也应命中，否则清单形同虚设、又退回 sidecar 自记录。
+ * 查清单里的哈希：先按完整键，再按「路径后缀唯一」匹配。
+ * 调用方有时只传相对路径（如 matting 的 `onnx/model.onnx`），而清单键是完整
+ * `仓库/路径`；后缀唯一时必须命中，否则清单形同虚设、又退回 sidecar 自记录。
  */
-export function pinnedSha(repoPath) {
+function pinOf(repoPath) {
   const key = String(repoPath || '');
-  if (isPinned(key)) return String(KNOWN_SHA256[key]).toLowerCase();
+  const exact = String(KNOWN_SHA256[key] || '');
+  if (/^[0-9a-f]{64}$/i.test(exact)) return exact.toLowerCase();
+  if (!key) return '';
   const suffix = `/${key.replace(/^\/+/, '')}`;
   const hits = Object.entries(KNOWN_SHA256).filter(([k, v]) => k.endsWith(suffix) && /^[0-9a-f]{64}$/i.test(String(v)));
   return hits.length === 1 ? String(hits[0][1]).toLowerCase() : '';
+}
+
+/**
+ * 该仓库路径是否有固定过的可信哈希（false = 只有 sidecar 自记录，不能算校验通过）。
+ * 与 pinnedSha 共用同一套后缀匹配：否则传相对路径时会出现「能取到哈希但声称未固定」
+ * 的自相矛盾状态（状态面板显示未校验，实际一直在按清单比对）。
+ */
+export function isPinned(repoPath) {
+  return !!pinOf(repoPath);
+}
+
+/** 取清单里的期望哈希：downloadModelFile 必须优先用它，不能被 sidecar 覆盖 */
+export function pinnedSha(repoPath) {
+  return pinOf(repoPath);
 }
 
 function sha256File(p) {

@@ -1,3 +1,4 @@
+// @ts-check
 // 数据出口：备份 / 恢复 / 元数据导出 / Eagle 迁移
 import {
   backupLibrary,

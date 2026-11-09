@@ -2,7 +2,7 @@ import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react
 import { IconClose, IconWand } from './Icons';
 
 /**
- * 新手教程：分步高亮导览。
+ * 教程：分步高亮导览。
  *
  * 设计取舍：
  * - 目标元素用 `data-tour` 标记而不是 CSS 类名，样式重构不会把教程弄坏；
@@ -27,7 +27,7 @@ const STEPS: Step[] = [
     key: 'welcome',
     title: '欢迎：这是你自己家的图库',
     body: '图库把硬盘上的图片文件夹变成一个可搜索、可整理的素材库：文件还在原来的地方，索引、标签、评分都存在本地，不上传任何地方。',
-    tip: '整套导览共 7 步，大约 2 分钟。任何时候都能点「跳过教程」，之后在 设置 → 新手教程 里重新看。',
+    tip: '整套导览共 7 步，大约 2 分钟。任何时候都能点「跳过教程」，之后在 设置 → 教程 里重新看。',
   },
   {
     key: 'sidebar',
@@ -69,7 +69,7 @@ const STEPS: Step[] = [
     key: 'settings',
     title: '个性化、备份与教程都在设置里',
     body: '设置里能改存储位置、导入与采集参数、AI 接入、删除策略、外观与缩放，也能导出数据、检查重复。这个教程以后就在这里重新播放。',
-    tip: '现在就可以去 设置 → 新手教程 试一次，或直接开始用。',
+    tip: '现在就可以去 设置 → 教程 试一次，或直接开始用。',
     target: 'settings-btn',
     placement: 'bottom',
   },
@@ -212,7 +212,7 @@ export default function OnboardingTour({ open, onClose }: { open: boolean; onClo
   const last = index === STEPS.length - 1;
 
   return (
-    <div className="tour-root" role="dialog" aria-modal="true" aria-label="新手教程">
+    <div className="tour-root" role="dialog" aria-modal="true" aria-label="教程">
       {hole ? (
         <div
           className="tour-hole"

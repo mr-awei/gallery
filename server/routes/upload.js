@@ -1,3 +1,4 @@
+// @ts-check
 // 拖拽 / 粘贴入库（Eagle 三件套里的两件；第三件截图见 electron/main.js 的全局快捷键）
 //
 // 为什么不用 multer：前端把 File 直接当 body 发（application/octet-stream），

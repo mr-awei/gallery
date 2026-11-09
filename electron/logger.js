@@ -1,3 +1,4 @@
+// @ts-check
 /**
  * 日志落盘：console.* 全量重定向到 userData/logs/app-YYYY-MM-DD.log。
  * 打包后窗口看不见，崩溃与异常只有这里能留下线索；单文件超 5MB 轮转为 .old。

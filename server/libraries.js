@@ -28,6 +28,7 @@ export function listLibraries() {
     .map((l) => ({ ...l, deletable: path.resolve(l.path) !== path.resolve(DATA_DIR) }));
 }
 
+/** @returns {import('./lib/db-handle.js').DbRow | undefined} */
 export function getLibrary(id) {
   return globalDb
     .prepare('SELECT id, name, path, root_path, thumb_dir, created_at, last_opened, is_active FROM libraries WHERE id = ?')
@@ -37,7 +38,9 @@ export function getLibrary(id) {
 /** 新建一个资源库（不切换），返回新库 id。
  *  库数据默认放在素材文件夹下的隐藏目录 .tuku/lib_xxx/ —— 库跟着素材走
  *  （Eagle 的 xxx.library 同一个思路），整个素材目录拷走就带走了库。
- *  想分开存放就传 libFolder，按其指定位置建。 */
+ *  想分开存放就传 libFolder，按其指定位置建。
+ * @param {{name?:string, rootPath?:string, libFolder?:string}} opts
+ */
 export function createLibrary({ name, rootPath, libFolder }) {
   const libName = String(name || '').trim();
   const root = String(rootPath || '').trim();

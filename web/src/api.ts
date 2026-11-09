@@ -43,8 +43,12 @@ import type {
   WallpaperResult,
   LiveWallpaperConfig,
   PluginInfo,
+  PluginInstallResult,
+  PluginMarketView,
   PluginRunResult,
+  LanSelfCheck,
   LanShare,
+  LanShareInput,
   LanStatus,
 } from './types';
 
@@ -1167,6 +1171,21 @@ export const api = {
   },
   // 插件 / 脚本宿主
   plugins: () => request<{ ok: boolean; plugins: PluginInfo[]; permissions: string[] }>('/api/plugins'),
+  pluginMarket: () => request<PluginMarketView>('/api/plugins/market'),
+  refreshPluginMarket: (url: string) =>
+    request<PluginMarketView>('/api/plugins/market/refresh', { method: 'POST', body: JSON.stringify({ url }) }),
+  resetPluginMarket: () => request<PluginMarketView>('/api/plugins/market/reset', { method: 'POST' }),
+  installPlugin: (input: { id?: string; url?: string }) =>
+    request<PluginInstallResult>('/api/plugins/install', { method: 'POST', body: JSON.stringify(input) }),
+  uploadPluginPackage: (body: ArrayBuffer, filename: string) =>
+    request<PluginInstallResult>(
+      `/api/plugins/install/upload?filename=${encodeURIComponent(filename)}`,
+      { method: 'POST', body, headers: { 'Content-Type': 'application/octet-stream' } }
+    ),
+  uninstallPlugin: (id: string) =>
+    request<{ ok: boolean; id: string; restoredBuiltin: boolean }>(`/api/plugins/${encodeURIComponent(id)}`, {
+      method: 'DELETE',
+    }),
   runPlugin: (
     id: string,
     payload: { action?: string; imageId?: number | null; args?: Record<string, unknown> }
@@ -1179,13 +1198,18 @@ export const api = {
 
   // 局域网 / 手机扫码投送
   lanStatus: () => request<LanStatus>('/api/lan/status'),
+  lanSelfCheck: () => request<LanSelfCheck>('/api/lan/selfcheck'),
   setLanAccess: (enabled: boolean) =>
     request<LanStatus>('/api/lan/toggle', { method: 'PUT', body: JSON.stringify({ enabled }) }),
   rotateLanToken: () => request<LanStatus>('/api/lan/rotate-token', { method: 'POST' }),
-  createLanShare: (minutes: number) =>
-    request<LanShare>('/api/lan/share', { method: 'POST', body: JSON.stringify({ minutes }) }),
+  createLanShare: (input: LanShareInput) =>
+    request<LanShare>('/api/lan/share', { method: 'POST', body: JSON.stringify(input) }),
   lanShares: () => request<{ ok: boolean; shares: LanShare[] }>('/api/lan/shares'),
   revokeLanShares: () => request<{ ok: boolean; revoked: number }>('/api/lan/share', { method: 'DELETE' }),
+  revokeLanShare: (token: string) =>
+    request<{ ok: boolean; revoked: number }>(`/api/lan/share/${encodeURIComponent(token)}`, { method: 'DELETE' }),
+  lanShareQrUrl: async (token: string) =>
+    `${await withToken('/api/lan/share-qrcode.svg')}&share=${encodeURIComponent(token)}`,
 
   settings: () => request<Settings>('/api/settings'),
   saveSettings: (patch: Partial<Settings>) =>
@@ -1224,6 +1248,14 @@ export const api = {
       results: { url: string; ok: boolean; status?: number; ms: number; error?: string }[];
     }>('/api/network/test', { method: 'POST' }),
   importLocal: () => request<{ ok: boolean }>('/api/import/local', { method: 'POST' }),
+  nameTemplatePreview: (template: string) =>
+    request<{
+      ok: boolean;
+      names: string[];
+      sample: boolean;
+      presets: { label: string; value: string }[];
+      tokens: { token: string; desc: string }[];
+    }>('/api/import/name-preview', { method: 'POST', body: JSON.stringify({ template }) }),
   importStatus: () =>
     request<{
       running: boolean;

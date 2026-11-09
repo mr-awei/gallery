@@ -1,3 +1,4 @@
+// @ts-check
 import { app, BrowserWindow, Menu, Tray, globalShortcut, dialog, ipcMain, shell, screen, session, powerMonitor, nativeTheme, crashReporter, desktopCapturer, nativeImage } from 'electron';
 import fs from 'node:fs';
 import fsp from 'node:fs/promises';
@@ -184,9 +185,13 @@ function withApiToken(url) {
   }
 }
 
-/** URL 是否指向本机的图库服务（实现见 lib/pure.js，便于单测） */
-function isLocalApiUrl(raw) {
-  return isLocalApiUrlFor(raw, serverPort);
+/**
+ * URL 是否指向本机的图库服务（实现见 lib/pure.js，便于单测）
+ * @param {string} raw
+ * @param {number} [port] 校验用的端口，默认当前服务端口
+ */
+function isLocalApiUrl(raw, port = serverPort) {
+  return isLocalApiUrlFor(raw, port);
 }
 
 /**
@@ -1139,10 +1144,17 @@ function createTray() {
       live = (await fetchJson(`http://127.0.0.1:${serverPort}/api/wallpaper/live`)) || {};
     } catch {}
     const title = String(cur.title || '').slice(0, 16);
-    const menu = Menu.buildFromTemplate([
-      ...(lastTrayNotice
-        ? [{ label: `上次操作：${lastTrayNotice}`, enabled: false }, { type: 'separator' }]
-        : []),
+    // 显式标注：否则数组里混着 {label} 与 {type:'separator'} 时 type 会被推成 string，
+    // 不满足 MenuItemConstructorOptions 的字面量联合类型
+    /** @type {import('electron').MenuItemConstructorOptions[]} */
+    const template = [
+      // 条件展开必须显式断言：TS 无法把条件表达式的数组字面量上下文推断为
+      // MenuItemConstructorOptions，会让整条模板的 type 退化成 string
+      .../** @type {import('electron').MenuItemConstructorOptions[]} */ (
+        lastTrayNotice
+          ? [{ label: `上次操作：${lastTrayNotice}`, enabled: false }, { type: 'separator' }]
+          : []
+      ),
       { label: '打开主窗口', click: showMainWindow },
       {
         label: '框选截图…',
@@ -1263,7 +1275,8 @@ function createTray() {
           app.quit();
         },
       },
-    ]);
+    ];
+    const menu = Menu.buildFromTemplate(template);
     tray.setContextMenu(menu);
   };
 
@@ -1811,7 +1824,7 @@ function startLivePerfRules() {
       }
     }
     const decision = shouldPauseLive(cfg, {
-      onBattery: powerMonitor ? !powerMonitor.isOnAC : false,
+      onBattery: powerMonitor ? powerMonitor.isOnBatteryPower() : false,
       fullscreen: !!snap.fullscreen,
       gpu: Number(snap.gpu),
       locked: livePowerLocked,
@@ -1889,7 +1902,7 @@ async function getDesktopAudioSourceId() {
   const now = Date.now();
   if (cachedSysAudioId && now - cachedSysAudioAt < 30000) return cachedSysAudioId;
   try {
-    const sources = await desktopCapturer.getSources({ types: ['screen'], fetchWindowAudio: false });
+    const sources = await desktopCapturer.getSources({ types: ['screen'] });
     const id = sources[0]?.id || '';
     cachedSysAudioId = id;
     cachedSysAudioAt = now;
@@ -2418,7 +2431,10 @@ app.whenReady().then(async () => {
   ipcStorageRoot = configMod.STORAGE_DIR || '';
   apiToken = configMod.API_TOKEN || '';
   desktopApi = desktopMod;
-  applyProxy = () => proxyMod.applyProxyNet(getSettings().network || {});
+  // applyProxyNet 返回「是否成功」布尔，这里只当副作用用，统一成 Promise<void>
+  applyProxy = async () => {
+    await proxyMod.applyProxyNet(getSettings().network || {});
+  };
   registerProxyAuth = () => proxyMod.registerProxyAuthFor(() => getSettings().network || {});
 
   /* ------------------------- 服务进程：独立进程 + 崩溃自愈 ------------------------- */
@@ -2756,7 +2772,8 @@ app.whenReady().then(async () => {
     void (async () => {
       try {
         const r = await startBackgroundUpdate({ repo: await updateRepoSetting() });
-        if (r?.hasUpdate) console.info('[update] 后台下载新版本', r.latest);
+        // 跳过（开发态 / 已跑过）时返回的是 { skipped: true }，得先用 in 收窄
+        if (r && 'hasUpdate' in r && r.hasUpdate) console.info('[update] 后台下载新版本', r.latest);
       } catch (err) {
         console.warn('[update] 启动检查失败：', err?.message || err);
       }

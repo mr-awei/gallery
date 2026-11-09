@@ -1,3 +1,4 @@
+// @ts-check
 // 智能文件夹：基于规则匹配的虚拟视图，可把 autoTags 一次性继承到命中图片（从 library.js 拆出）
 import { db, withTransaction } from '../db.js';
 import { toDTO } from '../library.js';

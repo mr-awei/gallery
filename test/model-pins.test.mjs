@@ -23,6 +23,31 @@ test('下载时传相对 repoPath 也能命中清单（不能被 sidecar 悄悄�
   assert.equal(pinnedSha('onnx/unknown-model.onnx'), '');
 });
 
+test('isPinned 与 pinnedSha 口径一致（同一路径不能「取得到哈希却声称未固定」）', () => {
+  for (const key of Object.keys(pins.models)) {
+    assert.equal(isPinned(key), true, key);
+    const short = key.split('/').slice(-2).join('/');
+    assert.equal(isPinned(short), !!pinnedSha(short), `${short} 两个接口口径不一致`);
+  }
+  assert.equal(isPinned('nope/model.onnx'), false);
+});
+
+test('去背景 / 超分权重都在清单里（运行前必须能强校验）', () => {
+  const matting = Object.keys(pins.models).find((k) => k.includes('U-2-Net-Human-Seg'));
+  assert.ok(matting, 'matting 权重未固化哈希，首次被替换无法发现');
+  assert.match(pins.models[matting], /^[0-9a-f]{64}$/);
+  const zips = Object.keys(pins.zips);
+  assert.ok(
+    zips.some((u) => /realesrgan-ncnn-vulkan/i.test(u)),
+    '超分运行库（Real-ESRGAN）未固化哈希'
+  );
+  assert.ok(
+    zips.some((u) => /realcugan-ncnn-vulkan/i.test(u)),
+    '超分运行库（Real-CUGAN）未固化哈希'
+  );
+  for (const [url, hex] of Object.entries(pins.zips)) assert.match(hex, /^[0-9a-f]{64}$/i, `${url} 不是合法 sha256`);
+});
+
 test('爬虫 7 源结果走字段级 schema 校验，拒绝项可追溯且不污染返回数组', () => {
   const allowed = new Set(['bing']);
   const good = { url: 'https://example.com/a.jpg', source: 'bing', referer: 'https://example.com/p' };

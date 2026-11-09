@@ -1,3 +1,4 @@
+// @ts-check
 // 壁纸路由：手动/定时切换、动态壁纸、偏好训练与反馈、历史记录（从 app.js 拆出）
 import fs from 'node:fs';
 import path from 'node:path';

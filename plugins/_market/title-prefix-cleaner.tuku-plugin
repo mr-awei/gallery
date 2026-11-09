@@ -1,0 +1,15 @@
+{
+  "format": "tuku-plugin/1",
+  "manifest": {
+    "id": "title-prefix-cleaner",
+    "name": "标题前缀清理",
+    "version": "1.0.0",
+    "entry": "index.js",
+    "permissions": ["image:read", "log"],
+    "actions": ["run"],
+    "description": "试算去掉 IMG_ / DSC_ / 微信图片_ 之类相机前缀后的标题；只读，不写库。"
+  },
+  "files": {
+    "index.js": "export default async function run({ image, args, log }) {\n  const title = String(image?.title || '');\n  const cleaned = title\n    .replace(/^\\s*(?:IMG|DSC|微信图片|截图)[\\s_-]*/i, '')\n    .replace(/\\s+/g, ' ')\n    .trim();\n  log(`标题前缀清理：${title} -> ${cleaned}`);\n  return {\n    logs: [`cleaned=${cleaned}`],\n    result: { title, cleaned, changed: cleaned !== title }\n  };\n}\n"
+  }
+}

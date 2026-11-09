@@ -1,3 +1,4 @@
+// @ts-check
 /**
  * 多端同步 API：同步文件夹 + 带 revision 的库快照。
  *

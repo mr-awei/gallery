@@ -1,0 +1,30 @@
+{
+  "version": 1,
+  "updatedAt": "2026-11-09",
+  "plugins": [
+    {
+      "id": "rating-from-tags",
+      "name": "标签推评分",
+      "version": "1.0.0",
+      "description": "按素材标签里是否含「精选 / 收藏 / 重点」推算星级，用于给历史素材批量补评分。会写库，安装前请看权限声明。",
+      "author": "图库官方",
+      "tags": ["整理", "评分"],
+      "permissions": ["image:read", "image:write", "log"],
+      "actions": ["run"],
+      "package": "rating-from-tags.tuku-plugin",
+      "source": "builtin"
+    },
+    {
+      "id": "title-prefix-cleaner",
+      "name": "标题前缀清理",
+      "version": "1.0.0",
+      "description": "试算并展示去掉 IMG_ / DSC_ / 微信图片_ 之类相机前缀后的标题，只读不写库，适合先看清效果。",
+      "author": "图库官方",
+      "tags": ["命名", "只读"],
+      "permissions": ["image:read", "log"],
+      "actions": ["run"],
+      "package": "title-prefix-cleaner.tuku-plugin",
+      "source": "builtin"
+    }
+  ]
+}

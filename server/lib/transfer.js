@@ -1,3 +1,4 @@
+// @ts-check
 // 资源库的「出口」：备份（可恢复的完整快照）、元数据导出（JSON / CSV）、
 // 恢复备份、从 Eagle .library 迁移进来。
 //
@@ -78,7 +79,10 @@ function collectMeta() {
   return { folders, images, tags };
 }
 
-/** 备份当前资源库到目标文件夹下的一个新目录，返回清单 */
+/**
+ * 备份当前资源库到目标文件夹下的一个新目录，返回清单
+ * @param {{targetDir?:string, includeThumbs?:boolean}} [opts]
+ */
 export function backupLibrary({ targetDir, includeThumbs = true } = {}) {
   const dir = assertWritableDir(targetDir, '备份位置');
   if (!dir) throw new Error('请先选择备份位置');
@@ -246,6 +250,7 @@ function assertBackupDbUsable(file) {
  * 1. 恢复到新库之前校验版本号与 PRAGMA integrity_check；
  * 2. 任何一步失败都回滚（删注册表行 + 删目录），不留半成品；
  * 3. 路径重映射放在事务里，失败整体回滚。
+ * @param {{sourceDir?:string, name?:string, rootPath?:string}} [opts]
  */
 export function restoreLibrary({ sourceDir, name, rootPath } = {}) {
   const src = String(sourceDir || '').trim();
@@ -409,6 +414,7 @@ function eagleFolderNames(map, id) {
  * - 用 images.eagle_id 记录来源素材 id，重复点「开始迁移」只会补漏，不会产生副本
  * - 每轮默认最多处理 limit 个（默认 1000，够快也不会让 HTTP 请求挂太久），
  *   返回值里的 remaining 表示还有多少没迁，前端提示再点一次继续
+ * @param {{srcDir?:string, name?:string, rootPath?:string, limit?:number}} [opts]
  */
 export async function importEagleLibrary({ srcDir, name, rootPath, limit } = {}) {
   const src = String(srcDir || '').trim();
@@ -526,6 +532,7 @@ export async function importEagleLibrary({ srcDir, name, rootPath, limit } = {})
       continue;
     }
     const tags = Array.isArray(meta.tags) ? meta.tags.filter(Boolean).map(String) : [];
+    /** @type {Awaited<ReturnType<typeof lib.ingest>>} 失败兜底与成功结果共用同一形状 */
     const r = await lib
       .ingest({
         absPath: finalDest,

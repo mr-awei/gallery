@@ -1,3 +1,4 @@
+// @ts-check
 // 多格式素材支持（对标 Eagle：图片之外还有视频 / GIF / 音频 / 字体 / PDF / Office / 3D）
 //
 // 这里只做「非图片素材」的判别与入库：
@@ -9,9 +10,9 @@
 import fs from 'node:fs';
 import fsp from 'node:fs/promises';
 import path from 'node:path';
-import crypto from 'node:crypto';
 import { db, getSettings } from '../db.js';
 import { buildFileName, resolveStorageDir } from '../library.js';
+import { uniqueTargetName } from './name-template.js';
 import { md5File, md5Buffer } from './hash.js';
 import { MEDIA_EXTS, extOf, isJunkFile, isMediaPath, kindOfPath, mimeOfPath } from './media-kind.js';
 import { probeMedia } from './media-probe.js';
@@ -54,12 +55,16 @@ export async function ingestMedia({
     const dir = resolveStorageDir(settings);
     await fsp.mkdir(dir, { recursive: true });
     const ext = extOf(nameHint) || 'bin';
-    const base = buildFileName({ keyword, source, width: 0, height: 0, format: ext });
-    let candidate = path.join(dir, base);
-    if (fs.existsSync(candidate)) {
-      candidate = path.join(dir, base.replace(/(\.\w+)$/, `_${crypto.randomBytes(2).toString('hex')}$1`));
-    }
-    finalPath = candidate;
+    const base = buildFileName({
+      keyword,
+      source,
+      width: 0,
+      height: 0,
+      format: ext,
+      template: settings.importNameTemplate,
+      originalName: title || (absPath ? path.basename(absPath) : ''),
+    });
+    finalPath = path.join(dir, uniqueTargetName(dir, base));
     if (buffer) await fsp.writeFile(finalPath, buffer);
     else await fsp.copyFile(absPath, finalPath);
   }

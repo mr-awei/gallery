@@ -169,12 +169,29 @@
   top: 0;
   bottom: 0;
   left: 4px;
-  width: 1px;
-  background: transparent;
+  width: 2px;
+  /* 平时就要看得见：和右侧边框同一个颜色，不用移过去才知道这里有一条边界 */
+  background: var(--border-strong);
   transition: background 0.15s;
 }
+/* 中部小握把：明确告诉用户这条边界可以左右拖动调宽 */
+.sidebar-resizer::before {
+  content: '';
+  position: absolute;
+  top: 50%;
+  left: 2px;
+  width: 6px;
+  height: 34px;
+  transform: translateY(-50%);
+  border-radius: 6px;
+  background: var(--border-strong);
+  transition: background 0.15s;
+  z-index: 1;
+}
 .sidebar-resizer:hover::after,
-body.sidebar-resizing .sidebar-resizer::after {
+.sidebar-resizer:hover::before,
+body.sidebar-resizing .sidebar-resizer::after,
+body.sidebar-resizing .sidebar-resizer::before {
   background: #ff4d8d;
 }
 /* 拖拽中禁用文本选中，光标全程保持 col-resize（滑出把手也不闪） */
@@ -207,6 +224,173 @@ body.sidebar-resizing iframe {
   padding: 2px 10px 4px;
   text-transform: uppercase;
   letter-spacing: 0.05em;
+}
+
+/* ---------------- 侧栏可折叠分区（Eagle 式，默认收起次要列表） ---------------- */
+.side-head {
+  position: sticky;
+  top: 0;
+  z-index: 6;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin: -14px -12px 4px;
+  padding: 12px 14px 10px;
+  background: var(--surface-side);
+  border-bottom: 1px solid var(--border);
+}
+.side-head-title {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--muted);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+.side-head-all {
+  border: none;
+  background: transparent;
+  color: var(--muted);
+  font-size: 11px;
+  cursor: pointer;
+  padding: 3px 5px;
+  border-radius: 6px;
+}
+.side-head-all:hover {
+  color: var(--text);
+  background: var(--panel-strong);
+}
+.side-section {
+  flex: 0 0 auto;
+  min-width: 0;
+}
+.side-section + .side-section {
+  margin-top: 2px;
+}
+.side-section-head {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+}
+.side-section-toggle {
+  flex: 1 1 auto;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 8px;
+  border: none;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--muted);
+  font-size: 11px;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  text-align: left;
+  cursor: pointer;
+  transition: background 0.15s ease, color 0.15s ease;
+}
+.side-section-toggle:hover {
+  color: var(--text);
+  background: var(--panel-strong);
+}
+.side-section-chevron {
+  flex: 0 0 12px;
+  width: 12px;
+  font-size: 11px;
+  line-height: 1;
+}
+.side-section-label {
+  flex: 0 0 auto;
+}
+.side-section-summary {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 11px;
+  letter-spacing: 0;
+  text-transform: none;
+  opacity: 0.75;
+}
+.side-section-actions {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  flex: 0 0 auto;
+}
+.side-section-body {
+  padding: 2px 0 6px;
+}
+/* 常驻主导航：仪表盘 / 图库不进折叠分组，字号与点击区域都比其他入口更醒目 */
+.side-primary-nav {
+  flex: 0 0 auto;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  margin: 2px 0 4px;
+}
+.side-primary-nav .nav-item {
+  padding: 9px 12px;
+  font-size: 14px;
+  font-weight: 500;
+}
+/* 导航两列紧凑排布；侧栏很窄时自动退回一列 */
+.nav-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(112px, 1fr));
+  gap: 2px;
+  margin: 6px 0 4px;
+}
+.nav-grid .nav-item {
+  padding: 7px 8px;
+  font-size: 12.5px;
+  gap: 6px;
+  min-width: 0;
+}
+.nav-grid .nav-item > span:not(.badge) {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.nav-grid .nav-item .badge {
+  font-size: 10px;
+  padding: 1px 5px;
+}
+.side-section-body .nav-item.pending {
+  padding: 6px 10px;
+}
+/* 四个次要入口常驻一行（纯文字）：和上方主导航之间留一道淡分隔，但不再有折叠标题 */
+.side-more-nav {
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 2px;
+  margin: 0 0 6px;
+  padding-top: 8px;
+  border-top: 1px solid var(--border);
+}
+.side-more-nav .nav-item {
+  justify-content: center;
+  padding: 6px 2px;
+  gap: 3px;
+  font-size: 11.5px;
+}
+.side-more-nav .nav-item svg {
+  width: 13px;
+  height: 13px;
+  flex: 0 0 13px;
+}
+.side-more-nav .nav-item .badge {
+  position: absolute;
+  top: 1px;
+  right: 1px;
+  margin: 0;
+  font-size: 9px;
+  padding: 0 3px;
+}
+.folder-tree-head-actions {
+  display: flex;
+  align-items: center;
+  gap: 2px;
 }
 
 .nav-item {
@@ -650,6 +834,9 @@ body.sidebar-resizing iframe {
   margin-top: 6px;
   display: flex;
   flex-direction: column;
+  /* 上方分区收起后，文件夹树占满剩余高度，一进应用就能看到整棵树 */
+  flex: 1 0 auto;
+  min-height: 0;
 }
 .folders-title {
   font-size: 11px;
@@ -713,38 +900,11 @@ body.sidebar-resizing iframe {
   cursor: pointer;
   transition: background 0.15s ease, color 0.15s ease;
 }
-.folder-actions {
-  display: none;
-  gap: 2px;
-  flex: 0 0 auto;
-  padding-right: 4px;
-}
-.folder-row:hover .folder-actions {
-  display: flex;
-}
 /* 拖素材卡到文件夹上：整行高亮，提示松手即归类 */
 .folder-row.drop-target {
   border-radius: 7px;
   background: rgba(255, 77, 141, 0.16);
   box-shadow: inset 0 0 0 1px rgba(255, 77, 141, 0.55);
-}
-.folder-actions button {
-  display: grid;
-  place-items: center;
-  width: 20px;
-  height: 20px;
-  border: none;
-  border-radius: 6px;
-  background: transparent;
-  color: var(--muted);
-  font-size: 11px;
-  line-height: 1;
-  cursor: pointer;
-  transition: all 0.15s ease;
-}
-.folder-actions button:hover {
-  background: var(--panel-strong);
-  color: var(--text);
 }
 .folder-item:hover {
   background: var(--panel);

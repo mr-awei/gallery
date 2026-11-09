@@ -1,3 +1,4 @@
+// @ts-check
 // 相似图分组（整理）：CLIP 向量流式聚类 + pHash 相似 + 格式重复识别，供整理页使用（从 library.js 拆出）
 import path from 'node:path';
 import { db, getSettings } from '../db.js';

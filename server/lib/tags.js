@@ -1,3 +1,4 @@
+// @ts-check
 // 标签管理：单一事实来源是 images.tags 逗号串，item_tags 是派生索引（从 library.js 拆出）
 // tag_meta 只存展示属性（分组 / 颜色 / 父标签 / 排序），是 Eagle 式标签体系的「皮肤」。
 import { db, withTransaction } from '../db.js';
@@ -106,6 +107,7 @@ export function listTagsRich({ fresh = false } = {}) {
  * 分页版标签列表：聚合下推到 item_tags 倒排表（走索引），LIMIT/OFFSET 在 SQL 里做。
  * listTags / listTagsRich 会把整库 tags 拉进内存再切，标签涨到几千条时接口会线性变慢；
  * 老接口保留给「写操作后返回完整树」等场景，新调用方用这个。
+ * @param {{limit?:number, offset?:number, rich?:boolean}} [opts]
  * @returns {{items:object[], total:number, limit:number, offset:number}}
  */
 export function listTagsPaged({ limit = 200, offset = 0 } = {}) {
@@ -199,7 +201,10 @@ function upsertMeta({ tag, group, color, parent, sortOrder, onlyIfExists = false
   return db.prepare('SELECT * FROM tag_meta WHERE tag = ?').get(t);
 }
 
-/** 设置标签元数据（未提供的字段保持不变） */
+/**
+ * 设置标签元数据（未提供的字段保持不变）
+ * @param {{tag?:string, group?:string, color?:string, parent?:string, sortOrder?:number}} [opts]
+ */
 export function setTagMeta({ tag, group, color, parent, sortOrder } = {}) {
   const row = upsertMeta({ tag, group, color, parent, sortOrder });
   if (!row) return null;

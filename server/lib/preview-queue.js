@@ -1,3 +1,4 @@
+// @ts-check
 import { getLibraryGeneration } from '../db.js';
 import * as lib from '../library.js';
 import { ensurePreview, existingPreviewPath } from '../thumbs.js';

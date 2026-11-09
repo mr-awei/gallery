@@ -1,3 +1,4 @@
+// @ts-check
 /**
  * 擦除 / 修复（inpaint）。
  *
@@ -146,7 +147,8 @@ export async function inpaintImage(id, opts = {}) {
   const W = info.width;
   const H = info.height;
   if (!W || !H || info.channels !== 4) throw new Error('无法读取图片像素');
-  const meta = await sharp(row.abs_path, { failOn: 'none' }).metadata().catch(() => ({}));
+  // 失败兜底也带上同名字段，保证 union 两侧都能直接读 format / pages
+  const meta = await sharp(row.abs_path, { failOn: 'none' }).metadata().catch(() => ({ format: '', pages: 1 }));
   const format = String(meta?.format || 'jpeg').toLowerCase();
   if ((Number(meta?.pages) || 1) > 1) throw new Error('多帧动图暂不支持擦除，请先导出其中一帧');
   if (!['png', 'webp', 'avif', 'jpeg', 'jpg'].includes(format)) {

@@ -1,3 +1,4 @@
+// @ts-check
 /**
  * 任务中心 + 操作撤销的接口。
  *
@@ -162,8 +163,10 @@ export function register(app) {
     }
     let ok = false;
     if (job.kind === 'crawl') ok = stopCrawl();
-    else if (job.kind === 'edit') ok = cancelEditJob();
-    else if (job.kind === 'enhance') ok = cancelEnhanceJob();
+    // cancelEditJob / cancelJob 返回的是任务状态对象，不是布尔：以前直接把对象当 ok 回给前端，
+    // 前端 if (ok) 恒为真，取消失败也显示「已请求停止」。
+    else if (job.kind === 'edit') ok = !!cancelEditJob()?.cancelled;
+    else if (job.kind === 'enhance') ok = !!cancelEnhanceJob()?.cancelled;
     else if (job.kind === 'model-install') ok = cancelMattingInstall();
     res.json({ ok, message: ok ? '已请求停止' : '该任务不支持从任务中心停止' });
   });
@@ -178,6 +181,7 @@ export function register(app) {
     }
     const p = job.payload || {};
     try {
+      /** @type {any} 各子系统返回值形状不同（{ok,message} / 状态对象），这里只关心 ok 与 message */
       let out;
       if (job.kind === 'crawl') out = startCrawl({ keywords: p.keywords, sources: p.sources, pages: p.pages });
       else if (job.kind === 'edit') out = startEditJob(p.ids || [], p.op, p.params || {});

@@ -1,7 +1,6 @@
 import os from 'node:os';
 import path from 'node:path';
 import fs from 'node:fs';
-import crypto from 'node:crypto';
 import fsp from 'node:fs/promises';
 import { Worker } from 'node:worker_threads';
 import sharp from 'sharp';
@@ -24,6 +23,7 @@ import { SCAN_IMAGE_EXTS, mimeOfPath } from './lib/media-kind.js';
 import { shouldSkipDir } from './lib/skip-dirs.js';
 import { thumbPathFor } from './thumbs.js';
 import { mapLimit } from './lib/utils.js';
+import { renderNameTemplate, uniqueTargetName } from './lib/name-template.js';
 import * as clip from './clip.js';
 
 /**
@@ -258,6 +258,44 @@ async function* walkChunks(dirs, chunkSize = CHUNK, onDepthSkip = null) {
 
 /* ------------------------------ 主流程 ------------------------------ */
 
+/**
+ * 本地扫描默认「原地登记」：绝不重命名 / 移动用户硬盘上的文件。
+ * 只有显式开启 importNameTemplateForLocal 才复制一份到保存文件夹并按模板命名，
+ * 目录层级保留下来，文件夹关联才不会丢。复制失败就退回原路径继续登记，不让导入中断。
+ */
+async function materializeLocalChunk(files, settings, keyword, seq, onError) {
+  const tpl = String(settings.importNameTemplate || '').trim();
+  if (!tpl || settings.importNameTemplateForLocal !== true) return files;
+  const root = resolveStorageDir(settings);
+  const out = [];
+  for (const file of files) {
+    try {
+      const rel = path.relative(root, path.dirname(file));
+      const baseDir =
+        !rel || rel.startsWith('..') || path.isAbsolute(rel)
+          ? path.join(root, '_导入', path.basename(path.dirname(file)))
+          : path.join(root, rel);
+      await fsp.mkdir(baseDir, { recursive: true });
+      const ext = path.extname(file).replace(/^\./, '').toLowerCase() || 'jpg';
+      const name = renderNameTemplate(tpl, {
+        keyword: keyword || '壁纸库',
+        source: 'local',
+        originalName: path.basename(file),
+        ext,
+        index: ++seq.n,
+      });
+      const target = path.join(baseDir, uniqueTargetName(baseDir, name));
+      await fsp.copyFile(file, target);
+      out.push(target);
+    } catch (err) {
+      console.warn('[bulk] 按模板复制失败，改为原地登记：', file, err?.message || err);
+      onError();
+      out.push(file);
+    }
+  }
+  return out;
+}
+
 export async function bulkImportLocal({
   dirs,
   keyword = '',
@@ -366,9 +404,17 @@ export async function bulkImportLocal({
     result.dropped += deletes.length;
   };
 
-  for await (const chunk of walkChunks(dirs, CHUNK, (dir) => {
+  const localNameSeq = { n: 0 };
+  for await (const rawChunk of walkChunks(dirs, CHUNK, (dir) => {
     if (result.depthSkippedDirs.length < 20) result.depthSkippedDirs.push(dir);
   })) {
+    const chunk = await materializeLocalChunk(
+      rawChunk,
+      settings,
+      keyword,
+      localNameSeq,
+      () => { result.errors++; }
+    );
     if (isCancelled() || generation !== getLibraryGeneration()) {
       result.cancelled += chunk.length;
       break;
@@ -665,11 +711,11 @@ export async function bulkIngestBuffers(items, { onEach = null, libGeneration = 
       width: a.width,
       height: a.height,
       format: a.format,
+      template: settings.importNameTemplate,
+      index: a.i + 1,
+      originalName: a.it.title,
     });
-    let finalPath = path.join(storageDir, name);
-    if (fs.existsSync(finalPath)) {
-      finalPath = path.join(storageDir, name.replace(/(\.\w+)$/, `_${crypto.randomBytes(2).toString('hex')}$1`));
-    }
+    const finalPath = path.join(storageDir, uniqueTargetName(storageDir, name));
     try {
       await fsp.writeFile(finalPath, a.buffer);
       a.finalPath = finalPath;

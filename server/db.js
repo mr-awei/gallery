@@ -753,7 +753,12 @@ export function openLibrary(dbFile) {
   return conn;
 }
 
-/** 当前库连接（live binding：切库后所有 import 方读到新连接） */
+/**
+ * 当前库连接（live binding：切库后所有 import 方读到新连接）。
+ * node:sqlite 的行是运行时动态结构，见 lib/db-handle.d.ts：只放宽这一处边界，
+ * server/lib 里其余 JSDoc 全部由 tsconfig.server.json 真检查。
+ * @type {import('./lib/db-handle.js').DbHandle}
+ */
 export let db = openLibrary(DB_FILE);
 
 // 当前激活库元信息（内存缓存，切库时更新）
@@ -876,6 +881,11 @@ export const DEFAULT_SETTINGS = {
   phashThreshold: 8, // 汉明距离阈值
   pagesPerKeyword: 3, // 每个关键词采集页数
   importMaxDepth: 4, // 导入时目录遍历深度上限（层），超过的目录会跳过并在导入结束时提示
+  // 导入命名模板：空 = 沿用内置「关键词_来源_尺寸_时间戳_随机」。
+  // 采集 / 拖拽 / 粘贴 / 手机投送 / 浏览器扩展 / 批量入库都按它落盘，原图不会被改名
+  importNameTemplate: '',
+  // 本地扫描默认原地登记；开启后才复制一份到保存文件夹并按模板命名，原文件始终不动
+  importNameTemplateForLocal: false,
   // 调色台历史记录保留步数：调色是「反复试」的过程，默认留 100 步够回退一整轮试色
   historySteps: 100,
   // 水印预设（跨库共享）：用户存下来的整套排版方案 —— 样式/相框/信息项/品牌型号/字号…
@@ -912,7 +922,7 @@ export const DEFAULT_SETTINGS = {
   watchEnabled: true,
   // 是否已完成首次引导（首次启动让用户选择图片文件夹）；完成后置 true 不再弹出
   onboarded: false,
-  // 是否已看过新手教程（分步导览）；跳过也算看过，可在设置里重新播放
+  // 是否已看过教程（分步导览）；跳过也算看过，可在设置里重新播放
   tourDone: false,
   // 删除策略：trash 回收站 / permanent 彻底删除 / unlink 仅移出图库
   deletePolicy: 'trash',

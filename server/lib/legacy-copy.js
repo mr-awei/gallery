@@ -1,3 +1,4 @@
+// @ts-check
 /**
  * 旧库 → 主库的表搬运（纯 SQL，不依赖应用运行时的 db 单例）。
  *
@@ -34,7 +35,7 @@ export const LEGACY_TABLES = [
  * 应用主连接，用不了 withTransaction。因此调用方**不得**再把它包在事务里，
  * 否则会抛 "cannot start a transaction within a transaction"（目前只有启动期的
  * autoMergeLegacy 调用，不在任何事务内）。
- * @param {import('node:sqlite').DatabaseSync} conn
+ * @param {import('./db-handle.js').DbHandle} conn
  * @param {string} legacyFile
  */
 export function copyLegacyTables(conn, legacyFile) {

@@ -1,3 +1,4 @@
+// @ts-check
 // 删除图片 / 应用内回收站 / 文件重命名 / 清空图库：文件移动与库记录联动的单一出处（从 library.js 拆出）
 import fs from 'node:fs';
 import fsp from 'node:fs/promises';
@@ -52,7 +53,7 @@ function trashDirFor(absPath) {
 
 /**
  * 删除图片。默认策略 trash：把文件移动到应用内回收站（同盘移动，可一键恢复）
- * @returns {{ok:boolean, error?:string}}
+ * @returns {Promise<{ok:boolean, error?:string}>}
  */
 export async function removeImage(id, { reason = '' } = {}) {
   const row = getImage(id);
@@ -290,7 +291,7 @@ export async function renameImage(id, title) {
  * 关键约束：**移动失败的那一行必须留在图库里**。
  * 过去的写法是失败只打日志、循环结束后无条件 DELETE FROM images ——
  * 文件还在磁盘上、记录却被抹掉，既不在图库也不在回收站，用户无从恢复。
- * @returns {{removed:number, failed:Array<{id:number, path:string, error:string}>}}
+ * @returns {Promise<{removed:number, failed:Array<{id:number, path:string, error:string}>}>}
  */
 export async function clearLibrary() {
   const rows = db.prepare('SELECT * FROM images').all();

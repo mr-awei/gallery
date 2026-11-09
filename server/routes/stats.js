@@ -1,3 +1,4 @@
+// @ts-check
 // 统计路由：总量/来源/分辨率/方向/收藏/增长趋势等聚合视图（从 app.js 拆出）
 import { getJobStatus } from '../crawler.js';
 import * as lib from '../library.js';
@@ -12,6 +13,7 @@ import { db } from '../db.js';
 import { currentLibraryInfo } from '../libraries.js';
 import { logOp } from '../oplog.js';
 import { hiddenImagesClause } from '../lib/privacy.js';
+import { deleteAlias, listAliases, setAlias } from '../lib/tags.js';
 
 export function register(app, ctx) {
   // ctx.importState 是 getter 函数（app.js 里 `importState: () => importState`）
@@ -334,14 +336,14 @@ export function register(app, ctx) {
   /* --------------------------- 标签别名 / 同义词 --------------------------- */
 
   app.get('/api/tags/aliases', (_req, res) => {
-    res.json({ aliases: lib.listAliases() });
+    res.json({ aliases: listAliases() });
   });
 
   app.put(
     '/api/tags/alias',
     asyncRoute(async (req, res) => {
       try {
-        const aliases = lib.setAlias(req.body?.alias, req.body?.tag);
+        const aliases = setAlias(req.body?.alias, req.body?.tag);
         sseBroadcast('tags', { path: req.path });
         res.json({ ok: true, aliases });
       } catch (err) {
@@ -354,7 +356,7 @@ export function register(app, ctx) {
     '/api/tags/alias/:alias',
     asyncRoute(async (req, res) => {
       try {
-        const aliases = lib.deleteAlias(decodeURIComponent(req.params.alias));
+        const aliases = deleteAlias(decodeURIComponent(req.params.alias));
         sseBroadcast('tags', { path: req.path });
         res.json({ ok: true, aliases });
       } catch (err) {

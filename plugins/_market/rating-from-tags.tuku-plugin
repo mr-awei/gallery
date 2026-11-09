@@ -1,0 +1,15 @@
+{
+  "format": "tuku-plugin/1",
+  "manifest": {
+    "id": "rating-from-tags",
+    "name": "标签推评分",
+    "version": "1.0.0",
+    "entry": "index.js",
+    "permissions": ["image:read", "image:write", "log"],
+    "actions": ["run"],
+    "description": "按素材标签里是否含「精选 / 收藏 / 重点」推算星级；声明 image:write，会回写评分。"
+  },
+  "files": {
+    "index.js": "export default async function run({ image, args, permissions, log }) {\n  const tags = String(image?.tags || '').split(/[,，\\s]+/).map((t) => t.trim()).filter(Boolean);\n  const hit = tags.filter((t) => /精选|收藏|重点|favorite|best/i.test(t));\n  const rating = hit.length ? Math.min(5, 3 + hit.length) : 0;\n  if (!permissions.includes('image:write')) {\n    return { logs: ['缺少 image:write，只做试算'], result: { rating } };\n  }\n  log(`按标签推评分 ${rating}`);\n  return {\n    logs: [`tags=${tags.length}`, `rating=${rating}`],\n    patch: rating ? { rating } : {},\n    result: { rating, changed: rating > 0 }\n  };\n}\n"
+  }
+}

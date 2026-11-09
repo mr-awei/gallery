@@ -1,3 +1,4 @@
+// @ts-check
 // 统一列表查询：结构化筛选 + FTS5 全文搜索 + 排序分页的唯一权威实现（从 library.js 拆出）
 import { db, withTransaction } from '../db.js';
 import { toDTO } from '../library.js';
@@ -184,11 +185,14 @@ function dropColorScope(table) {
  * 列表筛选的 WHERE 拼装（唯一权威）。
  * 之前 app.js 里另有一份 buildFilter，收敛列表逻辑时删了它却漏改路由，
  * 导致「全部标记已看」入口 100% 抛 ReferenceError（P0）。现在两处共用这一份。
+ * @param {Record<string, any>} [query] HTTP query / 调用方给的动态筛选条件
+ * @param {{colorTable?:string}} [opts]
  */
 export function buildImageFilter(query = {}, { colorTable = '' } = {}) {
   // 先拆搜索框前缀，剩余文本继续走全文检索 —— 不改数据库、不改调用方
   const syntax = parseSearchSyntax(query.q);
   if (syntax) {
+    /** @type {Record<string, any>} 搜索语法会补写 tag / hue / rating 等键 */
     const merged = { ...query, q: syntax.text };
     if (syntax.tags.length && !merged.tag) merged.tag = syntax.tags.join(',');
     if (syntax.hues.length && (!merged.hue || merged.hue === 'all')) merged.hue = syntax.hues.join(',');

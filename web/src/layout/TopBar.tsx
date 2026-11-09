@@ -4,7 +4,7 @@
  */
 import type { Ref } from 'react';
 import type { View } from '../types';
-import { IconBook, IconDownload, IconGear, IconLink, IconMoon, IconSun, IconWand } from '../components/Icons';
+import { IconBook, IconDownload, IconGear, IconGlobe, IconLink, IconMoon, IconSun, IconWand } from '../components/Icons';
 import { TOOLS } from './nav';
 
 interface Props {
@@ -21,6 +21,8 @@ interface Props {
   onBookmark: () => void;
   /** 导出为 HTML 网页画廊 */
   onExportGallery: () => void;
+  /** 生成只读分享链接（手机扫码浏览） */
+  onShareLink: () => void;
 }
 
 export default function TopBar({
@@ -35,6 +37,7 @@ export default function TopBar({
   onToggleTheme,
   onBookmark,
   onExportGallery,
+  onShareLink,
 }: Props) {
   return (
     <header className="topbar" data-tour="topbar">
@@ -76,6 +79,9 @@ export default function TopBar({
         </div>
         <button className="icon-btn" onClick={onBookmark} title="保存网页（URL + 快照）">
           <IconLink />
+        </button>
+        <button className="icon-btn" onClick={onShareLink} title="生成只读分享链接（手机扫码浏览）">
+          <IconGlobe />
         </button>
         <button className="icon-btn" onClick={onExportGallery} title="导出为 HTML 网页画廊">
           <IconDownload />

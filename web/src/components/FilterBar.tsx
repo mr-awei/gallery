@@ -1,8 +1,8 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
-import type { Filters } from '../types';
+import type { Filters, ViewMode } from '../types';
 import { BUCKET_LABELS, ORIENTATION_LABELS, SOURCE_LABELS, api, desktop, quiet } from '../api';
-import { IconColumns, IconGrid, IconList, IconSearch } from './Icons';
+import { IconColumns, IconFolder, IconGrid, IconSearch } from './Icons';
 import { THUMB_DEFAULT, THUMB_MAX, THUMB_MIN, THUMB_PRESETS, clampThumbWidth, thumbPresetOf } from '../lib/thumb-size';
 import ColorPad from './ColorPad';
 
@@ -10,12 +10,11 @@ interface Props {
   filters: Filters;
   onChange: (patch: Partial<Filters>) => void;
   tags: { tag: string; count: number }[];
-  viewMode: 'masonry' | 'grid' | 'list';
-  onViewMode: (mode: 'masonry' | 'grid' | 'list') => void;
+  viewMode: ViewMode;
+  onViewMode: (mode: ViewMode) => void;
   /** 缩略图尺寸滑块（列宽 px） */
   colWidth?: number;
   onColWidth?: (w: number) => void;
-  total: number;
   hideFavorite?: boolean;
   /** 当前在文件夹里：排序下拉才提供「手动排序」（顺序存在 image_folders.sort_order） */
   canManualSort?: boolean;
@@ -87,6 +86,38 @@ function Drop(props: {
   );
 }
 
+/**
+ * 三种展示方式：前两种「图片展开」，第三种「按文件夹收纳」（Eagle 式）。
+ * 列表视图按用户要求从切换组移除：一行一张看不出画面，整理场景由侧栏与筛选器承担。
+ */
+const VIEW_MODES: { key: ViewMode; label: string; hint: string; icon: React.ReactNode }[] = [
+  { key: 'masonry', label: '瀑布流', hint: '图片展开 · 保留原比例', icon: <IconColumns /> },
+  { key: 'grid', label: '网格', hint: '图片展开 · 等高裁切', icon: <IconGrid /> },
+  { key: 'folder', label: '文件夹收纳', hint: '按文件夹分组收纳，可就地展开组内图片', icon: <IconFolder /> },
+];
+
+/** 分段式视图切换：三个入口收在一组里，顶部不再散落一排小方块 */
+function ViewSwitch({ value, onChange }: { value: ViewMode; onChange: (m: ViewMode) => void }) {
+  return (
+    <div className="view-switch" role="group" aria-label="展示方式">
+      {VIEW_MODES.map((m) => (
+        <button
+          key={m.key}
+          type="button"
+          className={`view-btn${value === m.key ? ' on' : ''}`}
+          aria-label={m.hint}
+          aria-pressed={value === m.key}
+          title={m.hint}
+          data-view-mode={m.key}
+          onClick={() => onChange(m.key)}
+        >
+          {m.icon}
+        </button>
+      ))}
+    </div>
+  );
+}
+
 export default function FilterBar({
   filters,
   onChange,
@@ -95,7 +126,6 @@ export default function FilterBar({
   onViewMode,
   colWidth,
   onColWidth,
-  total,
   hideFavorite,
   canManualSort,
   onMarkAllSeen,
@@ -297,7 +327,13 @@ export default function FilterBar({
 
   return (
     <div data-tour="filterbar">
-      <div className="toolbar">
+      <div className={`toolbar toolbar-main${viewMode === 'folder' ? ' folder-mode-bar' : ''}`}>
+        {viewMode === 'folder' ? (
+          <div className="folder-mode-tip">
+            按文件夹收纳浏览 · 点文件夹进入，点箭头就地展开图片；切到「图片展开」可用搜索与筛选
+          </div>
+        ) : (
+          <>
         <div className="search-box">
           <span className="icon">
             <IconSearch />
@@ -351,7 +387,9 @@ export default function FilterBar({
           ))}
         </select>
 
-        <div style={{ marginLeft: 'auto', display: 'flex', gap: 6, alignItems: 'center' }}>
+          </>
+        )}
+        <div className="toolbar-tools">
           {desktop?.captureScreenshot && (
             <button
               className="btn sm"
@@ -365,8 +403,8 @@ export default function FilterBar({
               📷
             </button>
           )}
-          {/* Eagle 式缩略图尺寸：五档预设 + 无极滑块，只在两种缩略视图下可用 */}
-          {onColWidth && viewMode !== 'list' && (
+          {/* Eagle 式缩略图尺寸：五档预设 + 无极滑块，只在图片展开的缩略视图下可用 */}
+          {onColWidth && viewMode !== 'folder' && (
             <div className="thumb-size-group">
               <div className="thumb-presets" role="group" aria-label="缩略图预设尺寸">
                 {THUMB_PRESETS.map((p) => (
@@ -394,33 +432,13 @@ export default function FilterBar({
               />
             </div>
           )}
-          <button
-            className={`btn sm${viewMode === 'masonry' ? ' primary' : ''}`}
-            onClick={() => onViewMode('masonry')}
-            title="瀑布流"
-          >
-            <IconColumns />
-          </button>
-          <button
-            className={`btn sm${viewMode === 'grid' ? ' primary' : ''}`}
-            onClick={() => onViewMode('grid')}
-            title="网格视图"
-          >
-            <IconGrid />
-          </button>
-          <button
-            className={`btn sm${viewMode === 'list' ? ' primary' : ''}`}
-            onClick={() => onViewMode('list')}
-            title="列表视图"
-          >
-            <IconList />
-          </button>
+          <ViewSwitch value={viewMode} onChange={onViewMode} />
         </div>
-
-        <span style={{ color: 'var(--muted)', fontSize: 12.5 }}>共 {total} 张</span>
       </div>
 
-      <div className="toolbar" style={{ marginTop: -4 }} ref={rootRef}>
+      {viewMode !== 'folder' && (
+        <>
+      <div className="toolbar toolbar-filters" ref={rootRef}>
         {!hideFavorite && (
           <Drop label="收藏" active={filters.favorite !== 'all'} open={openKey === 'fav'} onToggle={() => toggleDrop('fav')}>
             {(['all', 'yes', 'no'] as const).map((v) => (
@@ -671,6 +689,8 @@ export default function FilterBar({
             </button>
           ))}
         </div>
+      )}
+        </>
       )}
 
       {/* 截图取色覆盖层：挂到 body，避免祖先的 filter/backdrop-filter 给 fixed 造参照系 */}

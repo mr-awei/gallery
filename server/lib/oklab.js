@@ -1,3 +1,4 @@
+// @ts-check
 /**
  * OKLab 感知均匀颜色空间（Björn Ottosson）的纯函数实现。
  * 从 color.js / search.js 抽出来的唯一实现：OKLab 欧氏距离才是「感知色差」，

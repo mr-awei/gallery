@@ -1,3 +1,4 @@
+// @ts-check
 // 素材使用统计：复制 / 导出次数。
 // Eagle 的大图详情能看到「这张图用过几次」，也用来找出「从没用过的素材」。
 // 只记次数与最近一次时间，不记「谁在什么时候导出到哪」——那是操作日志（op_log）的事。
@@ -28,7 +29,8 @@ export function bumpUsage(kind, ids = []) {
   const upd = db.prepare(`UPDATE images SET ${col} = ${col} + 1, last_used_at = ? WHERE id = ?`);
   let n = 0;
   withTransaction(() => {
-    for (const id of list) n += upd.run(now, id).changes;
+    // node:sqlite 的 changes 是 number | bigint，显式收敛成 number 再累加
+    for (const id of list) n += Number(upd.run(now, id).changes);
   });
   return n;
 }

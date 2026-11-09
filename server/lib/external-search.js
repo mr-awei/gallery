@@ -1,3 +1,4 @@
+// @ts-check
 // 外部以图搜图 + 一键换大图
 //
 // 说清楚能力边界，避免「按钮点下去什么都没发生」：
@@ -193,7 +194,16 @@ export async function probeCandidate(url, referer = '') {
   return { url, width: meta.width, height: meta.height, area: meta.width * meta.height, buffer: buf, format: meta.format };
 }
 
-/** 对一张图尝试换更大版本：优先原地址，再试去掉缩放参数的变体 */
+/**
+ * 对一张图尝试换更大版本：优先原地址，再试去掉缩放参数的变体。
+ * found 用字面量 true / false 构成判别联合，调用方 `r.found ? r.width : ...` 才能正确收窄。
+ * @param {any} row
+ * @param {{minGain?: number}} [opts]
+ * @returns {Promise<
+ *   | {found: true, url: string, width: number, height: number, area: number, buffer: Buffer, format?: string, before: {width: any, height: any}, tried: Array<{url: string, error?: string, width?: number, height?: number}>}
+ *   | {found: false, before: {width: any, height: any}, tried: Array<{url: string, error?: string, width?: number, height?: number}>}
+ * >}
+ */
 export async function findLargerSource(row, { minGain = 1.1 } = {}) {
   if (!isHttpUrl(row.source_url)) {
     throw new Error('这张图没有记录原始来源地址（本地导入的图无法自动换大图）');

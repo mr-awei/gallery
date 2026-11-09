@@ -591,11 +591,20 @@ export interface LanStatus {
   enabled: boolean;
   /** 独立投送端口；0 = 未开启 */
   port: number;
+  /** 本机所有可用局域网 IPv4，二维码可指定其中一个 */
+  ips: string[];
   /** 手机可访问的 URL（含投送令牌） */
   urls: string[];
   qrText: string;
   token: string;
   note: string;
+}
+
+/** 桌面端连通性自检：逐个本机局域网 IP 试探自己的投送端口 */
+export interface LanSelfCheck {
+  ok: boolean;
+  port: number;
+  results: { ip: string; ok: boolean; status?: number; error?: string }[];
 }
 
 /** 只读分享链接：只能浏览 / 搜索，不能上传；令牌只存服务端内存，重启失效 */
@@ -608,6 +617,57 @@ export interface LanShare {
   urls: string[];
   /** 仅创建响应带：有效分钟数 */
   minutes?: number;
+  /** 可见范围：整库 / 指定素材 / 单个文件夹 */
+  scope?: 'library' | 'selection' | 'folder';
+  ids?: number[];
+  folderId?: number;
+  title?: string;
+}
+
+/** 创建只读分享链接的参数 */
+export interface LanShareInput {
+  minutes?: number;
+  scope?: 'library' | 'selection' | 'folder';
+  ids?: number[];
+  folderId?: number;
+  title?: string;
+}
+
+/** 插件市场条目（索引 + 已安装状态） */
+export interface MarketPlugin {
+  id: string;
+  name: string;
+  version: string;
+  description: string;
+  author: string;
+  tags: string[];
+  permissions: string[];
+  actions: string[];
+  package: string;
+  downloadUrl: string;
+  source: 'builtin' | 'remote';
+  installed: boolean;
+  installedVersion: string;
+  installedBuiltin: boolean;
+}
+
+export interface PluginMarketView {
+  ok: boolean;
+  version: number;
+  updatedAt: string;
+  remote: boolean;
+  plugins: MarketPlugin[];
+  permissions: string[];
+}
+
+export interface PluginInstallResult {
+  ok: boolean;
+  id: string;
+  name: string;
+  version: string;
+  permissions: string[];
+  actions: string[];
+  builtin: boolean;
 }
 
 /** 已安装的插件（/api/plugins 下发；宿主不回传 entry / 绝对路径细节） */
@@ -640,6 +700,10 @@ export interface Settings {
   pagesPerKeyword: number;
   /** 导入时目录遍历深度上限（层），默认 4 */
   importMaxDepth: number;
+  /** 导入命名模板；空 = 内置默认文件名 */
+  importNameTemplate?: string;
+  /** 本地扫描导入是否复制一份并按模板命名（默认 false，原文件不动） */
+  importNameTemplateForLocal?: boolean;
   /** 调色台历史记录保留步数（默认 100，1~500） */
   historySteps: number;
   /** 水印预设（跨库共享）：整套排版参数，随设置一起存 */
@@ -671,7 +735,7 @@ export interface Settings {
   watchEnabled?: boolean;
   /** 是否已完成首次引导（首次启动选择图片文件夹） */
   onboarded?: boolean;
-  /** 是否已看过新手教程（跳过也算），设置页可重新播放 */
+  /** 是否已看过教程（跳过也算），设置页可重新播放 */
   tourDone?: boolean;
   deletePolicy: 'trash' | 'permanent' | 'unlink';
   scoreThreshold: number;
@@ -1107,6 +1171,13 @@ export interface EditJobStatus {
   lastError: string;
   failures: { id: number; ok: boolean; error?: string }[];
 }
+
+/**
+ * 图库展示方式（持久化在 localStorage:tuku:view-mode）：
+ * - masonry / grid / list：图片展开，按筛选结果平铺
+ * - folder：按文件夹收纳，同一层级的文件夹各自成组，可就地展开组内图片
+ */
+export type ViewMode = 'masonry' | 'grid' | 'list' | 'folder';
 
 /** 顶层视图（侧栏入口 + 顶栏工具箱 + URL 的 v 参数共用同一套枚举） */
 export type View =

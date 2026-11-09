@@ -105,6 +105,7 @@ export function parsePageMeta(html, baseUrl) {
 }
 
 /**
+ * @param {{url?: string, tags?: string[], note?: string, keyword?: string}} [opts]
  * @returns {Promise<ReturnType<typeof toDTO>>} 入库后的素材 DTO
  */
 export async function saveBookmark({ url, tags = [], note = '', keyword = '' } = {}) {

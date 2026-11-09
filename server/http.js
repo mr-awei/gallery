@@ -56,20 +56,44 @@ async function rawFetch(url, init, headers, referer) {
 
 /**
  * @param {string} input
- * @param {RequestInit} [init]
+ * @param {RequestInit & {timeout?: number, retries?: number}} [init]
+ *   timeout：单次请求超时毫秒（0 = 不限）；retries：网络级失败的重试次数。
+ *   这两个字段以前被直接透传给 fetch（Node 不认，超时与重试等于没生效），现在由本函数消费。
  * @param {{allowPrivate?: boolean, maxRedirects?: number}} [opts]
  *   allowPrivate：允许访问本机/内网（只给本地模型、自建增强服务用）
  */
 export async function httpFetch(input, init = {}, opts = {}) {
   const { allowPrivate = false, maxRedirects = MAX_REDIRECTS } = opts;
+  const { timeout = 0, retries = 0, ...rest } = init;
+
+  let lastErr;
+  for (let attempt = 0; attempt <= retries; attempt += 1) {
+    try {
+      return await requestOnce(input, rest, { allowPrivate, maxRedirects, timeout });
+    } catch (err) {
+      lastErr = err;
+      // 最后一跳仍失败才抛出；中间失败（网络抖动 / 超时）按 retries 再试
+    }
+  }
+  throw lastErr;
+}
+
+/**
+ * 发一次请求（含逐跳重定向校验）。timeout 只作用于单次 fetch。
+ * @param {string} input
+ * @param {RequestInit} init
+ * @param {{allowPrivate: boolean, maxRedirects: number, timeout: number}} opts
+ */
+async function requestOnce(input, init, { allowPrivate, maxRedirects, timeout }) {
   const headers = { ...(init.headers || {}) };
   const referer = extractReferer(headers);
+  const signal = timeout > 0 && !init.signal ? AbortSignal.timeout(timeout) : init.signal;
 
   let url = String(input);
   await assertSafeUrl(url, { allowPrivate });
 
   for (let hop = 0; ; hop += 1) {
-    const res = await rawFetch(url, { ...init, redirect: 'manual' }, headers, referer);
+    const res = await rawFetch(url, { ...init, signal, redirect: 'manual' }, headers, referer);
     const isRedirect = res.status >= 300 && res.status < 400;
     if (!isRedirect) return res;
 

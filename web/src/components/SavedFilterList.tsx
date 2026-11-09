@@ -14,6 +14,8 @@ interface Props {
   /** 用当前筛选条件覆盖这一条（不用删了重存） */
   onOverwrite: (f: SavedFilter) => void;
   onDelete: (f: SavedFilter) => void;
+  /** 侧栏已用可折叠分区包住本组件时，隐藏自带标题（＋ 由分区标题栏提供） */
+  hideHeader?: boolean;
 }
 
 export default function SavedFilterList({
@@ -24,20 +26,23 @@ export default function SavedFilterList({
   onEdit,
   onOverwrite,
   onDelete,
+  hideHeader = false,
 }: Props) {
   return (
     <div className="saved-filters">
-      <div className="side-section-title" style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-        <span>保存的筛选</span>
-        <button
-          className="folder-add-btn"
-          style={{ marginLeft: 'auto' }}
-          title="把当前筛选条件保存下来"
-          onClick={onSaveCurrent}
-        >
-          ＋
-        </button>
-      </div>
+      {!hideHeader && (
+        <div className="side-section-title" style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+          <span>保存的筛选</span>
+          <button
+            className="folder-add-btn"
+            style={{ marginLeft: 'auto' }}
+            title="把当前筛选条件保存下来"
+            onClick={onSaveCurrent}
+          >
+            ＋
+          </button>
+        </div>
+      )}
       {filters.length === 0 && (
         <div className="saved-filter-empty">
           调好筛选后点上面的 ＋，下次一键回到这个视图（含当前文件夹）。

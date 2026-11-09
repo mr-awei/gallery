@@ -132,7 +132,7 @@ try {
   // settings 脱敏：weiboCookie 永不回传
   const settings = await (await fetch(`${BASE}/api/settings`, { headers: { Authorization: `Bearer ${token}` } })).json();
   check('settings 脱敏（无 weiboCookie 明文）', !settings.weiboCookie && 'hasWeiboCookie' in settings);
-  check('新手教程开关默认为 false', settings.tourDone === false);
+  check('教程开关默认为 false', settings.tourDone === false);
   check('水印预设默认为空数组', Array.isArray(settings.watermarkPresets) && settings.watermarkPresets.length === 0);
 
   // 数组型设置必须整体替换：以前按对象合并，存进去会变成 {"0":…,"1":…} 的怪东西，
@@ -1003,12 +1003,73 @@ try {
       `${pr.status} ${JSON.stringify(prj).slice(0, 130)}`
     );
 
+    const market = await fetch(`${BASE}/api/plugins/market`, auth);
+    const marketJson = await json(market);
+    check(
+      '插件市场：索引可读且回显权限白名单',
+      market.status === 200 && marketJson.plugins?.length >= 2 &&
+        marketJson.permissions?.includes('image:write'),
+      `${market.status}`
+    );
+    const badInstall = await fetch(`${BASE}/api/plugins/install`, {
+      method: 'POST',
+      headers: { ...auth.headers, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ id: 'not-in-market' }),
+    });
+    check('插件市场：未收录的 id 明确 400', badInstall.status === 400, `${badInstall.status}`);
+    const evilPackage = await fetch(`${BASE}/api/plugins/install/upload?filename=evil.tuku-plugin`, {
+      method: 'POST',
+      headers: { ...auth.headers, 'Content-Type': 'application/octet-stream' },
+      body: JSON.stringify({
+        format: 'tuku-plugin/1',
+        manifest: { id: 'evil', name: 'evil', entry: 'index.js', permissions: ['image:read'] },
+        files: { '../escape.js': 'x' },
+      }),
+    });
+    check('插件市场：路径穿越的插件包被拒绝', evilPackage.status === 400, `${evilPackage.status}`);
+    const builtinDelete = await fetch(`${BASE}/api/plugins/note-date`, { method: 'DELETE', headers: auth.headers });
+    check('插件市场：内置插件不允许卸载', builtinDelete.status === 400, `${builtinDelete.status}`);
+
     // 局域网投送：默认关闭，主服务不暴露端口（真正的开关启停由单测覆盖）
     const lan = await fetch(`${BASE}/api/lan/status`, auth);
     const lanj = await json(lan);
     check('局域网投送：默认关闭且无端口', lan.status === 200 && lanj.enabled === false && lanj.port === 0);
     const qr = await fetch(`${BASE}/api/lan/qrcode.svg`, auth);
     check('局域网投送：未开启时二维码明确 409', qr.status === 409, `${qr.status}`);
+    const lanCheck = await fetch(`${BASE}/api/lan/selfcheck`, auth);
+    const lanCheckJson = await json(lanCheck);
+    check(
+      '局域网投送：未开启时自检明确不可达',
+      lanCheck.status === 200 && lanCheckJson.ok === false && Array.isArray(lanCheckJson.results),
+      `${lanCheck.status}`
+    );
+
+    const badShareQr = await fetch(`${BASE}/api/lan/share-qrcode.svg?share=not-a-real-token`, auth);
+    check('只读分享：未知令牌的二维码明确 404', badShareQr.status === 404, `${badShareQr.status}`);
+    const pwaOnMain = await fetch(`${BASE}/manifest.webmanifest`, auth);
+    const pwaCt = pwaOnMain.headers.get('content-type') || '';
+    check(
+      'PWA 外壳只在独立投送端口提供，主服务不暴露',
+      !pwaCt.includes('manifest+json'),
+      `${pwaOnMain.status} ${pwaCt}`
+    );
+
+    const namePreview = await fetch(`${BASE}/api/import/name-preview`, {
+      method: 'POST',
+      headers: { ...auth.headers, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ template: '{date}-{index}{ext}' }),
+    });
+    const namePreviewJson = await json(namePreview);
+    check(
+      '导入命名模板：预览返回目标名、预设与占位符说明',
+      namePreview.status === 200 &&
+        Array.isArray(namePreviewJson.names) &&
+        namePreviewJson.names.length > 0 &&
+        namePreviewJson.names.length <= 20 &&
+        namePreviewJson.presets?.length >= 4 &&
+        namePreviewJson.tokens?.some((t) => t.token === '{index}'),
+      `${namePreview.status} ${JSON.stringify(namePreviewJson).slice(0, 130)}`
+    );
 
     // 动态壁纸：新字段、实时参数、GLSL 预设、渲染页、音频源
     const livej = await json(await fetch(`${BASE}/api/wallpaper/live`, auth));

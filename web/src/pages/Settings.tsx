@@ -37,23 +37,62 @@ import WorkshopCard from './settings/WorkshopCard';
 import SyncCard from './settings/SyncCard';
 import AiSection from './settings/AiSection';
 import { useSettingsForm, type SectionKey } from './settings/useSettingsForm';
+import ImportNameTemplateCard from './settings/ImportNameTemplateCard';
+import PluginMarket from './settings/PluginMarket';
 
-const SECTIONS: { key: SectionKey; label: string; desc: string; icon: React.ReactNode }[] = [
-  { key: 'general', label: '通用', desc: '图片保存位置与删除行为', icon: <IconFolder /> },
-  { key: 'guide', label: '新手教程', desc: '分步了解重点功能，可随时重看', icon: <IconGrid /> },
-  { key: 'crawl', label: '采集', desc: '采集源、关键词与质量过滤', icon: <IconSpider /> },
-  { key: 'ai', label: 'AI 接入', desc: '智能评分与知识库的大模型配置', icon: <IconBrain /> },
-  { key: 'wallpaper', label: '壁纸', desc: '设壁纸的填充方式与定时自动切换', icon: <IconWallpaper /> },
-  { key: 'enhance', label: '画质增强', desc: '目标标准、增强模型与线上服务', icon: <IconWand /> },
-  { key: 'network', label: '网络', desc: '代理设置，对采集、下载、AI 生效', icon: <IconGlobe /> },
-  { key: 'extension', label: '浏览器扩展', desc: '在哪里、怎么装、怎么用', icon: <IconLink /> },
-  { key: 'plugins', label: '插件', desc: '脚本宿主与已安装插件', icon: <IconWand /> },
-  { key: 'lan', label: '手机投送', desc: '局域网扫码上传', icon: <IconGlobe /> },
-  { key: 'data', label: '数据与维护', desc: '本地导入、备份恢复与回收站', icon: <IconImages /> },
-  { key: 'tags', label: '标签与别名', desc: '同义词只影响搜索，不改图片标签', icon: <IconLayers /> },
-  { key: 'shortcut', label: '快捷键', desc: '自定义主窗口的全局键位', icon: <IconGear /> },
-  { key: 'tasks', label: '任务与撤销', desc: '后台任务历史与操作回滚', icon: <IconRotateCcw /> },
+type SectionMeta = { key: SectionKey; label: string; desc: string; icon: React.ReactNode };
+
+/**
+ * 侧栏按「使用顺序」分组，不再 14 项平铺：先搞清楚存哪里，再管素材，
+ * 然后才是由采集衍生出来的智能、桌面、外部连接，最后是运行状态。
+ */
+const NAV_GROUPS: { label: string; items: SectionMeta[] }[] = [
+  {
+    label: '开始使用',
+    items: [
+      { key: 'general', label: '通用', desc: '图片保存位置、删除行为与编辑偏好', icon: <IconFolder /> },
+      { key: 'guide', label: '教程', desc: '分步导览、可搜索说明与常用入口', icon: <IconGrid /> },
+    ],
+  },
+  {
+    label: '素材与整理',
+    items: [
+      { key: 'crawl', label: '采集', desc: '采集源、关键词与质量过滤', icon: <IconSpider /> },
+      { key: 'tags', label: '标签与别名', desc: '同义词只影响搜索，不改图片标签', icon: <IconLayers /> },
+      { key: 'data', label: '数据与维护', desc: '本地导入、备份恢复与回收站', icon: <IconImages /> },
+    ],
+  },
+  {
+    label: '智能与画质',
+    items: [
+      { key: 'ai', label: 'AI 接入', desc: '智能评分与知识库的大模型配置', icon: <IconBrain /> },
+      { key: 'enhance', label: '画质增强', desc: '目标标准、增强模型与线上服务', icon: <IconWand /> },
+    ],
+  },
+  {
+    label: '桌面与操作',
+    items: [
+      { key: 'wallpaper', label: '壁纸', desc: '设壁纸的填充方式与定时自动切换', icon: <IconWallpaper /> },
+      { key: 'shortcut', label: '快捷键', desc: '自定义主窗口的全局键位', icon: <IconGear /> },
+    ],
+  },
+  {
+    label: '连接与扩展',
+    items: [
+      { key: 'network', label: '网络', desc: '代理设置，对采集、下载、AI 生效', icon: <IconGlobe /> },
+      { key: 'extension', label: '浏览器扩展', desc: '在哪里、怎么装、怎么用', icon: <IconLink /> },
+      { key: 'plugins', label: '插件', desc: '脚本宿主与已安装插件', icon: <IconWand /> },
+      { key: 'market', label: '插件市场', desc: '浏览权限声明、一键安装与在线安装', icon: <IconLink /> },
+      { key: 'lan', label: '手机投送', desc: '同一 Wi-Fi 扫码上传与只读分享', icon: <IconGlobe /> },
+    ],
+  },
+  {
+    label: '运行状态',
+    items: [{ key: 'tasks', label: '任务与撤销', desc: '后台任务历史与操作回滚', icon: <IconRotateCcw /> }],
+  },
 ];
+
+const SECTIONS: SectionMeta[] = NAV_GROUPS.flatMap((g) => g.items);
 
 export default function Settings({
   onToast,
@@ -88,16 +127,17 @@ export default function Settings({
     );
   }
 
+  const current = SECTIONS.find((s) => s.key === section) ?? SECTIONS[0];
+
   return (
     <div>
       <div className="page-head">
         <div>
           <h1 className="page-title">设置</h1>
-          <div className="page-sub">保存位置 · 采集 · AI · 壁纸 · 网络 · 数据维护</div>
-          <div className="hint" style={{ marginTop: 6 }}>
-            <b>按资源库独立保存</b>：采集源与关键词、AI 评分开关、壁纸、删除策略、保存位置——每个库一套，切换资源库自动套用。
-            <br />
-            <b>跨库共享</b>：微博 Cookie、AI 接入（密钥与模型）、网络代理——一处配置，所有库通用
+          <div className="page-sub">按用途分组，左侧切换分类，改完点右上角保存</div>
+          <div className="settings-scope">
+            <span><b>按资源库独立</b> 采集源 / AI 评分 / 壁纸 / 删除策略 / 保存位置</span>
+            <span><b>跨库共享</b> 微博 Cookie / AI 接入 / 网络代理</span>
           </div>
         </div>
         <button
@@ -111,24 +151,40 @@ export default function Settings({
       </div>
 
       <div className="settings-shell">
-        <nav className="settings-nav">
+        <nav className="settings-nav" aria-label="设置分类">
           <div className="nav-label">设置分类</div>
-          {SECTIONS.map((s) => (
-            <button
-              key={s.key}
-              className={section === s.key ? 'active' : ''}
-              onClick={() => setSection(s.key)}
-            >
-              {s.icon}
-              <span>{s.label}</span>
-            </button>
+          {NAV_GROUPS.map((g) => (
+            <div className="nav-group" key={g.label}>
+              <div className="nav-group-title">{g.label}</div>
+              {g.items.map((s) => (
+                <button
+                  key={s.key}
+                  className={section === s.key ? 'active' : ''}
+                  onClick={() => setSection(s.key)}
+                  title={s.desc}
+                >
+                  {s.icon}
+                  <span>{s.label}</span>
+                </button>
+              ))}
+            </div>
           ))}
         </nav>
 
         <div className="settings-panel">
+          <div className="settings-panel-head">
+            <span className="settings-panel-icon">{current.icon}</span>
+            <div className="settings-panel-head-text">
+              <h2>{current.label}</h2>
+              <p>{current.desc}</p>
+            </div>
+            {dirty && <span className="settings-badge">有未保存的改动</span>}
+          </div>
+
           {/* ------------------------------ 通用 ------------------------------ */}
           {section === 'general' && (
-            <Card title="通用" desc="采集到的图片保存到哪里、删除图片时的行为。">
+            <Card title="通用" desc="决定素材落在哪里、删除时怎么处理，以及编辑与评分偏好。">
+              <div className="settings-subhead">存储与删除</div>
               <div className="field">
                 <label>图片保存文件夹</label>
                 <div style={{ display: 'flex', gap: 8 }}>
@@ -172,6 +228,7 @@ export default function Settings({
                   <option value="unlink">只从图库移除，保留文件</option>
                 </Select>
               </div>
+              <div className="settings-subhead">评分与编辑</div>
               <div className="field">
                 <label>智能评分阈值（低于该分采集时自动丢弃）</label>
                 <DebouncedInput
@@ -195,6 +252,7 @@ export default function Settings({
                   调色台左侧「历史记录」最多留多少步，默认 100（1~500）。一次拖动只算一步，调完色还能点到之前某一步
                 </div>
               </div>
+              <div className="settings-subhead">快捷操作</div>
               <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
                 <button className="btn" onClick={() => openFolder(settings.storageDir)}>
                   <IconFolder /> 打开文件夹
@@ -258,11 +316,11 @@ export default function Settings({
           {section === 'enhance' && <EnhanceSection settings={settings} patch={patch} onToast={onToast} />}
 
           {/* ---------------------- 任务与撤销（已拆分至 settings/JobsSection.tsx） ---------------------- */}
-          {/* ------------------------------ 新手教程 ------------------------------ */}
+          {/* ------------------------------ 教程 ------------------------------ */}
           {section === 'guide' && (
             <>
               <Card
-                title="新手教程"
+                title="教程"
                 desc="分 7 步把重点功能串一遍：看什么、怎么找、怎么批量处理、怎么编辑。跟着点「下一步」即可，中途随时能跳过。"
                 badge={
                   <span className="settings-badge">{tourDone ? '已看过 · 不会自动弹出' : '还没看过 · 启动时会自动弹出'}</span>
@@ -272,20 +330,20 @@ export default function Settings({
                   <label>分步导览</label>
                   <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
                     <button className="btn primary" onClick={onStartTour}>
-                      开始 / 重看新手教程
+                      开始 / 重看教程
                     </button>
                     <button className="btn" onClick={() => setTourHint(!tourDone)}>
                       {tourDone ? '下次启动时再自动提醒' : '关闭自动提醒'}
                     </button>
                   </div>
-                  <div className="fs-hint" style={{ marginTop: 6 }}>
+                  <div className="hint" style={{ marginTop: 6 }}>
                     提醒只影响「打开应用时会不会自动弹」，不影响随时从本页手动播放。
                   </div>
                 </div>
 
                 <div className="field">
                   <label>教程会讲到</label>
-                  <ul className="fs-hint" style={{ margin: 0, paddingLeft: 18, lineHeight: 1.9 }}>
+                  <ul className="hint" style={{ margin: 0, paddingLeft: 18, lineHeight: 1.9 }}>
                     <li>侧栏与资源库：图库 / 收藏 / 清单 / 采集 / 待整理分别放什么</li>
                     <li>顶栏工具箱：裁切拼接、智能检索、画质增强、知识库</li>
                     <li>搜索与筛选：关键词、来源、评分、颜色、画幅，组合存成智能文件夹</li>
@@ -308,7 +366,7 @@ export default function Settings({
                       打开使用教程
                     </button>
                   </div>
-                  <div className="fs-hint" style={{ marginTop: 6 }}>
+                  <div className="hint" style={{ marginTop: 6 }}>
                     覆盖浏览搜索、文件夹标签、堆叠笔记、查重整理、编辑导出、采集、壁纸、AI、数据备份等全部功能；
                     在教程页顶部输入「堆叠」「水印」「时间点」这类词即可定位。
                   </div>
@@ -316,13 +374,13 @@ export default function Settings({
               </Card>
 
               <Card title="常用入口速查" desc="不想看导览时，这几个地方就是全部主流程。">
-                <div className="fs-hint" style={{ lineHeight: 1.9 }}>
+                <div className="hint" style={{ lineHeight: 1.9 }}>
                   <div>① 收集：顶部拖入文件 / 粘贴图片 / 侧栏「采集」按关键词抓图 / 浏览器扩展</div>
                   <div>② 整理：卡片悬停打星收藏、拖到左侧文件夹、多选后批量处理</div>
                   <div>③ 找图：顶部搜索框 + 筛选条件，或「智能检索」用一句话描述找</div>
                   <div>④ 编辑：双击开大图，「更多」里有裁切 / 调色 / 水印相框，写回前自动存版本</div>
                   <div>⑤ 备份：本页「数据与维护」里可导出、校验与恢复</div>
-                  <div style={{ marginTop: 6 }}>键盘快捷键按 ? 查看；教程已跳过的，随时回来点「开始 / 重看新手教程」。</div>
+                  <div style={{ marginTop: 6 }}>键盘快捷键按 ? 查看；教程已跳过的，随时回来点「开始 / 重看教程」。</div>
                 </div>
               </Card>
             </>
@@ -340,12 +398,20 @@ export default function Settings({
           {section === 'extension' && <ExtensionSection onToast={onToast} />}
 
           {/* ------------------------------ 插件 ------------------------------ */}
-          {section === 'plugins' && <PluginSection onToast={onToast} />}
+          {section === 'plugins' && <PluginSection onToast={onToast} onOpenMarket={() => setSection('market')} />}
+          {section === 'market' && <PluginMarket onToast={onToast} />}
           {section === 'lan' && <LanSection onToast={onToast} />}
 
           {/* --------------------------- 数据与维护 --------------------------- */}
           {section === 'data' && (
             <>
+              <div className="settings-subhead">导入与维护</div>
+              <ImportNameTemplateCard
+                value={settings.importNameTemplate || ''}
+                applyToLocal={!!settings.importNameTemplateForLocal}
+                onChange={(p) => patch(p)}
+                onToast={onToast}
+              />
               <Card title="图库维护" desc="本地素材导入与初始化。">
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
                   <button className="btn" onClick={runImport} disabled={importing}>
@@ -376,15 +442,16 @@ export default function Settings({
                 </div>
               </Card>
 
-              <DataTransferCard onLibraryChanged={onLibraryChanged} onToast={onToast} />
-
-              <WorkshopCard onToast={onToast} />
-              <SyncCard onToast={onToast} onLibraryChanged={onLibraryChanged} />
-
               <MaintenanceCard onLibraryChanged={onLibraryChanged} onToast={onToast} />
 
-              <WatchCard onToast={onToast} />
+              <div className="settings-subhead">备份与恢复</div>
+              <DataTransferCard onLibraryChanged={onLibraryChanged} onToast={onToast} />
               <RecycleBinCard onLibraryChanged={onLibraryChanged} onToast={onToast} />
+              <SyncCard onToast={onToast} onLibraryChanged={onLibraryChanged} />
+
+              <div className="settings-subhead">扩展与监控</div>
+              <WorkshopCard onToast={onToast} />
+              <WatchCard onToast={onToast} />
             </>
           )}
 

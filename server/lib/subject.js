@@ -1,3 +1,4 @@
+// @ts-check
 import sharp from 'sharp';
 import { phashFromGrey32 } from '../phash.js';
 

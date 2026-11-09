@@ -7,6 +7,7 @@ import sharp from 'sharp';
 import jpegtranPkg from 'jpegtran-bin';
 import { db, getSettings, getLibraryGeneration } from './db.js';
 import { IMAGE_DIR } from './config.js';
+import { renderNameTemplate, uniqueTargetName } from './lib/name-template.js';
 import { linkImageByPath } from './folders.js';
 import { computePHash } from './phash.js';
 import { designThumbJpeg, isDesignLikePath } from './lib/design-thumb.js';
@@ -364,14 +365,42 @@ export function resolveStorageDir(settings = getSettings()) {
   return dir;
 }
 
-export function buildFileName({ keyword, source, width, height, format, ext }) {
+// 单张采集 / 拖拽 / 投送没有「批次序号」，用一个进程内自增序号喂给 {index}
+let nameSeq = 0;
+const nextNameIndex = () => ++nameSeq;
+
+/**
+ * @param {{keyword?:string, source?:string, width?:number, height?:number, format?:string, ext?:string, template?:string, index?:number, originalName?:string}} opts
+ */
+export function buildFileName({
+  keyword,
+  source,
+  width,
+  height,
+  format,
+  ext,
+  template = '',
+  index = 0,
+  originalName = '',
+}) {
+  // ext 优先：avif/heic 在 sharp 里都叫 heif，只有 imageTypeOf 知道该写哪个后缀
+  if (String(template || '').trim()) {
+    return renderNameTemplate(String(template), {
+      keyword,
+      source,
+      width,
+      height,
+      originalName,
+      ext: ext || extOf(format),
+      index: index || nextNameIndex(),
+    });
+  }
   const safe = (s) => String(s || '').replace(INVALID_CHARS, '').replace(/\s+/g, ' ').trim().slice(0, 30);
   const stamp = new Date().toISOString().slice(0, 19).replace(/[-:]/g, '').replace('T', '-');
   // 6 位随机后缀：秒级时间戳 + 相同尺寸仍可能撞名（同一批两张不同图会生成同名文件，
   // 仅扩展名不同，曾被误当成「同名 jpg/png 同一张照片」）
   const suffix = crypto.randomBytes(3).toString('hex');
   const parts = [safe(keyword) || '壁纸', source, `${width}x${height}`, stamp, suffix];
-  // ext 优先：avif/heic 在 sharp 里都叫 heif，只有 imageTypeOf 知道该写哪个后缀
   return `${parts.join('_')}.${ext || extOf(format)}`;
 }
 
@@ -721,6 +750,16 @@ export const KEEP_REASONS = {
  * @param {Object} params
  * @param {string} [params.absPath] 已存在于磁盘的文件（不复制）
  * @param {Buffer} [params.buffer] 内存中的图片数据（会落盘）
+ * @param {string} [params.source] 来源标记
+ * @param {string} [params.keyword] 采集关键词
+ * @param {string} [params.sourceUrl] 原始网页地址
+ * @param {string} [params.title] 标题
+ * @param {string} [params.tags] 逗号分隔标签
+ * @param {boolean} [params.copyToStorage] 是否复制到素材目录
+ * @param {boolean} [params.skipPhashDupe] 跳过 pHash 查重
+ * @param {number|null} [params.libGeneration] 启动任务时的库代数（防跨库串图）
+ * @param {boolean} [params.skipQuality] 用户主动采集时跳过质量门槛
+ * @returns {Promise<{ok:boolean, id?:number, image?:any, reason?:string, format?:string, duplicateOf?:number, clipCos?:number, score?:number, reasons?:string[]}>}
  */
 export async function ingest(params, settings = getSettings()) {
   const {
@@ -803,12 +842,18 @@ export async function ingest(params, settings = getSettings()) {
   // 落盘：采集到的图片直接写入本地保存文件夹
   if (buffer || (copyToStorage && absPath)) {
     const dir = resolveStorageDir(settings);
-    const name = buildFileName({ keyword, source, width, height, format, ext: type.ext });
-    let finalPathCandidate = path.join(dir, name);
-    if (fs.existsSync(finalPathCandidate)) {
-      finalPathCandidate = path.join(dir, name.replace(/(\.\w+)$/, `_${crypto.randomBytes(2).toString('hex')}$1`));
-    }
-    finalPath = finalPathCandidate;
+    const name = buildFileName({
+      keyword,
+      source,
+      width,
+      height,
+      format,
+      ext: type.ext,
+      template: settings.importNameTemplate,
+      originalName: title || (absPath ? path.basename(absPath) : ''),
+    });
+    // 模板里没有 {index}/{random} 时多张会同名：统一用 -1 / -2 追加，绝不互相覆盖
+    finalPath = path.join(dir, uniqueTargetName(dir, name));
     if (buffer) await fsp.writeFile(finalPath, buffer);
     else await fsp.copyFile(absPath, finalPath);
     // 写盘/复制后必须重取文件指纹：buffer 路径原本没有 fs_mtime，导致「上传进来的图」

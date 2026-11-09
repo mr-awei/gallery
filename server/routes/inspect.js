@@ -1,3 +1,4 @@
+// @ts-check
 // 素材检查类接口：EXIF、PDF 页数、版本历史、多区域裁切
 import fs from 'node:fs';
 import path from 'node:path';

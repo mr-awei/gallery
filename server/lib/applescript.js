@@ -1,3 +1,4 @@
+// @ts-check
 /**
  * macOS 侧的 AppleScript 拼装（纯函数，可单测）。
  *

@@ -10,7 +10,8 @@ import FolderTree from '../components/FolderTree';
 import LibrarySwitcher from '../components/LibrarySwitcher';
 import SavedFilterList from '../components/SavedFilterList';
 import TagPanel from '../components/TagPanel';
-import { NAV, PENDING_ITEMS } from './nav';
+import { MORE_NAV, PENDING_ITEMS, PRIMARY_NAV } from './nav';
+import { SideSection, useSideSections } from './SideSection';
 
 interface Props {
   libraries: Library[];
@@ -132,9 +133,23 @@ export default function Sidebar({
   onResetWidth,
   onToast,
 }: Props) {
+  const { open: sections, toggle: toggleSection, setAll: setAllSections, allOpen } = useSideSections();
+  const pendingTotal = pendingCounts ? PENDING_ITEMS.filter((p) => pendingCounts[p.key] > 0).length : 0;
+
   return (
     <aside className="sidebar" data-tour="sidebar" style={{ '--sidebar-w': `${width}px` } as CSSProperties}>
-      <div className="side-section-title">资源库</div>
+      <div className="side-head">
+        <span className="side-head-title">资源库</span>
+        <button
+          type="button"
+          className="side-head-all"
+          onClick={() => setAllSections(!allOpen)}
+          title={allOpen ? '收起全部侧栏分区' : '展开全部侧栏分区'}
+        >
+          {allOpen ? '收起全部' : '展开全部'}
+        </button>
+      </div>
+
       <LibrarySwitcher
         libraries={libraries}
         activeLibId={activeLibId}
@@ -143,68 +158,110 @@ export default function Sidebar({
         onCreate={onCreateLibrary}
         onOpenInExplorer={onOpenLibraryInExplorer}
       />
-      {NAV.map((n) => (
-        <button
-          key={n.key}
-          className={`nav-item${view === n.key ? ' active' : ''}`}
-          onClick={() => onNav(n.key)}
-        >
-          {n.icon}
-          <span>{n.label}</span>
-          {n.key === 'gallery' && stats?.total ? <span className="badge">{stats.total}</span> : null}
-          {n.key === 'favorites' && stats?.favorite ? <span className="badge">{stats.favorite}</span> : null}
-        </button>
-      ))}
 
-      <div className="side-section-title">待整理</div>
-      {PENDING_ITEMS.map((p) => (
-        <button
-          key={p.key}
-          className={`nav-item pending${filters.pending === p.key && view === 'gallery' ? ' active' : ''}`}
-          onClick={() => onOpenPending(p.key)}
-          title={p.hint}
-        >
-          <span className="pending-dot" />
-          <span>{p.label}</span>
-          {pendingCounts && pendingCounts[p.key] > 0 && <span className="badge">{pendingCounts[p.key]}</span>}
-        </button>
-      ))}
-
-      <SavedFilterList
-        filters={savedFilters}
-        activeId={activeSavedId}
-        onOpen={onOpenSavedFilter}
-        onSaveCurrent={onSaveCurrentFilter}
-        onEdit={onEditSavedFilter}
-        onOverwrite={onOverwriteSavedFilter}
-        onDelete={onDeleteSavedFilter}
-      />
-
-      <div className="side-section-title" style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-        <span>标签</span>
-        {onBatchCreateTag && (
+      {/* 仪表盘 / 图库是天天要点的常用功能，常驻顶部，不参与任何折叠收纳 */}
+      <div className="side-primary-nav">
+        {PRIMARY_NAV.map((n) => (
           <button
-            className="folder-add-btn"
-            style={{ marginLeft: 'auto' }}
-            title="批量新建标签"
-            onClick={onBatchCreateTag}
+            key={n.key}
+            className={`nav-item${view === n.key ? ' active' : ''}`}
+            onClick={() => onNav(n.key)}
+            title={n.label}
+            data-tour={`nav:${n.key}`}
           >
+            {n.icon}
+            <span>{n.label}</span>
+            {n.key === 'gallery' && stats?.total ? <span className="badge">{stats.total}</span> : null}
+          </button>
+        ))}
+      </div>
+
+      {/* 四个低频入口常驻：图标 + 文字都要，默认就能看见，也不会被「收起全部」藏起来 */}
+      <div className="nav-grid side-more-nav" aria-label="更多导航">
+        {MORE_NAV.map((n) => (
+          <button
+            key={n.key}
+            className={`nav-item${view === n.key ? ' active' : ''}`}
+            onClick={() => onNav(n.key)}
+            title={n.label}
+            data-tour={`nav:${n.key}`}
+          >
+            {n.icon}
+            <span>{n.label}</span>
+            {n.key === 'favorites' && stats?.favorite ? <span className="badge">{stats.favorite}</span> : null}
+          </button>
+        ))}
+      </div>
+
+      <SideSection
+        title="待整理"
+        open={sections.pending}
+        onToggle={() => toggleSection('pending')}
+        summary={pendingTotal ? `${pendingTotal} 项待处理` : '未分类 / 无标签 / 未评分'}
+      >
+        {PENDING_ITEMS.map((p) => (
+          <button
+            key={p.key}
+            className={`nav-item pending${filters.pending === p.key && view === 'gallery' ? ' active' : ''}`}
+            onClick={() => onOpenPending(p.key)}
+            title={p.hint}
+          >
+            <span className="pending-dot" />
+            <span>{p.label}</span>
+            {pendingCounts && pendingCounts[p.key] > 0 && <span className="badge">{pendingCounts[p.key]}</span>}
+          </button>
+        ))}
+      </SideSection>
+
+      <SideSection
+        title="保存的筛选"
+        open={sections.saved}
+        onToggle={() => toggleSection('saved')}
+        summary={`${savedFilters.length} 条`}
+        actions={
+          <button className="folder-add-btn" title="把当前筛选条件保存下来" onClick={onSaveCurrentFilter}>
             ＋
           </button>
-        )}
-      </div>
-      <TagPanel
-        tags={tags}
-        groups={tagGroups}
-        childrenOf={childrenOf}
-        activeTag={filters.tag || ''}
-        onOpenTag={onOpenTag}
-        onEditTag={onEditTag}
-        onChanged={onTagsChanged}
-        onToast={onToast}
-        remaining={remaining}
-        onLoadMore={onLoadMore}
-      />
+        }
+      >
+        <SavedFilterList
+          filters={savedFilters}
+          activeId={activeSavedId}
+          onOpen={onOpenSavedFilter}
+          onSaveCurrent={onSaveCurrentFilter}
+          onEdit={onEditSavedFilter}
+          onOverwrite={onOverwriteSavedFilter}
+          onDelete={onDeleteSavedFilter}
+          hideHeader
+        />
+      </SideSection>
+
+      <SideSection
+        title="标签"
+        open={sections.tags}
+        onToggle={() => toggleSection('tags')}
+        summary={tags.length ? `${tags.length} 个` : '按标签筛选'}
+        actions={
+          onBatchCreateTag && (
+            <button className="folder-add-btn" title="批量新建标签" onClick={onBatchCreateTag}>
+              ＋
+            </button>
+          )
+        }
+      >
+        <TagPanel
+          tags={tags}
+          groups={tagGroups}
+          childrenOf={childrenOf}
+          activeTag={filters.tag || ''}
+          onOpenTag={onOpenTag}
+          onEditTag={onEditTag}
+          onChanged={onTagsChanged}
+          onToast={onToast}
+          remaining={remaining}
+          onLoadMore={onLoadMore}
+        />
+      </SideSection>
 
       <div className="folders-panel">
         <FolderTree

@@ -1,7 +1,11 @@
 {
-  // 服务端 / Electron / 脚本 的 JS 语法级检查（tsc --noEmit）。
-  // checkJs 不开：JS 侧类型噪音太大，这里只抓语法 / 引用结构错误；
-  // 语义检查靠 scripts/lint.mjs 的 node --check 与冒烟脚本兜底。
+  // Electron / 服务端 / 脚本 的 JS 检查闸（tsc --noEmit）。
+  //
+  // checkJs 保持 false：一旦全局打开，被 import 拉进来的每个 server/*.js 都会一起查，
+  // 噪音无法按目录收敛。改为「文件头 // @ts-check」逐文件真检查（等效于该文件 checkJs:true）：
+  // electron/** 全量、server/lib/** 全量、server/routes/** 全量都必须带 pragma，
+  // scripts/lint.mjs 会守住这条覆盖面（漏写就像 typecheck 直接失败），
+  // 所以 npm run typecheck 通过 = 这些目录的语义检查也是真的做了。
   "compilerOptions": {
     "target": "ES2022",
     "module": "ESNext",

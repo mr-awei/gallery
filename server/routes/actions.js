@@ -1,3 +1,4 @@
+// @ts-check
 // 动作（Actions）路由
 import * as lib from '../library.js';
 import { deleteAction, listActions, runAction, saveAction, STEP_TYPES } from '../lib/actions.js';

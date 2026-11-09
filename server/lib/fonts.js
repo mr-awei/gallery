@@ -1,3 +1,4 @@
+// @ts-check
 // 系统字体清单：直接解析 TTF/OTF/TTC 的 name 表拿「家族名」。
 //
 // 为什么不用注册表/命令行：`reg query` 在中文 Windows 上输出是 OEM 编码，

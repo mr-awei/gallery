@@ -1,3 +1,4 @@
+// @ts-check
 /**
  * 相机 RAW / 设计文件的「内嵌预览」定位器（容器感知）。
  *
@@ -88,6 +89,7 @@ export function tiffPreviewSegments(read, size) {
   if (isCr2) queue.push(u32(head, 12, le));
 
   const seen = new Set();
+  /** @type {Array<{kind:'jpeg'|'rgb', offset?:number, length?:number, strips?:{offset:number,length:number}[], width?:number, height?:number}>} */
   const out = [];
   while (queue.length && seen.size < MAX_IFDS) {
     const off = queue.shift();

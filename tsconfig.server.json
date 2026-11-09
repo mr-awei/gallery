@@ -1,0 +1,26 @@
+{
+  // T-08：server/lib 全量的「真类型检查」闸。
+  //
+  // TypeScript 的 checkJs 是全局开关，不能按目录分段开：一旦设为 true，
+  // 被 import 拉进来的 server/*.js（bulk-import / kb / library / db…）也会一并检查，
+  // 实测 329 个错误里有 173 个根本不在 server/lib 内，等于把半个服务端拖进闸里。
+  //
+  // 这里改为 checkJs:false + 给 server/lib 下每个文件加 // @ts-check：
+  // 对该文件而言等价于 checkJs:true（JSDoc、参数、返回值、属性全都真检查），
+  // 但语义闸精确限定在 server/lib 全量 68 个文件，依赖文件仍由 tsconfig.node.json
+  // 做语法 / 引用结构检查。npm run typecheck 会跑到这份配置，零错误才算通过。
+  "compilerOptions": {
+    "target": "ES2022",
+    "module": "ESNext",
+    "moduleResolution": "bundler",
+    "allowJs": true,
+    "checkJs": false,
+    "noEmit": true,
+    "allowImportingTsExtensions": true,
+    "skipLibCheck": true,
+    "resolveJsonModule": true,
+    "strict": false,
+    "types": ["node"]
+  },
+  "include": ["server/lib/**/*.js", "server/lib/**/*.mjs", "server/lib/**/*.cjs", "server/lib/**/*.d.ts"]
+}

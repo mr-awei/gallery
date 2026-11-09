@@ -1,3 +1,4 @@
+// @ts-check
 // 库内通用小工具：标签逗号串拆合、JSON 容错解析、AI 描述读取（从 library.js 拆出）
 import { db } from '../db.js';
 

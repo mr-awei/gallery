@@ -21,6 +21,31 @@
   font-size: 12.5px;
   margin-top: 4px;
 }
+/* 页头右侧：当前展示方式 + 总数，和标题同一行，工具栏末尾不再挤一截文字 */
+.page-head-meta {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding-bottom: 2px;
+}
+.page-view-badge {
+  padding: 5px 10px;
+  border-radius: 20px;
+  font-size: 11.5px;
+  white-space: nowrap;
+  color: #fff;
+  background: var(--gradient);
+  box-shadow: 0 4px 14px rgba(255, 77, 141, 0.2);
+}
+.page-count {
+  padding: 5px 10px;
+  border-radius: 20px;
+  font-size: 11.5px;
+  white-space: nowrap;
+  color: var(--muted);
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid var(--border);
+}
 
 /* 页头 + 筛选栏常驻吸顶（图片从其下方滚过） */
 .sticky-head {
@@ -151,11 +176,74 @@ select {
   flex-wrap: wrap;
   margin-bottom: 16px;
 }
+/* 顶部第一行：搜索 / 排序 / 标签 在左，尺寸与展示方式成组在右，窄窗口整组换行 */
+.toolbar-main {
+  gap: 8px;
+  margin-bottom: 10px;
+}
+.toolbar-main > .select {
+  flex: 0 0 auto;
+  width: 124px;
+  padding: 8px 10px;
+}
+.toolbar-tools {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin-left: auto;
+}
+.toolbar-filters {
+  margin-top: -2px;
+  gap: 6px;
+}
+/* 展示方式分段控件：四个图标收在一组，当前模式高亮，不再散落一排小方块 */
+.view-switch {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  padding: 2px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.04);
+}
+.view-btn {
+  display: grid;
+  place-items: center;
+  width: 30px;
+  height: 28px;
+  border: none;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--muted);
+  cursor: pointer;
+  transition: color 0.15s ease, background 0.15s ease;
+}
+.view-btn:hover {
+  color: var(--text);
+  background: var(--panel-strong);
+}
+.view-btn.on {
+  color: #fff;
+  background: var(--gradient);
+  box-shadow: 0 3px 10px rgba(255, 77, 141, 0.25);
+}
+/* 文件夹收纳视图：筛选条件不适用于分组浏览，顶部只留一句说明 + 展示方式切换 */
+.folder-mode-bar {
+  justify-content: space-between;
+  margin-bottom: 6px;
+}
+.folder-mode-tip {
+  font-size: 12.5px;
+  color: var(--muted);
+  line-height: 1.5;
+}
 .search-box {
   position: relative;
   flex: 1;
   min-width: 200px;
-  max-width: 340px;
+  max-width: 420px;
 }
 .search-box .input {
   width: 100%;
@@ -1010,7 +1098,7 @@ select {
   }
 }
 
-/* ============ 新手教程导览 ============ */
+/* ============ 教程导览 ============ */
 .tour-root {
   position: fixed;
   inset: 0;

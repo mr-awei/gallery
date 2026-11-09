@@ -1,3 +1,4 @@
+// @ts-check
 /**
  * 内置 GLSL 壁纸预设（WebGL 1 / GLSL ES 1.00，不依赖纹理或外部资源）。
  *

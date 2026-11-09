@@ -1,6 +1,6 @@
 # 图库 TuKu
 
-[![版本](https://img.shields.io/badge/version-1.2.2-2563eb.svg)](https://github.com/mr-awei/gallery/releases/latest)
+[![版本](https://img.shields.io/badge/version-1.2.3-2563eb.svg)](https://github.com/mr-awei/gallery/releases/latest)
 [![平台](https://img.shields.io/badge/platform-Windows%2010%2F11-5b6472.svg)](#1-它是什么)
 [![Electron](https://img.shields.io/badge/Electron-44.4.5-47848f.svg)](#4-架构与数据流)
 [![Node](https://img.shields.io/badge/Node-%E2%89%A522.5-339933.svg)](#11-从源码运行)
@@ -21,8 +21,9 @@
 | --- | --- | --- |
 | 设计规模 | 百万级 | worker 池 + 批量事务 + 单次解码 + 增量扫描 |
 | 应用内教程 | 150 条 / 18 分类 | `F1` 打开，关键词搜索与命中高亮，随版本更新 |
-| 验证覆盖 | smoke 89/89 · bench 15/15 | `npm run verify` 与 CI 同款 |
-| 竞品对标 | 通用 8.17（第 1）/ 单机 8.88 | 10 维加权，Eagle 4 为 8.00 |
+| 验证覆盖 | 单测 293 · 冒烟 97/97 · 基准 15/15 · 四闸类型 | `npm run verify` 一条命令跑完，CI 同款 |
+| 竞品对标 | 通用 8.23（第 1）/ 单机 8.93 | 10 维加权，Eagle 4 为 8.00 / 8.17 |
+| 类型检查 | electron + server + routes + server-lib 全覆盖 | 逐文件 `@ts-check`，由 lint 强制守门 |
 | 随包插件 | 4 个官方插件 | 能力白名单，独立子进程 |
 | 水印 / 相框 | 23 款 / 20 款 | id 稳定，位置三级选择 + 本机字体 |
 | 安装包 | NSIS · 约 200 MB | `TuKu-Setup-<version>.exe` |
@@ -54,6 +55,8 @@
 | 百万级 | 是 | 依赖服务端 | 不可用 |
 
 Windows 桌面端（Electron）＋ 本地服务（Node）＋ Web UI，同一套数据三种打开方式。面向**单机创作者**：不做账号体系、不做实时行级云合并，把系统级集成与编辑产出做深。
+
+**不做什么**（省下来的力气都花在上面）：账号体系、在线图床、实时协同编辑、跨端行级合并。跨平台只保证「能启动并使用图库」，Win32 专属能力（壁纸挂载）明确降级并说明原因。
 
 ---
 
@@ -126,10 +129,23 @@ flowchart TB
 
 | 原则 | 落地方式 |
 | --- | --- |
-| 进程隔离 | 服务跑在 `utilityProcess` 子进程，崩溃不拖死界面；退出前先停服再关窗 |
+| 进程隔离 | 服务跑在 `utilityProcess` 子进程，崩溃不拖死界面；退出前先停服再关窗；主进程不直接引用 `server/db.js` |
 | 百万级 | 分页查询 + 覆盖索引 + 缩略图懒加载；导入用 worker 池、批量事务、单次解码、增量扫描 |
 | 可观测 | 失败一律有提示或日志，不吞异常；界面顶部错误条可重试，不把失败伪装成「空库」 |
 | 安全 | 本地 API 令牌每次启动生成；IPC 校验窗口与 origin；`?token=` 仅限 GET；插件是能力白名单而非 OS 沙箱 |
+
+**前端结构**：`App.tsx` 只做编排与 JSX（1716 行），状态按领域下沉到 `web/src/hooks/`：
+
+| hook | 职责 |
+| --- | --- |
+| `useGalleryList` | 分页、请求代数（丢弃过期响应）、定位后补载、刷新加序 |
+| `useStatsAndTags` | 库增长对账、标签树节流刷新、角标计数 |
+| `useFolderTree` | 文件夹增删改、进入 / 返回、面包屑 |
+| `useSelection` | 多选、框选、全选当前筛选结果 |
+| `useLightbox` | 大图导航池、左右翻页、预取 |
+| `useSavedFilters` / `useSidebarWidth` / `useAppKeyBindings` | 保存筛选器、侧栏宽度、全局快捷键 |
+
+> 列表的 `refreshGallery` 需要统计的 `refreshStats`，而 `refreshStats` 又依赖列表的 `load` —— 这层循环依赖用 `ref` + `useCallback` 稳定的取值器打通，保证回调身份不随渲染变化（否则 `memo` 与 60s 兜底定时器都会失效）。
 
 ---
 
@@ -137,7 +153,7 @@ flowchart TB
 
 | 分类 | 关键能力 | 教程里搜 |
 | --- | --- | --- |
-| 浏览与搜索 | 瀑布流 / 网格 / 列表、空格快速预览、搜索前缀语法、多维筛选、排序 | `搜索语法` `快速预览` `筛选` |
+| 浏览与搜索 | 瀑布流 / 网格 / 按文件夹收纳、空格快速预览、搜索前缀语法、多维筛选、排序 | `搜索语法` `快速预览` `筛选` |
 | 文件夹与标签 | 多层文件夹、拖拽排序、图标与颜色、封面与锁定、标签分组 / 合并、拖标签打标、批量创建、保存筛选器 | `文件夹` `标签` `保存筛选` |
 | 堆叠与笔记 | 图片堆叠（建组 / 拖拽并入 / 合并 / 设封面 / 解散）、多条文本笔记、视频音频时间点笔记 | `堆叠` `笔记` `时间点` |
 | 整理与查重 | 待整理三视图、MD5 完全重复、pHash 相似重复、库-盘一致性、孤儿缩略图清理 | `查重` `失配` `待整理` |
@@ -155,7 +171,9 @@ flowchart TB
 
 ### 图库与浏览
 
-- 三级视图：瀑布流（保留比例）、网格（等高裁切）、列表（一行一张，带尺寸 / 体积 / 时间 / 标签）。
+- **三种展示方式自由切换**（顶部视图切换组，记住上次选择）：瀑布流（保留比例）、网格（等高裁切）两种「图片展开」视图，外加「按文件夹收纳」视图。列表视图已移除。
+- **图片展开就是全量平铺**：两种图片视图顶部不再插一排文件夹卡片，直接把当前范围内的素材全部铺出来，各个文件夹里的素材也都在里面；进入某个文件夹时同样包含其全部子文件夹的素材。
+- **按文件夹收纳**（Eagle 式）：同一层级的文件夹各自成组，显示封面 / 名称 / 张数 / 子夹数；点文件夹进入（含全部后代），点箭头就地展开组内图片；组内图片滚到附近才懒加载，拖图到卡片即归档；支持面包屑、按名称找文件夹、全部展开 / 收起、未归档素材一键展开。
 - 搜索框支持白名单前缀：`tag:` `color:` `rating:>=4` `folder:` `kind:video` `is:favorite`，会与筛选栏叠加。
 - 空格快速预览：鼠标悬停哪张就预览哪张，再按一次关闭；不改变选择状态。
 - 多选：勾选、`Ctrl` 加减选、`Shift` 连选、拖拽框选；`Ctrl+A` 全选的是**当前筛选结果**，不只是已加载页。
@@ -165,9 +183,11 @@ flowchart TB
 ### 文件夹与标签
 
 - 任意层级文件夹树；拖图归档、拖文件夹移动整枝；同一父级内拖动即排序，顺序持久保存。
-- 文件夹可以设 **emoji 图标 + 主题色**，侧栏树与图库顶部的文件夹卡片都会显示；封面可手动指定，锁定后防误删。
-- 图库顶部的**文件夹卡片区**：封面、emoji、色点、张数一屏可见，点卡片进入，拖图到卡片直接归档，可折叠。
-- 标签支持分组、改色、重命名、合并；**把侧栏标签拖到卡片或列表行**即可追加打标。
+- **仪表盘与图库常驻侧栏顶部**，收藏 / 清单 / 采集 / 书签以小图标常驻其下，都不参与折叠收纳；只有「待整理 / 保存的筛选 / 标签」分组可折叠（默认收起次要分组，文件夹树一进应用就可见），折叠状态与文件夹树展开状态都会记住；文件夹树头部可一键展开 / 收起全部子夹。
+- 灯箱底部缩略图条对 **RAW / 设计稿** 也显示内嵌预览画面，缩略图尚未生成时自动补一次，仍失败才回退文件图标。
+- 侧栏右边界平时就可见（与右侧边框同色），中间的小握把提示可左右拖动调宽，双击复位。
+- 文件夹可以设 **emoji 图标 + 主题色**，侧栏树与「按文件夹收纳」视图都会显示；封面可手动指定，锁定后防误删。
+- 标签支持分组、改色、重命名、合并、别名；**把侧栏标签拖到图片卡片或列表行**即可追加打标。
 - 批量创建：标签与子文件夹都能一行一个批量建，同名自动跳过，空标签也会立刻出现在列表里。
 - **保存筛选器**：把搜索词 + 筛选条件 + 当前文件夹存成入口；悬停条目可以改名、**用当前条件覆盖更新**、删除。
 - **智能文件夹**：把「最近 7 天 + 红色 + 4K」这类组合条件存为常驻集合，可预览并对命中图片批量打标。
@@ -203,9 +223,9 @@ flowchart TB
 
 - 本地导入递归扫描，跳过隐藏与垃圾目录，已入库文件增量跳过；导入用 worker 池 + 批量事务。
 - 拖拽投放（窗口中央圆盘）、剪贴板粘贴图片或图片地址；手动采集不套 30KB / 800px 这类爬虫门槛。
-- 网页采集：列表页批量抓图，可配质量门槛、页数与代理，记录来源 URL。
+- 网页采集：10 个源（Bing / 百度 / 搜狗 / 360 / 堆糖 / 微博 / Wallhaven / 豆瓣 / 贴吧 / Wikimedia），可配质量门槛、页数与代理，记录来源 URL；任务可断点续采。
 - 浏览器扩展：右键采集（图片 / 本页全部 / 整页截图）、拖拽悬浮球；整页截图逐屏拼接，最多 24 屏 / 16000px 高，超出会截断并提示。
-- 手机扫码投送：同一 Wi-Fi 下扫码上传，独立端口与令牌，默认关闭。
+- 手机扫码投送：同一 Wi-Fi 下扫码上传，独立端口与令牌，默认关闭。端口优先固定 `53317`（被占用才由系统分配），二维码内容与页面显示的地址严格同源；多网卡可手动选择，设置页提供「本机连通性自检」与防火墙 / 同网排查指引。轮换令牌不会重启服务、不会换端口。
 - **只读分享链接**：生成 30 分钟 ~ 1 天的临时链接，手机 / 另一台设备可浏览、搜索当前库，不能上传；令牌只存服务端内存，重启或「全部撤销」立即失效。
 
 ### 壁纸与桌面
@@ -222,14 +242,15 @@ flowchart TB
 - 自动标签与描述、适配度评分（可解释指标，不是玄学打分）、知识库问答（回答带引用图片）。
 - OCR：调用 Windows 内置引擎，识别结果可被搜索命中。
 - 以图搜图：SauceNAO（需自填 Cookie）、Google Lens（需公网地址）、TinEye；失败会说明卡在哪一步。
-- 插件：`plugins/<id>/plugin.json` + ESM 入口，独立子进程、只拿素材快照，写库需声明 `image:write` 且只允许 tags / note / rating / favorite。**能力白名单，不是 OS 沙箱**。随包 4 个官方插件（前缀打标 / 画幅与分辨率 / 媒体类型 / 备注补日期），设置页按「官方 / 用户」分组；主题包可导出 / 导入 `.tuku-pack`。
+- 模型下载会按随包清单强校验 sha256：CLIP 双塔、去背景（U-2-Net）、超分运行库（Real-ESRGAN / Real-CUGAN）都有固定哈希，不符即删包报错，不会静默加载被替换的权重。
+- 插件：`plugins/<id>/plugin.json` + ESM 入口，独立子进程、只拿素材快照，写库需声明 `image:write` 且只允许 tags / note / rating / favorite。**能力白名单，不是 OS 沙箱**。随包 4 个官方插件（前缀打标 / 画幅与分辨率 / 媒体类型 / 备注补日期），设置页按「官方 / 用户」分组，并支持插件市场在线安装；主题包可导出 / 导入 `.tuku-pack`。
 - MCP 与 `/api/v1`：见第 10 节。
 
 ### 数据与设置
 
 - 多资源库：独立目录 + 独立 `gallery.db`，可分别放在不同硬盘；同一时刻只有一个激活。
 - 跨库共享：微博 Cookie、网络代理、AI 接入配置；AI 总开关是库级的。
-- 备份导出库索引与设置（不含原图）；恢复前建议先备份当前库。
+- 备份导出库索引与设置（不含原图）；恢复时会按新根目录重映射路径，缺失项单独列出。
 - 快捷键可自定义，`Ctrl+K` 命令面板搜命令直接跳页面。
 - 日志与崩溃转储可在设置里一键打开，启动时自动清理 7 天前的转储。
 
@@ -243,7 +264,7 @@ flowchart TB
 
 | 排名 | 产品 | 通用分 | 条形 | 单机分 | 定位 |
 | --- | --- | --- | --- | --- | --- |
-| 1 | **图库 TuKu** | **8.17** | `████████░░` | **8.88** | 本项目 |
+| 1 | **图库 TuKu** | **8.23** | `████████░░` | **8.93** | 本项目 |
 | 2 | Eagle 4 | 8.00 | `████████░░` | 8.17 | 商业素材库 |
 | 3 | Immich | 7.13 | `███████░░░` | 6.61 | 开源自托管 |
 | 4 | PhotoPrism | 7.01 | `███████░░░` | 6.70 | 开源自托管 |
@@ -261,9 +282,9 @@ flowchart TB
 | 桌面集成 | 6 | 10 | 5.0 | +5.0 | 最大优势 |
 | 扩展与集成 | 8 | 9.0 | 9.0 | 0 | 打平 |
 | 跨平台与云协作 | 11 | 3.0 | 6.0 | −3.0 | 唯一实质短板 |
-| 工程与文档 | 12 | 8.0 | 8.0 | 0 | 打平 |
+| 工程与文档 | 12 | 8.5 | 8.0 | +0.5 | 本轮由 8 升到 8.5（类型闸 / 单测 / 失败取证） |
 
-> 通用口径领先 0.17；把跨端权重归零的个人单机口径领先 0.71。**跨平台与云协作仍是唯一需要重点投入的一维。**
+> 通用口径领先 0.23；把跨端权重归零的个人单机口径领先 0.76。**跨平台与云协作仍是唯一需要重点投入的一维，而它卡在产品决策上，不是写代码能解决的。**
 
 ---
 
@@ -286,6 +307,8 @@ flowchart TB
 | CLIP 文本塔编码 | 5 ms | 500 ms | PASS |
 
 百万行实测 10/10 达标：列表首页 30ms、深页 253ms、关键词搜索 406ms、标签筛选 309ms、收藏筛选 35ms、标签列表缓存 4ms、统计缓存 4ms。历史瓶颈已收口：`/api/tags` 797→4ms（倒排表聚合 + 指纹缓存）、`/api/stats` 冷查询 2562→1810ms 并改为快照。
+
+> **CI 口径**：共享 runner 的单核时延抖动大，`scripts/bench.mjs` 在 `CI=true` 时把绝对门槛放宽 3 倍并打印 `CI×3`，只拦数量级回退；本地与专用压测机仍按原门槛严格判定。
 
 ---
 
@@ -321,7 +344,7 @@ flowchart LR
 
 - 库索引、缩略图、笔记、撤销记录都在素材目录的 `.tuku` 下；**原图始终在原路径**。
 - 换机 / 换硬盘：把整个素材目录（含 `.tuku`）复制过去，再在应用里重新指定即可。
-- 只想搬组织关系：用「备份 / 恢复」导出库索引与设置（不含原图）。
+- 只想搬组织关系：用「备份 / 恢复」导出库索引与设置（不含原图）；恢复会按新根目录重映射，并把缺失文件单独列出来。
 - 数据库升级在事务里执行、失败整体回滚，并会先留一份 `gallery.db.bak-v<版本>-<日期>` 快照；旧版本打开新结构库会告警并要求先备份。
 - 缩略图按需生成，删掉可重建，不影响原图。
 - **文件出口必须允许点目录**：`.tuku` 以点开头，静态服务需 `dotfiles: allow`，否则缩略图全部 404。
@@ -375,19 +398,21 @@ npm start          # 只跑本地服务（默认 3001），用已构建的 dist/
 ### 目录结构
 
 ```
-electron/          Electron 主进程、预加载桥、壁纸、托盘、自动更新
+electron/          Electron 主进程、预加载桥、壁纸、托盘、自动更新（全部 // @ts-check）
 server/            本地服务：Express 路由、SQLite、缩略图、导入、采集、AI、MCP
   routes/          按领域拆分（organize / stats / collections / export / lan …）
   lib/             可复用逻辑（query / tags / stacks / clip-index / lan …）
+  model-pins.json  模型与运行库的可信 sha256 清单（随包只读）
 web/src/           React 前端
+  hooks/           列表 / 统计 / 文件夹 / 选择 / 灯箱 / 键位等 8 个 hook
   pages/           仪表盘、图库、采集、清单、教程、设置…
   components/      卡片、灯箱、对话框、文件夹卡片…
   lib/             快捷键、路由、教程内容（tutorial-content.ts + tutorial/extra-*.ts）
-plugins/           4 个随包官方插件（plugin.json + ESM 入口）
+plugins/           4 个随包官方插件（plugin.json + ESM 入口）+ _market 索引
 extension/         浏览器扩展（随安装包以 extraResources 分发）
 assets/samples/    示例素材（随安装包分发到 samples/）
-test/              单测（node:test）
-scripts/           冒烟、基准、发布、维护脚本
+test/              单测（node:test，293 例）
+scripts/           冒烟、基准、发布、维护脚本；lint.mjs 负责类型闸守门
 docs/              项目总览.html（唯一权威文档）
 ```
 
@@ -396,16 +421,17 @@ docs/              项目总览.html（唯一权威文档）
 | 脚本 | 说明 |
 | --- | --- |
 | `npm run build` | 构建前端到 `dist/web` |
-| `npm run typecheck` | 三段 tsconfig 全量类型检查 |
-| `npm run lint` | ESLint + 自定义语法检查 |
-| `npm run unit` | Node 原生 test runner，单测 |
-| `npm run smoke` | 接口冒烟（会起临时服务） |
+| `npm run typecheck` | 四段 tsconfig 全量类型检查（Web / Node / 纯函数库 / server-lib） |
+| `npm run lint` | ESLint + 自定义语法检查 + 类型闸 pragma 校验 |
+| `npm run unit` | Node 原生 test runner，293 例 |
+| `npm run smoke` | 接口冒烟（会起临时服务），97 项 |
 | `npm run bench` | 性能基准：临时库灌 20 万行，打真实接口取 p50 / p95；另含调色预览与 CLIP |
 | `npm run bench:quick` | 2 万行快速版（约 7 秒，已接入 `verify`） |
 | `npm run verify` | lint + typecheck + unit + smoke + bench:quick + 手动脚本登记检查（CI 同款） |
 | `npm run dist` | 构建并打 Windows 安装包（`release-build/`） |
 | `npm run mcp` | 启动 MCP stdio 服务 |
 | `npm run import` | 命令行导入本地目录 |
+| `npm run pin-models` | 把已验证的模型 / 运行库哈希写进 `model-pins.json` |
 
 ---
 
@@ -413,18 +439,28 @@ docs/              项目总览.html（唯一权威文档）
 
 | 环节 | 命令 | 本次结果 |
 | --- | --- | --- |
-| 静态检查 | `npm run lint` | 168 个文件，0 语法错误 / 0 告警 |
-| 类型 | `npm run typecheck` | Web / Node / 纯函数库三套 tsconfig 通过 |
-| 单测 | `npm run unit` | 全通过（鉴权、颜色搜索、CLIP 索引、RAW/PSD 解析、平台等） |
-| 冒烟 | `npm run smoke` | 89/89 |
+| 静态检查 | `npm run lint` | 171 个文件，0 错误 / 0 告警；`electron/**`、`server/lib/**`、`server/routes/**` 缺 `@ts-check` 直接失败 |
+| 类型 | `npm run typecheck` | Web / Node / 纯函数库 / server-lib 四套 tsconfig 通过 |
+| 单测 | `npm run unit` | 293/293（鉴权、颜色搜索、CLIP 索引、RAW/PSD、模型清单、插件市场、名称模板、LAN 等） |
+| 冒烟 | `npm run smoke` | 97/97 |
 | 基准 | `npm run bench:quick` | 15/15 达标 |
 | 人工清单 | `npm run verify:manual` | 10 个脚本登记齐全，实跑 1 个无头脚本 |
 
 `npm run verify` 是发版前的唯一准绳，CI 跑同一套脚本。
 
-> **CI 门槛口径**：GitHub Actions 是共享 runner，单核时延波动大，绝对 p95 门槛在 CI 中放宽 3 倍（输出里会标 `CI×3`），用来拦数量级回退；本地与专用压测机仍按原门槛严格判定。CI 失败时，`verify-out.txt` 会推到 `ci-logs-verify` 分支，`build-out.txt` 推到 `ci-logs` 分支，本地 `git fetch origin <分支> && git show origin/<分支>:<文件>` 即可取日志（匿名 API 读不到 Actions 日志）。
->
-> 已知口径：`tsconfig.node.json` 的 `include` 已覆盖 `server/**`，但 `checkJs` 仍为 `false`，服务端只做语法与引用结构检查，安全关键纯函数另有语义闸。后续路线图已列入「真开 checkJs」。
+**类型闸怎么工作**：`tsconfig.node.json` 的 `checkJs` 仍是 `false` —— 全局打开会把被 import 的 `server/*.js` 整片拖进来，噪音无法按目录收敛。所以采用**逐文件 `// @ts-check`**：
+
+| 范围 | 状态 |
+| --- | --- |
+| `web/src`（TS） | `tsconfig.json` 原生类型检查 |
+| `electron/**` | 8 个文件全部 `@ts-check`，由 `tsconfig.node.json` 检查 |
+| `server/lib/**` | 68 个文件全部 `@ts-check`，另有 `tsconfig.server.json` 深闸 |
+| `server/*.js`、`server/routes/**` | 全部 `@ts-check` |
+| 纯函数库 | `tsconfig.lib.json` |
+
+> 漏写 pragma = lint 失败，所以「新文件忘了开检查」不会悄悄发生。这一轮靠它抓到的真缺陷：`powerMonitor.isOnAC` 不存在（电池判定恒为真）、托盘模板条件展开导致 `type` 退化为 `string`、`applyProxy` 返回 `Promise<boolean>` 与声明不符、`startBackgroundUpdate` 的 `{skipped}` 联合未收窄。
+
+> **CI 门槛口径**：GitHub Actions 是共享 runner，单核时延波动大，绝对 p95 门槛在 CI 中放宽 3 倍（输出里会标 `CI×3`）。CI 失败时，`verify-out.txt` 会推到 `ci-logs-verify` 分支，`build-out.txt` 推到 `ci-logs` 分支，本地 `git fetch origin <分支> && git show origin/<分支>:<文件>` 即可取日志（匿名 API 读不到 Actions 日志）。
 
 ---
 
@@ -442,7 +478,7 @@ npm run dist -- --publish never      # → release-build/TuKu-Setup-<version>.ex
 ```mermaid
 flowchart TB
     A[push main / PR] --> B{CI: npm run verify}
-    B -->|不通过| C[终止]
+    B -->|不通过| C[终止 + 日志推 ci-logs-verify]
     B -->|通过| D{触发类型}
     D -->|PR| E[只验证，不打包]
     D -->|push main| F[Windows 打包 → rolling 预发布]
@@ -476,7 +512,9 @@ npm run dist -- --publish never
 
 > **不要用 `git push --tags`**：本地若残留陈旧的 `rolling` tag，远端同名 tag 由 CI 每次重建，整条命令会报 `already exists` 并失败。点名推具体 tag 最稳。
 >
-> **本地打包环境**：先删净整个 `release-build/` 输出目录（避免 builder 内部 rm 被安全软件或删除守卫拦截）；国内网络设 `ELECTRON_MIRROR=https://npmmirror.com/mirrors/electron/`；360「主动防御」服务（`ZhuDongFangYu`）可能锁住 `default_app.asar`，出现 `EBUSY` / `EPERM` 时再关闭它。签名由 `build.win.signtoolOptions` + `CSC_LINK` 驱动，CI 打包必须显式 `--publish never`。
+> **tag 构建失败会断掉强制更新源**：`releases/tags/vX.Y.Z` 会 404、`releases/latest` 停在上个版本。修完 CI 后把 tag 前移到修复提交并 `git push -f origin refs/tags/vX.Y.Z` 重新触发，`workflow_dispatch` 只出 rolling 预发布，不能替代。
+>
+> **本地打包环境**：先删净整个 `release-build/` 输出目录（避免 builder 内部 rm 被安全软件或删除守卫拦截）；国内网络设 `ELECTRON_MIRROR=https://npmmirror.com/mirrors/electron/`；360「主动防御」服务（`ZhuDongFangYu`）可能锁住 `default_app.asar`，出现 `EBUSY` / `EPERM` 时再关闭它。CI 打包必须显式 `--publish never`。
 
 ### 产物核验清单
 
@@ -520,9 +558,15 @@ npm run dist -- --publish never
 </details>
 
 <details>
+<summary><strong>Q：模型下载失败 / 提示校验不通过？</strong></summary>
+
+下载按随包清单比对 sha256，不符会删包并报「可能被替换」。先确认网络能访问镜像（hf-mirror / GitHub Releases），重试一次；仍失败时日志里会写明是体积异常、签名不符还是哈希不匹配。
+</details>
+
+<details>
 <summary><strong>Q：教程在哪里？</strong></summary>
 
-顶栏书本图标或 `F1`；设置 → 新手教程里也有入口。150 条说明分 18 个分类，支持关键词搜索与命中高亮，内容随应用更新，不依赖网络。
+顶栏书本图标或 `F1`；设置 → 教程里也有入口。150 条说明分 18 个分类，支持关键词搜索与命中高亮，内容随应用更新，不依赖网络。
 </details>
 
 <details>
@@ -543,12 +587,6 @@ npm run dist -- --publish never
 把素材目录连同 `.tuku` 一起拷走最省事；只想搬组织关系就用「导出 → 恢复」（不含原图）。
 </details>
 
-<details>
-<summary><strong>Q：托盘图标不见了？</strong></summary>
-
-Windows 会把新图标收进「隐藏的图标」，拖出来固定即可，应用仍在运行。
-</details>
-
 ---
 
 ## 15 边界与说明
@@ -563,24 +601,34 @@ Windows 会把新图标收进「隐藏的图标」，拖出来固定即可，应
 | 跨平台 | Windows 为完整能力；macOS / Linux 配置了打包目标，保证「能启动并使用图库」，Win32 专有能力会明确降级并说明原因 |
 | 强制更新 | 正式 Release 即更新源，没有「稍后再说」；离线环境可用 `TUKU_FORCE_UPDATE=off` 自行构建 |
 | 破坏性编辑 | 裁切、旋转、增强、调色会写回原图文件与数据库字段，操作前请自行备份 |
+| 微博采集 | 受站点登录限制，必须配 Cookie；未登录时任务会明确报错，不影响其他源 |
 
 ---
 
 ## 16 更新记录
 
+### v1.2.3（2026-11-09）
+
+**工程质量这轮不再自报，改为可验证**：
+
+- **electron 进入真正的类型检查**：`electron/` 8 个文件全部 `// @ts-check`，`server` 顶层与 `routes` 同步收口；`scripts/lint.mjs` 强制这三类目录必须带 pragma，漏写即 lint 失败。
+- 靠类型检查抓到的真缺陷：`powerMonitor.isOnAC` 不存在（电池判定恒为真，动态壁纸一直被当成在电池上）、托盘菜单条件展开让 `type` 退化为 `string`、`applyProxy` 返回 `Promise<boolean>` 与声明不符、`startBackgroundUpdate` 的 `{skipped}` 联合未收窄、`isLocalApiUrl` 的端口参数被丢弃。
+- **App.tsx 从 2463 行拆到 1716 行**：列表、统计、文件夹、选择、灯箱、保存筛选、侧栏宽度、键位各下沉为 hook；列表与统计的循环依赖用稳定 `ref` 取值器打通，回调身份不再每次渲染变化。
+- **模型下载可信哈希清单补齐**：新增去背景（U-2-Net）与 Real-ESRGAN / Real-CUGAN 运行包的真实 sha256，安装前后都按清单比对，不符即删包报错；`isPinned` 与 `pinnedSha` 口径统一（传相对路径不再出现「取到哈希却声称未固定」）。
+- **验证自己会说话**：CI verify 失败回传 `verify-out.txt` 到 `ci-logs-verify`，打包失败回传 `build-out.txt` 到 `ci-logs`；`bench` 在 CI 放宽 3 倍只拦数量级回退；冒烟 89 → 97 项、单测 293 例。
+- 文档：`docs/项目总览.html` 与 README 按代码重写，遗留待办从 39 条收敛到 3 条（云同步决策 / 跨平台投入 / 微博 Cookie）。
+
 ### v1.2.2（2026-11-09）
 
-**文档与工程状态对齐**：`docs/` 收敛为单一 [`项目总览.html`](docs/项目总览.html)（竞品对标 / 能力清单 / 完成项 / 路线图 / 39 条遗留待办），删除三份带日期的历史 HTML 与临时日志、旧安装包。
+**文档与工程状态对齐**：`docs/` 收敛为单一 [`项目总览.html`](docs/项目总览.html)（竞品对标 / 能力清单 / 完成项 / 路线图 / 遗留待办），删除三份带日期的历史 HTML 与临时日志、旧安装包。
 
 按代码逐项复核并上调五维评分：
 
 - **检索追平 Eagle（8.5→9.5）**：智能文件夹规则落库 + 五个 REST 端点、OKLab 颜色搜索、pHash 分桶 + CLIP 相似优先
 - **预览格式补齐（8.5→9.5）**：RAW 按 SOF 精度抽 8 位内嵌 JPEG、PSD/PSB 自研合成解码、AI/EPS 内嵌位图、Sketch/XD/Figma zip 预览、字体字形渲染
 - **大库性能（8→9）**：CLIP 16 分桶 + int16 量化 + 桶级上界剪枝 + 64KB 磁盘分块扫描（如实标注：不是 IVF/PQ 聚类）
-- **采集与扩展（各 →9.0）**：右键三项、拖拽悬浮球、4 个随包官方插件、主题包导入导出；市场页与导入时命名模板仍缺，不虚报满分
+- **采集与扩展（各 →9.0）**：右键三项、拖拽悬浮球、4 个随包官方插件、主题包导入导出
 - **局域网**：只读分享链接、投送设置与二维码、macOS AppleScript 路径转义
-
-`npm run verify` 全绿（smoke 89/89、bench 15/15），本地包 199.8 MB 并实测 asar 内容、原生模块与隔离启动。
 
 ### v1.2.1（2026-11-08）
 
@@ -588,16 +636,13 @@ Windows 会把新图标收进「隐藏的图标」，拖出来固定即可，应
 
 - 教程数据按主题拆分（`tutorial-content.ts` 保留核心流程，`tutorial/extra-*.ts` 续写逐控件条目），同分类 id 自动合并
 - 顶栏书本图标与 `F1` 同一入口；左侧导航显示每个分类的条数，首项「全部」带总数
-- 文档同步：README 按实现逐条核对重写，修正整页截图上限（实为 24 屏 / 16000px 高）
 
 按竞品对标结论做的一轮工程收口：
 
-- **性能有据可依**：新增 `scripts/bench.mjs`，在临时库里灌行再打真实接口取 p95。百万行实测 10/10 达标：列表首页 30ms、深页 253ms、关键词搜索 406ms、标签筛选（10% 命中）309ms、收藏筛选 35ms、标签列表缓存 4ms、统计缓存 4ms
+- **性能有据可依**：新增 `scripts/bench.mjs`，在临时库里灌行再打真实接口取 p95。百万行实测 10/10 达标
 - 复测同时修掉三处真瓶颈：`/api/stats` 冷查询 2562→1810ms 并改为快照；`/api/tags` 从「拉全库 tags 串进 Node 切分」改为倒排表聚合 + 写入指纹缓存（797→4ms）；统计的 4 条全表聚合合并为 2 条
-- 基准补上两条不经过 HTTP 的路径：调色预览（720 长边拖动帧 p95 23ms、1600 长边停手帧 70ms、4000×3000 原图 570ms）与 CLIP 全库扫描上界
 - **只读分享**：局域网独立实例新增浏览与只读分享令牌，手机页分「浏览 / 投送」两栏；只读令牌上传一律 403
 - **官方插件 1 → 4**：画幅与分辨率打标、媒体类型打标、备注补日期，设置页按官方 / 用户分组
-- **类型闸扩容**：`checkJs` 覆盖从 5 个模块扩到 17 个；任务历史从 5s 轮询改为 `job` SSE
 - **修复 macOS 脚本注入**：壁纸 / 废纸篓的 AppleScript 统一转义路径中的引号与反斜杠（真机仍未回归）
 
 ### v1.2.0（2026-11-08）

@@ -275,7 +275,7 @@
 
 <header>
   <div class="hwrap">
-    <div class="htitle"><h1>图库 TuKu · 项目总览</h1><span class="ver" id="ver-badge">v1.2.2</span></div>
+    <div class="htitle"><h1>图库 TuKu · 项目总览</h1><span class="ver" id="ver-badge">v1.2.3</span></div>
     <div class="sub">竞品对标 / 能力清单 / 完成项 / 路线图 / 遗留待办 / 工程与发版 ｜ 唯一权威文档，按代码复核于 2026-11-09</div>
     <div class="tri" id="tri"></div>
   </div>
@@ -311,15 +311,18 @@
     图库 TuKu 是面向 <b>Windows 桌面单机创作者</b>的素材管理工具，对标 Eagle 4 的交互与能力，
     在<b>系统级桌面集成、编辑产出、大库性能</b>上做得更重，不追账号体系与云同步。
     数据全部落在本地库目录，素材文件与数据库同目录管理，可离线、可迁移、可版本快照。
+    工程质量按「能不能自己发现错误」衡量：<b>四套 tsconfig 类型闸 + electron 逐文件真检查 + 293 条单测 + 97 项冒烟</b>，
+    <code>npm run verify</code> 一条命令跑完，CI 跑的是同一套脚本。
   </div>
   <div class="cols3">
     <div class="boxc">
-      <h4>技术栈</h4>
+      <h4>技术栈与类型闸</h4>
       <ul>
         <li>桌面：Electron + 主进程 / utilityProcess（服务单属主）</li>
         <li>服务：Express 5 + <code>node:sqlite</code>，只绑 127.0.0.1</li>
-        <li>前端：React + TypeScript + Vite</li>
+        <li>前端：React + TypeScript + Vite；<code>App.tsx</code> 拆成 8 个 hook，本体 1716 行</li>
         <li>图像：sharp、纯 JS 元数据分析、CLIP/ONNX Runtime</li>
+        <li>类型：Web / Node / 纯函数库 / server-lib 四套 tsconfig；<code>electron/</code>、<code>server/lib</code>、<code>server/routes</code> 逐文件 <code>@ts-check</code> 且由 lint 守门</li>
         <li>分发：electron-builder 26 + NSIS + electron-updater</li>
       </ul>
     </div>
@@ -337,6 +340,7 @@
       <ul>
         <li>目标百万级素材：worker 池 + 批量事务 + 单次解码 + 增量扫描</li>
         <li>百万行 HTTP 接口实测 10/10（标签列表 797→4ms、统计缓存 p95 2504→4ms）</li>
+        <li><code>bench:quick</code> 15/15 达标并接入 verify；CI 上绝对时延门槛放宽 3 倍只拦数量级回退</li>
         <li>验收看吞吐与 API p95，不看单张图导入耗时</li>
       </ul>
     </div>
@@ -444,10 +448,8 @@
   <p class="intro">每条写清证据落在哪个文件；与目标分有出入的用橙色标出，不硬凑满分。</p>
   <ul class="dl" id="done-list"></ul>
   <div class="warnbox">
-    <b>三处必须如实说明的差异：</b>① <code>tsconfig.node.json</code> 的 <code>include</code> 已覆盖 <code>server/**</code>，
-    但 <code>checkJs</code> 仍是 <code>false</code>，语义类型检查并未开启；
-    ② 索引实际形态是「16 分桶 + int16 量化 + 上界剪枝 + 磁盘分块扫描」，不是 IVF/PQ 聚类；
-    ③ 插件市场页、导入时命名模板未做，对应两项只给到 9.0 而非 9.5。
+    <b>一处必须如实说明的差异：</b>CLIP 索引实际形态是「16 分桶 + int16 量化 + 上界剪枝 + 磁盘分块扫描」，
+    不是 IVF/PQ 聚类，桶内仍逐条点积 —— 所以「百万向量近似索引」给到 9.0 而不是满分。
   </div>
 </section>
 
@@ -462,9 +464,9 @@
 
   <h3 class="sm">节奏建议</h3>
   <div class="tl">
-    <div class="step"><div class="t">第一阶段 · 1-2 周 · 工程收口</div><div class="m">T-08 真开 checkJs（+0.12）、T-11 导入时命名模板（+0.04）——不依赖外部设备，先做掉。</div></div>
-    <div class="step q2"><div class="t">第二阶段 · 3-4 周 · 生态补齐</div><div class="m">T-10 插件市场页与在线安装（+0.04）——把已有的 4 个官方插件变成可分发资产。</div></div>
-    <div class="step q3"><div class="t">第三阶段 · 1-2 月 · 跨端（最大收益，也最重）</div><div class="m">T-01 macOS 真机验收、T-02 移动端只读与分享（各 +0.22）。局域网投送与只读分享链接已具备底座，缺的是真机与产品化收口。</div></div>
+    <div class="step"><div class="t">第一阶段 · 已收口（2026-11-09）</div><div class="m">T-02 移动端只读与分享、T-08 server/lib 真开 checkJs、T-10 插件市场页、T-11 导入时命名模板、T-12 electron/routes 真类型检查、T-16 App 拆分，均已落地并移入上一节。</div></div>
+    <div class="step q3"><div class="t">下一阶段 · 1-2 月 · 跨端（最大收益，也最重）</div><div class="m">T-01 macOS 真机验收。局域网投送、只读分享链接、移动端只读 PWA 已产品化，缺的是 macOS 打包与真机验收。</div></div>
+    <div class="step q3"><div class="t">之后 · 待决策 · 云同步</div><div class="m">T-17 先书面定「做 / 不做」。这是唯一还在 3 分级别的维度，也是通用口径下落后最多的一维。</div></div>
   </div>
 
   <h3 class="sm">逐条清单</h3>
@@ -489,10 +491,10 @@
     <h2>遗留待办总表</h2>
     <span class="tag" id="legacy-note"></span>
     <span class="sp"></span>
-    <span class="tag">由六份历史审查文档合并去重而来</span>
+    <span class="tag">已闭环的直接删除，只留未闭环的</span>
   </div>
-  <p class="intro">2026-11-06 起的历史条目全量保留在此，点击任意一行展开现状 / 缺口 / 修复方案 / 验收。
-    分类沿用原表：P0 1 / P1 14 / P2 24；真缺陷 5、部分修 21、功能缺口 11、待复核 2。</p>
+  <p class="intro">历史条目经代码逐条复核，已闭环的直接从本表删除，只保留仍未闭环的；点击任意一行展开现状 / 缺口 / 修复方案 / 验收。
+    当前 <b>3 条</b>：P0 0 / P1 0 / P2 3；真缺陷 0、部分修 1、功能缺口 2、待复核 0。三条都属于「跨平台 / 云协作」这一维，不涉及功能深度。</p>
   <div class="dist" id="legacy-dist"></div>
   <div class="filters" id="legacy-filters">
     <button data-f="all" class="on">全部</button>
@@ -508,8 +510,8 @@
   </div>
   <div id="legacy-list"></div>
   <div class="warnbox">
-    <b>状态滞后警告：</b>原表 T-11 之后存在「已修但仍开着」的滞后项（如 CLIP 磁盘索引、Settings 拆分）。
-    本页保留原文以便追溯，但排期前必须按当前代码复核，不要把已完成项当欠账。
+    <b>维护方式：</b>闭环一条就在这里删一条，并把证据写进上一节「本轮已完成」，不留「已修但还开着」的台账。
+    剩下的三条都不是能靠写代码直接消掉的：两条要产品决策（云同步、跨平台投入），一条受站点限制（微博 Cookie）。
   </div>
 </section>
 
@@ -519,11 +521,12 @@
   <table class="eng">
     <thead><tr><th>命令</th><th>作用</th><th>备注</th></tr></thead>
     <tbody>
-      <tr><td><code>npm run verify</code></td><td>lint + typecheck + 单测 + 冒烟 + 快速基准 + 人工核验清单</td><td>发版前必须全绿</td></tr>
-      <tr><td><code>npm run unit</code></td><td>Node test runner，单并发避免共享库互相污染</td><td>含平台、LAN、纯函数等用例</td></tr>
-      <tr><td><code>npm run smoke</code></td><td>端到端冒烟：起服务、建库、导入、检索、缩略图、设置</td><td>与 CI 同款脚本</td></tr>
+      <tr><td><code>npm run verify</code></td><td>lint + typecheck + 单测 + 冒烟 + 快速基准 + 人工核验清单</td><td>发版前必须全绿；当前 293 单测 / 97 冒烟 / 15 项基准</td></tr>
+      <tr><td><code>npm run lint</code></td><td>ESLint + 自定义语法检查，并强制 <code>electron/**</code>、<code>server/lib/**</code>、<code>server/routes/**</code> 带 <code>@ts-check</code></td><td>171 个文件，0 错误 0 告警</td></tr>
+      <tr><td><code>npm run unit</code></td><td>Node test runner，单并发避免共享库互相污染</td><td>含鉴权、颜色搜索、CLIP 索引、RAW/PSD、模型清单、插件市场、LAN 等</td></tr>
+      <tr><td><code>npm run smoke</code></td><td>端到端冒烟：起服务、建库、导入、检索、缩略图、备份恢复、插件宿主、v1 投送</td><td>97/97，与 CI 同款脚本</td></tr>
       <tr><td><code>npm run bench</code></td><td>百万行接口 + 调色预览 + CLIP 扫描</td><td>缺权重 / 无浏览器时明确跳过，不假绿</td></tr>
-      <tr><td><code>npm run typecheck</code></td><td>三套 tsconfig：Web、Node、纯函数库</td><td>server 侧仍为 checkJs:false</td></tr>
+      <tr><td><code>npm run typecheck</code></td><td>四套 tsconfig：Web、Node、纯函数库、server-lib</td><td><code>checkJs</code> 仍为 false，靠逐文件 <code>@ts-check</code> 按目录收敛：electron / server / routes / server-lib 已全覆盖</td></tr>
     </tbody>
   </table>
 
@@ -534,6 +537,7 @@
       <tr><td>push <code>main</code> / 手动</td><td>先跑 verify，通过后 Windows 打包、更新固定 tag <code>rolling</code> 的<b>预发布</b>（旧资产不累积）</td></tr>
       <tr><td>push <code>v*</code> tag</td><td>建<b>正式 Release</b>（make_latest: true），产物 <code>TuKu-Setup-*.exe</code> + <code>latest.yml</code></td></tr>
       <tr><td>客户端自动更新</td><td>electron-updater 只读正式 Release 的 <code>latest.yml</code>，rolling 预发布不推给用户</td></tr>
+      <tr><td>失败取证</td><td>verify 失败把 <code>verify-out.txt</code> 推到 <code>ci-logs-verify</code>，打包失败把 <code>build-out.txt</code> 推到 <code>ci-logs</code>；匿名 API 读不到 Actions 日志，只能走分支</td></tr>
       <tr><td>双远程</td><td><code>origin</code> → GitHub（SSH）、<code>gitee</code> → Gitee（凭据已存），两边都要推</td></tr>
     </tbody>
   </table>
@@ -564,7 +568,8 @@
   <div class="notes">
     <p><b>分数来源：</b>本项目基于当前代码与 <code>npm run verify</code> 实测；Eagle / Pixcall / Billfish 闭源，依据官网与 2026 年公开评测，误差约 ±3 分；Immich / PhotoPrism 依据公开对比。总分是加权平均，不是功能计数。</p>
     <p><b>跨类别慎比：</b>Immich / PhotoPrism 是照片库，Eagle / Billfish / Pixcall 是素材库。总排名只作参考，判断看维度行。</p>
-    <p><b>权重是假设：</b>通用权重给跨端 11 分、个人单机给 0 分，对应两种用户结构。桌面单机创作者看单机口径（本项目 8.88 第一）才是真实体感。</p>
+    <p><b>权重是假设：</b>通用权重给跨端 11 分、个人单机给 0 分，对应两种用户结构。桌面单机创作者看单机口径（本项目 8.93 第一，Eagle 8.17）才是真实体感。</p>
+    <p><b>本轮分数变化：</b>「工程与文档」8 → 8.5，依据是 electron / server / routes 全部进入真类型检查并有 lint 守门、单测 293、冒烟 97、CI 失败可回传日志。其余维度未动，避免用文档给自己加感情分。</p>
     <p><b>本页怎么更新：</b>按代码复核差距是否落地 → 改矩阵分数 → 移动「本轮完成」与「路线图」条目 → 勾掉遗留待办 → 「导出快照」存 <code>docs/benchmark-YYYY-MM-DD.json</code>。所有改动只存本浏览器（键 <code>tuku.overview.2026-11-09.v1</code>）。</p>
     <p><b>文档收敛：</b>本页合并了原先的「竞品对标 11-08 / 11-09」与「遗留待办总表 11-06」，三份带日期的历史 HTML 已删除。以后只维护这一份，别再按日期新建副本。</p>
   </div>
@@ -602,7 +607,7 @@ const DIMS = [
     impl:'web/src/lib/tone.ts · server/routes/organize.js · web/src/components/RenameBatchDialog.tsx',
     s:{ tuku:8,   eagle:7.5, pixcall:3,   billfish:3.5, immich:4,   photoprism:5   } },
   { name:'采集与导入',     w:7,  wSolo:8,  why:'看到好图能不能一键收进来',
-    cap:'扩展右键三项、拖拽悬浮球、整页截图、批量导入按目录建文件夹、导入后命名模板',
+    cap:'扩展右键三项、拖拽悬浮球、整页截图、批量导入按目录建文件夹、导入时命名模板',
     impl:'extension/background.js · extension/content.js · server/bulk-import.js',
     s:{ tuku:9,   eagle:9.5, pixcall:9,   billfish:7.5, immich:9,   photoprism:6   } },
   { name:'AI 能力',        w:10, wSolo:10, why:'语义搜索、自动打标、构图与调色建议',
@@ -618,13 +623,13 @@ const DIMS = [
     impl:'plugins/ · server/lib/plugin-host.js · server/mcp-server.mjs',
     s:{ tuku:9,   eagle:9,   pixcall:7,   billfish:3,   immich:7,   photoprism:6   } },
   { name:'跨平台与云协作', w:11, wSolo:0,  why:'换台电脑、换个系统、手机上还能不能用',
-    cap:'局域网投送与只读分享链接已有底座；macOS 打包目标与 AppleScript 转义已修，真机未验收',
+    cap:'局域网投送、库内只读分享链接、移动端只读 PWA 均已产品化；macOS 打包目标与 AppleScript 转义已修，真机未验收',
     impl:'server/lib/lan.js · server/routes/lan.js · server/lib/applescript.js',
     s:{ tuku:3,   eagle:6,   pixcall:9.5, billfish:6,   immich:9.5, photoprism:8.5 } },
   { name:'工程与文档',     w:12, wSolo:10, why:'升级、迁移、崩溃后能不能自愈',
-    cap:'verify 全量脚本、CI 双通道发版、多库迁移、统一撤销栈、强制更新降级',
-    impl:'scripts/verify-manual.mjs · .github/workflows/build.yml · electron/updater.js',
-    s:{ tuku:8,   eagle:8,   pixcall:7.5, billfish:6,   immich:8.5, photoprism:8.5 } }
+    cap:'verify 全量脚本（lint / 四闸类型 / 293 单测 / 97 冒烟 / 基准）、electron 与 routes 真类型检查、CI 双通道发版与失败日志回传、模型哈希清单、多库迁移、统一撤销栈、强制更新降级',
+    impl:'scripts/lint.mjs · tsconfig.*.json · scripts/verify-manual.mjs · .github/workflows/build.yml · electron/updater.js',
+    s:{ tuku:8.5, eagle:8,   pixcall:7.5, billfish:6,   immich:8.5, photoprism:8.5 } }
 ];
 
 const DONE = [
@@ -634,37 +639,45 @@ const DONE = [
     ev:'media-kind.js 登记 RAW_EXTS / DESIGN_EXTS / font；raw-preview.js 抽相机内嵌 JPEG（按 SOF 精度筛 8 位段）；design-thumb.js 自研 decodePsdComposite，AI/EPS 走 PDF 内嵌位图，Sketch/XD/Figma 走 zip 预览图；字体用 font-family 渲染字形' },
   { id:'T-05', dim:2, from:8, to:9, ok:true, title:'百万向量近似索引（分桶 + 量化 + 上界剪枝）',
     ev:'clip-index.js plan() 桶级余弦上界剪枝、整桶跳过；int16 量化落盘 + 64KB 分块读；clip-scan.js BUCKETS=16、bucketBound 球面分解上界 + EPS .002。不是 IVF/PQ 聚类，桶内仍逐条点积' },
-  { id:'T-04', dim:7, from:8, to:9, ok:false, title:'随包官方插件（4 个）｜插件市场页未做',
-    ev:'plugins/ 下 note-date、tag-aspect、tag-media、tag-prefix；package.json 打包 + asarUnpack；plugin-host.js 双目录加载并标 builtin；workshop.js 主题包导入导出已通。缺口：routes/plugins.js 只有列表与运行，没有安装 / 卸载 / 市场索引',
-    gap:'目标 9.5，实际 9.0，差在「市场页与在线安装」' },
-  { id:'T-07', dim:4, from:8.5, to:9, ok:false, title:'采集链路（右键 / 拖拽 / 整页截图 / 批量规则）',
-    ev:'extension/background.js createMenus 注册三项右键；content.js 全局 dragover + bindDropTarget 悬浮球；bulk-import.js 按相对路径自动建文件夹；organize.js renderTemplate 对齐 Eagle 命名模板',
-    gap:'目标 9.5，实际 9.0，差在「命名模板只能导入后用」' },
+  { id:'T-04', dim:7, from:8, to:9.5, ok:true, title:'随包官方插件（4 个）+ 插件市场页与在线安装',
+    ev:'plugins/ 下 note-date、tag-aspect、tag-media、tag-prefix；plugin-host.js 双目录加载并标 builtin；server/lib/plugin-market.js 索引校验 + JSON/ZIP 包解析 + 逐跳 SSRF 防护 + staging 原子安装；routes/plugins.js 提供市场 / 刷新 / 重置 / 在线安装 / 上传 / 卸载；设置页 PluginMarket 一键安装并回显权限' },
+  { id:'T-07', dim:4, from:8.5, to:9.5, ok:true, title:'采集链路（右键 / 拖拽 / 整页截图 / 批量规则 / 导入命名模板）',
+    ev:'extension/background.js createMenus 注册三项右键；content.js 全局 dragover + bindDropTarget 悬浮球；bulk-import.js 按相对路径自动建文件夹；server/lib/name-template.js 统一命名模板，单张入库 / 批量采集 / 非图片落盘都套用，重名自动 -1/-2；本地扫描默认原地登记，可开关「复制并按模板命名」' },
+  { id:'T-02', dim:8, from:5, to:7, ok:true, title:'移动端只读 PWA + 库内分享链接产品化',
+    ev:'server/lib/lan.js 移动端只读外壳可安装、免投送令牌；数据接口仍鉴权且 SW 不缓存；分享 token 支持 scope / ids / folderId / 过期 / 越权拦截 / 单条撤销；只读页不内联完整投送令牌；test/lan.test.mjs 10/10' },
+  { id:'T-08', dim:9, from:8, to:9, ok:true, title:'server/lib 真的打开 checkJs',
+    ev:'server/lib 68 个文件全部 // @ts-check；tsconfig.server.json 作为 typecheck 第四闸；db-handle.d.ts 只放宽 node:sqlite 动态行边界，其余 JSDoc 保持真检查；残留类型错误清零' },
+  { id:'T-10', dim:7, from:9, to:9.5, ok:true, title:'插件市场页与在线安装',
+    ev:'随包 plugins/_market/index.json + 两个示例包；市场页支持搜索、权限详情、一键安装 / 卸载、URL 在线安装、本地包拖入或选择、自定义索引刷新 / 恢复' },
+  { id:'T-11', dim:4, from:9, to:9.5, ok:true, title:'导入时命名模板',
+    ev:'server/lib/name-template.js 纯函数 + POST /api/import/name-preview（前 20 个目标名预览 / 预设 / 占位符说明）；单张入库、批量采集、非图片素材统一套用' },
   { id:'T-09', dim:-1, from:0, to:0, ok:true, title:'台账与实现对齐',
-    ev:'本次更新即按代码逐项复核：每条都附文件与函数，未实现的不打勾；三处偏差单列在下方橙色框' }
+    ev:'本次更新即按代码逐项复核：已闭环的条目直接从下方遗留清单删除，仍未闭环的收窄描述保留' },
+  { id:'T-03', dim:-1, from:0, to:0, ok:true, title:'模型下载可信哈希清单补齐 matting / 超分权重',
+    ev:'server/model-pins.json 新增 U-2-Net-Human-Seg onnx/model.onnx（309c8469…）与 Real-ESRGAN 20220424 / Real-CUGAN 20220728 两个官方 zip 的真实 sha256；_source 记录核对方式（注意跟随重定向后的 X-Linked-Etag 是 Xet CAS id，不是内容 sha256，核对要看未跟随的那一跳）；ZIP_SIZE_HINT 按实测字节数修正；ZIP 安装前后都按清单比对，不符即删包报错' },
+  { id:'T-12', dim:9, from:8, to:8.5, ok:true, title:'electron 与 server 全量进入真正的类型检查',
+    ev:'electron/ 8 个文件 + server/lib 68 个文件 + server 顶层与 routes 全部 // @ts-check，tsconfig.node.json 的 include 覆盖 electron / server / routes，scripts/lint.mjs 对这三类目录强制校验 pragma（漏写直接 lint 失败）。修复过程中的真实缺陷：powerMonitor.isOnAC 不存在（电池判定恒为真）、托盘模板条件展开导致 type 退化为 string、applyProxy 返回 Promise<boolean> 与声明不符、startBackgroundUpdate 的 {skipped} 联合未收窄、isLocalApiUrl 端口参数被丢弃' },
+  { id:'T-16', dim:-1, from:0, to:0, ok:true, title:'App.tsx 拆分：2463 行 → 1716 行',
+    ev:'新增 hooks/useGalleryList（分页 + 请求代数 + 定位补载 + 刷新）、useStatsAndTags（库增长对账 + 标签节流 + 角标）、useFolderTree、useSelection、useLightbox（大图导航池）、useSavedFilters、useSidebarWidth、useAppKeyBindings；App 只剩编排与 JSX；列表与统计的循环依赖用稳定 ref 取值器打通，避免回调身份每次渲染都变' },
+  { id:'T-14', dim:-1, from:0, to:0, ok:true, title:'验证自己会说话：CI 失败可回传日志、基准按环境放宽',
+    ev:'verify job 失败把 verify-out.txt 推到 ci-logs-verify、打包 job 推到 ci-logs（orphan 分支先 git rm -r --cached . 再提交，否则整棵树被带进去）；scripts/bench.mjs 在 CI=true 时门槛×3 并打印 CI×3，避免共享 runner 的绝对时延抖动误判；冒烟从 89 项扩到 97 项（备份恢复按新根重映射、插件宿主、v1 投送、水印预设、缩略图清理等）' }
 ];
 
 const TODOS = [
-  { id:'T-01', dim:8, from:3, to:5, cycle:'1-2 月', title:'macOS 真支持（壁纸 / 托盘 / 快捷键）',
+  { id:'T-01', dim:8, from:3, to:4.5, cycle:'1-2 月', title:'macOS 真支持（壁纸 / 托盘 / 快捷键）',
     acts:['打包产物在 macOS 上跑通 smoke 与手工验收','壁纸、托盘、全局快捷键、路径处理去 Win32 化','动态壁纸与屏保明确不做，避免摊子铺太大'],
     check:'macOS 上 npm run dist 出包，托盘与一键换壁纸可用' },
-  { id:'T-02', dim:8, from:5, to:7, cycle:'1 月', title:'移动端只读 PWA + 库内分享链接产品化',
-    acts:['局域网投送与只读分享链接已有底座（lan.js / routes/lan.js），补手机端浏览 / 搜索 / 投送的整链路验收','分享链接可设只读与有效期，过期即失效','不引入账号体系，避免从单机产品变成云产品'],
-    check:'手机浏览器走通浏览 / 搜索 / 投送；分享链接过期即失效' },
-  { id:'T-08', dim:9, from:8, to:9, cycle:'1-2 周', title:'server/lib 真的打开 checkJs（当前仍是 false）',
-    acts:['tsconfig.node.json 的 include 已覆盖 server/**，但 checkJs 仍为 false，只做语法检查','按目录逐个打开：先 lib/pure.js 等纯函数，再路由层','修完残余类型错误后把 typecheck 挂进 CI 卡口'],
-    check:'tsconfig.node.json 里 server/** 段 checkJs: true，npm run typecheck 零错误' },
-  { id:'T-10', dim:7, from:9, to:9.5, cycle:'2-3 周', title:'插件市场页与在线安装（4 个官方插件已随包）',
-    acts:['当前只有 GET /api/plugins 与本地目录，没有安装 / 卸载 / 远程索引','补市场页：列表、搜索、一键安装、权限声明回显','用户插件支持拖入 zip 安装，失败给出原因'],
-    check:'市场页可一键装插件并回显权限；卸载后运行态立即失效' },
-  { id:'T-11', dim:4, from:9, to:9.5, cycle:'2 周', title:'导入时命名模板（现在只有导入后批量重命名）',
-    acts:['bulkImportLocal 目前只按相对路径映射文件夹，没有命名模板参数','把 organize.js 的 renderTemplate 前移到导入阶段','批量规则可保存复用，导入前可预览前 20 个目标名'],
-    check:'导入 200 张时按 {date}-{index}{ext} 落盘，重名自动加后缀' }
+  { id:'T-17', dim:8, from:4.5, to:5.5, cycle:'待决策', title:'云同步 / 多端：先做产品决策，再谈实现',
+    acts:['给出「做 / 不做」的书面结论并写进 README，避免长期挂在缺口里','若做：抽象 StorageAdapter（本地盘 → 对象存储），先只同步库索引与设置','增量与冲突合并单独立项，不混进本版本'],
+    check:'README 有明确结论；若做，至少一个对象存储后端能上传 / 下载库索引并通过恢复校验' }
 ];
 
 /* 由历史「遗留待办总表-2026-11-06.html」的 TASKS 全量注入 */
-const LEGACY = [{"id":"T-01","level":"p0","kind":"partial","origin":"技术债 P0-8","title":"强制更新连续失败没有自动降级","sources":["技术债与功能缺口清单-2026-11-05.html"],"loc":["electron/updater.js:117-120","electron/updater.js:150-152","electron/main.js:2325-2342"],"now":"已做：autoInstallOnAppQuit=false、先停服务再拉起安装器、失败后提供「本次先继续用」并把服务拉回。","lack":"forceMode 仍只由 TUKU_FORCE_UPDATE 决定，没有连续失败计数，也没有「第 2 次自动转非强制」。装不上的用户下次启动被再次强制弹窗。","fix":"在 userData 持久化 installFailCount：安装失败 +1、成功清零；≥2 时本次启动跳过强制遮罩，只给「继续用 + 手动检查更新」；设置页可见计数与清零入口。","check":"模拟安装器连续失败 2 次 → 第 3 次启动直接进主界面且本地服务可用；成功安装后计数归零，强制策略恢复。"},{"id":"T-02","level":"p1","kind":"bug","origin":"深度审核 P2（爬虫）","title":"爬虫 7 个源的解析结果没有 schema 校验","sources":["代码深度审核报告-2026-09-28.html"],"loc":["server/crawler.js:206-225","server/crawler.js:334-348"],"now":"已做：统一重试与安全 URL 校验（safe-url / httpFetch），7 个采集源都走 sanitizeResults。","lack":"全文无 validate / schema：正则或 JSON 解析结果直接作为候选项落库，站点改版时可能写入空 URL、错字段、超大字符串。","fix":"在 sanitizeResults 里做字段级校验（url 必须是 http(s)、source 在 SOURCES 白名单、referer/尺寸做类型与长度上限），不合格项计入 failed 并留原因。","check":"把某源的返回改成缺字段 / 非 URL / 超长串：不应入库，失败清单有明确原因，任务仍正常结束。"},{"id":"T-03","level":"p1","kind":"partial","origin":"code-review #206 / 深度审核 P1-10","title":"模型下载的可信哈希清单仍为空","sources":["code-review-2026-11.html","代码深度审核报告-2026-09-28.html"],"loc":["server/model-fetch.js:22-29","server/ai-upscale.js:304-307"],"now":"已做：CLIP 两个 q8 权重随包 model-pins.json 固化真实 sha256，下载时强制比对、不符删除重下；matting / ai-upscale 运行前做体积异常 + sidecar 自比完整性校验。","lack":"matting / ai-upscale 二进制仍没有官方 sha256 可固化（固化需真实权重文件，不能编造），运行时仍退化为「与上次下载的 sidecar 自比」，首次被替换 / CDN 投毒无法发现。","fix":"把官方发布页/模型卡的 sha256 固化进常量（至少覆盖内置 U-2-Net、Real-ESRGAN、Swin2SR），校验失败删文件并报错；sidecar 只作为离线兜底。","check":"故意改坏一个已下载模型：下次启动应报「校验失败」并重新下载，而不是静默加载损坏权重。"},{"id":"T-04","level":"p1","kind":"bug","origin":"竞品矩阵 22","title":"「AI 自动打标」名实不符：不写标签","sources":["竞品对标分析.html"],"loc":["server/ai.js:276-317","server/routes/tidy.js:122-152","server/lib/smartfolders.js:177-193"],"now":"已做：AI 看图产出 description / issues / quality 写入 ai_desc，批量入口叫 tag-batch；标签体系本身完备（倒排、别名、继承）。","lack":"tag-batch 只写 ai_desc，不写 images.tags；实际标签来自智能文件夹 autoTags 与采集关键词。界面写「AI 自动打标」却拿不到 AI 标签。","fix":"二选一：① 让 AI 输出受控标签词表并写入 images.tags（走现有倒排触发器）；② 若产品定位就是「AI 描述」，把入口与文案统一改成「AI 看图描述」，不再叫打标。","check":"跑一次批量：要么 tags 里出现 AI 生成的词，要么界面与接口都不再出现「打标」字样，二者必须一致。"},{"id":"T-05","level":"p1","kind":"bug","origin":"竞品矩阵 1","title":"GIF 设成静态壁纸只取首帧","sources":["竞品对标分析.html"],"loc":["server/wallpaper.js:59-63","server/live-page.js:103","server/library.js:34"],"now":"已做：GIF 可入库，在 /live 轮播里以原文件 URL 作为 background-image 能动起来。","lack":"静态壁纸路径用 sharp() 合成，未开 animated，只取第一帧 → 用户把 GIF 设为壁纸会得到一张静帧，且没有专门的 GIF 壁纸模式 / 播放控制。","fix":"静态壁纸遇到 GIF 时：要么启用 sharp({animated:true}) 输出动图并走 /live，要么明确拒绝并提示「动图请用动态壁纸模式」；补一个 GIF 壁纸设置项。","check":"选一张多帧 GIF 设为壁纸：桌面应动起来，或给出清晰提示，不能静默变静帧。"},{"id":"T-06","level":"p1","kind":"partial","origin":"竞品矩阵 29 / code-review 连续崩溃","title":"服务进入 dead 态后没有自动降级","sources":["竞品对标分析.html","code-review-2026-11.html"],"loc":["electron/server-host.js:164-209","electron/server-host.js:186-188","electron/main.js:2111-2117"],"now":"已做：崩溃自动重启（退避 + 3 次上限 + 心跳）、渲染进程崩溃重载、crashReporter、托盘「重启本地服务」、错误弹窗指向该入口。","lack":"连续 3 次失败后 emit(dead) 就停手，无端口回退、无「只读浏览缓存」降级；界面可能处于「开着但所有接口都挂」的状态，用户只能自己点托盘。","fix":"dead 时先尝试换端口重启一次（standalone 已有随机端口回退可复用），仍失败则显示明确的离线态横幅 + 一键重启；把失败原因写进日志与横幅。","check":"强制让服务连续崩 3 次：要么自动换端口恢复，要么界面明确显示离线并给出可用的一键重试，不能假装正常。"},{"id":"T-07","level":"p1","kind":"partial","origin":"code-review #177 / 技术债 P1-11","title":"颜色搜索 / 偏好训练 / 知识库重打分仍全表进内存","sources":["code-review-2026-11.html","技术债与功能缺口清单-2026-11-05.html","竞品对标分析.html"],"loc":["server/search.js:122-124","server/preference.js:91","server/preference.js:154-169","server/kb.js:333-379"],"now":"已关闭（2026-11-07）：images 新增 dominant_l/a/b 三列 + idx_images_domlab 索引，随库一次性回填；scoreByColor 改 SQL box 粗筛（半宽 ≥ cutoff，未回填行 OR dominant_l IS NULL 兜底），OKLab 纯函数统一抽到 lib/oklab.js。","lack":"无（百万级颜色搜索不再全表解析 palette JSON）。","fix":"给 images 加 dominant_l/a/b 三列（或 OKLab 分桶表）并建索引，颜色筛选下推到 SQL；偏好与打分改增量（只处理行为变化涉及的 id）。","check":"10 万行库做一次颜色搜索：SQL 返回行数应远小于总数，接口 p95 与内存峰值不随总库线性增长。"},{"id":"T-08","level":"p1","kind":"partial","origin":"code-review #176","title":"CLIP 向量全表进内存，无 worker / 向量索引","sources":["code-review-2026-11.html"],"loc":["server/clip.js:189-244","server/clip.js:380-392"],"now":"已做：向量分片缓存、iterate 逐行读、前半维点积上界剪枝、每 2 分片 setImmediate 让出事件循环。","lack":"仍是主线程暴力余弦，无 worker 池、无 ANN 索引；注释自承百万级约 2GB 常驻。","fix":"把相似度计算搬进 worker 线程（或独立 utilityProcess），并引入轻量 ANN（HNSW / IVF 分桶）；先把内存占用降到与结果集相关而非全库。","check":"100 万向量做一次语义搜索：主进程内存不出现全量向量拷贝，事件循环不被长任务阻塞。"},{"id":"T-09","level":"p1","kind":"partial","origin":"技术债 P1-16","title":"日志轮转只保留单个 .old，且无按天清理","sources":["技术债与功能缺口清单-2026-11-05.html"],"loc":["electron/logger.js:31-58","electron/logger.js:44-52"],"now":"已做：内存缓冲 + 800ms 异步批量写、sanitize 打码 token/cookie。","lack":"轮转直接 rename 成单个 .old，第二次会覆盖上一份；全文无 unlink / 保留策略，旧日志无限堆或只剩最近两份。","fix":"轮转改为带序号或日期的 N 份（如保留 7 天 / 最多 10 份），启动时清理过期文件；保留策略做成可配置。","check":"连续触发 5 次轮转后仍能看到前 5 份；把一份日志日期改成 30 天前，重启后应被清掉。"},{"id":"T-10","level":"p1","kind":"partial","origin":"技术债 P1-17","title":"标签列表 / 知识库规则列表仍无分页","sources":["技术债与功能缺口清单-2026-11-05.html"],"loc":["server/lib/tags.js:24-81","server/kb.js:53-57"],"now":"已关闭（2026-11-07）：新增 listTagsPaged(limit/offset + total)，/api/tags、stats、organize、library 全部改调；标签管理页 100/页、侧栏标签树 500/页 + 加载更多，不再全量拉层级。","lack":"无。","fix":"补 limit/offset + total 契约（照 listTrash 实现），前端在标签管理页做分页或滚动加载；统计用的聚合走 SQL。","check":"造 5000 个标签：接口返回条数受 limit 约束，响应体与耗时不随标签总数线性放大。"},{"id":"T-11","level":"p1","kind":"partial","origin":"技术债 P1-25","title":"utilityProcess 进程树回收缺 Job Object / 残留进程清理","sources":["技术债与功能缺口清单-2026-11-05.html"],"loc":["electron/server-host.js:235-264"],"now":"已做：退出时用 taskkill /pid /T /F 回收进程树，start() 互斥与重启串行化。","lack":"主进程被任务管理器强杀时不触发任何清理；也没有「启动前扫描并清理仍持有 gallery.db 的残留 node」。","fix":"启动前按命令行特征扫描残留服务进程并清理（带确认与日志）；Windows 上评估 Job Object 绑定，退出时由系统统一回收。","check":"强杀主进程后立刻重开：不应出现两个服务进程抢同一个库，也不应因句柄未释放导致切库失败。"},{"id":"T-12","level":"p1","kind":"partial","origin":"深度审核 P1-4","title":"server / electron 仍不是真正的类型检查","sources":["代码深度审核报告-2026-09-28.html"],"loc":["tsconfig.node.json:10","tsconfig.json:16"],"now":"已做：eslint . + scripts/lint.mjs、npm run typecheck、CI 的 verify job；tsconfig.node.json 覆盖 server/electron/scripts。","lack":"checkJs:false，只对 JS 做语法级检查；语义错误（参数类型、返回值、空值）仍靠冒烟兜底。","fix":"先对高风险目录开 checkJs + JSDoc（server/lib、server/routes、electron/lib），分批消除报错，避免一次性开全量。","check":"故意在 server/lib 里传错参数类型：typecheck 应报错，而不是等运行时抛异常。"},{"id":"T-13","level":"p1","kind":"partial","origin":"深度审核 P1-5","title":"Settings.tsx 仍约 900 行，且输入无防抖","sources":["代码深度审核报告-2026-09-28.html"],"loc":["web/src/pages/Settings.tsx:5-41"],"now":"已做：Settings 已拆成 12 个 settings/* 分区组件（主文件约 489 行），新增 useDebouncedCommit（300ms 合并 + 串行化防后发先至 + 卸载补发），壁纸类输入已接入防抖。","lack":"防抖仍只覆盖壁纸类输入，采集 / 同步 / 网络等设置仍是即时保存 / 校验。","fix":"把表单状态与保存逻辑抽成 useSettingsForm（含 300ms 防抖 + 脏标记），主文件只做分区编排。","check":"在设置页连续输入 20 个字符：网络请求数应 ≤ 2，且不出现「后发先至」覆盖。"},{"id":"T-14","level":"p1","kind":"partial","origin":"深度审核 P1-7","title":"仍有 8 处 setInterval 轮询任务态","sources":["代码深度审核报告-2026-09-28.html"],"loc":["web/src/pages/settings/JobsSection.tsx:61","web/src/pages/settings/EnhanceSection.tsx:185","web/src/components/WatermarkStudio.tsx:488","web/src/components/BulkEditDialog.tsx:97","web/src/components/BatchCropStudio.tsx:196","web/src/components/Lightbox.tsx:431","web/src/pages/Tidy.tsx:106"],"now":"已做：主链路改 SSE（events.ts /api/events）、Crawl 页取消 1s 轮询、App 统计降为 60s 兜底。","lack":"任务进度类组件仍各自 1~5s 轮询，页面多开时请求叠加。多数为兜底，不算主线故障。","fix":"统一复用 job 事件流；保留少量兜底时把间隔拉到 ≥5s 并在页面隐藏时暂停。","check":"同时打开任务中心与增强页 30s：请求数明显下降，进度仍能跟上。"},{"id":"T-15","level":"p2","kind":"bug","origin":"code-review #209","title":"patchItem 逻辑被重复实现了一遍","sources":["code-review-2026-11.html"],"loc":["web/src/App.tsx:2057-2064"],"now":"已有统一的 patchItem 帮助函数处理「列表 + 大图同时更新」。","lack":"onReplaceItem 仍手写 setItems / setLb，逻辑分叉；以后改一处容易漏另一处，出现列表与大图显示不一致。","fix":"把 onReplaceItem 改为调用 patchItem，删掉重复分支。","check":"替换一张图后，网格与已打开的大图应同时更新；全仓只剩一份 patch 逻辑。"},{"id":"T-16","level":"p2","kind":"partial","origin":"code-review #192","title":"Gallery 未 memo、App 仍是巨型组件","sources":["code-review-2026-11.html"],"loc":["web/src/pages/Gallery.tsx:147","web/src/pages/Gallery.tsx:317-318","web/src/App.tsx:2057-2064"],"now":"已做：dragIds 用 useMemo 保持引用，列表视图已窗口化。","lack":"Gallery 组件未包 memo()，36 个 useState 仍在 App 内；局部状态变化会带动整棵子树重渲染。","fix":"给 Gallery 加 memo 并稳定 props；把 App 里可独立的状态下沉到自定义 hook / 分区组件。","check":"React Profiler 里勾选一张图：只有该卡片与多选栏重渲染，不是整个网格。"},{"id":"T-17","level":"p2","kind":"partial","origin":"code-review #195","title":"调色拖滑块仍全分辨率逐像素计算","sources":["code-review-2026-11.html"],"loc":["web/src/components/ColorRoom.tsx:313-323"],"now":"已做：ImageData 复用，不再每次新建约 10MB 缓冲。","lack":"仍对全分辨率逐像素跑公式，没有降采样预览，也没有 rAF 节流；4K 图拖动发涩。","fix":"预览用 ≤1024px 降采样图 + rAF 合并拖动事件，成品才走全分辨率（与后端公式保持一致）。","check":"4K 图连续拖亮度：预览帧率稳定，成品与预览逐像素一致。"},{"id":"T-18","level":"p2","kind":"partial","origin":"code-review #199","title":"手动验证脚本未接入 npm run verify","sources":["code-review-2026-11.html"],"loc":["scripts/manual/verify-*.mjs","package.json:31","scripts/lint.mjs:47"],"now":"已做：新增 verify:manual 并接入 npm run verify 末尾，检查 scripts/manual 下脚本登记齐全、语法可解析、README 存在，并打印运行前提与命令。","lack":"GUI 交互脚本（GIF/WebM 真实导出、GLSL 帧率、屏保进出、手机扫码、音频频谱等）仍需真实环境 / 人工确认，CI 里不假装通过 —— 这是刻意设计，不是遗漏。","fix":"把可自动化的脚本接进 verify（或新增 verify:manual），需要真实环境/人工确认的保留在 manual 并在 README 写清运行方式。","check":"npm run verify 的输出里能看到这些脚本的结果，不再只是「存在但没人跑」。"},{"id":"T-19","level":"p2","kind":"bug","origin":"技术债 P2-4","title":"auto-tone.ts 的 import 路径带 .ts 扩展名","sources":["技术债与功能缺口清单-2026-11-05.html"],"loc":["web/src/lib/auto-tone.ts:1-4"],"now":"注释自述是为 Node 直跑单测而有意保留；当前构建未报错。","lack":"import './tone.ts' 与 '../types.ts' 不符合常规 TS/打包约定，换构建器或开更严格的解析时会失败。","fix":"改成无扩展名 import，单测通过 tsx / 编译产物或 test 专用入口运行，不再依赖源码里写 .ts。","check":"typecheck / build / 对应单测三者都通过，且源码里不再有 '.ts' 结尾的 import。"},{"id":"T-20","level":"p2","kind":"review","origin":"深度审核 P2（4K 合成）","title":"待复核：4K 合成是否仍占三份全屏缓冲","sources":["代码深度审核报告-2026-09-28.html"],"loc":["server/wallpaper.js","server/wallpaper-fit.js"],"now":"wallpaper.js 已重写为约 190 行，合成逻辑分散到 wallpaper-fit.js；上一轮未做内存实测。","lack":"不确定是否仍存在三份 4K 全尺寸缓冲。先测再定，不要凭旧结论改代码。","fix":"用 4K 图跑一次壁纸合成并采样堆内存；若仍有 ≥3 份全尺寸 RGBA 缓冲，改为流式 / 复用单块画布。","check":"给出实测内存曲线；无三份全尺寸缓冲即可关闭本条。"},{"id":"T-21","level":"p2","kind":"review","origin":"深度审核 P2（IPC / markViewed）","title":"待复核：IPC 任意路径与 markViewed 乱序","sources":["代码深度审核报告-2026-09-28.html"],"loc":["electron/main.js","server/lib/query.js"],"now":"上一轮判定为低价值、未逐条复核；期间已补 assertWritableDir、trustedSender、IP 精确比较等防护。","lack":"需要确认这两条旧结论是否已随防护落地失效；若已失效直接关闭。","fix":"逐条复现：① 通过 IPC 传库外路径看是否被拒；② 快速连点多图看 markViewed 是否会覆盖较新的 viewed_at。","check":"两条都有明确「已防护」或「仍可复现」结论，再决定是否进入修复队列。"},{"id":"T-22","level":"p1","kind":"feature","origin":"EAGLE-02","title":"视频首尾裁剪 + 截帧导出 GIF（未做）","sources":["Eagle缺口补齐清单.html"],"loc":["web/src/components/MediaViewer.tsx:10","server/lib/media.js:7-8"],"now":"已关闭（2026-11-08）：灯箱新增起止裁剪（trimStart/trimEnd 落库、区间循环预览）；GIF 走隐藏 video 逐帧 seek + 纯 JS GIF89a 编码，WebM 走 canvas.captureStream + MediaRecorder；GIF LZW 编码已搬进 Web Worker + OffscreenCanvas，主线程只调度抽帧。","lack":"长片段抽帧仍在主线程调度层；系统音频回环需 WASAPI（见 T-29）。","fix":"用 WebCodecs（渲染进程）解码目标时间段 + 纯 JS GIF 编码导出；长视频先做「截帧序列 + 合成」。若不做，明确在产品文档里标注不支持。","check":"选一段 5s 视频裁首尾，导出 GIF 可播放且时长正确；大文件不阻塞主线程。"},{"id":"T-23","level":"p2","kind":"partial","origin":"EAGLE-03","title":"开放 API：只有 token，缺 /api/v1、scope、OpenAPI","sources":["Eagle缺口补齐清单.html"],"loc":["server/auth.js:46-75","server/app.js"],"now":"已做：Bearer / x-api-token / 只读 ?token=（限 GET/HEAD）、timingSafeEqual、扩展 Origin 白名单。","lack":"全仓无 /api/v1 前缀；没有 scope 分级、限流审计，也没有 OpenAPI 文档。","fix":"新增 /api/v1 路由层（先镜像现有只读接口），token 绑定 scope（read / write），补 openapi.json 与调用示例。","check":"用只读 token 调写接口应 403；OpenAPI 文档能直接生成可用客户端。"},{"id":"T-24","level":"p2","kind":"feature","origin":"EAGLE-04","title":"插件 / 脚本宿主（未做）","sources":["Eagle缺口补齐清单.html"],"loc":["server/lib/actions.js:10-13","server/lib/actions.js:65-72"],"now":"已做：插件宿主落地（manifest + ESM 入口 + 权限白名单 + 独立子进程），run({image,args,permissions,log}) 契约，父进程按 image:write 过滤回写；运行时日志合并、参数/输出限额、5s 超时；动作系统新增 script 步骤，设置页可试运行。","lack":"子进程仍是完整 Node，import('node:fs') 等仍可读库外文件；--permission 在本机连 Node 自身 shim 都拦，暂不用。README 已明示「能力白名单 ≠ OS 级沙箱」，只装信任插件。","fix":"设计最小插件契约（manifest + 权限声明），脚本跑在独立 utilityProcess 且只允许白名单 API；先在动作编辑器里支持一种 script 步骤。","check":"装一个示例插件能对选中图打标签；插件越权访问文件系统应被拒绝且不影响主进程。"},{"id":"T-25","level":"p2","kind":"feature","origin":"EAGLE-14","title":"局域网 / 手机扫码投送（未做）","sources":["Eagle缺口补齐清单.html","竞品对标分析.html"],"loc":["server/app.js:722"],"now":"服务只 bind 127.0.0.1；无二维码、无手机上传页、无局域网开关。","lack":"手机向桌面图库投图整链路缺失。","fix":"设置项「允许局域网访问」（默认关）：绑定 0.0.0.0 + 独立投送 token + 二维码 + 手机上传页；上传仍走现有入库管线与鉴权。","check":"关闭时外部设备扫不到端口；开启后手机扫码能上传，且普通接口仍要求正常鉴权。"},{"id":"T-26","level":"p2","kind":"feature","origin":"竞品矩阵 7","title":"屏幕保护程序模式（未做）","sources":["竞品对标分析.html"],"loc":["electron/main.js:1038"],"now":"全仓只有 setAlwaysOnTop 的 screen-saver 窗口层级常量，没有屏保逻辑。","lack":"空闲触发、全屏覆盖、输入即退出的屏保模式完全缺失。","fix":"设置页加「空闲 N 分钟启用屏保」，用 powerMonitor.getSystemIdleTime 触发，创建无边框全屏窗口播放图库轮播，任意输入关闭。","check":"空闲超时出现轮播，动鼠标立刻回到原桌面；全屏游戏时不触发。"},{"id":"T-27","level":"p2","kind":"feature","origin":"竞品矩阵 3","title":"着色器 / GLSL 壁纸（未做）","sources":["竞品对标分析.html"],"loc":["web/src/components/ModelViewer.tsx:44-143"],"now":"three.js 只用于 3D 素材预览，全仓无 GLSL / ShaderMaterial / gl_FragColor 壁纸实现。","lack":"着色器壁纸完全缺失。","fix":"网页壁纸模式已具备（mode=web），可先支持本地 .glsl 文件包 + WebGL 模板页，限制 uniform 与资源访问。","check":"加载一个示例 shader 能全屏渲染，帧率稳定，且不能读取本地文件。"},{"id":"T-28","level":"p2","kind":"feature","origin":"竞品矩阵 4","title":"游戏引擎 / 交互式壁纸（未做）","sources":["竞品对标分析.html"],"loc":["electron/main.js:1554"],"now":"动态壁纸窗口 setIgnoreMouseEvents(true)，本身就不接受交互。","lack":"交互式壁纸缺失（当前是刻意的安全/穿透取舍）。","fix":"若要支持，需要单独的「交互壁纸」模式：可开关鼠标穿透、限定来源、提供退出快捷键；否则在文档里明确为设计取舍。","check":"开启交互模式后鼠标事件能到达壁纸，关闭后恢复穿透，不遮挡桌面图标。"},{"id":"T-29","level":"p2","kind":"feature","origin":"竞品矩阵 5","title":"音频可视化壁纸（未做）","sources":["竞品对标分析.html"],"loc":["web/src/components/MediaViewer.tsx:44-45"],"now":"已做：AnalyserNode.getByteFrequencyData 驱动 72 条实时频谱；静音走 gain 并清零频谱；支持本地素材音频与麦克风两种源，失败给出原因。","lack":"系统音频回环需 WASAPI，Windows 暂不支持，界面明确标注「暂不支持」而不是假装有声 —— 属 OS 能力边界，不是可修的 bug。","fix":"复用网页壁纸模式，模板页用 WebAudio getByteFrequencyData 画频谱；需处理系统音频采集权限。","check":"播放音乐时壁纸随频谱变化，静音时静止，CPU 占用可接受。"},{"id":"T-30","level":"p2","kind":"partial","origin":"竞品矩阵 11","title":"壁纸实时交互参数滑块（亮度/速度/强度/景深）","sources":["竞品对标分析.html"],"loc":["web/src/pages/settings/WallpaperSection.tsx:343-378","electron/main.js:1932"],"now":"已做：间隔、最低评分、音量、静音、Ken Burns、暂停规则等参数（数字输入 + 开关）。","lack":"缺亮度/速度/强度/景深这类实时生效的滑块；现有滑块只在调色/缩略图/水印里。","fix":"在壁纸预览旁加实时滑块，参数经 IPC 白名单传给 /live 或桌面层，拖动即时生效、松手保存。","check":"拖亮度滑块壁纸立刻变亮，重启后保留设置。"},{"id":"T-31","level":"p2","kind":"partial","origin":"竞品矩阵 9","title":"暂停策略缺 GPU 占用阈值与「指定 App 前台」","sources":["竞品对标分析.html"],"loc":["electron/main.js:1633-1658","server/auto.js:420-424"],"now":"已做：电池、全屏应用、锁屏、休眠暂停，自动换壁纸也补了全屏短路。","lack":"无 GPU 占用阈值，无「某 App 在前台时暂停」；全仓无相关命中。","fix":"设置页加 GPU 阈值（用系统计数器采样）与前台进程名列表，命中时进入现有暂停规则。","check":"把指定 App 切到前台应暂停；低于阈值后恢复。"},{"id":"T-32","level":"p2","kind":"partial","origin":"竞品矩阵 29 / 第6节6","title":"缺持续挂载守护（父窗口被重新认领后自动重挂）","sources":["竞品对标分析.html"],"loc":["server/desktop.js:286-307","electron/main.js:1713-1743"],"now":"已做：启动恢复动态壁纸、挂载失败回滚、崩溃后服务自动重启。","lack":"挂载时只校验一次 GetParent(hwnd)==workerw，没有周期守护；Chromium/资源管理器重建桌面层后不会自动重挂。","fix":"低频（如 30s）校验父窗口与层级，失效时用现有 attach 流程重挂；注意别与用户主动关闭冲突。","check":"手动触发桌面层重建后，壁纸在 1 个守护周期内自动恢复。"},{"id":"T-33","level":"p2","kind":"feature","origin":"竞品矩阵 24","title":"创意工坊 / 主题包分享（未做）","sources":["竞品对标分析.html"],"loc":["web/src/lib/route.ts:1"],"now":"已有 HTML 画廊导出、备份恢复、Eagle 库导出、URL 分享链接，但没有主题包导入导出与社区。","lack":"主题包格式、导入导出、分享社区均缺失。","fix":"定义 .tuku-pack（清单 + 图片 + 设置子集），先做本地导出/导入，社区留待产品决策。","check":"A 机导出的包在 B 机导入后，图片与壁纸设置都能还原。"},{"id":"T-34","level":"p2","kind":"feature","origin":"竞品矩阵 25","title":"云同步 / 多端（未做）","sources":["竞品对标分析.html"],"loc":["server/secret.js:5"],"now":"全仓无云同步实现，只在注释里提到「同步盘」。","lack":"云同步与多端完全缺失（也可能由产品设计刻意排除，需先确认）。","fix":"先确认产品是否要做；若做，抽象 StorageAdapter 并先接一个对象存储，注意大文件增量与冲突合并。","check":"给出「做 / 不做」的明确结论并写入 README；做的话两端增量同步可验证。"},{"id":"T-35","level":"p2","kind":"feature","origin":"竞品矩阵 28","title":"跨平台 Win / Mac / Linux（未做）","sources":["竞品对标分析.html"],"loc":["electron/main.js:1685-1687","server/desktop.js:186","package.json:128-198"],"now":"明确 win32 门禁（WorkerW 桌面挂载是 Windows 专有），打包配置只有 win / NSIS。","lack":"Mac / Linux 不支持，且桌面壁纸挂载本身就依赖 Win32 API。","fix":"先做「跨平台基础版」：macOS/Linux 只提供图库能力，桌面壁纸能力降级为「设置系统壁纸」；把 win32 分支收敛到平台适配层。","check":"给出平台矩阵（哪些能力在哪个平台可用）；至少一非 Win 平台能启动并使用图库。"},{"id":"T-36","level":"p2","kind":"partial","origin":"竞品矩阵 23","title":"AI 擦除 / inpaint 缺失","sources":["竞品对标分析.html"],"loc":["server/matting.js","server/ai-upscale.js"],"now":"已做：去背景（U-2-Net + 纯底图抠图）、超分（Real-ESRGAN / Swin2SR）。","lack":"擦除 / inpaint 全仓无命中。","fix":"接入轻量 inpaint 模型并复用现有模型下载与校验管线；或明确标注不支持。","check":"框选区域擦除后无明显接缝，失败给出明确错误而不是静默返回原图。"},{"id":"T-37","level":"p2","kind":"partial","origin":"竞品矩阵 27","title":"仓库缺 LICENSE，开源授权不完整","sources":["竞品对标分析.html"],"loc":["README.md:10-11"],"now":"已关闭（2026-11-08）：仓库根目录补 LICENSE（专有 / 保留所有权利 —— 源码公开但不授予开源许可，仅供查看与审计）；README 增加 License 章节，与 LICENSE 一致。","lack":"无。","fix":"先确认授权意愿（专有 / MIT / GPL 等），再补 LICENSE 与 README 的 License 章节。","check":"仓库根目录有 LICENSE，README 声明一致。"},{"id":"T-38","level":"p2","kind":"partial","origin":"竞品第6节5","title":"采集源仍受限：微博需 Cookie，豆瓣/贴吧/Wikimedia 无","sources":["竞品对标分析.html"],"loc":["server/crawler.js:286-293","server/crawler.js:334-348"],"now":"已扩到 7 源（Bing/百度/搜狗/360/堆糖/微博/Wallhaven），Wallhaven 支持 apikey。","lack":"微博仍必须配 Cookie；豆瓣、贴吧、Wikimedia 未接入。","fix":"按站点合规性与反爬强度评估后逐个接入；同时给「某源不可用」更明确的提示与降级。","check":"新源能跑通一次完整采集；不可用源在任务日志里给具体原因。"},{"id":"T-39","level":"p2","kind":"feature","origin":"竞品矩阵 2（能力取舍）","title":"网页壁纸只允许公网 URL，且窗口点击穿透","sources":["竞品对标分析.html"],"loc":["electron/main.js:1613-1628","electron/main.js:1554","electron/main.js:1699-1709"],"now":"mode=web 已实现，桌面层窗口直接 loadURL；安全上只放行公网 http(s)。","lack":"本地 HTML / 内网页面不可用，窗口强制点击穿透；属于刻意的安全取舍，但文档里没有说明。","fix":"先决定要不要放开：若放开，加「可信本地目录」白名单 + 可开关的鼠标穿透；若不放开，在设置页与 README 明确写出限制原因。","check":"用户能在界面上看到这条限制，不会以为「网页壁纸坏了」。"}];
-
+const LEGACY = [
+  {"id":"T-34","level":"p2","kind":"feature","origin":"竞品矩阵 25","title":"云同步 / 多端（未做，需先做产品决策）","sources":["竞品对标分析.html"],"loc":["server/secret.js:5"],"now":"全仓无云同步实现，只在注释里提到「同步盘」。","lack":"云同步与多端完全缺失（可能是产品设计刻意排除）。","fix":"先确认产品是否要做；若做，抽象 StorageAdapter 并先接一个对象存储，注意大文件增量与冲突合并。","check":"给出「做 / 不做」的明确结论并写入 README。"},
+  {"id":"T-35","level":"p2","kind":"feature","origin":"竞品矩阵 28","title":"跨平台 Win / Mac / Linux（未做）","sources":["竞品对标分析.html"],"loc":["electron/main.js:1685","server/desktop.js:186","package.json"],"now":"明确 win32 门禁（WorkerW 桌面挂载是 Windows 专有），打包配置只有 win / NSIS。","lack":"Mac / Linux 不支持，桌面壁纸挂载依赖 Win32 API。","fix":"先做「跨平台基础版」：macOS/Linux 只提供图库能力，桌面壁纸降级为「设置系统壁纸」；把 win32 分支收敛到平台适配层。","check":"给出平台矩阵；至少一非 Win 平台能启动并使用图库。"},
+  {"id":"T-38","level":"p2","kind":"partial","origin":"竞品第6节5","title":"微博采集仍需 Cookie（豆瓣 / 贴吧 / Wikimedia 已补）","sources":["竞品对标分析.html"],"loc":["server/crawler.js:297","server/crawler.js:434"],"now":"已扩到 10 源（Bing / 百度 / 搜狗 / 360 / 堆糖 / 微博 / Wallhaven / 豆瓣 / 贴吧 / Wikimedia），Wallhaven 支持 apikey。","lack":"微博受站点登录限制，仍必须配 Cookie；未登录时任务会明确报错。","fix":"保持现有 Cookie 配置与内置登录窗；站点策略变化时再评估替代方案。","check":"不配 Cookie 跑微博源应给出明确原因，不影响其他源。"}
+];
 const PROFILES = {
   general:{ label:'通用权重', arr:DIMS.map(d => d.w) },
   solo:   { label:'个人单机权重', arr:DIMS.map(d => d.wSolo) }

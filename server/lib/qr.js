@@ -1,3 +1,4 @@
+// @ts-check
 /**
  * 零依赖 QR Code 生成器（byte mode / ECC L / version 1~10）。
  *

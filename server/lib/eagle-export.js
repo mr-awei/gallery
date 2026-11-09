@@ -1,3 +1,4 @@
+// @ts-check
 import fs from 'node:fs';
 import fsp from 'node:fs/promises';
 import path from 'node:path';
@@ -41,7 +42,7 @@ function toMs(iso, fallback = Date.now()) {
 }
 
 /**
- * @param {{ destDir: string, name?: string }} opts
+ * @param {{ destDir?: string, name?: string }} opts
  * destDir 是「放 .library 的父目录」；最终产物是 destDir/<库名>.library
  */
 export async function exportEagleLibrary({ destDir, name } = {}) {

@@ -26,15 +26,24 @@ export const PENDING_ITEMS: { key: 'noFolder' | 'noTags' | 'noRating'; label: st
   { key: 'noRating', label: '未评分', hint: '还没评星的素材' },
 ];
 
-/** 侧栏内容导航（Eagle 式：仪表盘 + 高频浏览入口，文件夹树跟随其后） */
-export const NAV: { key: View; label: string; icon: React.ReactNode }[] = [
+type NavItem = { key: View; label: string; icon: React.ReactNode };
+
+/** 高频入口：常驻侧栏顶部，永远不参与折叠收纳（仪表盘 / 图库是天天要点的） */
+export const PRIMARY_NAV: NavItem[] = [
   { key: 'dashboard', label: '仪表盘', icon: <IconDashboard /> },
   { key: 'gallery', label: '图库', icon: <IconImages /> },
+];
+
+/** 低频入口：收进可折叠的「更多导航」分区，默认收起 */
+export const MORE_NAV: NavItem[] = [
   { key: 'favorites', label: '收藏', icon: <IconHeart /> },
   { key: 'playlists', label: '清单', icon: <IconFolder /> },
   { key: 'crawl', label: '采集', icon: <IconSpider /> },
   { key: 'bookmarks', label: '书签', icon: <IconLink /> },
 ];
+
+/** 完整导航顺序（命令面板 / 教程等仍按这个顺序枚举） */
+export const NAV: NavItem[] = [...PRIMARY_NAV, ...MORE_NAV];
 
 /** 顶栏工具菜单：低频功能收进右上角下拉，侧栏不再常驻 */
 export const TOOLS: { key: View; label: string; icon: React.ReactNode }[] = [

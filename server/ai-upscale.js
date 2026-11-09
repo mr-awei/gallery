@@ -274,13 +274,14 @@ export async function cuganSelfTest() {
 
 /**
  * 包体大小的兜底估算（仅用于 PowerShell 回退下载时的进度条）。
- * 以前两个包共用一个 45.5MB 的常量：Real-CUGAN 只有 10MB 左右，
- * 进度条会一直停在 20% 直到装完，看起来像卡死。
- * 现在优先用远端 Content-Length（真实值），这里只作为离线/未知时的兜底。
+ * 以前两个包共用一个 45.5MB 的常量：两个包实际体积并不相同，
+ * 进度条会一直停在错误的百分比直到装完，看起来像卡死。
+ * 现在优先用远端 Content-Length（真实值），这里只作为离线/未知时的兜底；
+ * 数值取自 2026-11-09 固化管理清单时实测的官方包字节数。
  */
 const ZIP_SIZE_HINT = {
-  [RELEASE_URL]: 45_500_000,
-  [CUGAN_RELEASE_URL]: 12_000_000,
+  [RELEASE_URL]: 45_474_481,
+  [CUGAN_RELEASE_URL]: 45_977_449,
 };
 
 /** 通过 HEAD 请求拿真实体积；拿不到就回落到内置估算 */

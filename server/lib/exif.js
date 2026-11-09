@@ -1,3 +1,4 @@
+// @ts-check
 // 极简 EXIF 解析：只取检查器里真正有用的那十几个标签。
 // sharp 能给出 exif 原始 TIFF 块，但没有解析；为了不引入 exif-parser 这类老依赖，这里手写
 // TIFF IFD 遍历（约 100 行），失败一律返回空对象——读不出 EXIF 不是错误。
@@ -131,7 +132,7 @@ function walkIfd(buf, le, offset, out, seen = new Set(), gpsOut = null) {
   }
 }
 
-/** @param {Buffer} exif sharp metadata() 里的 exif 原始块（带 "Exif\0\0" 前缀） */
+/** @param {Buffer} raw sharp metadata() 里的 exif 原始块（带 "Exif\0\0" 前缀） */
 export function parseExif(raw) {
   if (!Buffer.isBuffer(raw)) return {};
   // sharp 给的是整个 APP1 载荷（"Exif\0\0" + TIFF 头），TIFF 头从偏移 6 开始；

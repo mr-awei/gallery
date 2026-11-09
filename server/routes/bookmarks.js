@@ -1,3 +1,4 @@
+// @ts-check
 /** 网页书签：POST /api/bookmarks { url, tags?, note? } */
 import path from 'node:path';
 import fs from 'node:fs';

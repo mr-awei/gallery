@@ -1,3 +1,4 @@
+// @ts-check
 /**
  * 应用内更新（electron-updater）
  *
@@ -135,6 +136,7 @@ export function onBeforeInstall(fn) {
  * 安装一旦没能启动，用户点「本次先继续用」面对的就是一个接口全挂的空壳，
  * 所以这里必须把服务重新拉起来。
  */
+/** @type {(text: string) => Promise<void>} 安装失败后的恢复回调（由主进程注册：拉回服务、清降级遮罩） */
 let recoverAfterFailure = async () => {};
 export function onInstallFailed(fn) {
   recoverAfterFailure = fn;

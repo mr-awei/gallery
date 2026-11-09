@@ -1,7 +1,7 @@
 {
   "name": "tuku-gallery",
   "productName": "TuKu",
-  "version": "1.2.2",
+  "version": "1.2.3",
   "private": true,
   "description": "通用图片管理与壁纸工具 — 多源采集 / pHash 去重 / 暗色图片库",
   "author": "图库",
@@ -28,7 +28,7 @@
     "import": "node server/scripts/import-local.js",
     "dist": "vite build && electron-builder",
     "dist:dir": "vite build && electron-builder --dir",
-    "typecheck": "tsc --noEmit -p tsconfig.json && tsc --noEmit -p tsconfig.node.json && tsc --noEmit -p tsconfig.lib.json",
+    "typecheck": "tsc --noEmit -p tsconfig.json && tsc --noEmit -p tsconfig.node.json && tsc --noEmit -p tsconfig.lib.json && tsc --noEmit -p tsconfig.server.json",
     "lint": "eslint . && node scripts/lint.mjs",
     "lint:fix": "eslint . --fix",
     "pin-models": "node scripts/pin-models.mjs",

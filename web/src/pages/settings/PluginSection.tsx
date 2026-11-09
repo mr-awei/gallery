@@ -5,10 +5,12 @@ import Card from './Card';
 
 interface Props {
   onToast: (m: string, kind?: 'info' | 'error') => void;
+  /** 跳到设置侧栏的「插件市场」 */
+  onOpenMarket?: () => void;
 }
 
 /** 插件 / 脚本宿主：清单、权限、试运行、打开用户插件目录 */
-export default function PluginSection({ onToast }: Props) {
+export default function PluginSection({ onToast, onOpenMarket }: Props) {
   const [plugins, setPlugins] = useState<PluginInfo[]>([]);
   const [permissions, setPermissions] = useState<string[]>([]);
   const [prefix, setPrefix] = useState('脚本标记');
@@ -77,6 +79,11 @@ export default function PluginSection({ onToast }: Props) {
           <button className="btn ghost" onClick={load}>
             刷新
           </button>
+          {onOpenMarket && (
+            <button className="btn" onClick={onOpenMarket}>
+              插件市场 · 一键安装
+            </button>
+          )}
         </div>
 
         {!plugins.length && <div className="hint">还没有插件。内置官方插件随安装包分发，用户插件放到用户插件目录即可。</div>}
