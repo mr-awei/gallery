@@ -6,6 +6,7 @@ import type {
   ImageComment,
   TagNode,
   EditJobStatus,
+  EditOpsInfo,
   EditResult,
   EditSaveOptions,
   AiPreset,
@@ -39,6 +40,7 @@ import type {
   SimilarGroups,
   Stats,
   SystemInfo,
+  TimelineSummary,
   TrashItem,
   WallpaperMonitors,
   WallpaperResult,
@@ -190,7 +192,7 @@ export interface JobItem {
   failed: number;
   error: string;
   payload: Record<string, unknown>;
-  result: Record<string, number> | null;
+  result: Record<string, unknown> | null;
   createdAt: string;
   startedAt: string;
   finishedAt: string;
@@ -758,6 +760,18 @@ export interface FacePerson {
 
 export const api = {
   stats: () => request<Stats>('/api/stats'),
+  /** 时间线：月份索引 + 总量 + 待重建数量 */
+  timelineSummary: () => request<TimelineSummary>('/api/timeline/summary'),
+  /** 时间线：某月图片（按拍摄时间倒序分页） */
+  timelineMonth: (month: string, offset = 0, limit = 120) =>
+    request<{ month: string; total: number; limit: number; offset: number; items: ImageItem[] }>(
+      `/api/timeline?month=${encodeURIComponent(month)}&offset=${offset}&limit=${limit}`
+    ),
+  /** 按 EXIF 重建拍摄时间（后台任务） */
+  timelineBackfill: () =>
+    request<{ ok: boolean; jobId: number; already?: boolean }>('/api/timeline/backfill', { method: 'POST' }),
+  cancelTimelineBackfill: () =>
+    request<{ ok: boolean }>('/api/timeline/backfill/cancel', { method: 'POST' }),
   images: (filters: Filters, page: number, pageSize: number, opts?: { signal?: AbortSignal }) =>
     request<{ items: ImageItem[]; total: number; page: number; pageSize: number; hasMore: boolean }>(
       `/api/images?${buildQuery(filters, page, pageSize)}`, opts
@@ -1010,6 +1024,19 @@ export const api = {
     }>(`/api/images/${id}/focus?ratio=${encodeURIComponent(ratio)}`),
   patch: (id: number, patch: Partial<Pick<ImageItem, 'favorite' | 'tags' | 'title' | 'rating' | 'note'>>) =>
     request<ImageItem>(`/api/images/${id}`, { method: 'PATCH', body: JSON.stringify(patch) }),
+  /** 批量改元数据：一次事务 + 一条撤销记录；未传的字段表示「不修改」 */
+  bulkMetadata: (body: {
+    ids: number[];
+    rating?: number;
+    favorite?: boolean;
+    tags?: string[];
+    tagMode?: 'add' | 'remove' | 'set';
+    note?: string;
+  }) =>
+    request<{ ok: boolean; updated: number; skipped: number; items: ImageItem[] }>('/api/images/bulk-metadata', {
+      method: 'POST',
+      body: JSON.stringify(body),
+    }),
   similarTo: (id: number, minCos: number) =>
     request<{ minCos: number; count: number; items: ImageItem[] }>(
       `/api/images/${id}/similar?minCos=${minCos}`
@@ -1123,10 +1150,11 @@ export const api = {
       missing: number;
       failures: { id: number; reason: string; at: string }[];
     }>('/api/thumbs/status'),
-  retryThumbs: () =>
+  /** 不传 id = 重试全部失败项；传 id = 只重试这一张 */
+  retryThumbs: (id?: number) =>
     request<{ ok: boolean; requested: number; queued: number }>('/api/thumbs/retry', {
       method: 'POST',
-      body: '{}',
+      body: JSON.stringify(id ? { id } : {}),
     }),
   // 清空缩略图失败明细（批量重试救不回的，清掉以免列表越堆越长）
   clearThumbFailures: () =>
@@ -1182,7 +1210,7 @@ export const api = {
       method: 'POST',
     }),
   maintenanceOrphanThumbs: (dryRun = true) =>
-    request<{ ok: boolean; dryRun: boolean; found: number; removed: number; sample: string[] }>(
+    request<{ ok: boolean; dryRun: boolean; found: number; removed: number; errors: string[]; sample: string[]; message?: string }>(
       '/api/maintenance/orphan-thumbs',
       { method: 'POST', body: JSON.stringify({ dryRun }) }
     ),
@@ -1626,9 +1654,19 @@ export const api = {
       { method: 'POST', body: JSON.stringify({ ids, model, standard }) }
     ),
   rotateImage: (id: number, dir: 'cw' | 'ccw') =>
-    request<{ ok: boolean; item: ImageItem }>(`/api/images/${id}/rotate`, {
+    request<{ ok: boolean; item: ImageItem; nonDestructive?: boolean; editOps?: number }>(
+      `/api/images/${id}/rotate`,
+      { method: 'POST', body: JSON.stringify({ dir }) }
+    ),
+  /** 非破坏编辑：已记录的操作链（原图未改动），以及应用到底片 / 全部还原 */
+  editOps: (id: number) => request<EditOpsInfo>(`/api/images/${id}/edits`),
+  applyEditOps: (id: number) =>
+    request<{ ok: boolean; item: ImageItem; baked: boolean; ops: number }>(`/api/images/${id}/edits/apply`, {
       method: 'POST',
-      body: JSON.stringify({ dir }),
+    }),
+  clearEditOps: (id: number) =>
+    request<{ ok: boolean; cleared: number; item: ImageItem }>(`/api/images/${id}/edits/clear`, {
+      method: 'POST',
     }),
   // 裁切：ratio 预设（'1:1'/'16:9'…）会先做焦点检测再裁；'free'/'orig' 需带归一化框 rect
   // 追加 saveMode:'copy' + targetDir 则另存副本到该目录，原图不动（addToLibrary 可把副本登记入库）
@@ -2261,7 +2299,9 @@ export const api = {
 
   /* 导出前的预览：当前库会被写成 Eagle 库的内容规模（不写任何文件） */
   eagleExportPreview: () =>
-    request<{ images: number; folders: number; storageDir: string }>('/api/export/eagle/preview'),
+    request<{ images: number; bytes: number; folders: number; storageDir: string; name: string }>(
+      '/api/export/eagle/preview'
+    ),
   /* 导出面板可用的格式 / 质量 / 尺寸候选（服务端单一来源，避免前端硬编码） */
   exportOptions: () =>
     request<{
@@ -2269,20 +2309,11 @@ export const api = {
       qualities: number[];
       maxSides: number[];
     }>('/api/export/options'),
-  /* 反向互通：当前库 → Eagle 4 的 .library（父目录选好后由服务端建 <库名>.library） */
-  exportEagle: (destDir: string, name?: string) =>
-    request<{
-      ok: boolean;
-      dir: string;
-      exported: number;
-      missing: number;
-      folders: number;
-      errors: string[];
-      note: string;
-    }>('/api/export/eagle', {
+  /* 后台任务版：立即返回 jobId，进度用 api.jobs('eagle-export', 1) 轮询；可取消 */
+  exportEagleStart: (destDir: string, name?: string) =>
+    request<{ ok: boolean; jobId: number }>('/api/export/eagle/job', {
       method: 'POST',
       body: JSON.stringify({ destDir, name }),
-      timeoutMs: 30 * 60 * 1000,
     }),
 
   /* ------------------------------ 图片拼接 ------------------------------ */

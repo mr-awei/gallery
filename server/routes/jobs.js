@@ -12,6 +12,7 @@ import { db } from '../db.js';
 import { getJob, hasRunning, listJobs } from '../jobs.js';
 import { getOp, listOps, registerUndoer, undoLast, undoOp } from '../oplog.js';
 import * as lib from '../library.js';
+import * as nd from '../lib/nondestructive.js';
 import { addImagesToFolder, removeImagesFromFolder } from '../folders.js';
 import { removeImage, restoreFromTrash } from '../lib/trash.js';
 import { startCrawl, stopCrawl } from '../crawler.js';
@@ -19,6 +20,8 @@ import { cancelEditJob, startEditJob } from '../edit-job.js';
 import { cancelJob as cancelEnhanceJob, startJob as startEnhanceJob } from '../enhance-job.js';
 import { cancelMattingInstall, installMatting } from '../matting.js';
 import { cancelFaceInstall, cancelFaceScan, startFaceInstall, startFaceScan } from '../face.js';
+import { cancelEagleExport, startEagleExportJob } from '../eagle-export-job.js';
+import { cancelTimelineBackfill, startTimelineBackfill } from '../timeline-backfill.js';
 
 /* ------------------------------ 撤销执行器 ------------------------------ */
 
@@ -32,6 +35,42 @@ registerUndoer('tags', async (p) => {
       .filter(Boolean);
     lib.setTags(it.id, before);
     n++;
+  }
+  return { restored: n };
+});
+
+/**
+ * 批量改元数据 → 按每张的快照整批恢复。
+ * 标签必须走 lib.setTags（有倒排表），裸 UPDATE 会让标签筛选/标签云与图片对不上。
+ */
+registerUndoer('meta', async (p) => {
+  let n = 0;
+  for (const it of p.items || []) {
+    const b = it.before || {};
+    if (b.tags !== undefined) lib.setTags(it.id, b.tags);
+    if (b.rating !== undefined) lib.setRating(it.id, b.rating);
+    if (b.favorite !== undefined) lib.setFavorite(it.id, !!b.favorite);
+    if (b.note !== undefined) lib.setNote(it.id, b.note);
+    n++;
+  }
+  return { restored: n };
+});
+
+/** 非破坏编辑：撤销一步 = 从操作链里摘掉那一步（原文件从来没动过） */
+registerUndoer('nd-edit', async (p) => {
+  return { restored: nd.dropOp(Number(p.id), Number(p.opId)) ? 1 : 0 };
+});
+
+/** 还原整条操作链 → 撤销时按原顺序补回去 */
+registerUndoer('nd-clear', async (p) => {
+  let n = 0;
+  for (const op of p.ops || []) {
+    try {
+      nd.addOp(Number(p.id), String(op.kind), op.params || {}, { log: false });
+      n++;
+    } catch {
+      // 超过上限或操作已失效：能补几步补几步，别让整条撤销失败
+    }
   }
   return { restored: n };
 });
@@ -182,6 +221,8 @@ const KIND_TITLE = {
   enhance: '画质增强',
   'model-install': '模型下载',
   'face-scan': '人脸扫描',
+  'eagle-export': '导出 Eagle 库',
+  'timeline-backfill': '重建拍摄时间',
 };
 
 export function register(app) {
@@ -215,6 +256,11 @@ export function register(app) {
       // 人脸模型与去背景模型都走 model-install，取消要落到真正在下的那个
       ok = cancelMattingInstall() || cancelFaceInstall();
     } else if (job.kind === 'face-scan') ok = cancelFaceScan();
+    else if (job.kind === 'eagle-export') ok = cancelEagleExport();
+    else if (job.kind === 'timeline-backfill') {
+      cancelTimelineBackfill();
+      ok = true;
+    }
     res.json({ ok, message: ok ? '已请求停止' : '该任务不支持从任务中心停止' });
   });
 
@@ -239,6 +285,10 @@ export function register(app) {
         else out = installMatting();
       } else if (job.kind === 'face-scan') {
         out = startFaceScan({ limit: p.limit || 0, force: p.force === true, minCos: p.minCos || 0 });
+      } else if (job.kind === 'eagle-export') {
+        out = startEagleExportJob({ destDir: p.destDir, name: p.name });
+      } else if (job.kind === 'timeline-backfill') {
+        out = startTimelineBackfill();
       } else out = { ok: false, message: '未知任务类型' };
       if (out?.ok === false) return res.status(400).json({ error: out.message || '重试失败' });
       res.json({ ok: true });

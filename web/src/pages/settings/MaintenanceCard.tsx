@@ -117,9 +117,11 @@ export default function MaintenanceCard({ onLibraryChanged, onToast }: Props) {
     run('orphan', async () => {
       const dry = await api.maintenanceOrphanThumbs(true);
       if (!dry.found) return onToast('没有孤立缩略图');
-      const ok = await confirmDialog(
-        `发现 ${dry.found} 个孤立缩略图文件，删除它们？（只删 thumbs 目录里没有对应记录的图片，不影响原图）`
-      );
+      const names = dry.sample.map((p) => p.split(/[\\/]/).pop() || p);
+      const more = dry.found > names.length ? `\n…等共 ${dry.found} 个` : '';
+      const ok = await confirmDialog(`发现 ${dry.found} 个孤立缩略图文件，删除它们？`, {
+        detail: `${names.join('\n')}${more}\n\n只删 thumbs 目录里没有对应记录的图片，不影响原图。`,
+      });
       if (!ok) return;
       const r = await api.maintenanceOrphanThumbs(false);
       onToast(`已清理 ${r.removed} 个孤立缩略图`);
@@ -560,6 +562,20 @@ function ThumbQueuePanel({ onToast }: { onToast: (msg: string, kind?: 'info' | '
     }
   };
 
+  // 单张重试：200 条里只有一条是文件被临时占用时，不该逼用户整批重跑
+  const retryOne = async (id: number) => {
+    setBusy(`one-${id}`);
+    try {
+      const r = await api.retryThumbs(id);
+      onToast(r.queued ? `已重新排队 #${id}` : `#${id} 已在队列里，稍候会自动生成`);
+      load();
+    } catch (e) {
+      onToast(`重试失败：${(e as Error).message}`, 'error');
+    } finally {
+      setBusy('');
+    }
+  };
+
   // 失败明细是「排查用」的，批量重试也救不回的（文件已删之类）会一直留着；
   // 提供清空入口，避免列表越堆越长、还让用户误以为还有东西没处理。
   const clearFailures = async () => {
@@ -600,9 +616,17 @@ function ThumbQueuePanel({ onToast }: { onToast: (msg: string, kind?: 'info' | '
       ) : (
         <div style={{ maxHeight: 180, overflow: 'auto', fontSize: 12.2 }}>
           {st.failures.slice(0, 20).map((f) => (
-            <div key={f.id} style={{ display: 'flex', gap: 8, padding: '3px 0' }}>
+            <div key={f.id} style={{ display: 'flex', gap: 8, padding: '3px 0', alignItems: 'center' }}>
               <span style={{ color: 'var(--muted)', minWidth: 54 }}>#{f.id}</span>
               <span style={{ flex: 1 }}>{f.reason}</span>
+              <button
+                className="btn sm ghost"
+                disabled={!!busy}
+                title="只重试这一张"
+                onClick={() => void retryOne(f.id)}
+              >
+                {busy === `one-${f.id}` ? '排队中…' : '重试'}
+              </button>
             </div>
           ))}
           {st.failures.length > 20 && <div className="hint">还有 {st.failures.length - 20} 条…</div>}

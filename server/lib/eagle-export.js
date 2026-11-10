@@ -42,12 +42,24 @@ function toMs(iso, fallback = Date.now()) {
 }
 
 /**
- * @param {{ destDir?: string, name?: string }} opts
- * destDir 是「放 .library 的父目录」；最终产物是 destDir/<库名>.library
+ * 取消时抛出的错误带 canceled 标记：任务层据此把状态记成 canceled 而不是 failed。
+ * @returns {Error & { canceled?: boolean }}
  */
-export async function exportEagleLibrary({ destDir, name } = {}) {
+function canceledError() {
+  const err = new Error('已取消');
+  /** @type {Error & { canceled?: boolean }} */ (err).canceled = true;
+  return /** @type {Error & { canceled?: boolean }} */ (err);
+}
+
+/**
+ * @param {{ destDir?: string, name?: string, isCanceled?: () => boolean, onProgress?: (p: {done:number,total:number,message:string}) => void }} opts
+ * destDir 是「放 .library 的父目录」；最终产物是 destDir/<库名>.library
+ *
+ * 整库导出是分钟级操作（几千张原图要逐张复制），必须能报进度、能取消；
+ * 同步等一个 HTTP 请求会在中途超时，界面看起来就是「点了没反应」。
+ */
+export async function exportEagleLibrary({ destDir, name, isCanceled, onProgress } = {}) {
   const dest = assertWritableDir(destDir, '导出目录');
-  if (!dest) throw new Error('请选择导出目录');
   if (!fs.existsSync(dest)) throw new Error('导出目录不存在，请重新选择');
 
   const lib = getActiveLibrary();
@@ -85,6 +97,8 @@ export async function exportEagleLibrary({ destDir, name } = {}) {
     else membership.set(r.image_id, [r.folder_id]);
   }
 
+  // 本次新建的目录在取消/失败时要清掉：留半个库，下次导出会因「目标非空」被拒
+  const existedBefore = fs.existsSync(target);
   fs.mkdirSync(path.join(target, 'images'), { recursive: true });
 
   const now = Date.now();
@@ -115,8 +129,12 @@ export async function exportEagleLibrary({ destDir, name } = {}) {
   let exported = 0;
   let missing = 0;
   const errors = [];
+  const total = imgs.length;
+  const tick = (message) => onProgress?.({ done: exported + missing, total, message });
 
-  await mapLimit(imgs, CONCURRENCY, async (row) => {
+  const copyAll = () =>
+    mapLimit(imgs, CONCURRENCY, async (row) => {
+    if (isCanceled?.()) throw canceledError();
     const src = String(row.abs_path || '');
     const ext = path.extname(src).replace(/^\./, '').toLowerCase() || 'jpg';
     const base = safeName(row.title || path.parse(src).name, `image_${row.id}`);
@@ -128,6 +146,7 @@ export async function exportEagleLibrary({ destDir, name } = {}) {
     } catch {
       missing += 1;
       if (errors.length < 8) errors.push(`${row.title || row.id}: 原文件读不到`);
+      tick(`已处理 ${exported + missing}/${total}`);
       return;
     }
 
@@ -166,17 +185,34 @@ export async function exportEagleLibrary({ destDir, name } = {}) {
     try {
       await fsp.writeFile(path.join(infoDir, 'metadata.json'), JSON.stringify(meta, null, 2), 'utf8');
       exported += 1;
+      tick(`已导出 ${exported}/${total}`);
     } catch {
       missing += 1;
       if (errors.length < 8) errors.push(`${base}: metadata 写入失败`);
+      tick(`已处理 ${exported + missing}/${total}`);
     }
-  });
+    });
+
+  /** 取消/抛错时把本次新建的半成品目录删掉，否则下次导出会撞「目标非空」 */
+  try {
+    await copyAll();
+  } catch (err) {
+    if (!existedBefore) {
+      try {
+        fs.rmSync(target, { recursive: true, force: true });
+      } catch {
+        /* 清不掉也不该盖住原始错误 */
+      }
+    }
+    throw err;
+  }
 
   return {
     ok: true,
     dir: target,
     exported,
     missing,
+    total,
     folders: visibleFolders.length,
     errors,
     note: '在 Eagle 里「文件 → 打开资源库」选这个 .library 即可；缩略图由 Eagle 首次打开时自动生成',
@@ -188,8 +224,18 @@ export function eagleExportPreview() {
   const hidden = hiddenImagesClause();
   const lockSql = hidden ? ` AND ${hidden.sql}` : '';
   const params = hidden ? hidden.params : [];
-  const images = db.prepare(`SELECT COUNT(*) AS c FROM images WHERE abs_path <> ''${lockSql}`).get(...params).c;
+  const row = db
+    .prepare(`SELECT COUNT(*) AS c, COALESCE(SUM(size_bytes), 0) AS bytes FROM images WHERE abs_path <> ''${lockSql}`)
+    .get(...params);
   const folders = db.prepare('SELECT COUNT(*) AS c FROM folders').get().c;
   const settings = getSettings();
-  return { images, folders, storageDir: settings.storageDir || '' };
+  const lib = getActiveLibrary();
+  // bytes 让用户在点「导出」之前就知道要占多大盘（几千张原图是几十 GB 级）
+  return {
+    images: Number(row?.c) || 0,
+    bytes: Number(row?.bytes) || 0,
+    folders,
+    storageDir: settings.storageDir || '',
+    name: lib?.name || 'TuKu',
+  };
 }

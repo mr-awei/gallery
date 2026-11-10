@@ -7,6 +7,7 @@ import * as lib from '../library.js';
 import { buildGalleryHtml, safeFileName, MAX_ITEMS } from '../gallery-export.js';
 import { buildStitch } from '../lib/stitch.js';
 import { eagleExportPreview, exportEagleLibrary } from '../lib/eagle-export.js';
+import { startEagleExportJob } from '../eagle-export-job.js';
 import { bumpUsage } from '../lib/usage.js';
 
 const FORMATS = new Set(['jpeg', 'png', 'webp', 'avif']);
@@ -19,6 +20,16 @@ export function register(app, ctx) {
   app.get('/api/export/eagle/preview', (_req, res) => {
     try {
       res.json(eagleExportPreview());
+    } catch (err) {
+      res.status(400).json({ error: err.message });
+    }
+  });
+
+  // 后台任务版：立即返回 jobId，进度走 /api/jobs/:id 或任务中心。
+  // 同步版保留给外部调用方，界面不再用（几千张原图会等到超时）。
+  app.post('/api/export/eagle/job', (req, res) => {
+    try {
+      res.json(startEagleExportJob({ destDir: req.body?.destDir, name: req.body?.name }));
     } catch (err) {
       res.status(400).json({ error: err.message });
     }

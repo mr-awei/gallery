@@ -21,6 +21,9 @@ import { pushEditBackup } from './lib/undo.js';
 // 注意：本文件里已有一个按「格式名」取扩展名的 extOf()，这里按路径取扩展名要换名
 import { extOf as extOfPath, isHeifExt } from './lib/media-kind.js';
 import { decodeHeifBuffer, decodeHeifFile } from './lib/heif.js';
+import { parseExif } from './lib/exif.js';
+import { resolveTakenAt } from './lib/taken-at.js';
+import * as nd from './lib/nondestructive.js';
 
 const jpegtran = typeof jpegtranPkg === 'string' ? jpegtranPkg : jpegtranPkg.default;
 
@@ -535,6 +538,12 @@ async function rotateImageInner(id, dir = 'cw') {
   if (!row || !row.abs_path) throw new Error('图片不存在');
   if (!fs.existsSync(row.abs_path)) throw new Error('本地文件不存在');
 
+  // 非破坏模式：只记一步旋转，原文件保持字节不变（导出/下载时套用渲染结果）
+  if (nd.nonDestructiveOn()) {
+    const added = nd.addOp(id, 'rotate', { dir: dir === 'ccw' ? 'ccw' : 'cw' });
+    return { ...toDTO(getImage(id)), nonDestructive: true, editOps: added.count };
+  }
+
   const angle = dir === 'ccw' ? -90 : 90;
   const meta = await sharp(row.abs_path, { failOn: 'none' }).metadata();
   const format = meta.format || 'jpeg';
@@ -684,12 +693,15 @@ export function toDTO(row) {
   // 封面版本单独拼在缩略图 URL 上：换封面只重写 thumbs/<id>.jpg，原文件没动，
   // 不带上它就永远是 7 天前那张封面
   const coverVer = Number(row.cover_ver) || 0;
-  const ver = mtime ? `?v=${mtime}` : '';
+  // 非破坏编辑的版本号：原文件没动，只靠 mtime 失效不了缓存，必须把操作链版本拼进去
+  const opsVer = Number(row.edit_ops_ver) || 0;
+  const opsTag = opsVer ? `-nd${opsVer}` : '';
+  const ver = mtime ? `?v=${mtime}${opsTag}` : '';
   // 老库 fs_mtime 可能是 0，这里始终带版本（0-0）——只要后续有增量就一定能失效缓存
-  const thumbVer = `?v=${mtime}-${coverVer}`;
+  const thumbVer = `?v=${mtime}-${coverVer}${opsTag}`;
   // 预览图同样带版本：带版本才能给长缓存（灯箱重复打开直接命中浏览器缓存，
   // 不再每次发条件请求），增强/旋转写回原图后 mtime 变化自动失效
-  const previewVer = `?v=${mtime}`;
+  const previewVer = `?v=${mtime}${opsTag}`;
   const orig = originalSizeOf(row);
   return {
     enhanced: !!orig,
@@ -733,6 +745,10 @@ export function toDTO(row) {
     hue: row.hue ?? '',
     tags,
     createdAt: row.created_at,
+    /** 拍摄时间（时间线视图的唯一口径）；老行缺列时退回入库时间 */
+    takenAt: row.taken_at || row.created_at || '',
+    /** 非破坏性编辑：尚未写回原图的操作条数（角标 / 「应用到底片」按钮用） */
+    editOps: Number(row.edit_ops_count) || 0,
     score: row.score ?? 100,
     scoreReason: row.score_reason || '',
     orientation: orientationOf(row.width, row.height),
@@ -901,13 +917,22 @@ export async function ingest(params, settings = getSettings()) {
     /* 指纹失败不影响入库 */
   }
 
+  // 拍摄时间：EXIF 优先（时间线视图按它排序/分月），没有 EXIF 时退回文件 mtime。
+  // 解析失败不阻断入库——一张照片进不了时间线，总好过导入时报错。
+  let takenAt;
+  try {
+    takenAt = resolveTakenAt({ exifTakenAt: parseExif(meta.exif).takenAt, fsMtime });
+  } catch {
+    takenAt = resolveTakenAt({ fsMtime });
+  }
+
   // OR IGNORE：abs_path 上有唯一索引，watch 与 rescan 并发时后到的那条直接放弃，
   // 不会因为约束冲突把整批导入打成「本批失败」
   const info = db
     .prepare(
       `INSERT OR IGNORE INTO images (title, abs_path, thumb, source, keyword, source_url, width, height,
-        size_bytes, mime, phash, favorite, tags, created_at, fs_mtime, md5, media_kind)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, ?, ?, ?, ?, ?)`
+        size_bytes, mime, phash, favorite, tags, created_at, taken_at, fs_mtime, md5, media_kind)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, ?, ?, ?, ?, ?, ?)`
     )
     .run(
       title || path.basename(finalPath),
@@ -924,6 +949,7 @@ export async function ingest(params, settings = getSettings()) {
       '',
       tags,
       new Date().toISOString(),
+      takenAt,
       fsMtime,
       md5,
       'image'

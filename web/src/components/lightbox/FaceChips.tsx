@@ -12,6 +12,7 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { api, BASE, quiet } from '../../api';
 import type { FacePerson } from '../../api';
+import Select from '../Select';
 
 type Face = {
   id: number;
@@ -146,22 +147,23 @@ export default function FaceChips({ imageId, onToast }: Props) {
           onChange={(e) => setQ(e.target.value)}
           placeholder={personsTotal > options.length ? `查找人物（共 ${personsTotal} 个）` : '查找人物'}
           title="输入名字或编号查找，避免下拉里只有前 200 个人物"
-          style={{ height: 26, fontSize: 12 }}
+          // 定高必须同时把上下内边距收掉：.input 自带 9px，加上 height 后内容区只剩个位数，
+          // 字会被上下切一半
+          style={{ height: 28, padding: '0 10px', fontSize: 12 }}
         />
         {faces.map((f) => {
           // 阈值由服务端给出（hidden=已排除，soft=质量偏低），界面不再抄魔法数字
           const lowQuality = f.hidden || f.soft;
+          // 下拉本身就显示当前归属，再单独放一列名字只是白占宽度 —— 窄面板里挤出这句话的头号原因
+          const label = f.name || (f.personId ? `人物 #${f.personId}` : '未归类');
           return (
             <div key={f.id} style={{ display: 'flex', alignItems: 'center', gap: 8, opacity: f.hidden ? 0.6 : 1 }}>
               <img
                 src={`${BASE}/api/face/crop/${f.id}?size=64`}
-                alt={f.name || '人脸'}
+                alt={label}
                 loading="lazy"
                 style={{ width: 34, height: 34, borderRadius: 8, objectFit: 'cover', background: '#111', flex: '0 0 auto' }}
               />
-              <span style={{ fontSize: 12.5, minWidth: 76, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                {f.name || (f.personId ? `人物 #${f.personId}` : '未归类')}
-              </span>
               {lowQuality && (
                 <span
                   title={`质量分 ${f.quality.toFixed(2)}${
@@ -179,22 +181,26 @@ export default function FaceChips({ imageId, onToast }: Props) {
                   {f.hidden ? '已排除' : '不够清晰'}
                 </span>
               )}
-              <select
-                className="input"
-                disabled={busy === f.id}
+              {/*
+                用自绘下拉而不是原生 <select>：这一格在四列布局里只有一百多像素，
+                原生下拉会把「人物 #1290 ·126」连同箭头一起挤扁；自绘的弹层最小 200px
+                且带搜索框（库里上千个人物时尤其需要），触发按钮上的文字超长才用省略号。
+              */}
+              <Select
                 value={f.personId ?? ''}
-                onChange={(e) => void reassign(f, e.target.value)}
-                title="改派给别的人物"
-                style={{ height: 26, fontSize: 12, flex: 1, minWidth: 0 }}
+                onChange={(v) => void reassign(f, v)}
+                disabled={busy === f.id}
+                title={`改派给别的人物（当前：${label}）`}
+                style={{ height: 28, padding: '0 8px', fontSize: 12, flex: 1, minWidth: 0 }}
               >
                 <option value="">单独成新人物</option>
                 {options.map((p) => (
                   <option key={p.id} value={p.id}>
                     {p.name || `人物 #${p.id}`}
-                    {p.count ? `（${p.count}）` : ''}
+                    {p.count ? ` ·${p.count}` : ''}
                   </option>
                 ))}
-              </select>
+              </Select>
               {f.hidden ? (
                 <button className="mini" disabled={busy === f.id} title="这张其实是人脸，手动收录" onClick={() => void setHidden(f, false)}>
                   收录

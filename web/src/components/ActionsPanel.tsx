@@ -3,6 +3,7 @@ import { api, formatDate, quiet } from '../api';
 import type { ActionConditions, ActionDef, ActionPreviewStep, ActionStep } from '../api';
 import type { FolderNode } from '../types';
 import { IconClose, IconTrash } from './Icons';
+import ConditionEditor from './ConditionEditor';
 
 /**
  * 动作（Actions）：把一串固定步骤存成宏，对选区一键重放。
@@ -267,141 +268,14 @@ export default function ActionsPanel({
             onChange={(e) => setDraft((d) => ({ ...d, name: e.target.value }))}
           />
 
-          {/* 执行条件：与智能文件夹同一套规则语义（评分 / 标签 / 关键词 / 收藏 / 画幅） */}
+          {/* 执行条件：与智能文件夹同一套规则语义（评分 / AI 匹配度 / 标签 / 关键词 / 收藏 / 画幅） */}
           <div className="tk-hint" style={{ margin: '6px 0 4px' }}>
             执行条件（可选，不命中的素材会被跳过）
           </div>
-          <div className="tk-row" style={{ flexWrap: 'wrap', gap: 6 }}>
-            <select
-              className="input"
-              value={draft.conditions.combine}
-              onChange={(e) =>
-                setDraft((d) => ({
-                  ...d,
-                  conditions: { ...d.conditions, combine: e.target.value === 'or' ? 'or' : 'and' },
-                }))
-              }
-              title="多个条件之间怎么组合"
-            >
-              <option value="and">全部满足（AND）</option>
-              <option value="or">满足任一（OR）</option>
-            </select>
-            <select
-              className="input"
-              value={draft.conditions.rules.favorite || ''}
-              onChange={(e) =>
-                setDraft((d) => ({
-                  ...d,
-                  conditions: {
-                    ...d.conditions,
-                    rules: { ...d.conditions.rules, favorite: (e.target.value || undefined) as 'yes' | 'no' | undefined },
-                  },
-                }))
-              }
-            >
-              <option value="">收藏：不限</option>
-              <option value="yes">只处理已收藏</option>
-              <option value="no">只处理未收藏</option>
-            </select>
-            <input
-              className="input"
-              type="number"
-              min={0}
-              max={5}
-              style={{ width: 96 }}
-              placeholder="评分≥"
-              value={draft.conditions.rules.minRating || ''}
-              onChange={(e) =>
-                setDraft((d) => ({
-                  ...d,
-                  conditions: {
-                    ...d.conditions,
-                    rules: { ...d.conditions.rules, minRating: Number(e.target.value) || undefined },
-                  },
-                }))
-              }
-            />
-            <input
-              className="input"
-              type="number"
-              min={0}
-              style={{ width: 110 }}
-              placeholder="长边≥px"
-              value={draft.conditions.rules.minWidth || ''}
-              onChange={(e) =>
-                setDraft((d) => ({
-                  ...d,
-                  conditions: {
-                    ...d.conditions,
-                    rules: { ...d.conditions.rules, minWidth: Number(e.target.value) || undefined },
-                  },
-                }))
-              }
-            />
-            <select
-              className="input"
-              value={draft.conditions.rules.orientation || ''}
-              onChange={(e) =>
-                setDraft((d) => ({
-                  ...d,
-                  conditions: {
-                    ...d.conditions,
-                    rules: {
-                      ...d.conditions.rules,
-                      orientation: (e.target.value || undefined) as 'landscape' | 'portrait' | 'square' | undefined,
-                    },
-                  },
-                }))
-              }
-            >
-              <option value="">画幅：不限</option>
-              <option value="landscape">横图</option>
-              <option value="portrait">竖图</option>
-              <option value="square">方图</option>
-            </select>
-            <input
-              className="input"
-              placeholder="标签包含，逗号分隔"
-              value={(draft.conditions.rules.tagsInclude || []).join(',')}
-              onChange={(e) =>
-                setDraft((d) => ({
-                  ...d,
-                  conditions: {
-                    ...d.conditions,
-                    rules: { ...d.conditions.rules, tagsInclude: e.target.value.split(/[,，]/).map((x) => x.trim()).filter(Boolean) },
-                  },
-                }))
-              }
-            />
-            <input
-              className="input"
-              placeholder="标签排除"
-              value={(draft.conditions.rules.tagsExclude || []).join(',')}
-              onChange={(e) =>
-                setDraft((d) => ({
-                  ...d,
-                  conditions: {
-                    ...d.conditions,
-                    rules: { ...d.conditions.rules, tagsExclude: e.target.value.split(/[,，]/).map((x) => x.trim()).filter(Boolean) },
-                  },
-                }))
-              }
-            />
-            <input
-              className="input"
-              placeholder="关键词（标题/标签/备注）"
-              value={(draft.conditions.rules.keywords || []).join(',')}
-              onChange={(e) =>
-                setDraft((d) => ({
-                  ...d,
-                  conditions: {
-                    ...d.conditions,
-                    rules: { ...d.conditions.rules, keywords: e.target.value.split(/[,，]/).map((x) => x.trim()).filter(Boolean) },
-                  },
-                }))
-              }
-            />
-          </div>
+          <ConditionEditor
+            value={draft.conditions}
+            onChange={(conditions) => setDraft((d) => ({ ...d, conditions }))}
+          />
           {draft.steps.map((s, i) => (
             <div className="tk-step" key={i}>
               <select

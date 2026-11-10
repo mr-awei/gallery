@@ -34,3 +34,6 @@ tsconfig.tsbuildinfo
 *.local
 .DS_Store
 Thumbs.db
+
+# verify 统计中间文件（由 scripts/doc-stats.mjs 生成）
+docs/.verify-stats.json

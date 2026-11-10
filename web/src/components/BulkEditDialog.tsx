@@ -76,7 +76,7 @@ export default function BulkEditDialog({ ids, preview, films, onClose, onToast, 
     : preview;
   const [job, setJob] = useState<EditJobStatus | null>(null);
   const [starting, setStarting] = useState(false);
-  // 保存方式：默认覆盖原图；'copy' 时全部副本输出到同一目录，原图不动
+  // 保存方式：默认另存副本（原图不动）；目录留空则副本落在各自原图旁边
   const [save, setSave] = useState<SaveModeState>(SAVE_MODE_DEFAULT);
   const saveMode = save.saveMode;
   const startedRef = useRef(false);
@@ -126,10 +126,6 @@ export default function BulkEditDialog({ ids, preview, films, onClose, onToast, 
       onToast?.('调色参数全为 0，无需处理');
       return;
     }
-    if (saveMode === 'copy' && !save.targetDir.trim()) {
-      onToast?.('请先选择副本保存位置');
-      return;
-    }
     // 覆盖原图是一次性写回 N 个文件，误点就是批量不可逆：先确认
     if (saveMode === 'overwrite') {
       const ok = await confirmDialog(`将覆盖 ${ids.length} 张图片的原文件（可用 Ctrl+Z 逐张撤销）。继续？`);
@@ -168,7 +164,7 @@ export default function BulkEditDialog({ ids, preview, films, onClose, onToast, 
       onChange={(p) => setSave((s) => ({ ...s, ...p }))}
       disabled={running}
       count={ids.length}
-      overwriteHint={`直接覆盖 ${ids.length} 张原图，调色后无法恢复。`}
+      overwriteHint={`直接覆盖 ${ids.length} 张原图，调色后无法恢复（设置里开了「非破坏性编辑」时只记操作链，不覆盖原图）。`}
     />
   );
 

@@ -5,6 +5,7 @@ import { BUCKET_LABELS, ORIENTATION_LABELS, SOURCE_LABELS, api, desktop, quiet }
 import { IconColumns, IconFolder, IconGrid, IconSearch } from './Icons';
 import { THUMB_DEFAULT, THUMB_MAX, THUMB_MIN, THUMB_PRESETS, clampThumbWidth, thumbPresetOf } from '../lib/thumb-size';
 import ColorPad from './ColorPad';
+import { useLang } from '../lib/i18n';
 
 interface Props {
   filters: Filters;
@@ -130,6 +131,7 @@ export default function FilterBar({
   canManualSort,
   onMarkAllSeen,
 }: Props) {
+  const { t } = useLang();
   /** 当前列宽（收进合法区间，老 localStorage 里的小值也不会让滑块越界） */
   const curW = clampThumbWidth(colWidth ?? THUMB_DEFAULT);
   const toggleIn = (key: 'source' | 'bucket', value: string) => {
@@ -340,15 +342,24 @@ export default function FilterBar({
           </span>
           <input
             className="input"
-            placeholder="搜索文件名 / 标签…（支持 tag: color: rating: folder:）"
+            placeholder={t('搜索文件名 / 标签…（支持 tag: color: rating: folder:）', 'Search titles / tags… (tag: color: rating: folder:)')}
             title={
-              '搜索语法（可与关键词混用）：\n' +
-              'tag:风景            按标签（别名也算）\n' +
-              'color:红 / color:#ff0000   按色系或精确色号\n' +
-              'rating:>=4          按星级（>= / <= / > / < / =）\n' +
-              'folder:参考         按文件夹（含子夹）\n' +
-              'kind:video          按类型\n' +
-              'is:favorite / is:unseen    收藏 / 未看过'
+              t('搜索语法（可与关键词混用）：', 'Search syntax (mixable with keywords):') +
+              '\n' +
+              t(
+                'tag:风景            按标签（别名也算）\n' +
+                  'color:红 / color:#ff0000   按色系或精确色号\n' +
+                  'rating:>=4          按星级（>= / <= / > / < / =）\n' +
+                  'folder:参考         按文件夹（含子夹）\n' +
+                  'kind:video          按类型\n' +
+                  'is:favorite / is:unseen    收藏 / 未看过',
+                'tag:landscape             by tag (aliases included)\n' +
+                  'color:red / color:#ff0000   by color family or exact hex\n' +
+                  'rating:>=4           by rating (>= / <= / > / < / =)\n' +
+                  'folder:ref           by folder (including subfolders)\n' +
+                  'kind:video           by media kind\n' +
+                  'is:favorite / is:unseen    favorites / unseen'
+              )
             }
             value={qDraft}
             onChange={(e) => setQDraft(e.target.value)}
@@ -360,29 +371,29 @@ export default function FilterBar({
           value={filters.sort}
           onChange={(e) => onChange({ sort: e.target.value })}
         >
-          <option value="newest">最新采集</option>
-          <option value="name">名称 A → Z</option>
-          <option value="nameDesc">名称 Z → A</option>
-          <option value="recommend">推荐（个人偏好 + 评分）</option>
-          <option value="rating">我的星级优先</option>
-          <option value="smart">评分排序（知识库打分优先）</option>
-          <option value="worst">低分优先（待清理）</option>
-          <option value="oldest">最早采集</option>
-          <option value="resolution">分辨率最高</option>
-          <option value="largest">文件最大</option>
-          <option value="random">随机</option>
+          <option value="newest">{t('最新采集', 'Newest added')}</option>
+          <option value="name">{t('名称 A → Z', 'Name A → Z')}</option>
+          <option value="nameDesc">{t('名称 Z → A', 'Name Z → A')}</option>
+          <option value="recommend">{t('推荐（个人偏好 + 评分）', 'Recommended (preference + rating)')}</option>
+          <option value="rating">{t('我的星级优先', 'My rating first')}</option>
+          <option value="smart">{t('评分排序（知识库打分优先）', 'Score (knowledge base first)')}</option>
+          <option value="worst">{t('低分优先（待清理）', 'Lowest score first')}</option>
+          <option value="oldest">{t('最早采集', 'Oldest added')}</option>
+          <option value="resolution">{t('分辨率最高', 'Highest resolution')}</option>
+          <option value="largest">{t('文件最大', 'Largest file')}</option>
+          <option value="random">{t('随机', 'Random')}</option>
           {(canManualSort || filters.sort === 'manual') && (
             <option value="manual" disabled={!canManualSort}>
-              手动排序（拖拽定序）
+              {t('手动排序（拖拽定序）', 'Manual order (drag)')}
             </option>
           )}
         </select>
 
         <select className="select" value={filters.tag} onChange={(e) => onChange({ tag: e.target.value })}>
-          <option value="">全部标签</option>
-          {tags.map((t) => (
-            <option key={t.tag} value={t.tag}>
-              {t.tag}（{t.count}）
+          <option value="">{t('全部标签', 'All tags')}</option>
+          {tags.map((tg) => (
+            <option key={tg.tag} value={tg.tag}>
+              {tg.tag}（{tg.count}）
             </option>
           ))}
         </select>
@@ -440,21 +451,21 @@ export default function FilterBar({
         <>
       <div className="toolbar toolbar-filters" ref={rootRef}>
         {!hideFavorite && (
-          <Drop label="收藏" active={filters.favorite !== 'all'} open={openKey === 'fav'} onToggle={() => toggleDrop('fav')}>
+          <Drop label={t('收藏', 'Favorite')} active={filters.favorite !== 'all'} open={openKey === 'fav'} onToggle={() => toggleDrop('fav')}>
             {(['all', 'yes', 'no'] as const).map((v) => (
               <button
                 key={v}
                 className={`chip${filters.favorite === v ? ' active' : ''}`}
                 onClick={() => onChange({ favorite: v })}
               >
-                {v === 'all' ? '全部' : v === 'yes' ? '已收藏' : '未收藏'}
+                {v === 'all' ? t('全部', 'All') : v === 'yes' ? t('已收藏', 'Favorited') : t('未收藏', 'Not favorited')}
               </button>
             ))}
           </Drop>
         )}
 
         <Drop
-          label="来源"
+          label={t('来源', 'Source')}
           active={!!filters.source.length}
           badge={filters.source.length || undefined}
           open={openKey === 'source'}
@@ -472,7 +483,7 @@ export default function FilterBar({
         </Drop>
 
         <Drop
-          label="画幅"
+          label={t('画幅', 'Shape')}
           active={filters.orientation !== 'all'}
           open={openKey === 'orient'}
           onToggle={() => toggleDrop('orient')}
@@ -489,7 +500,7 @@ export default function FilterBar({
         </Drop>
 
         <Drop
-          label="浏览"
+          label={t('浏览', 'Seen')}
           active={(filters.seen || 'all') !== 'all'}
           open={openKey === 'seen'}
           onToggle={() => toggleDrop('seen')}
@@ -501,18 +512,22 @@ export default function FilterBar({
               onClick={() => onChange({ seen: v })}
               title={v === 'unseen' ? '还没在大图预览里看过的图片' : undefined}
             >
-              {v === 'all' ? '全部' : v === 'unseen' ? '未看过' : '已看过'}
+              {v === 'all' ? t('全部', 'All') : v === 'unseen' ? t('未看过', 'Unseen') : t('已看过', 'Seen')}
             </button>
           ))}
           {onMarkAllSeen && filters.seen === 'unseen' && (
-            <button className="chip ghost-chip" onClick={onMarkAllSeen} title="把当前筛选结果全部标记为已看">
-              全部标记为已看
+            <button
+              className="chip ghost-chip"
+              onClick={onMarkAllSeen}
+              title={t('把当前筛选结果全部标记为已看', 'Mark all filtered results as seen')}
+            >
+              {t('全部标记为已看', 'Mark all seen')}
             </button>
           )}
         </Drop>
 
         <Drop
-          label="星级"
+          label={t('星级', 'Rating')}
           active={!!filters.minRating}
           open={openKey === 'rating'}
           onToggle={() => toggleDrop('rating')}
@@ -522,15 +537,15 @@ export default function FilterBar({
               key={n}
               className={`chip${(filters.minRating || 0) === n ? ' active' : ''}`}
               onClick={() => onChange({ minRating: n })}
-              title={n === 0 ? '不限星级' : `只看 ${n} 星及以上`}
+              title={n === 0 ? t('不限星级', 'Any rating') : t(`只看 ${n} 星及以上`, `${n} stars and up`)}
             >
-              {n === 0 ? '不限' : `${'★'.repeat(n)}+`}
+              {n === 0 ? t('不限', 'Any') : `${'★'.repeat(n)}+`}
             </button>
           ))}
         </Drop>
 
         <Drop
-          label="分辨率"
+          label={t('分辨率', 'Resolution')}
           active={!!filters.bucket.length}
           badge={filters.bucket.length || undefined}
           open={openKey === 'bucket'}
@@ -548,12 +563,12 @@ export default function FilterBar({
         </Drop>
 
         <Drop
-          label="类型"
+          label={t('类型', 'Kind')}
           active={!!filters.kind && filters.kind !== 'all'}
           open={openKey === 'kind'}
           onToggle={() => toggleDrop('kind')}
         >
-          {[{ key: 'all', label: '全部' }, ...KINDS].map((k) => (
+          {[{ key: 'all', label: t('全部', 'All') }, ...KINDS].map((k) => (
             <button
               key={k.key}
               className={`chip${(filters.kind || 'all') === k.key ? ' active' : ''}`}
@@ -565,14 +580,14 @@ export default function FilterBar({
         </Drop>
 
         <Drop
-          label="颜色"
+          label={t('颜色', 'Color')}
           active={!!filters.colorHex || !!selectedHues.length}
           badge={selectedHues.length || (filters.colorHex ? 1 : undefined)}
           swatch={filters.colorHex || undefined}
           open={openKey === 'color'}
           onToggle={() => toggleDrop('color')}
         >
-          <div className="sec-label">色系快筛 · 可多选（黑白灰单独一项）</div>
+          <div className="sec-label">{t('色系快筛 · 可多选（黑白灰单独一项）', 'Color families · multi-select (grayscale is separate)')}</div>
           <div className="hue-row">
             {HUES.map((h) => (
               <button

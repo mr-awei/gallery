@@ -13,6 +13,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import process from 'node:process';
 import { fileURLToPath } from 'node:url';
+import { writeStat } from './doc-stats.mjs';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const SCOPES = ['server', 'electron', 'scripts'];
@@ -75,3 +76,5 @@ for (const f of files) {
 
 console.log(`[lint] 检查 ${files.length} 个文件：${failed} 个错误（语法 / 类型闸），${warned} 个告警`);
 if (failed > 0) process.exit(1);
+// 只有全绿才登记：文档里的「N 个文件 0 错误」不能来自一次失败的检查
+writeStat('lint', files.length);

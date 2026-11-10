@@ -18,7 +18,8 @@ export default function InpaintTab({ item, onToast, onReplaced }: Props) {
   const [strength, setStrength] = useState(30);
   const [busy, setBusy] = useState(false);
   const [coverage, setCoverage] = useState<number | null>(null);
-  const [saveCopy, setSaveCopy] = useState(false);
+  // 默认不动原图：擦除是不可逆的内容替换，副本模式下还能回头比对
+  const [saveCopy, setSaveCopy] = useState(true);
 
   const point = (e: ReactPointerEvent<HTMLCanvasElement>) => {
     const c = canvasRef.current;

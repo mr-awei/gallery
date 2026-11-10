@@ -12,6 +12,7 @@ import os from 'node:os';
 import path from 'node:path';
 import process from 'node:process';
 import { fileURLToPath } from 'node:url';
+import { writeStat } from './doc-stats.mjs';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const PORT = 38790 + Math.floor(Math.random() * 500);
@@ -381,6 +382,54 @@ try {
   const orphanj = orphan.ok ? await orphan.json() : null;
   check('清理孤儿关联接口可用', orphan.status === 200 && orphanj?.ok === true && orphanj.after);
 
+  const orphanThumbs = await fetch(`${BASE}/api/maintenance/orphan-thumbs`, {
+    method: 'POST',
+    headers: { ...auth.headers, 'Content-Type': 'application/json' },
+    body: JSON.stringify({ dryRun: true }),
+  });
+  const otj = await orphanThumbs.json();
+  check(
+    '孤儿缩略图 dry-run 返回文件样本（确认框要能列名字）',
+    orphanThumbs.status === 200 && otj?.dryRun === true && Array.isArray(otj?.sample),
+    `${orphanThumbs.status}`
+  );
+
+  const eaglePrev = await fetch(`${BASE}/api/export/eagle/preview`, auth);
+  const eaglePrevj = await eaglePrev.json();
+  check(
+    'Eagle 导出预览返回张数 / 体积 / 库名',
+    eaglePrev.status === 200 &&
+      typeof eaglePrevj?.images === 'number' &&
+      typeof eaglePrevj?.bytes === 'number' &&
+      typeof eaglePrevj?.name === 'string',
+    `${eaglePrev.status} ${JSON.stringify(eaglePrevj)}`
+  );
+
+  // 整库导出走后台任务：启动 → 轮询 → 完成并回报落盘目录
+  const eagleStart = await fetch(`${BASE}/api/export/eagle/job`, {
+    method: 'POST',
+    headers: { ...auth.headers, 'Content-Type': 'application/json' },
+    body: JSON.stringify({ destDir: tmpUser, name: 'smoke-eagle' }),
+  });
+  const eagleStartj = await eagleStart.json();
+  check(
+    'Eagle 导出任务可启动并返回 jobId',
+    eagleStart.status === 200 && eagleStartj?.ok === true && eagleStartj?.jobId > 0,
+    `${eagleStart.status} ${JSON.stringify(eagleStartj)}`
+  );
+  let eagleDone = null;
+  for (let i = 0; i < 60 && !eagleDone; i++) {
+    await sleep(150);
+    const jobsList = await (await fetch(`${BASE}/api/jobs?kind=eagle-export&limit=1`, auth)).json();
+    const j = Array.isArray(jobsList) ? jobsList[0] : null;
+    if (j && j.id === eagleStartj?.jobId && j.status !== 'running' && j.status !== 'queued') eagleDone = j;
+  }
+  check(
+    'Eagle 导出任务跑完并回报目录与数量',
+    eagleDone?.status === 'done' && !!eagleDone?.result?.dir,
+    JSON.stringify(eagleDone)
+  );
+
   // 撤销栈端到端：入库 → 打标 → 撤销、重命名 → 撤销、删除 → 撤销。
   // 这三条是「统一操作日志」的核心承诺，出错时是静默的数据不一致（标签没回滚、文件名没改回），
   // 只测接口形状是发现不了的，必须在真实库里跑一遍逆操作。
@@ -397,6 +446,18 @@ try {
   const uploaded = upload.ok ? await upload.json() : null;
   const imageId = uploaded?.image?.id;
   check('上传入库（撤销测试用）', upload.status === 200 && !!imageId);
+
+  const thumbOne = await fetch(`${BASE}/api/thumbs/retry`, {
+    method: 'POST',
+    headers: { ...auth.headers, 'Content-Type': 'application/json' },
+    body: JSON.stringify({ id: imageId }),
+  });
+  const thumbOnej = await thumbOne.json();
+  check(
+    '缩略图失败项支持按 id 单条重试',
+    thumbOne.status === 200 && thumbOnej?.ok === true && typeof thumbOnej?.requested === 'number',
+    `${thumbOne.status} ${JSON.stringify(thumbOnej)}`
+  );
 
   const getImage = async (id) => (await fetch(`${BASE}/api/images/${id}`, auth)).json();
   const readTags = (img) => (Array.isArray(img?.tags) ? img.tags.join(',') : String(img?.tags || ''));
@@ -1044,6 +1105,8 @@ try {
     // 插件 / 脚本宿主
     const plugs = await fetch(`${BASE}/api/plugins`, auth);
     const plugsj = await json(plugs);
+    const plugOne = await fetch(`${BASE}/api/plugins/tag-prefix`, auth);
+    check('插件：冗余的单条查询接口已移除', plugOne.status === 404, `${plugOne.status}`);
     check(
       '插件宿主：内置示例插件可发现',
       plugs.status === 200 && plugsj.plugins?.some((p) => p.id === 'tag-prefix'),
@@ -1337,8 +1400,90 @@ try {
     );
   }
 
+  // 非破坏编辑：打开开关后旋转只记操作链，原文件字节不变；还原后链清空
+  {
+    const opts = await (await fetch(`${BASE}/api/edit/options`, auth)).json();
+    check(
+      '非破坏编辑：/api/edit/options 上报开关状态',
+      typeof opts.nonDestructive === 'boolean',
+      String(opts.nonDestructive)
+    );
+    const list = await (await fetch(`${BASE}/api/images?limit=3`, auth)).json();
+    const first = (list.items || [])[0];
+    if (first) {
+      const before = fs.statSync(first.path).size;
+      await fetch(`${BASE}/api/settings`, {
+        method: 'PUT',
+        headers: { ...auth.headers, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ nonDestructiveEdit: true }),
+      });
+      const rot = await (
+        await fetch(`${BASE}/api/images/${first.id}/rotate`, {
+          method: 'POST',
+          headers: { ...auth.headers, 'Content-Type': 'application/json' },
+          body: JSON.stringify({ dir: 'cw' }),
+        })
+      ).json();
+      const meta = await (await fetch(`${BASE}/api/images/${first.id}/edits`, auth)).json();
+      const thumb = await fetch(`${BASE}/api/images/${first.id}/thumb`, auth);
+      const after = fs.statSync(first.path).size;
+      check(
+        '非破坏编辑：旋转只记操作链，原文件字节不变',
+        rot.ok === true && meta.editOps === 1 && before === after,
+        `ops=${meta.editOps} ${before}→${after}`
+      );
+      check(
+        '非破坏编辑：缩略图按操作链渲染（旋转后仍可取到）',
+        thumb.status === 200 && String(thumb.headers.get('content-type')).includes('image'),
+        `${thumb.status} ${thumb.headers.get('content-type')}`
+      );
+      const back = await (
+        await fetch(`${BASE}/api/images/${first.id}/edits/clear`, { method: 'POST', headers: auth.headers })
+      ).json();
+      const afterMeta = await (await fetch(`${BASE}/api/images/${first.id}/edits`, auth)).json();
+      check('非破坏编辑：还原后操作链清零', back.ok === true && afterMeta.editOps === 0, `cleared=${back.cleared}`);
+
+      // 裁切 + 调色也要进操作链，并且能一次性落盘
+      const crop = await (
+        await fetch(`${BASE}/api/images/${first.id}/crop`, {
+          method: 'POST',
+          headers: { ...auth.headers, 'Content-Type': 'application/json' },
+          body: JSON.stringify({ ratio: '1:1' }),
+        })
+      ).json();
+      const adj = await (
+        await fetch(`${BASE}/api/images/${first.id}/adjust`, {
+          method: 'POST',
+          headers: { ...auth.headers, 'Content-Type': 'application/json' },
+          body: JSON.stringify({ exposure: 0.3, contrast: 12 }),
+        })
+      ).json();
+      const meta2 = await (await fetch(`${BASE}/api/images/${first.id}/edits`, auth)).json();
+      check(
+        '非破坏编辑：裁切与调色都只记录、尺寸按链推算',
+        crop.nonDestructive === true &&
+          adj.nonDestructive === true &&
+          meta2.editOps === 2 &&
+          // 归一化裁切框换算回像素会有 ±1px 的取整误差，1:1 只要求「基本相等」
+          Math.abs(meta2.width - meta2.height) <= 1,
+        `ops=${meta2.editOps} ${meta2.width}×${meta2.height}`
+      );
+      const bake = await (
+        await fetch(`${BASE}/api/images/${first.id}/edits/apply`, { method: 'POST', headers: auth.headers })
+      ).json();
+      const meta3 = await (await fetch(`${BASE}/api/images/${first.id}/edits`, auth)).json();
+      check('非破坏编辑：应用到底片后写回并清空链', bake.ok === true && bake.baked === true && meta3.editOps === 0, `baked=${bake.baked}`);
+      await fetch(`${BASE}/api/settings`, {
+        method: 'PUT',
+        headers: { ...auth.headers, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ nonDestructiveEdit: false }),
+      });
+    }
+  }
+
   // 首页与安全头：安全头与「dist 有没有构建」无关，必须无条件断言。
   // 以前整段包在 #root 判断里，未构建时 CSP 检查被静默跳过——安全回归就没人发现了。
+
   const home = await fetch(`${BASE}/`);
   check('首页可访问', home.status === 200);
   const csp = home.headers.get('content-security-policy');
@@ -1364,6 +1509,7 @@ if (failed.length) {
   }
   process.exit(1);
 }
+writeStat('smoke', results.length);
 // Windows：句柄还会挂一会儿，EBUSY/EPERM 交给 rmSync 自己重试
 try {
   fs.rmSync(tmpUser, { recursive: true, force: true, maxRetries: 10, retryDelay: 200 });

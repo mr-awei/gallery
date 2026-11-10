@@ -3,6 +3,8 @@
 import * as ai from '../ai.js';
 import * as clip from '../clip.js';
 import * as lib from '../library.js';
+import * as nd from '../lib/nondestructive.js';
+import { bakeOps } from '../lib/edit.js';
 import { db, getSettings } from '../db.js';
 
 export function register(app, ctx) {
@@ -195,6 +197,8 @@ export function register(app, ctx) {
       const id = Number(req.params.id);
       const dir = req.body?.dir === 'ccw' ? 'ccw' : 'cw';
       try {
+        // 关掉非破坏模式后又来旋转：先把已有操作链落盘，否则旧的裁切/调色会重放到转过的画面上
+        if (!nd.nonDestructiveOn() && nd.opsVersion(id) > 0) await bakeOps(id);
         const item = await lib.rotateImage(id, dir);
         res.json({ ok: true, item });
       } catch (err) {

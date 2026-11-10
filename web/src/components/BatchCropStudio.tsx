@@ -232,10 +232,7 @@ export default function BatchCropStudio({ items, onClose, onToast, onDone }: Pro
   const start = async () => {
     if (startLock.current || starting || running) return;
     if (!ids.length) return;
-    if (save.saveMode === 'copy' && !save.targetDir.trim()) {
-      onToast?.('请先选择副本保存位置');
-      return;
-    }
+    // 副本目录留空 = 每张存到各自原图旁边（后端兜底），不再拦着用户先选目录
     const plan: Record<number, CropRect> = {};
     for (const it of itemsRef.current) {
       plan[it.id] = rects[it.id] || initialRect(ratioStr, aspectOf(it));
@@ -362,7 +359,7 @@ export default function BatchCropStudio({ items, onClose, onToast, onDone }: Pro
               onChange={(p) => setSave((s) => ({ ...s, ...p }))}
               disabled={running}
               count={ids.length}
-              overwriteHint={`直接覆盖 ${ids.length} 张原图，裁切掉的部分无法恢复。`}
+              overwriteHint={`直接覆盖 ${ids.length} 张原图，裁切掉的部分无法恢复（设置里开了「非破坏性编辑」时只记操作链，不覆盖原图）。`}
             />
           </div>
 

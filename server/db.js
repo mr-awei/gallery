@@ -294,6 +294,9 @@ CREATE TABLE IF NOT EXISTS images (
   favorite INTEGER NOT NULL DEFAULT 0,
   tags TEXT NOT NULL DEFAULT '',
   created_at TEXT NOT NULL,
+  -- 拍摄时间（EXIF DateTimeOriginal 优先，取不到时退回文件 mtime / 入库时间）。
+  -- 时间线视图按它排序与聚合；空串表示老数据尚未补算（reconcile 会先按 created_at 兜底）。
+  taken_at TEXT NOT NULL DEFAULT '',
   viewed_at TEXT NOT NULL DEFAULT '',
   view_count INTEGER NOT NULL DEFAULT 0
 );
@@ -301,6 +304,8 @@ CREATE INDEX IF NOT EXISTS idx_images_source ON images(source);
 CREATE INDEX IF NOT EXISTS idx_images_path ON images(abs_path);
 CREATE INDEX IF NOT EXISTS idx_images_favorite ON images(favorite);
 CREATE INDEX IF NOT EXISTS idx_images_created ON images(created_at);
+-- 注意：taken_at 的索引不能写在这里。老库（v3 之前）还没有这一列，
+-- 建索引会直接抛 no such column；下面 ensureColumn 加完列之后统一建。
 
 CREATE TABLE IF NOT EXISTS keywords (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -688,12 +693,42 @@ END;
 `);
 
   // ---- 结构迁移（对当前连接执行，等价旧版顶层 ensureColumn）----
+  /** @returns {boolean} 是否本次新加的列（老库补列后需要一次性回填） */
   const ensureColumn = (table, column, ddl) => {
     const cols = conn.prepare(`PRAGMA table_info(${table})`).all();
     if (!cols.some((c) => c.name === column)) {
       conn.exec(`ALTER TABLE ${table} ADD COLUMN ${ddl}`);
+      return true;
     }
+    return false;
   };
+  // 时间线视图：拍摄时间列 + 索引。老库新加列时先用入库时间兜底，
+  // 保证「刚升级就有内容」；真实 EXIF 时间在导入时写入，也可在时间线页重建。
+  if (ensureColumn('images', 'taken_at', "taken_at TEXT NOT NULL DEFAULT ''")) {
+    // 用本地风格的无时区串兜底（与 EXIF 写入格式一致），别把 ISO 的 Z/毫秒混进来
+    conn.exec("UPDATE images SET taken_at = substr(replace(created_at, 'Z', ''), 1, 19) WHERE taken_at = ''");
+  }
+  conn.exec('CREATE INDEX IF NOT EXISTS idx_images_taken ON images(taken_at)');
+  // 非破坏性编辑：操作链条数冗余在 images 上，列表 DTO 不必为每行查一次 edit_ops
+  ensureColumn('images', 'edit_ops_count', 'edit_ops_count INTEGER NOT NULL DEFAULT 0');
+  // 操作链版本号：任何增删都 +1。前端 URL（?v=）与派生图缓存都靠它失效，
+  // 光靠条数不够 —— 撤销一步再补一步，条数不变但画面已经不同了。
+  ensureColumn('images', 'edit_ops_ver', 'edit_ops_ver INTEGER NOT NULL DEFAULT 0');
+  // 非破坏性编辑的操作链（裁切/旋转/调色的可逆记录）。
+  // 开着这个模式时原图不动，所有改动记在这里，由渲染层套用；「应用到底片」才真正写回。
+  conn.exec(`
+CREATE TABLE IF NOT EXISTS edit_ops (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  image_id INTEGER NOT NULL,
+  kind TEXT NOT NULL,
+  params TEXT NOT NULL DEFAULT '{}',
+  created_at TEXT NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_edit_ops_image ON edit_ops(image_id);
+CREATE TRIGGER IF NOT EXISTS trg_edit_ops_delete AFTER DELETE ON images BEGIN
+  DELETE FROM edit_ops WHERE image_id = OLD.id;
+END;
+`);
   ensureColumn('images', 'score', 'score INTEGER NOT NULL DEFAULT 100');
   ensureColumn('images', 'score_reason', "score_reason TEXT NOT NULL DEFAULT ''");
   conn.exec('CREATE INDEX IF NOT EXISTS idx_images_score ON images(score)');
@@ -1214,6 +1249,9 @@ export const DEFAULT_SETTINGS = {
     model: 'sharp-standard', // 默认增强模型（见 server/enhance.js 内置模型）
     remoteServices: [], // 用户配置的线上免费增强服务（可选，软件负责上传/下载/覆盖原文件）
   },
+  // 非破坏性编辑：开着时裁切/旋转/调色只记操作链，原图保持字节不变，
+  // 浏览与下载套用渲染结果；「应用到底片」或关闭模式时才真正写回。默认关（沿用原有行为）。
+  nonDestructiveEdit: false,
   // AI 接入（OpenAI 兼容）
   ai: {
     enabled: false,

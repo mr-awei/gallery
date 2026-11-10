@@ -1,4 +1,4 @@
-/**
+﻿/**
  * 统一的网络出口：
  * - 桌面端（Electron）：走 Chromium 网络栈 net.fetch，自动跟随「网络设置」里的代理
  *   （HTTP / HTTPS / SOCKS5 / SOCKS4 / 系统代理），采集、AI、下载全部生效
@@ -14,6 +14,19 @@
 import { assertSafeUrl } from './lib/safe-url.js';
 
 const MAX_REDIRECTS = 3;
+
+/**
+ * Electron 的 net.fetch 在 redirect:'manual' 下遇到「响应是重定向」时会直接取消请求并抛
+ * `Redirect was cancelled`（Chromium 不会把 3xx 交给调用方）。这不是网络问题。
+ */
+const REDIRECT_CANCEL = /redirect was cancelled/i;
+
+/** 与 fetch 一致的取消错误（DOMException 不在 eslint 全局里，手工构造） */
+function abortError() {
+  const err = new Error('请求已取消');
+  err.name = 'AbortError';
+  return err;
+}
 
 let netPromise = null;
 
@@ -55,6 +68,87 @@ async function rawFetch(url, init, headers, referer) {
 }
 
 /**
+ * 用 net.request 走完重定向链，返回最终地址，每一跳都过 assertSafeUrl。
+ *
+ * 只给 Electron 兜底：那里 manual 拿不到 3xx（直接抛 Redirect was cancelled），follow 的
+ * Response.url 又是空串（落地地址不可知）—— 两条路都做不到逐跳校验。
+ *
+ * 关键约束：不能在 'redirect' 事件里 await 再 followRedirect()，Chromium 不会等异步校验，
+ * 请求会以「Redirect was cancelled」收场。所以每一跳单独发一次、拿到 Location 就 abort，
+ * 校验完再顺着新地址发下一跳；body 由调用方对最终地址另发一次请求读取。
+ *
+ * @param {string} startUrl
+ * @param {{allowPrivate: boolean, maxRedirects: number, signal?: AbortSignal, headers?: Record<string,string>}} opts
+ * @returns {Promise<string>} 最终地址；无法解析时返回空串
+ */
+async function resolveRedirectTarget(startUrl, { allowPrivate, maxRedirects, signal, headers }) {
+  const net = await electronNet();
+  if (!net || typeof net.request !== 'function') return '';
+
+  let url = startUrl;
+  for (let hop = 0; hop <= maxRedirects; hop += 1) {
+    const step = await requestHop(net, url, headers, signal);
+    if (!step.next) return step.final;
+    // 每一跳都重新校验：这是防「公网 -> 内网」跳转的关键
+    await assertSafeUrl(step.next, { allowPrivate });
+    url = step.next;
+  }
+  throw new Error('重定向次数过多，已中止');
+}
+
+/**
+ * 只发一跳、只要响应头：拿到重定向地址或确认到达终点就断开。
+ * @param {any} net Electron net 模块
+ * @param {string} url
+ * @param {Record<string,string> | undefined} headers
+ * @param {AbortSignal} [signal]
+ * @returns {Promise<{next?: string, final?: string}>}
+ */
+function requestHop(net, url, headers, signal) {
+  if (signal?.aborted) return Promise.reject(abortError());
+
+  return new Promise((resolve, reject) => {
+    const req = net.request({ method: 'GET', url, redirect: 'manual' });
+    let settled = false;
+    const finish = (err, value) => {
+      if (settled) return;
+      settled = true;
+      signal?.removeEventListener?.('abort', onAbort);
+      try {
+        req.abort();
+      } catch {
+        // 已经结束，无需处理
+      }
+      if (err) reject(err);
+      else resolve(value);
+    };
+    const onAbort = () => finish(abortError());
+
+    if (signal) signal.addEventListener('abort', onAbort, { once: true });
+
+    for (const [key, value] of Object.entries(headers || {})) {
+      // Referer 在 Chromium 里是禁用头，net.request 设了会整条请求失败
+      if (!value || /^(referer|host|content-length)$/i.test(key)) continue;
+      try {
+        req.setHeader(key, value);
+      } catch {
+        // 个别非法头直接忽略，不影响链路解析
+      }
+    }
+
+    req.on('redirect', (_status, _method, redirectUrl) => finish(null, { next: redirectUrl }));
+    req.on('response', (res) => {
+      // 只要地址，不要 body
+      res.on('data', () => {});
+      res.on('error', () => {});
+      finish(null, { final: url });
+    });
+    req.on('error', (err) => finish(err));
+    req.end();
+  });
+}
+
+/**
  * @param {string} input
  * @param {RequestInit & {timeout?: number, retries?: number}} [init]
  *   timeout：单次请求超时毫秒（0 = 不限）；retries：网络级失败的重试次数。
@@ -92,8 +186,25 @@ async function requestOnce(input, init, { allowPrivate, maxRedirects, timeout })
   let url = String(input);
   await assertSafeUrl(url, { allowPrivate });
 
+  let chainResolved = false;
   for (let hop = 0; ; hop += 1) {
-    const res = await rawFetch(url, { ...init, signal, redirect: 'manual' }, headers, referer);
+    let res;
+    try {
+      res = await rawFetch(url, { ...init, signal, redirect: 'manual' }, headers, referer);
+    } catch (err) {
+      const cancelled = REDIRECT_CANCEL.test(String(err?.message || ''));
+      if (!cancelled || chainResolved) throw err;
+      // 带 body 的请求无法在解析完链路后重放，只能退回自动跟随（首跳已校验）
+      if (init.body) {
+        console.warn('[http] 带 body 的请求遇到重定向，退回自动跟随（逐跳校验失效）：', url);
+        return rawFetch(url, { ...init, signal, redirect: 'follow' }, headers, referer);
+      }
+      const target = await resolveRedirectTarget(url, { allowPrivate, maxRedirects, signal, headers });
+      if (!target || target === url) throw err;
+      chainResolved = true;
+      url = target;
+      continue;
+    }
     const isRedirect = res.status >= 300 && res.status < 400;
     if (!isRedirect) return res;
 

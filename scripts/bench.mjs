@@ -20,6 +20,7 @@ import os from 'node:os';
 import path from 'node:path';
 import process from 'node:process';
 import { fileURLToPath } from 'node:url';
+import { writeStat } from './doc-stats.mjs';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const argv = process.argv.slice(2);
@@ -441,6 +442,7 @@ try {
   await benchClip();
 
   const failed = rowsOut.filter((r) => !r.ok);
+  if (!failed.length) writeStat('bench', rowsOut.length);
   console.log(
     `[bench] ${rowsOut.length - failed.length}/${rowsOut.length} 项达标` +
       (failed.length ? `；超标：${failed.map((f) => f.name).join('、')}` : '')

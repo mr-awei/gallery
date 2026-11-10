@@ -27,10 +27,12 @@ import WatermarkStudio from './WatermarkStudio';
 import ToolbarCustomizer from './ToolbarCustomizer';
 import Select from './Select';
 import { usePinnedActions } from '../lib/pinned';
+import { useLang } from '../lib/i18n';
 
 /** 顶栏默认放的「更多」项：标注、OCR、下载最常用，其余留在菜单里 */
 const LB_PINNED_DEFAULT = ['anno', 'ocr', 'download'];
 import InfoPanel from './lightbox/InfoPanel';
+import EditOpsPanel from './lightbox/EditOpsPanel';
 import { confirmDialog } from './Dialogs';
 import type { WbSample } from './AdjustPanel';
 import {
@@ -145,6 +147,7 @@ export default function Lightbox({
   library,
   onOpenStack,
 }: Props) {
+  const { t } = useLang();
   const item = items[index];
   const [tagInput, setTagInput] = useState('');
   /* 该图归属的文件夹：补上「能加不能移」的缺口（Eagle 里详情区可直接移出） */
@@ -204,9 +207,14 @@ export default function Lightbox({
   const [toolkit, setToolkit] = useState<ToolkitTab | null>(null);
   // 图片对比：默认拿「当前 + 下一张」，可换两侧
   const [cmpIds, setCmpIds] = useState<{ left: number; right: number } | null>(null);
+  // 非破坏编辑：设置开着时，保存默认记入操作链（不写原文件）
+  const [ndOn, setNdOn] = useState(false);
+  const [opsOpen, setOpsOpen] = useState(false); // 操作链面板
   const [exportOpen, setExportOpen] = useState(false);
   const [wpPreviewOpen, setWpPreviewOpen] = useState(false); // 「导出为图片」对话框
-  const [saveMode, setSaveMode] = useState<'overwrite' | 'copy'>('overwrite');
+  // 默认「另存副本」：第一下保存不该把原图改掉。
+  // 开了非破坏编辑则改默认「覆盖原图」——这条路径此时只记操作链，不会真的覆盖
+  const [saveMode, setSaveMode] = useState<'overwrite' | 'copy'>('copy');
   const [targetDir, setTargetDir] = useState('');
   const [addToLibrary, setAddToLibrary] = useState(true);
   // 图片在 lightbox-body 内的实际渲染矩形（裁切选框与调色叠加层据此定位）
@@ -586,6 +594,24 @@ export default function Lightbox({
     };
   }, [editor, annoMode, measureFrame]);
 
+  // 读一次设置：非破坏模式影响保存语义（只记操作链 vs 写盘），必须在编辑前知道
+  useEffect(() => {
+    let alive = true;
+    api
+      .settings()
+      .then((s) => {
+        if (!alive) return;
+        setNdOn(!!s.nonDestructiveEdit);
+        if (s.nonDestructiveEdit) setSaveMode('overwrite');
+      })
+      .catch(() => {
+        /* 设置读不到就按默认（写盘）处理，不阻断看图 */
+      });
+    return () => {
+      alive = false;
+    };
+  }, []);
+
   // 「更多」菜单：点页面任意处关闭（菜单内部阻止冒泡，避免点菜单项时先被关掉）
   useEffect(() => {
     if (!moreOpen) return;
@@ -737,18 +763,14 @@ export default function Lightbox({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [cropRatio, item.id, editor]);
 
-  /** 覆盖原图是不可逆写回：值得一次确认（副本模式不用问） */
+  /** 覆盖原图是不可逆写回：值得一次确认（副本模式、非破坏模式都不用问） */
   const confirmOverwrite = async (what: string) => {
-    if (saveMode === 'copy') return true;
+    if (saveMode === 'copy' || ndOn) return true;
     return confirmDialog(`${what}将直接覆盖原文件（可用 Ctrl+Z 撤销最近一次）。继续？`);
   };
 
   const saveCrop = async () => {
     if (saveLockRef.current || saving) return;
-    if (saveMode === 'copy' && !targetDir.trim()) {
-      onChangeToast?.('请先选择副本保存位置');
-      return;
-    }
     // 先同步上锁再等确认：确认框还开着时第二次点击必须被挡掉
     saveLockRef.current = true;
     setSaving(true);
@@ -765,7 +787,11 @@ export default function Lightbox({
       // 按比例裁切会先找主体；没找到主体就走了居中，得告诉用户为什么裁在这里
       const focusNote = r.focus === 'center' ? '（未检测到明显主体，已居中裁切）' : '';
       onChangeToast?.(
-        r.copied ? `裁切副本已保存：${r.savedPath}${r.note || ''}${focusNote}` : `裁切已保存到原文件${focusNote}`
+        r.nonDestructive
+          ? `已记入非破坏编辑（原图未改动）${focusNote}　更多 → 非破坏编辑可应用到底片`
+          : r.copied
+            ? `裁切副本已保存：${r.savedPath}${r.note || ''}${focusNote}`
+            : `裁切已保存到原文件${focusNote}`
       );
       closeEditor();
     } catch (err) {
@@ -778,10 +804,6 @@ export default function Lightbox({
 
   const saveAdjust = async () => {
     if (saveLockRef.current || saving) return;
-    if (saveMode === 'copy' && !targetDir.trim()) {
-      onChangeToast?.('请先选择副本保存位置');
-      return;
-    }
     // 与裁切同一把锁：调色写回原图同样是不可逆操作
     saveLockRef.current = true;
     setSaving(true);
@@ -790,7 +812,11 @@ export default function Lightbox({
       const r = await api.adjustImage(item.id, { ...adjust, ...saveOpts });
       if (r.item) onReplaceItem(r.item);
       onChangeToast?.(
-        r.copied ? `调色副本已保存：${r.savedPath}${r.note || ''}` : '调色已保存到原文件'
+        r.nonDestructive
+          ? '已记入非破坏编辑（原图未改动）　更多 → 非破坏编辑可应用到底片'
+          : r.copied
+            ? `调色副本已保存：${r.savedPath}${r.note || ''}`
+            : '调色已保存到原文件'
       );
       setColorRoom(false);
     } catch (err) {
@@ -813,8 +839,11 @@ export default function Lightbox({
     if (rotating) return;
     setRotating(dir);
     try {
-      const { item: updated } = await api.rotateImage(item.id, dir);
-      onReplaceItem(updated);
+      const r = await api.rotateImage(item.id, dir);
+      onReplaceItem(r.item);
+      if (r.nonDestructive) {
+        onChangeToast?.('已记入非破坏编辑（原图未改动）　更多 → 非破坏编辑可应用到底片');
+      }
     } catch (err) {
       onChangeToast?.(`旋转失败：${(err as Error).message || '未知错误'}`);
     } finally {
@@ -904,6 +933,15 @@ export default function Lightbox({
       disabled: !isImage || !!rotating || !!enhancing,
       group: 'edit',
       run: () => onEnhance(item),
+    },
+    {
+      key: 'edit-ops',
+      label: `非破坏编辑${item.editOps ? `（${item.editOps}）` : ''}…`,
+      icon: '🧬',
+      title: '查看已记录但未写回原图的裁切 / 旋转 / 调色，可一次性应用到底片或整体还原',
+      disabled: !isImage || !item.editOps,
+      group: 'edit',
+      run: () => setOpsOpen(true),
     },
     {
       key: 'watermark',
@@ -1099,10 +1137,10 @@ export default function Lightbox({
     >
       <div className="lightbox-top" onClick={(e) => e.stopPropagation()}>
         <div className="lb-top-left">
-          <button className="btn ghost sm" onClick={onClose} title="关闭（ESC）">
+          <button className="btn ghost sm" onClick={onClose} title={t('关闭（ESC）', 'Close (ESC)')}>
             <IconClose />
-            <span className="lb-txt">关闭</span>
-            <span className="lb-txt-short">关闭</span>
+            <span className="lb-txt">{t('关闭', 'Close')}</span>
+            <span className="lb-txt-short">{t('关闭', 'Close')}</span>
           </button>
           <span className="lb-counter">
             {index + 1} / {items.length}
@@ -1117,88 +1155,91 @@ export default function Lightbox({
           <button
             className={`btn sm${item.favorite ? ' primary' : ''}`}
             onClick={() => onToggleFavorite(item)}
-            title={item.favorite ? '取消收藏' : '加入收藏'}
+            title={item.favorite ? t('取消收藏', 'Remove from favorites') : t('加入收藏', 'Add to favorites')}
           >
             <IconHeart filled={item.favorite} />
-            <span className="lb-txt">{item.favorite ? '已收藏' : '收藏'}</span>
-            <span className="lb-txt-short">{item.favorite ? '已收藏' : '收藏'}</span>
+            <span className="lb-txt">{item.favorite ? t('已收藏', 'Favorited') : t('收藏', 'Favorite')}</span>
+            <span className="lb-txt-short">{item.favorite ? t('已收藏', 'Favorited') : t('收藏', 'Favorite')}</span>
           </button>
           <span className="lb-divider" />
           {/* 高频编辑只留三个：裁切 / 调色 / 旋转（左转右转合成一个下拉） */}
           <button
             className={`btn sm${editor === 'crop' ? ' primary' : ''}`}
-            title="裁切：预设比例或自由框选，可覆盖原图或另存副本"
+            title={t('裁切：预设比例或自由框选，可覆盖原图或另存副本', 'Crop: presets or freehand, overwrite or save a copy')}
             disabled={!isImage || !!rotating || !!enhancing}
             onClick={() => (editor === 'crop' ? closeEditor() : openEditor('crop'))}
           >
             <IconExpand />
-            <span className="lb-txt">裁切</span>
-            <span className="lb-txt-short">裁切</span>
+            <span className="lb-txt">{t('裁切', 'Crop')}</span>
+            <span className="lb-txt-short">{t('裁切', 'Crop')}</span>
           </button>
           <button
             className={`btn sm${colorRoom ? ' primary' : ''}`}
-            title="打开独立调色台：白平衡吸管 + 直方图 + 影调/色彩/细节 + RGB 曲线，可覆盖原图或另存副本"
+            title={t(
+              '打开独立调色台：白平衡吸管 + 直方图 + 影调/色彩/细节 + RGB 曲线，可覆盖原图或另存副本',
+              'Color room: white balance picker, histogram, tone/color/detail and RGB curves'
+            )}
             disabled={!isImage || !!rotating || !!enhancing}
             onClick={() => (colorRoom ? setColorRoom(false) : openEditor('color'))}
           >
             <IconSun />
-            <span className="lb-txt">调色</span>
-            <span className="lb-txt-short">调色</span>
+            <span className="lb-txt">{t('调色', 'Color')}</span>
+            <span className="lb-txt-short">{t('调色', 'Color')}</span>
           </button>
           <div className="lb-more-wrap">
             <button
               className={`btn sm${rotOpen ? ' primary' : ''}`}
-              title="旋转 90° 并保存（左转 / 右转）"
+              title={t('旋转 90° 并保存（左转 / 右转）', 'Rotate 90° and save (left / right)')}
               disabled={!isImage || !!rotating}
               onClick={() => setRotOpen((v) => !v)}
             >
               <IconRotateCw />
-              <span className="lb-txt">{rotating ? '保存中…' : '旋转'}</span>
-              <span className="lb-txt-short">{rotating ? '保存中…' : '旋转'}</span>
+              <span className="lb-txt">{rotating ? t('保存中…', 'Saving…') : t('旋转', 'Rotate')}</span>
+              <span className="lb-txt-short">{rotating ? t('保存中…', 'Saving…') : t('旋转', 'Rotate')}</span>
               <span className="lb-icon-only">↻</span>
             </button>
             {rotOpen && (
               <div className="lb-more-menu" onMouseDown={(e) => e.stopPropagation()}>
                 <button
                   className="btn sm ghost"
-                  title="逆时针旋转 90° 并保存"
+                  title={t('逆时针旋转 90° 并保存', 'Rotate 90° counter-clockwise and save')}
                   onClick={() => {
                     setRotOpen(false);
                     rotate('ccw');
                   }}
                 >
-                  <IconRotateCcw /> 向左转 90°
+                  <IconRotateCcw /> {t('向左转 90°', 'Rotate left 90°')}
                 </button>
                 <button
                   className="btn sm ghost"
-                  title="顺时针旋转 90° 并保存"
+                  title={t('顺时针旋转 90° 并保存', 'Rotate 90° clockwise and save')}
                   onClick={() => {
                     setRotOpen(false);
                     rotate('cw');
                   }}
                 >
-                  <IconRotateCw /> 向右转 90°
+                  <IconRotateCw /> {t('向右转 90°', 'Rotate right 90°')}
                 </button>
               </div>
             )}
           </div>
           <button
             className={`btn sm${commentsOpen ? ' primary' : ''}`}
-            title="评论：记录用途、修改意见（Ctrl+Enter 发送）"
+            title={t('评论：记录用途、修改意见（Ctrl+Enter 发送）', 'Comments: usage notes and feedback (Ctrl+Enter to send)')}
             onClick={() => setCommentsOpen((v) => !v)}
           >
             <span className="lb-icon-only">💬</span>
-            <span className="lb-txt">评论{cmtCount > 0 ? ` ${cmtCount}` : ''}</span>
-            <span className="lb-txt-short">评论{cmtCount > 0 ? ` ${cmtCount}` : ''}</span>
+            <span className="lb-txt">{t('评论', 'Comments')}{cmtCount > 0 ? ` ${cmtCount}` : ''}</span>
+            <span className="lb-txt-short">{t('评论', 'Comments')}{cmtCount > 0 ? ` ${cmtCount}` : ''}</span>
           </button>
           <button
             className={`btn sm${infoOpen ? ' lb-on' : ''}`}
-            title="显示 / 隐藏详情信息（I）"
+            title={t('显示 / 隐藏详情信息（I）', 'Show / hide details (I)')}
             onClick={() => setInfoOpen((v) => !v)}
           >
             <span className="lb-icon-only">ⓘ</span>
-            <span className="lb-txt">信息</span>
-            <span className="lb-txt-short">信息</span>
+            <span className="lb-txt">{t('信息', 'Info')}</span>
+            <span className="lb-txt-short">{t('信息', 'Info')}</span>
           </button>
           <span className="lb-divider" />
           {/* 用户自己挪到顶栏的常用项：由「更多 → 自定义工具栏」控制 */}
@@ -1214,11 +1255,11 @@ export default function Lightbox({
             <button
               className={`btn sm${moreOpen ? ' primary' : ''}`}
               onClick={() => setMoreOpen((v) => !v)}
-              title="更多操作（可在菜单底部自定义顶栏显示哪些）"
+              title={t('更多操作（可在菜单底部自定义顶栏显示哪些）', 'More actions (customize the top bar at the bottom of this menu)')}
             >
               <span className="lb-icon-only">⋯</span>
-              <span className="lb-txt">更多</span>
-              <span className="lb-txt-short">更多</span>
+              <span className="lb-txt">{t('更多', 'More')}</span>
+              <span className="lb-txt-short">{t('更多', 'More')}</span>
             </button>
             {moreOpen && (
               <div className="lb-more-menu" onMouseDown={(e) => e.stopPropagation()}>
@@ -1270,10 +1311,10 @@ export default function Lightbox({
               </div>
             )}
           </div>
-          <button className="btn sm danger" onClick={() => onDelete(item)} title="删除（可撤销）">
+          <button className="btn sm danger" onClick={() => onDelete(item)} title={t('删除（可撤销）', 'Delete (undoable)')}>
             <IconTrash />
-            <span className="lb-txt">删除</span>
-            <span className="lb-txt-short">删除</span>
+            <span className="lb-txt">{t('删除', 'Delete')}</span>
+            <span className="lb-txt-short">{t('删除', 'Delete')}</span>
           </button>
         </div>
       </div>
@@ -1465,7 +1506,11 @@ export default function Lightbox({
           <SaveModeBlock
             value={{ saveMode, targetDir, addToLibrary }}
             count={1}
-            overwriteHint="裁切会直接写回原文件（可用 Ctrl+Z 撤销最近一次）。"
+            overwriteHint={
+              ndOn
+                ? '非破坏编辑已开启：保存只记入操作链，原图不动；随时可在「更多 → 非破坏编辑」应用到底片或还原。'
+                : '裁切会直接写回原文件（可用 Ctrl+Z 撤销最近一次）。'
+            }
             onChange={(p: Partial<SaveModeState>) => {
               if (p.saveMode !== undefined) setSaveMode(p.saveMode);
               if (p.targetDir !== undefined) setTargetDir(p.targetDir);
@@ -1581,7 +1626,7 @@ export default function Lightbox({
                     <input
                       className="input"
                       value={targetDir}
-                      placeholder="选择保存位置…"
+                      placeholder="留空 = 存到原图旁边（可选）"
                       readOnly={isDesktop}
                       onChange={(e) => setTargetDir(e.target.value)}
                     />
@@ -1663,6 +1708,15 @@ export default function Lightbox({
       />
 
       {exportOpen && <ExportDialog item={item} onClose={() => setExportOpen(false)} onToast={(m) => onChangeToast?.(m)} />}
+
+      {opsOpen && (
+        <EditOpsPanel
+          item={item}
+          onClose={() => setOpsOpen(false)}
+          onUpdated={onReplaceItem}
+          onToast={(m) => onChangeToast?.(m)}
+        />
+      )}
 
       {toolkit && (
         <ImageToolkit

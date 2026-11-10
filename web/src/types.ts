@@ -53,6 +53,10 @@ export interface ImageItem {
    */
   inheritedTags?: string[];
   createdAt: string;
+  /** 拍摄时间（EXIF；缺失时导入期按文件 mtime 兜底）。时间线视图按它排序 */
+  takenAt?: string;
+  /** 非破坏性编辑：已记录但尚未写回原图的操作条数（0/未传 = 无） */
+  editOps?: number;
   orientation: 'portrait' | 'landscape' | 'square';
   bucket: 'sd' | 'fhd' | '2k' | '4k';
   thumbUrl: string;
@@ -639,6 +643,10 @@ export interface LanShare {
   ids?: number[];
   folderId?: number;
   title?: string;
+  /** 是否设了访问密码（密码本体永不下发） */
+  hasPassword?: boolean;
+  /** 是否允许手机端保存原图；默认 true */
+  allowDownload?: boolean;
 }
 
 /** 创建只读分享链接的参数 */
@@ -648,6 +656,10 @@ export interface LanShareInput {
   ids?: number[];
   folderId?: number;
   title?: string;
+  /** 访问密码：4~64 位；留空表示不设密码 */
+  password?: string;
+  /** 是否允许下载原图，默认 true */
+  allowDownload?: boolean;
 }
 
 /** 插件市场条目（索引 + 已安装状态） */
@@ -757,6 +769,8 @@ export interface Settings {
   /** 是否已看过教程（跳过也算），设置页可重新播放 */
   tourDone?: boolean;
   deletePolicy: 'trash' | 'permanent' | 'unlink';
+  /** 非破坏性编辑：裁切/旋转/调色只记操作链，原图字节不动（默认关） */
+  nonDestructiveEdit?: boolean;
   scoreThreshold: number;
   wallpaperFill: 'blur' | 'solid' | 'black';
   /** 单屏 / 跨屏合成一张 / 每个屏幕不同图片 */
@@ -1160,11 +1174,40 @@ export function isAdjustDefault(p: AdjustParams): boolean {
   );
 }
 
-/** 编辑结果的保存方式：默认覆盖原图；copy = 另存副本到指定目录 */
+/** 编辑结果的保存方式：overwrite = 覆盖原图；copy = 另存副本（targetDir 留空则落在原图旁边），UI 默认 copy */
 export interface EditSaveOptions {
   saveMode?: 'overwrite' | 'copy';
   targetDir?: string;
   addToLibrary?: boolean;
+}
+
+/** 非破坏编辑链的一步（服务端 /api/images/:id/edits） */
+export interface EditOp {
+  id: number;
+  kind: 'crop' | 'rotate' | 'adjust';
+  params: {
+    rect?: { x: number; y: number; w: number; h: number };
+    dir?: 'cw' | 'ccw';
+    ratio?: string;
+    outWidth?: number;
+    outHeight?: number;
+    [key: string]: unknown;
+  };
+  createdAt: string;
+}
+
+/** 非破坏编辑链概况：ops 只在打开面板时取，列表只带 editOps 条数 */
+export interface EditOpsInfo {
+  ok: boolean;
+  /** 设置里当前是否开着非破坏模式 */
+  enabled: boolean;
+  ops: EditOp[];
+  summary: string;
+  /** 套用操作链后的成品尺寸 */
+  width: number;
+  height: number;
+  editOps: number;
+  ver: number;
 }
 
 /** 单张编辑返回：item 在「另存且未入库」时为 null（原图未变） */
@@ -1173,6 +1216,8 @@ export interface EditResult {
   item: ImageItem | null;
   savedPath: string;
   copied: boolean;
+  /** 只记进了非破坏操作链（原文件没动） */
+  nonDestructive?: boolean;
   note?: string;
 }
 
@@ -1204,6 +1249,7 @@ export type ViewMode = 'masonry' | 'grid' | 'list' | 'folder';
 export type View =
   | 'dashboard'
   | 'gallery'
+  | 'timeline'
   | 'favorites'
   | 'people'
   | 'tidy'
@@ -1216,3 +1262,23 @@ export type View =
   | 'enhance'
   | 'tutorial'
   | 'settings';
+
+/** 时间线：一个月及其张数（/api/timeline/summary） */
+export interface TimelineMonth {
+  /** 'YYYY-MM' */
+  month: string;
+  count: number;
+}
+
+/** 时间线顶部统计 + 月份索引 */
+export interface TimelineSummary {
+  total: number;
+  /** 已按拍摄时间归档的张数 */
+  placed: number;
+  /** 没有拍摄时间的张数（表结构降级/异常时才会 > 0） */
+  unplaced: number;
+  months: TimelineMonth[];
+  /** 拍摄时间仍等于入库时间、建议重建的张数 */
+  pending: number;
+  lastBackfill?: { id: number; status: string; progress: number; message: string; done: number; total: number } | null;
+}

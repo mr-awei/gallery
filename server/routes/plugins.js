@@ -8,7 +8,6 @@ import { openFolder } from '../desktop.js';
 import { PLUGIN_PERMISSIONS } from '../lib/plugin-manifest.js';
 import {
   ensureUserPluginDir,
-  findPlugin,
   listPlugins,
   runPlugin,
   setPluginEnabled,
@@ -148,11 +147,8 @@ export function register(app, ctx) {
     })
   );
 
-  app.get('/api/plugins/:id', (req, res) => {
-    const p = findPlugin(String(req.params.id));
-    if (!p) return res.status(404).json({ error: '插件不存在' });
-    res.json({ ok: true, plugin: publicView(p) });
-  });
+  // 没有单条查询接口：列表已返回全部字段，多一个「只读一条」既没人调用，
+  // 又和列表的返回值必须永远保持一致，纯粹是维护负担。
 
   app.post(
     '/api/plugins/:id/run',

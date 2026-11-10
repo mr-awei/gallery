@@ -16,6 +16,7 @@ import { uniqueTargetName } from './name-template.js';
 import { md5File, md5Buffer } from './hash.js';
 import { MEDIA_EXTS, extOf, isJunkFile, isMediaPath, kindOfPath, mimeOfPath } from './media-kind.js';
 import { probeMedia } from './media-probe.js';
+import { resolveTakenAt } from './taken-at.js';
 import { designThumbJpeg } from './design-thumb.js';
 import { ensureThumbDirFor, thumbPathFor } from '../thumbs.js';
 
@@ -91,8 +92,8 @@ export async function ingestMedia({
   const info = db
     .prepare(
       `INSERT INTO images (title, abs_path, thumb, source, keyword, source_url, width, height,
-        duration, size_bytes, mime, phash, favorite, tags, created_at, media_kind, md5, fs_mtime)
-       VALUES (?, ?, NULL, ?, ?, ?, ?, ?, ?, ?, ?, '', 0, ?, ?, ?, ?, ?)`
+        duration, size_bytes, mime, phash, favorite, tags, created_at, taken_at, media_kind, md5, fs_mtime)
+       VALUES (?, ?, NULL, ?, ?, ?, ?, ?, ?, ?, ?, '', 0, ?, ?, ?, ?, ?, ?)`
     )
     .run(
       title || path.basename(finalPath),
@@ -107,6 +108,8 @@ export async function ingestMedia({
       mimeOfPath(nameHint),
       tags,
       new Date().toISOString(),
+      // 非图片素材没有 EXIF：视频用文件 mtime（拍摄/导出时间）当时间线口径
+      resolveTakenAt({ fsMtime }),
       kind,
       md5,
       fsMtime

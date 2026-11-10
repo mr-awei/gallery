@@ -11,6 +11,7 @@ import type { View } from '../types';
 import { t } from '../lib/i18n';
 import {
   IconBrain,
+  IconCalendar,
   IconDashboard,
   IconFolder,
   IconGrid,
@@ -38,6 +39,7 @@ type NavItem = { key: View; label: string; labelEn: string; icon: React.ReactNod
 export const PRIMARY_NAV: NavItem[] = [
   { key: 'dashboard', label: '仪表盘', labelEn: 'Dashboard', icon: <IconDashboard /> },
   { key: 'gallery', label: '图库', labelEn: 'Library', icon: <IconImages /> },
+  { key: 'timeline', label: '时间线', labelEn: 'Timeline', icon: <IconCalendar /> },
 ];
 
 /** 低频入口：收进可折叠的「更多导航」分区，默认收起 */

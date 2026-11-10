@@ -5,6 +5,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import sharp from 'sharp';
 import * as lib from '../library.js';
+import * as nd from '../lib/nondestructive.js';
 import { bumpUsage } from '../lib/usage.js';
 import { existingPreviewPath, existingThumbPath, ensurePreview, mtimeOf } from '../thumbs.js';
 import {
@@ -30,13 +31,21 @@ function safeBase(name) {
 }
 
 /** 把归档里的一张图按目标格式编码（非图片素材保持原样） */
-async function encodeEntry(row, format, quality, maxSide) {
+async function encodeEntry(row, format, quality, maxSide, srcPath = row.abs_path) {
   if (!format) return null;
   const kind = row.media_kind || 'image';
   if (kind !== 'image' && kind !== 'gif') return null;
-  let pipe = sharp(row.abs_path, { failOn: 'none' }).rotate();
-  const w = row.width || 0;
-  const h = row.height || 0;
+  let pipe = sharp(srcPath, { failOn: 'none' }).rotate();
+  // 非破坏编辑后的成品尺寸和库里记录的不一样，转码限宽以实际文件为准
+  let w = row.width || 0;
+  let h = row.height || 0;
+  if (maxSide > 0) {
+    const meta = await sharp(srcPath, { failOn: 'none' }).metadata().catch(() => null);
+    if (meta?.width && meta?.height) {
+      w = meta.width;
+      h = meta.height;
+    }
+  }
   if (maxSide > 0 && Math.max(w, h) > maxSide) {
     pipe = pipe.resize({
       width: w >= h ? maxSide : undefined,
@@ -67,6 +76,15 @@ export function register(app, ctx) {
       const id = Number(req.params.id);
       const row = lib.getImage(id);
       if (!row) return res.status(404).end('not found');
+      // 有非破坏操作链：缩略图也从套用后的画面出，否则卡片上看到的还是原图构图
+      if (Number(row.edit_ops_count) > 0) {
+        const ndThumb = await nd.ensureDerived(row, 'thumb');
+        if (ndThumb) {
+          res.set('Cache-Control', 'public, max-age=604800');
+          res.type('jpg');
+          return res.sendFile(ndThumb, SEND_OPTS);
+        }
+      }
       // 视频/音频/字体/PDF/3D 这类素材 sharp 解不了：只有用户设过封面帧才有缩略图，
       // 没有就 404，让前端回落到 <video>/图标，别去触发 sharp 报错。
       const kind = row.media_kind || 'image';
@@ -153,6 +171,15 @@ export function register(app, ctx) {
       // 带 ?v=（文件指纹）的请求可以放心长缓存：增强/旋转写回后指纹变，URL 也就变了。
       // 不带版本的保持 no-cache + ETag，避免外部直连拿到旧图。
       const cacheHeader = req.query.v ? 'private, max-age=604800' : 'no-cache';
+      // 非破坏操作链优先：预览要显示成品（裁切过就别再给整幅）
+      if (Number(row.edit_ops_count) > 0) {
+        const ndPreview = await nd.ensureDerived(row, 'preview');
+        if (ndPreview) {
+          res.set('Cache-Control', cacheHeader);
+          res.type('jpg');
+          return res.sendFile(ndPreview, SEND_OPTS);
+        }
+      }
       // 预览图同样按 id 命名，同样要比 mtime：早于原图的一定是旧 id 的残留，重新生成
       const hit = existingPreviewPath(id, mtimeOf(row.abs_path));
       if (hit) {
@@ -194,7 +221,8 @@ export function register(app, ctx) {
       // 这里只对文件流放宽到同源可框，其余页面仍保持 DENY。
       res.setHeader('X-Frame-Options', 'SAMEORIGIN');
       res.setHeader('Content-Security-Policy', "frame-ancestors 'self'");
-      res.sendFile(row.abs_path, SEND_OPTS);
+      const src = Number(row.edit_ops_count) > 0 ? (await nd.ensureDerived(row, 'full')) || row.abs_path : row.abs_path;
+      res.sendFile(src, SEND_OPTS);
     })
   );
 
@@ -203,15 +231,21 @@ export function register(app, ctx) {
     asyncRoute(async (req, res) => {
       const row = lib.getImage(Number(req.params.id));
       if (!row || !fs.existsSync(row.abs_path)) return res.status(404).end('not found');
-      const ext = path.extname(row.abs_path) || '.jpg';
-      const name = `壁纸_${row.id}_${row.width}x${row.height}${ext}`;
+      // 非破坏编辑：下载套用操作链后的成品（文件名里的尺寸也跟着换，否则和实际不符）
+      const src = Number(row.edit_ops_count) > 0 ? (await nd.ensureDerived(row, 'full')) || row.abs_path : row.abs_path;
+      const size =
+        Number(row.edit_ops_count) > 0
+          ? nd.effectiveSize(row, nd.listOps(row.id))
+          : { width: row.width, height: row.height };
+      const ext = path.extname(src) || path.extname(row.abs_path) || '.jpg';
+      const name = `壁纸_${row.id}_${size.width}x${size.height}${ext}`;
       res.set(
         'Content-Disposition',
         `attachment; filename="tuku_${row.id}${ext}"; filename*=UTF-8''${encodeURIComponent(name)}`
       );
       // 使用统计：下载也记一次「导出」（用户心智里下载下来用过就算用过）
       bumpUsage('export', [row.id]);
-      res.sendFile(row.abs_path, SEND_OPTS);
+      res.sendFile(src, SEND_OPTS);
     })
   );
 
@@ -241,15 +275,18 @@ export function register(app, ctx) {
     archive.pipe(res);
     const used = new Set();
     for (const row of rows) {
-      const ext = format ? `.${ZIP_EXT[format]}` : path.extname(row.abs_path) || '.jpg';
-      const base = safeBase(row.title || path.basename(row.abs_path)) || `image_${row.id}`;
+      // 有非破坏操作链的图，导出的是「套用操作后」的成品，不是原图字节
+      const srcPath =
+        Number(row.edit_ops_count) > 0 ? (await nd.ensureDerived(row, 'full')) || row.abs_path : row.abs_path;
+      const ext = format ? `.${ZIP_EXT[format]}` : path.extname(srcPath) || '.jpg';
+      const base = safeBase(row.title || path.basename(srcPath)) || `image_${row.id}`;
       let name = base + ext;
       let i = 1;
       while (used.has(name)) name = `${base}_${++i}${ext}`;
       used.add(name);
-      const buf = await encodeEntry(row, format, quality, maxSide);
+      const buf = await encodeEntry(row, format, quality, maxSide, srcPath);
       if (buf) archive.append(buf, { name });
-      else archive.file(row.abs_path, { name: format ? base + (path.extname(row.abs_path) || '.bin') : name });
+      else archive.file(srcPath, { name: format ? base + (path.extname(srcPath) || '.bin') : name });
     }
     await archive.finalize();
   }

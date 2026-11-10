@@ -26,6 +26,15 @@ export const IconUsers = () => (
   </svg>
 );
 
+/** 时间线：日历（按拍摄时间浏览的前提就是「日期」） */
+export const IconCalendar = () => (
+  <svg {...base}>
+    <rect x="3" y="5" width="18" height="16" rx="2.4" />
+    <path d="M3 10h18M8 3v4M16 3v4" />
+    <path d="M7.5 14h3M7.5 17.5h4.5M14 14h2.5" />
+  </svg>
+);
+
 export const IconDownload = () => (
   <svg {...base}>
     <path d="M12 3v12m0 0 4-4m-4 4-4-4M4 17v2a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-2" />

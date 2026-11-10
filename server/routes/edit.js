@@ -1,22 +1,76 @@
 // @ts-check
 // 图片编辑路由：裁切（预设比例/原比例/自由框）+ Camera Raw 调色，单张与批量
 import fs from 'node:fs';
-import { CROP_RATIOS, ADJUST_DEFAULTS, adjustImage, cropImage } from '../lib/edit.js';
+import { CROP_RATIOS, ADJUST_DEFAULTS, adjustImage, bakeOps, cropImage } from '../lib/edit.js';
 import { detectFocus, parseRatioSpec } from '../lib/focus.js';
 import { inpaintImage } from '../lib/inpaint.js';
 import { systemFonts } from '../lib/fonts.js';
 import { GEO_REGIONS } from '../lib/geo.js';
 import { previewWatermark, watermarkImage, watermarkOptions } from '../lib/watermark.js';
-import { getImage } from '../library.js';
+import { getImage, toDTO } from '../library.js';
+import * as nd from '../lib/nondestructive.js';
+import { logOp } from '../oplog.js';
 import { cancelEditJob, editJobStatus, startEditJob } from '../edit-job.js';
 
 export function register(app, ctx) {
   const { asyncRoute } = ctx;
 
-  /* 编辑选项：裁切比例清单 + 调色参数默认值（0 = 原图） */
+  /* 编辑选项：裁切比例清单 + 调色参数默认值（0 = 原图）+ 当前是否非破坏模式 */
   app.get('/api/edit/options', (_req, res) => {
-    res.json({ ratios: CROP_RATIOS, adjust: ADJUST_DEFAULTS });
+    res.json({ ratios: CROP_RATIOS, adjust: ADJUST_DEFAULTS, nonDestructive: nd.nonDestructiveOn() });
   });
+
+  /* 非破坏编辑操作链：列表（含成品尺寸）/ 应用到底片 / 全部还原 */
+  app.get(
+    '/api/images/:id/edits',
+    asyncRoute(async (req, res) => {
+      const id = Number(req.params.id);
+      const row = getImage(id);
+      if (!row) return res.status(404).json({ error: '图片不存在' });
+      const ops = nd.listOps(id);
+      res.json({
+        ok: true,
+        enabled: nd.nonDestructiveOn(),
+        ops,
+        summary: nd.opsSummary(ops),
+        ...nd.effectiveSize(row, ops),
+        editOps: ops.length,
+        ver: Number(row.edit_ops_ver) || 0,
+      });
+    })
+  );
+
+  app.post(
+    '/api/images/:id/edits/apply',
+    asyncRoute(async (req, res) => {
+      const id = Number(req.params.id);
+      try {
+        const r = await bakeOps(id);
+        res.json({ ok: true, item: r.item, baked: !!r.baked, ops: r.ops || 0 });
+      } catch (err) {
+        res.status(400).json({ error: err.message || '应用到底片失败' });
+      }
+    })
+  );
+
+  app.post(
+    '/api/images/:id/edits/clear',
+    asyncRoute(async (req, res) => {
+      const id = Number(req.params.id);
+      const row = getImage(id);
+      if (!row) return res.status(404).json({ error: '图片不存在' });
+      const ops = nd.listOps(id);
+      if (!ops.length) return res.json({ ok: true, cleared: 0, item: toDTO(row) });
+      nd.clearOps(id);
+      // 还原也要能撤销：把整条链原样记下来，Ctrl+Z 能一步全补回去
+      logOp({
+        op: 'nd-clear',
+        summary: `还原非破坏编辑：${String(row.title || `#${id}`).slice(0, 40)}`,
+        payload: { id, ops: ops.map((o) => ({ kind: o.kind, params: o.params })) },
+      });
+      res.json({ ok: true, cleared: ops.length, item: toDTO(getImage(id)) });
+    })
+  );
 
   /* 自动检测图像焦点：给定目标比例，返回最该保留的归一化框（批量裁切台用） */
   app.get(
@@ -44,7 +98,14 @@ export function register(app, ctx) {
       const id = Number(req.params.id);
       try {
         const r = await cropImage(id, req.body || {});
-        res.json({ ok: true, item: r.item, savedPath: r.savedPath, copied: !!r.copied, note: r.note || '' });
+        res.json({
+          ok: true,
+          item: r.item,
+          savedPath: r.savedPath,
+          copied: !!r.copied,
+          nonDestructive: !!r.nonDestructive,
+          note: r.note || '',
+        });
       } catch (err) {
         res.status(400).json({ error: err.message || '裁切失败' });
       }
@@ -73,7 +134,14 @@ export function register(app, ctx) {
       const id = Number(req.params.id);
       try {
         const r = await adjustImage(id, req.body || {});
-        res.json({ ok: true, item: r.item, savedPath: r.savedPath, copied: !!r.copied, note: r.note || '' });
+        res.json({
+          ok: true,
+          item: r.item,
+          savedPath: r.savedPath,
+          copied: !!r.copied,
+          nonDestructive: !!r.nonDestructive,
+          note: r.note || '',
+        });
       } catch (err) {
         res.status(400).json({ error: err.message || '调色失败' });
       }

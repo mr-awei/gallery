@@ -65,7 +65,15 @@ export function register(app, ctx) {
       const body = req.body || {};
       let created;
       try {
-        created = createShareToken(Number(body.minutes) || 60, body);
+        // 显式白名单：body 里塞 ttlMs 就能造出「永不过期」的链接，不能透传整个 body
+        created = createShareToken(Number(body.minutes) || 60, {
+          scope: body.scope,
+          ids: body.ids,
+          folderId: body.folderId,
+          title: body.title,
+          password: body.password,
+          allowDownload: body.allowDownload,
+        });
       } catch (err) {
         return res.status(400).json({ error: String(err?.message || err) });
       }
@@ -79,6 +87,8 @@ export function register(app, ctx) {
         ids: created.ids,
         folderId: created.folderId,
         title: created.title,
+        hasPassword: created.hasPassword,
+        allowDownload: created.allowDownload,
         urls: shareUrls(status.port, created.token),
       });
     })

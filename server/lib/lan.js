@@ -14,15 +14,17 @@ import os from 'node:os';
 import path from 'node:path';
 import crypto from 'node:crypto';
 import express from 'express';
+import sharp from 'sharp';
 import { DATA_DIR } from '../config.js';
 import { db, getSettings } from '../db.js';
 import * as lib from '../library.js';
 import { ingestMedia, isMediaPath } from './media.js';
 import { qrSvg } from './qr.js';
 import { lanIconPng } from './lan-icon.js';
-import { existingThumbPath } from '../thumbs.js';
+import { existingPreviewPath, existingThumbPath, ensurePreview, mtimeOf } from '../thumbs.js';
 import { hiddenImagesClause } from './privacy.js';
 import { ensureFolderByRelDir, linkImageToFolder } from '../folders.js';
+import * as nd from './nondestructive.js';
 
 const TOKEN_FILE = path.join(DATA_DIR, '.lan-token');
 const MAX_UPLOAD = 60 * 1024 * 1024;
@@ -150,10 +152,22 @@ button.act { width:100%; margin-top:16px; padding:13px; border:0; border-radius:
 .pwa span { flex:1; line-height:1.5; }
 .pwa button { flex:0 0 auto; border:0; border-radius:8px; padding:6px 10px; background:#ff4d8d; color:#fff; font-size:12px; }
 .pwa button.ghost { background:#2a3350; color:#c7d2ef; }
+.meta { margin:-8px 0 14px; font-size:12px; color:#8b95b2; }
+.viewer { position:fixed; inset:0; background:rgba(8,9,13,.96); display:flex; flex-direction:column; z-index:50; }
+.viewer[hidden] { display:none !important; }
+.viewer .vhead { display:flex; align-items:center; gap:10px; padding:14px 16px; }
+.viewer .vtitle { flex:1; min-width:0; font-size:13px; color:#dfe3ee; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+.viewer .vclose { flex:none; border:0; border-radius:8px; padding:7px 12px; background:#2a3350; color:#dfe3ee; font-size:13px; }
+.viewer .vbody { flex:1; min-height:0; display:flex; align-items:center; justify-content:center; padding:0 10px; }
+.viewer .vbody img { max-width:100%; max-height:100%; object-fit:contain; }
+.viewer .vfoot { padding:14px 16px calc(18px + env(safe-area-inset-bottom)); display:flex; gap:10px; }
+.viewer .vfoot a, .viewer .vfoot span { flex:1; text-align:center; padding:11px; border-radius:10px; background:#1b1e2a; color:#c7d2ef; font-size:13px; text-decoration:none; }
+.viewer .vfoot a.dl { background:#ff4d8d; color:#fff; font-weight:600; }
 </style></head><body><div class="wrap">
 <div class="pwa" id="pwa"><span id="pwa-txt">用浏览器菜单「添加到主屏幕」，下次打开无需再扫码。离线浏览需要 HTTPS 访问。</span><button id="pwa-install" hidden>安装到桌面</button><button class="ghost" id="pwa-close">知道了</button></div>
 <h1>${readOnly ? '图库（只读）' : '投送到图库'}</h1>
 <p id="sub">${readOnly ? '这是只读分享链接，可以浏览与搜索，不能上传。' : '与电脑连接同一个 Wi-Fi。上传会直接写入电脑上的当前资源库。'}</p>
+<div class="meta" id="meta" hidden></div>
 <div class="tabs" id="tabs">
   <div class="tab${readOnly ? ' on' : ''}" data-tab="browse">浏览</div>
   <div class="tab${readOnly ? '' : ' on'}" data-tab="upload"${readOnly ? ' hidden' : ''}>投送</div>
@@ -176,7 +190,13 @@ button.act { width:100%; margin-top:16px; padding:13px; border:0; border-radius:
   <div class="grid" id="grid"></div>
   <button class="act more" id="more">加载更多</button>
 </div>
-</div><script>
+</div>
+<div class="viewer" id="viewer" hidden role="dialog" aria-modal="true">
+  <div class="vhead"><div class="vtitle" id="vt"></div><button class="vclose" id="vclose">关闭</button></div>
+  <div class="vbody"><img id="vimg" alt=""/></div>
+  <div class="vfoot" id="vfoot"></div>
+</div>
+<script>
 (function(){
   // 按模式分别记住令牌：只读链接添加到主屏幕后，不能被上一次的投送令牌顶掉。
   // 只读页面不内联完整投送令牌，token 只能来自分享链接本身。
@@ -279,6 +299,56 @@ button.act { width:100%; margin-top:16px; padding:13px; border:0; border-radius:
     document.getElementById('pane-browse').hidden = false;
   }
 
+  // 只读链接的「能不能存原图」由分享者决定；页面据此显示/隐藏保存按钮
+  var allowDownload = true;
+
+  function openViewer(item) {
+    document.getElementById('vt').textContent = item.title || ('#' + item.id);
+    var im = document.getElementById('vimg');
+    im.src = '/api/lan/preview/' + item.id + '?token=' + encodeURIComponent(token);
+    im.alt = item.title || '';
+    var foot = document.getElementById('vfoot');
+    foot.innerHTML = '';
+    if (allowDownload) {
+      var a = document.createElement('a');
+      a.className = 'dl';
+      a.textContent = '保存原图';
+      a.href = '/api/lan/file/' + item.id + '?token=' + encodeURIComponent(token);
+      a.setAttribute('download', item.title || ('tuku_' + item.id));
+      foot.appendChild(a);
+    } else {
+      var s = document.createElement('span');
+      s.textContent = '此链接不提供原图下载';
+      foot.appendChild(s);
+    }
+    document.getElementById('viewer').hidden = false;
+  }
+
+  document.getElementById('vclose').addEventListener('click', function () {
+    document.getElementById('viewer').hidden = true;
+    document.getElementById('vimg').src = '';
+  });
+
+  async function loadInfo() {
+    try {
+      var r = await fetch('/api/lan/info', { headers: { 'x-lan-token': token } });
+      if (!r.ok) return;
+      var j = await r.json();
+      allowDownload = j.allowDownload !== false;
+      var el = document.getElementById('meta');
+      var bits = [];
+      if (j.expiresAt) {
+        var d = new Date(j.expiresAt);
+        var hh = ('0' + d.getHours()).slice(-2);
+        var mm = ('0' + d.getMinutes()).slice(-2);
+        bits.push('有效期至 ' + (d.getMonth() + 1) + ' 月 ' + d.getDate() + ' 日 ' + hh + ':' + mm);
+      }
+      if (j.hasPassword) bits.push('已设访问密码');
+      if (!j.allowDownload) bits.push('禁止下载原图');
+      if (bits.length) { el.textContent = bits.join(' · '); el.hidden = false; }
+    } catch (e) { /* 顶部提示失败不影响浏览 */ }
+  }
+
   function cell(item) {
     var d = document.createElement('div'); d.className = 'cell';
     var img = document.createElement('img');
@@ -288,6 +358,8 @@ button.act { width:100%; margin-top:16px; padding:13px; border:0; border-radius:
     img.alt = item.title || '';
     var cap = document.createElement('div'); cap.className = 'cap'; cap.textContent = item.title || ('#' + item.id);
     d.appendChild(img); d.appendChild(cap);
+    d.onclick = function () { openViewer(item); };
+    d.style.cursor = 'zoom-in';
     return d;
   }
 
@@ -328,6 +400,7 @@ button.act { width:100%; margin-top:16px; padding:13px; border:0; border-radius:
     }, 300);
   });
   load();
+  if (readOnly) loadInfo();
 })();
 </script></body></html>`;
 }
@@ -341,9 +414,10 @@ const SHARE_SCOPES = new Set(['library', 'selection', 'folder']);
 
 /**
  * 归一化分享范围；非法参数直接拒绝，绝不能悄悄退化成「整库可见」
- * @param {{scope?:string, ids?:number[], folderId?:number|string, title?:string}} [opts]
+ * @param {{scope?:string, ids?:number[], folderId?:number|string, title?:string,
+ *          password?:string, allowDownload?:boolean}} [opts]
  */
-export function normalizeShareScope({ scope, ids, folderId, title } = {}) {
+export function normalizeShareScope({ scope, ids, folderId, title, password, allowDownload } = {}) {
   const kind = SHARE_SCOPES.has(String(scope)) ? String(scope) : 'library';
   const cleanIds = Array.isArray(ids)
     ? [...new Set(ids.map(Number).filter((n) => Number.isInteger(n) && n > 0))].slice(0, 2000)
@@ -351,27 +425,122 @@ export function normalizeShareScope({ scope, ids, folderId, title } = {}) {
   if (kind === 'selection' && !cleanIds.length) throw new Error('按选区分享需要至少一张素材');
   const fId = Number(folderId);
   if (kind === 'folder' && !(Number.isInteger(fId) && fId > 0)) throw new Error('按文件夹分享需要有效的文件夹 id');
+  // 访问密码：4~64 位。短于 4 位等于没设，直接拒绝而不是悄悄忽略（用户以为设了密码最危险）
+  const pw = String(password == null ? '' : password);
+  if (pw && (pw.length < 4 || pw.length > 64)) throw new Error('访问密码需为 4~64 个字符');
   return {
     scope: kind,
     ids: kind === 'selection' ? cleanIds : [],
     folderId: kind === 'folder' ? fId : 0,
     title: String(title || '').replace(/[<>]/g, '').slice(0, 60),
+    password: pw,
+    // 默认允许下载（与历史行为一致）；显式传 false 才禁
+    allowDownload: allowDownload !== false,
   };
+}
+
+/** scrypt 摘要：同一密码 + 同一 salt 结果稳定，用来做常量时间比对 */
+function passwordDigest(salt, password) {
+  return crypto.scryptSync(String(password), String(salt), 32).toString('hex');
+}
+
+function parseCookies(header) {
+  const out = {};
+  for (const part of String(header || '').split(';')) {
+    const i = part.indexOf('=');
+    if (i < 0) continue;
+    out[part.slice(0, i).trim()] = decodeURIComponent(part.slice(i + 1).trim());
+  }
+  return out;
+}
+
+/** 请求是否已解锁该分享（HttpOnly cookie，或接口调用方可带 x-lan-password 头） */
+function shareUnlocked(req, share) {
+  if (!share?.passHash) return true;
+  const cookie = parseCookies(req.headers.cookie)['tuku_lan_pw'];
+  if (cookie && tokenMatches(cookie, share.cookieKey || '')) return true;
+  const got = String(req.headers['x-lan-password'] || '');
+  return !!got && tokenMatches(passwordDigest(share.salt, got), share.passHash);
+}
+
+/** 设了密码的分享链接：打开时先给这张页，解锁后才下发真正的浏览页 */
+function passwordPage() {
+  return `<!doctype html>
+<html lang="zh-CN"><head><meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"/>
+<meta name="theme-color" content="#ff4d8d"/>
+<meta name="robots" content="noindex"/>
+<title>需要访问密码</title>
+<style>
+* { box-sizing:border-box; }
+body { margin:0; min-height:100vh; display:flex; align-items:center; justify-content:center; padding:24px;
+  background:#11131a; color:#f4f4f8; font:15px/1.6 -apple-system,"PingFang SC","Microsoft YaHei",sans-serif; }
+.box { width:100%; max-width:360px; }
+h1 { font-size:19px; margin:0 0 6px; }
+p { margin:0 0 18px; color:#9a9cb0; font-size:13px; }
+input { width:100%; padding:12px 13px; border-radius:10px; border:1px solid #262a3a; background:#1b1e2a; color:#f4f4f8; font-size:16px; }
+button { width:100%; margin-top:12px; padding:12px; border:0; border-radius:10px; background:#ff4d8d; color:#fff; font-size:15px; font-weight:600; }
+button:disabled { opacity:.6; }
+.err { margin-top:10px; color:#ff849e; font-size:12.5px; min-height:18px; }
+</style></head><body><div class="box">
+<h1>这个链接需要密码</h1>
+<p>请输入分享者设置的访问密码。密码只在本机校验，不会上传。</p>
+<input id="pw" type="password" inputmode="text" autocomplete="current-password" placeholder="访问密码" autofocus/>
+<button id="go">进入图库</button>
+<div class="err" id="err"></div>
+</div><script>
+(function(){
+  var token = new URLSearchParams(location.search).get('token') || localStorage.getItem('tuku_lan_token_read') || '';
+  var pw = document.getElementById('pw');
+  var btn = document.getElementById('go');
+  var err = document.getElementById('err');
+  async function submit(){
+    var v = pw.value;
+    if (!v) { err.textContent = '请输入密码'; return; }
+    btn.disabled = true; err.textContent = '';
+    try {
+      var r = await fetch('/api/lan/unlock', {
+        method:'POST',
+        headers:{ 'Content-Type':'application/json', 'x-lan-token': token },
+        body: JSON.stringify({ password: v })
+      });
+      if (r.ok) { location.replace('/?token=' + encodeURIComponent(token) + '&mode=read'); return; }
+      var j = await r.json().catch(function(){ return {}; });
+      err.textContent = j.error || '密码不正确';
+    } catch(e) { err.textContent = '连接失败，请确认和电脑在同一 Wi-Fi'; }
+    btn.disabled = false;
+  }
+  btn.addEventListener('click', submit);
+  pw.addEventListener('keydown', function(e){ if (e.key === 'Enter') submit(); });
+})();
+</script></body></html>`;
 }
 
 /**
  * @param {number} minutes
- * @param {{ scope?: string, ids?: number[], folderId?: number, title?: string, ttlMs?: number }} [opts]
+ * @param {{ scope?: string, ids?: number[], folderId?: number, title?: string, ttlMs?: number, password?: string, allowDownload?: boolean }} [opts]
  * ttlMs 只用于单测验证「过期即失效」，HTTP 路由不会传它。
  */
 export function createShareToken(minutes = 60, opts = {}) {
   const ttlMin = Math.max(1, Math.min(7 * 24 * 60, Number(minutes) || 60));
-  const scope = normalizeShareScope(opts);
+  const { password, ...scope } = normalizeShareScope(opts);
   const ttlMs = Number.isFinite(Number(opts.ttlMs)) && Number(opts.ttlMs) > 0 ? Number(opts.ttlMs) : ttlMin * 60000;
   const token = crypto.randomBytes(18).toString('base64url');
   const expiresAt = Date.now() + ttlMs;
-  shareTokens.set(token, { expiresAt, createdAt: Date.now(), ...scope });
-  return { token, expiresAt, minutes: ttlMin, ...scope };
+  // 密码只存 scrypt 摘要（明文不出内存）；cookieKey 是解锁后的 HttpOnly 凭据，只与本次令牌绑定
+  const salt = crypto.randomBytes(12).toString('hex');
+  const passHash = password ? passwordDigest(salt, password) : '';
+  const cookieKey = password ? crypto.randomBytes(18).toString('hex') : '';
+  shareTokens.set(token, {
+    expiresAt,
+    createdAt: Date.now(),
+    ...scope,
+    salt,
+    passHash,
+    cookieKey,
+  });
+  // 返回值刻意不含 salt/passHash/cookieKey：前端与日志都不该碰到凭据材料
+  return { token, expiresAt, minutes: ttlMin, ...scope, hasPassword: !!passHash };
 }
 
 function pruneShares() {
@@ -389,6 +558,9 @@ export function listShareTokens() {
     ids: v.ids || [],
     folderId: v.folderId || 0,
     title: v.title || '',
+    // 凭据本体绝不外泄，只回「有没有设密码 / 允不允许下载」
+    hasPassword: !!v.passHash,
+    allowDownload: v.allowDownload !== false,
   }));
 }
 
@@ -483,6 +655,8 @@ export function buildLanApp(tokenOrGetter) {
   const currentToken = typeof tokenOrGetter === 'function' ? tokenOrGetter : () => tokenOrGetter;
   const app = express();
   app.disable('x-powered-by');
+  // 只有很小的 JSON body（解锁密码）；上传走 express.raw，content-type 不匹配不会被这里吃掉
+  app.use(express.json({ limit: '8kb' }));
   app.use((req, res, next) => {
     res.set('Cache-Control', 'no-store');
     res.set('X-Content-Type-Options', 'nosniff');
@@ -497,13 +671,32 @@ export function buildLanApp(tokenOrGetter) {
       return next();
     }
     const share = shareTokens.get(got);
-    if (share && share.expiresAt > Date.now()) {
-      req.lanScope = 'read';
-      req.lanShare = share;
-      return next();
+    if (!share || share.expiresAt <= Date.now()) {
+      if (share) shareTokens.delete(got);
+      return res.status(401).json({ error: '链接已失效或令牌无效' });
     }
-    if (share) shareTokens.delete(got);
-    return res.status(401).json({ error: '链接已失效或令牌无效' });
+    // 解锁必须排在密码门之前，否则永远打不开密码门
+    if (req.method === 'POST' && req.path === '/api/lan/unlock') {
+      if (!share.passHash) return res.json({ ok: true });
+      const pw = String(req.body?.password ?? '');
+      if (!tokenMatches(passwordDigest(share.salt, pw), share.passHash)) {
+        return res.status(401).json({ error: '密码不正确' });
+      }
+      const maxAge = Math.max(1, Math.floor((share.expiresAt - Date.now()) / 1000));
+      // HttpOnly：页面脚本读不到，XSS 也偷不走；只与本次令牌绑定
+      res.set('Set-Cookie', `tuku_lan_pw=${share.cookieKey}; Path=/; HttpOnly; SameSite=Lax; Max-Age=${maxAge}`);
+      return res.json({ ok: true });
+    }
+    if (!shareUnlocked(req, share)) {
+      // 直接打开页面 → 给密码框；接口 → 401，由页面自己提示
+      if (req.method === 'GET' && (req.path === '/' || req.path === '/index.html')) {
+        return res.status(401).type('html').send(passwordPage());
+      }
+      return res.status(401).json({ error: '需要访问密码', needPassword: true });
+    }
+    req.lanScope = 'read';
+    req.lanShare = share;
+    return next();
   });
 
   app.get('/manifest.webmanifest', (req, res) => {
@@ -558,6 +751,9 @@ export function buildLanApp(tokenOrGetter) {
       scope: req.lanShare?.scope || 'library',
       title: req.lanShare?.title || '',
       expiresAt: req.lanShare?.expiresAt || 0,
+      // 只读页据此决定是「点击看大图」还是「长按能另存原图」
+      hasPassword: !!req.lanShare?.passHash,
+      allowDownload: req.lanShare ? req.lanShare.allowDownload !== false : true,
     })
   );
 
@@ -596,20 +792,97 @@ export function buildLanApp(tokenOrGetter) {
     }
   });
 
-  app.get('/api/lan/thumb/:id', (req, res) => {
+  app.get('/api/lan/thumb/:id', async (req, res) => {
     const id = Number(req.params.id);
     if (!Number.isFinite(id)) return res.status(400).json({ error: '素材 id 无效' });
     // 只读链接不能靠猜 id 拿到范围外的缩略图：列表和单图必须用同一道闸
     if (!shareAllowsImage(req.lanShare, id)) return res.status(403).json({ error: '该素材不在此分享链接范围内' });
     const row = lib.getImage(id);
     if (!row) return res.status(404).json({ error: '素材不存在' });
-    const cache = existingThumbPath(id, 0);
+    // 有非破坏操作链：分享出去也要看到成品构图，不能给原图缩略图
+    if (Number(row.edit_ops_count) > 0) {
+      const ndThumb = await nd.ensureDerived(row, 'thumb');
+      if (ndThumb && fs.existsSync(ndThumb)) {
+        res.set('Cache-Control', 'private, max-age=120');
+        res.set('Content-Type', 'image/jpeg');
+        return res.sendFile(path.resolve(ndThumb), { dotfiles: 'allow' });
+      }
+    }
+    const cache = existingThumbPath(id, mtimeOf(row.abs_path));
     // 库里数据在 .tuku 点目录下：sendFile 默认把点开头路径当隐藏文件回 404，必须显式放行
-    const file = cache || row.abs_path;
-    if (!file || !fs.existsSync(file)) return res.status(404).json({ error: '没有可用的缩略图' });
+    if (cache && fs.existsSync(cache)) {
+      res.set('Cache-Control', 'private, max-age=120');
+      return res.sendFile(path.resolve(cache), { dotfiles: 'allow' }, (err) => {
+        if (err && !res.headersSent) res.status(404).json({ error: '缩略图读取失败' });
+      });
+    }
+    // 没有缩略图缓存时绝不回原图：禁下载的分享里，那样等于把原图递出去。
+    // 现做一张 640 的临时图（只在内存里），够看清网格即可。
+    if (req.lanShare && req.lanShare.allowDownload === false) {
+      try {
+        const buf = await sharp(row.abs_path, { failOn: 'none' })
+          .rotate()
+          .resize({ width: 640, height: 640, fit: 'inside', withoutEnlargement: true })
+          .jpeg({ quality: 78 })
+          .toBuffer();
+        res.set('Content-Type', 'image/jpeg');
+        res.set('Cache-Control', 'no-store');
+        return res.send(buf);
+      } catch {
+        return res.status(404).json({ error: '没有可用的缩略图' });
+      }
+    }
+    if (!fs.existsSync(row.abs_path)) return res.status(404).json({ error: '没有可用的缩略图' });
     res.set('Cache-Control', 'private, max-age=120');
-    return res.sendFile(path.resolve(file), { dotfiles: 'allow' }, (err) => {
+    return res.sendFile(path.resolve(row.abs_path), { dotfiles: 'allow' }, (err) => {
       if (err && !res.headersSent) res.status(404).json({ error: '缩略图读取失败' });
+    });
+  });
+
+  /**
+   * 只读浏览的大图：长边 1920 的预览图，禁下载的分享也能看——
+   * 「不给原图」不等于「只能看 200px 的小图」。
+   */
+  app.get('/api/lan/preview/:id', async (req, res) => {
+    const id = Number(req.params.id);
+    if (!Number.isFinite(id)) return res.status(400).json({ error: '素材 id 无效' });
+    if (!shareAllowsImage(req.lanShare, id)) return res.status(403).json({ error: '该素材不在此分享链接范围内' });
+    const row = lib.getImage(id);
+    if (!row || !fs.existsSync(row.abs_path)) return res.status(404).json({ error: '素材不存在' });
+    if (Number(row.edit_ops_count) > 0) {
+      const ndPreview = await nd.ensureDerived(row, 'preview');
+      if (ndPreview && fs.existsSync(ndPreview)) {
+        res.set('Cache-Control', 'private, max-age=3600');
+        res.set('Content-Type', 'image/jpeg');
+        return res.sendFile(path.resolve(ndPreview), { dotfiles: 'allow' });
+      }
+    }
+    const hit = existingPreviewPath(id, mtimeOf(row.abs_path));
+    const file = hit || (await ensurePreview(id, row.abs_path));
+    if (!file || !fs.existsSync(file)) return res.status(404).json({ error: '预览生成失败' });
+    res.set('Cache-Control', 'private, max-age=3600');
+    return res.sendFile(path.resolve(file), { dotfiles: 'allow' }, (err) => {
+      if (err && !res.headersSent) res.status(404).json({ error: '预览读取失败' });
+    });
+  });
+
+  /** 下载原图：只有 allowDownload !== false 的链接才给 */
+  app.get('/api/lan/file/:id', async (req, res) => {
+    const id = Number(req.params.id);
+    if (!Number.isFinite(id)) return res.status(400).json({ error: '素材 id 无效' });
+    if (!shareAllowsImage(req.lanShare, id)) return res.status(403).json({ error: '该素材不在此分享链接范围内' });
+    if (req.lanShare && req.lanShare.allowDownload === false) {
+      return res.status(403).json({ error: '这个分享链接不允许下载原图' });
+    }
+    const row = lib.getImage(id);
+    if (!row || !fs.existsSync(row.abs_path)) return res.status(404).json({ error: '素材不存在' });
+    const src =
+      Number(row.edit_ops_count) > 0 ? (await nd.ensureDerived(row, 'full')) || row.abs_path : row.abs_path;
+    const ext = path.extname(src) || '.jpg';
+    res.set('Content-Disposition', `inline; filename="tuku_${row.id}${ext}"`);
+    res.set('Cache-Control', 'private, max-age=600');
+    return res.sendFile(path.resolve(src), { dotfiles: 'allow' }, (err) => {
+      if (err && !res.headersSent) res.status(404).json({ error: '原图读取失败' });
     });
   });
 

@@ -10,7 +10,7 @@ import { db, getPathIndexState, getSchemaWarnings, getThumbDir, retryPathIndex }
 import * as lib from '../library.js';
 import { getMissingCached, importLocalImages, readImportJob } from '../importer.js';
 import { existingThumbPath } from '../thumbs.js';
-import { thumbQueueStats, retryFailedThumbs, clearThumbFailures } from '../lib/thumb-queue.js';
+import { thumbQueueStats, retryFailedThumbs, retryFailedThumb, clearThumbFailures } from '../lib/thumb-queue.js';
 import { thumbMissingCount } from '../lib/thumb-rebuild.js';
 import { computePHash } from '../phash.js';
 import { probeMedia } from '../lib/media-probe.js';
@@ -314,7 +314,8 @@ export function register(app, ctx) {
           });
         }
       }
-      res.json({ ok: true, dryRun, found: files.length, removed, errors, sample: files.slice(0, 5) });
+      // sample 给 10 条：确认框要能列出「到底删哪几个」，5 条不足以让人判断
+      res.json({ ok: true, dryRun, found: files.length, removed, errors, sample: files.slice(0, 10) });
     })
   );
 
@@ -442,7 +443,12 @@ export function register(app, ctx) {
     res.json({ ok: true, ...q, missing: thumbMissingCount() });
   });
 
-  app.post('/api/thumbs/retry', (_req, res) => {
+  // 不传 id = 全量重试；传 id = 只重试这一张（面板失败明细里的逐条按钮）
+  app.post('/api/thumbs/retry', (req, res) => {
+    const id = Number(req.body?.id ?? req.body?.imageId);
+    if (Number.isFinite(id) && id > 0) {
+      return res.json({ ok: true, ...retryFailedThumb(id) });
+    }
     res.json({ ok: true, ...retryFailedThumbs() });
   });
 

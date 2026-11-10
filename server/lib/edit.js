@@ -19,6 +19,7 @@ import { removeThumbFiles } from '../thumbs.js';
 import { getImage, indexPhash, ingest, toDTO, translateError, writeFileAtomic } from '../library.js';
 import { pushEditBackup } from './undo.js';
 import { detectFocus } from './focus.js';
+import * as nd from './nondestructive.js';
 
 /** 支持的预设裁切比例（宽:高）。orig = 保持原图比例，free = 自由框选 */
 export const CROP_RATIOS = ['free', 'orig', '1:1', '4:3', '3:4', '3:2', '2:3', '16:9', '9:16'];
@@ -289,7 +290,7 @@ const lutIndex = (v) => (v <= 0 ? 0 : v >= 255 ? 255 : v | 0);
  * 影调 → 亮度映射表；主曲线 × 单通道曲线 → 三个通道 LUT。
  * 顺序同 PS 曲线面板：先影调、再主通道曲线、最后单通道曲线。
  */
-function buildLuts(p) {
+export function buildLuts(p) {
   const sh = p.shadows / 100;
   const hi = p.highlights / 100;
   const wh = p.whites / 100;
@@ -702,7 +703,7 @@ export function applyRaw(data, channels, p, luts) {
  * 颜色相关的一切（白平衡/影调/曲线/饱和度/色相/曝光/对比度）都在 applyRaw 里逐像素完成，
  * 用 sharp 的 modulate/linear 会得到与预览不同的数值（LCh 明度 vs RGB 乘系数），预览就对不上了。
  */
-function applyAdjust(pipeline, p) {
+export function applyAdjust(pipeline, p) {
   let s = pipeline;
   if (p.clarity > 0) s = s.sharpen({ sigma: 2.2, m1: (p.clarity / 100) * 0.9, m2: 0.6 }); // 大半径 = 中间调局部对比
   if (p.sharpen > 0) s = s.sharpen({ sigma: 0.4 + (p.sharpen / 100) * 1.4 });
@@ -780,14 +781,17 @@ function uniquePath(dir, name) {
 
 /**
  * 写入编辑结果。
- * - saveMode='overwrite'（默认）：写回原文件，同步宽高/pHash/主体哈希/CLIP/缩略图
- * - saveMode='copy'：写到 targetDir 下的新文件，原图不动；addToLibrary 时可把副本登记入库
+ * - saveMode='overwrite'：写回原文件，同步宽高/pHash/主体哈希/CLIP/缩略图
+ * - saveMode='copy'：写成新文件，原图不动；targetDir 留空时落在原图旁边（文件名加操作后缀）
  * 返回 { item, savedPath, copied } —— item 在另存且未入库时为 null（原图没变，前端无需刷新卡片）
  */
 export async function persistEdit(id, row, data, info, opts, tag) {
   if (opts.saveMode === 'copy') {
-    const dir = assertWritableDir(opts.targetDir, '保存位置');
-    if (!dir) throw new Error('请先选择保存位置');
+    // 前端默认「存副本」。如果还强制必须选目录，等于逼用户为一次裁切点三下，
+    // 用户会顺手切回「覆盖原图」——留空就落在各自原图旁边，符合直觉。
+    const dir = String(opts.targetDir || '').trim()
+      ? assertWritableDir(opts.targetDir, '保存位置')
+      : path.dirname(row.abs_path);
     if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
     const outPath = uniquePath(dir, buildCopyName(row.abs_path, tag));
     await writeFileAtomic(outPath, data);
@@ -839,6 +843,29 @@ export async function persistEdit(id, row, data, info, opts, tag) {
 }
 
 /**
+ * 把非破坏操作链一次性落盘（「应用到底片」）：
+ * 渲染成品 → 走 persistEdit 覆盖原图（带撤销备份、重算 pHash/CLIP/缩略图）→ 清空操作链。
+ * 失败时操作链保持原样，用户还可以「还原」或重试。
+ */
+export async function bakeOps(id) {
+  const row = getImage(Number(id));
+  if (!row || !row.abs_path) throw new Error('图片不存在');
+  const ops = nd.listOps(row.id);
+  if (!ops.length) return { ok: true, baked: false, item: toDTO(row) };
+  const out = await nd.renderOps(row, ops, { format: nd.sourceFormat(row), quality: 95 });
+  const res = await persistEdit(
+    row.id,
+    row,
+    out.data,
+    { width: out.width, height: out.height },
+    { saveMode: 'overwrite' },
+    '非破坏应用'
+  );
+  nd.clearOps(row.id);
+  return { ok: true, baked: true, item: res.item, savedPath: res.savedPath, ops: ops.length };
+}
+
+/**
  * 用一段新的图片数据替换原图内容（「换大图」用）。
  * 走和裁切/调色同一条写回链路：留撤销备份、重算 pHash/CLIP、清缩略图缓存。
  */
@@ -868,6 +895,12 @@ export async function cropImage(id, opts = {}) {
 }
 
 async function cropInner(id, row, opts) {
+  // 物理写回前先把已有的非破坏操作落盘：否则新裁切基于原图，操作链又叠在结果上，
+  // 画面会变成「用没套用过的底片裁了一刀，再把之前的操作重放一遍」。
+  if (opts.saveMode !== 'copy' && !nd.nonDestructiveOn() && nd.opsVersion(id) > 0) {
+    await bakeOps(id);
+    row = getImage(id);
+  }
   const meta = await sharp(row.abs_path, { failOn: 'none' }).metadata();
   const W = meta.width || 0;
   const H = meta.height || 0;
@@ -927,6 +960,30 @@ async function cropInner(id, row, opts) {
     return { item: toDTO(row), savedPath: row.abs_path, copied: false };
   }
 
+  // 非破坏模式：只把「当前画面上的归一化框」记进操作链，原图一个字节都不动。
+  // 后续的旋转/裁切/调色会按顺序套用，所以这里必须是相对「当前画面」的坐标。
+  if (opts.saveMode !== 'copy' && nd.nonDestructiveOn()) {
+    const added = nd.addOp(id, 'crop', {
+      rect: {
+        x: rect.left / vW,
+        y: rect.top / vH,
+        w: rect.width / vW,
+        h: rect.height / vH,
+      },
+      ratio: opts.ratio ? String(opts.ratio) : '',
+      outWidth: resizeTo?.width || 0,
+      outHeight: resizeTo?.height || 0,
+    });
+    return {
+      item: toDTO(getImage(id)),
+      savedPath: '',
+      copied: false,
+      nonDestructive: true,
+      editOps: added.count,
+      note: '已记入非破坏编辑（原图未改动）',
+    };
+  }
+
   let pipeline = sharp(row.abs_path, { failOn: 'none' })
     .rotate() // 先按 EXIF 摆正（之后丢 EXIF，避免下游二次旋转）
     .extract(rect);
@@ -958,6 +1015,22 @@ export async function adjustImage(id, params = {}) {
 
 /** raw 是原始入参（含 saveMode/targetDir），p 只是归一化后的调色数值 */
 async function adjustInner(id, row, p, raw) {
+  // 同 cropInner：写回前先把操作链落盘，避免「旧操作重放到新底片上」
+  if (raw.saveMode !== 'copy' && !nd.nonDestructiveOn() && nd.opsVersion(id) > 0) {
+    await bakeOps(id);
+    row = getImage(id);
+  }
+  if (raw.saveMode !== 'copy' && nd.nonDestructiveOn()) {
+    const added = nd.addOp(id, 'adjust', p);
+    return {
+      item: toDTO(getImage(id)),
+      savedPath: '',
+      copied: false,
+      nonDestructive: true,
+      editOps: added.count,
+      note: '已记入非破坏编辑（原图未改动）',
+    };
+  }
   const meta = await sharp(row.abs_path, { failOn: 'none' }).metadata();
   const format = meta.format || 'jpeg';
   let input = sharp(row.abs_path, { failOn: 'none' }).rotate();

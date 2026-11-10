@@ -4,7 +4,9 @@ import { isDesktop, pickFolder } from '../api';
 /**
  * 保存方式（批量裁切台与批量调色台共用）：
  * - 覆盖原图：直接写回，原图消失（可撤销不了，提示写在 desc 里）
- * - 另存为副本：全部输出到同一目录，可选保存后入库
+ * - 另存为副本：写成新文件，原图不动；目录留空则落在各自原图旁边
+ *
+ * 默认必须是「另存为副本」：编辑器的第一下点击不该是不可逆的写回。
  */
 export interface SaveModeState {
   saveMode: 'overwrite' | 'copy';
@@ -13,7 +15,7 @@ export interface SaveModeState {
 }
 
 export const SAVE_MODE_DEFAULT: SaveModeState = {
-  saveMode: 'overwrite',
+  saveMode: 'copy',
   targetDir: '',
   addToLibrary: true,
 };
@@ -60,7 +62,7 @@ export default function SaveModeBlock({ value, onChange, disabled, count, overwr
             <input
               className="input"
               value={targetDir}
-              placeholder="选择保存位置…"
+              placeholder="留空 = 存到各自原图旁边（可选）"
               readOnly={isDesktop}
               disabled={disabled}
               onChange={(e) => onChange({ targetDir: e.target.value })}
@@ -87,7 +89,9 @@ export default function SaveModeBlock({ value, onChange, disabled, count, overwr
             />
             <span>保存后加入图库</span>
           </label>
-          <p className="bulk-edit-desc">原图保持不变，{count} 份副本写入该目录（重名自动加序号）。</p>
+          <p className="bulk-edit-desc">
+            原图保持不变，{count} 份副本{targetDir ? '写入该目录' : '写到各自原图旁边'}（重名自动加序号）。
+          </p>
         </div>
       ) : (
         overwriteHint && <p className="bulk-edit-desc">{overwriteHint}</p>

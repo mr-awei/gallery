@@ -53,7 +53,7 @@ export function startEditJob(ids, op, params = {}) {
   if (op !== 'crop' && op !== 'adjust' && op !== 'watermark') throw new Error('未知的编辑类型');
   const list = [...new Set(ids.map(Number).filter((n) => Number.isFinite(n) && n > 0))];
   if (!list.length) throw new Error('没有选中的图片');
-  // 保存方式：默认覆盖原图；'copy' 必须给目标目录（否则每张都会抛错，提前拦住）
+  // 保存方式：'copy' 时目录可以留空 —— persistEdit 会把副本写到各自原图旁边
   if (op === 'watermark') {
     // 批量也要在启动前拦住「什么都没选」：否则会变成 N 条一模一样的失败记录
     const hasStyle = params.style && params.style !== 'none';
@@ -63,7 +63,6 @@ export function startEditJob(ids, op, params = {}) {
     if (hasStyle && !hasFields && !params.logo) throw new Error('一项信息都没选：请至少勾选一个要显示的拍摄信息，或打开「品牌 logo」');
   }
   const saveMode = params.saveMode === 'copy' ? 'copy' : 'overwrite';
-  if (saveMode === 'copy' && !String(params.targetDir || '').trim()) throw new Error('请先选择保存位置');
   // 逐张框选：裁切台允许每张图单独框，rects = { imageId: {x,y,w,h} }（归一化）
   const rects =
     op === 'crop' && params.rects && typeof params.rects === 'object' && !Array.isArray(params.rects)

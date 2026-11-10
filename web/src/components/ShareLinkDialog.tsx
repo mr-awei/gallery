@@ -36,6 +36,8 @@ export default function ShareLinkDialog({
   const [scope, setScope] = useState<Scope>(hasSelection ? 'selection' : folderId ? 'folder' : 'library');
   const [title, setTitle] = useState(folderName || defaultTitle || '图库分享');
   const [minutes, setMinutes] = useState(60);
+  const [password, setPassword] = useState('');
+  const [allowDownload, setAllowDownload] = useState(true);
   const [status, setStatus] = useState<LanStatus | null>(null);
   const [shares, setShares] = useState<LanShare[]>([]);
   const [qr, setQr] = useState('');
@@ -65,6 +67,11 @@ export default function ShareLinkDialog({
 
   const create = async () => {
     if (busy) return;
+    // 前端先挡一道：4 位以下等于没设密码，让用户以为设了最危险
+    if (password && (password.length < 4 || password.length > 64)) {
+      onToast('访问密码需为 4~64 个字符', 'error');
+      return;
+    }
     setBusy(true);
     try {
       const r = await api.createLanShare({
@@ -73,10 +80,16 @@ export default function ShareLinkDialog({
         ids: scope === 'selection' ? selectedIds : undefined,
         folderId: scope === 'folder' ? Number(folderId) : undefined,
         title: title.trim() || '图库分享',
+        password: password || undefined,
+        allowDownload,
       });
       setQr(await api.lanShareQrUrl(r.token));
       await refresh();
-      onToast('只读分享链接已生成，手机扫码即可浏览');
+      onToast(
+        password
+          ? '只读链接已生成（需要访问密码，请把密码另行告知对方）'
+          : '只读分享链接已生成，手机扫码即可浏览'
+      );
     } catch (err) {
       onToast(`生成失败：${(err as Error).message}`, 'error');
     } finally {
@@ -185,6 +198,29 @@ export default function ShareLinkDialog({
             </div>
           </div>
 
+          <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap', alignItems: 'flex-end' }}>
+            <div className="field" style={{ flex: 1, minWidth: 200 }}>
+              <label>访问密码（可选，至少 4 位）</label>
+              <input
+                className="input"
+                style={{ width: '100%' }}
+                type="text"
+                autoComplete="new-password"
+                placeholder="留空表示拿到链接就能看"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                maxLength={64}
+              />
+              <div className="hint" style={{ marginTop: 4 }}>
+                设了密码后，手机打开链接要先输密码；密码只存在本机，不写进链接。
+              </div>
+            </div>
+            <label className="hint" style={{ display: 'flex', gap: 8, alignItems: 'center', paddingBottom: 6 }}>
+              <input type="checkbox" checked={allowDownload} onChange={(e) => setAllowDownload(e.target.checked)} />
+              允许对方保存原图
+            </label>
+          </div>
+
           <button className="btn" disabled={busy || !status?.enabled} onClick={() => void create()}>
             生成只读链接
           </button>
@@ -213,6 +249,8 @@ export default function ShareLinkDialog({
                       {SCOPE_LABEL[s.scope || 'library']}
                       {s.scope === 'selection' ? ` · ${s.ids?.length || 0} 张` : ''} · 到{' '}
                       {new Date(s.expiresAt).toLocaleString()}
+                      {s.hasPassword ? ' · 需密码' : ''}
+                      {s.allowDownload === false ? ' · 禁止下载原图' : ''}
                     </span>
                     <button className="btn sm ghost" onClick={() => void copy(s.urls[0] || '')}>复制链接</button>
                     <button className="btn sm ghost" onClick={() => void revoke(s.token)}>撤销</button>

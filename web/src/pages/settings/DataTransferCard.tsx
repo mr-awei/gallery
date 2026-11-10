@@ -25,7 +25,21 @@ export default function DataTransferCard({ onLibraryChanged, onToast }: Props) {
   const [eagleSrc, setEagleSrc] = useState('');
   const [eagleRoot, setEagleRoot] = useState('');
   const [eagleLeft, setEagleLeft] = useState(0);
+  const [eagleSize, setEagleSize] = useState<Awaited<ReturnType<typeof api.eagleExportPreview>> | null>(null);
+  const [eagleJob, setEagleJob] = useState<{ id: number; done: number; total: number; status: string } | null>(null);
   const [log, setLog] = useState('');
+
+  /** 导出规模：进页面就显示，用户不必先点「预览」才知道要占多少盘 */
+  const loadEagleSize = useCallback(() => {
+    api
+      .eagleExportPreview()
+      .then(setEagleSize)
+      .catch(() => setEagleSize(null));
+  }, []);
+
+  useEffect(loadEagleSize, [loadEagleSize]);
+
+  const eagleRunning = !!eagleJob && (eagleJob.status === 'running' || eagleJob.status === 'queued');
 
   /* 概览读不到时整张卡片是空的（素材数/路径都显示 —），得给个重试入口 */
   const [loadErr, setLoadErr] = useState('');
@@ -108,6 +122,61 @@ export default function DataTransferCard({ onLibraryChanged, onToast }: Props) {
       onToast(`Eagle 迁移失败：${(e as Error).message}`, 'error');
     } finally {
       setBusy('');
+    }
+  };
+
+  /**
+   * 整库导出 Eagle 库：后台任务 + 轮询进度。
+   * 几千张原图是分钟级的，同步请求既看不到进度又会超时。
+   */
+  const exportEagle = async () => {
+    const dir = await pickFolder();
+    if (!dir) return;
+    setBusy('eagle-out');
+    setLog('');
+    setEagleJob(null);
+    try {
+      const { jobId } = await api.exportEagleStart(dir);
+      setEagleJob({ id: jobId, done: 0, total: 0, status: 'running' });
+      let job = (await api.jobs('eagle-export', 1))[0];
+      while (job && job.id === jobId && (job.status === 'running' || job.status === 'queued')) {
+        setEagleJob({ id: jobId, done: job.done, total: job.total, status: job.status });
+        await new Promise((r) => setTimeout(r, 800));
+        job = (await api.jobs('eagle-export', 1))[0];
+      }
+      setEagleJob(null);
+      if (!job || job.id !== jobId) {
+        setLog('导出任务的记录丢了，请到「任务历史」里查看结果');
+      } else if (job.status === 'done') {
+        const r = (job.result || {}) as { dir?: string; exported?: number; folders?: number; missing?: number; errors?: string[] };
+        const errs = Array.isArray(r.errors) ? r.errors : [];
+        setLog(
+          `已导出 ${r.exported ?? 0} 个素材、${r.folders ?? 0} 个文件夹 → ${r.dir || dir}` +
+            `${r.missing ? `；${r.missing} 个原文件读不到已跳过` : ''}` +
+            `${errs.length ? `（${errs.slice(0, 3).join('；')}）` : ''}`
+        );
+        onToast(`Eagle 库已生成：${r.dir || dir}`);
+      } else if (job.status === 'canceled') {
+        setLog('已取消导出；没写完的 .library 已删除，可以重新导出到同一个位置');
+      } else {
+        setLog(`导出 Eagle 库失败：${job.error || '未知错误'}`);
+        onToast(`导出失败：${job.error || '未知错误'}`, 'error');
+      }
+    } catch (e) {
+      setLog(`导出 Eagle 库失败：${(e as Error).message}`);
+      onToast(`导出失败：${(e as Error).message}`, 'error');
+    } finally {
+      setBusy('');
+    }
+  };
+
+  const cancelEagle = async () => {
+    if (!eagleJob) return;
+    try {
+      await api.cancelJob(eagleJob.id);
+      onToast('已请求停止导出，正在清理未完成的文件');
+    } catch (e) {
+      onToast(`停止失败：${(e as Error).message}`, 'error');
     }
   };
 
@@ -252,55 +321,35 @@ export default function DataTransferCard({ onLibraryChanged, onToast }: Props) {
           在 Eagle 里「文件 → 打开资源库」选它就能用。缩略图不复制，由 Eagle 首次打开时自行生成。
           导出目标必须是空目录（不会覆盖已有资源库）。
         </div>
+        <div className="hint" style={{ marginTop: 6, display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center' }}>
+          <span>
+            {eagleSize
+              ? `当前库：${eagleSize.images} 张原图 · ${formatSize(eagleSize.bytes)} · ${eagleSize.folders} 个文件夹`
+              : '正在统计导出规模…'}
+          </span>
+          <button className="btn sm ghost" onClick={loadEagleSize} title="重新统计当前库的素材与体积">
+            刷新
+          </button>
+        </div>
         <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginTop: 8 }}>
           <button
             className="btn sm"
             disabled={!!busy}
-            title={busy ? '上一个操作还在进行，完成后再试' : undefined}
-            onClick={async () => {
-              const dir = await pickFolder();
-              if (!dir) return;
-              setBusy('eagle-out');
-              setLog('');
-              try {
-                const r = await api.exportEagle(dir);
-                setLog(
-                  `已导出 ${r.exported} 个素材、${r.folders} 个文件夹 → ${r.dir}` +
-                    `${r.missing ? `；${r.missing} 个原文件读不到已跳过` : ''}` +
-                    `${r.errors.length ? `（${r.errors.slice(0, 3).join('；')}）` : ''}。${r.note}`
-                );
-                onToast(`Eagle 库已生成：${r.dir}`);
-              } catch (e) {
-                setLog(`导出 Eagle 库失败：${(e as Error).message}`);
-                onToast(`导出失败：${(e as Error).message}`, 'error');
-              } finally {
-                setBusy('');
-              }
-            }}
+            title={busy ? '上一个操作还在进行，完成后再试' : '选一个空文件夹，会在里面生成 <库名>.library'}
+            onClick={() => void exportEagle()}
           >
             {busy === 'eagle-out' ? '导出中…' : '导出为 .library…'}
           </button>
-          <button
-            className="btn sm ghost"
-            disabled={!!busy}
-            title="先看看会导出多少素材与文件夹"
-            onClick={async () => {
-              setBusy('eagle-prev');
-              setLog('');
-              try {
-                const p = await api.eagleExportPreview();
-                setLog(
-                  `将导出 ${p.images} 个素材、${p.folders} 个文件夹（来自当前库：${p.storageDir || '默认资料库'}）`
-                );
-              } catch (e) {
-                setLog(`预览失败：${(e as Error).message}`);
-              } finally {
-                setBusy('');
-              }
-            }}
-          >
-            {busy === 'eagle-prev' ? '预览中…' : '预览将导出什么'}
-          </button>
+          {eagleRunning && (
+            <button className="btn sm ghost" onClick={() => void cancelEagle()}>
+              停止导出
+            </button>
+          )}
+          {eagleJob && (
+            <span className="hint" style={{ display: 'inline-flex', alignItems: 'center' }}>
+              {eagleJob.total ? `已处理 ${eagleJob.done}/${eagleJob.total}（${Math.round((eagleJob.done / eagleJob.total) * 100)}%）` : '正在准备…'}
+            </span>
+          )}
         </div>
       </div>
 

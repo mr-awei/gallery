@@ -136,8 +136,17 @@ option {
   background: #12121f;
   color: #ececf6;
 }
-select {
+/*
+ * 原生下拉的箭头是画在内容区里的：右内边距只有 12px 时，箭头会盖住最后几个字，
+ * 于是「人物 #2949（126）」看起来像被裁掉了一截。给所有 select 预留箭头位，
+ * 选中文本超长时用省略号收尾（悬停看 title），而不是硬生生切断。
+ */
+select,
+select.input,
+select.select {
   color-scheme: dark;
+  padding-right: 26px;
+  text-overflow: ellipsis;
 }
 
 .chip {

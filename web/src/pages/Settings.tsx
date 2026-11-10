@@ -234,7 +234,7 @@ export default function Settings({
 }) {
   // 状态、加载与全部写操作都在 useSettingsForm 里；这里只解构渲染真正用到的字段。
   const form = useSettingsForm({ onToast, onLibraryChanged });
-  const { lang, setLang } = useLang();
+  const { lang, setLang, t } = useLang();
   const {
     section, setSection, settings, dirty, save, patch, setDirty,
     keywords, newKw, setNewKw, wbLogin, sourceList,
@@ -252,8 +252,8 @@ export default function Settings({
   }
 
   const current = SECTIONS.find((s) => s.key === section) ?? SECTIONS[0];
-  // 双语取词：英文名缺失时回退中文，不显示空标签
-  const L = (zh: string, en: string) => (lang === 'en' && en ? en : zh);
+  // 双语取词统一走 useLang 的 t（英文缺失时回退中文，不显示空标签）
+  const L = t;
 
   return (
     <div>
@@ -401,6 +401,25 @@ export default function Settings({
                 />
                 <div className="hint">
                   调色台左侧「历史记录」最多留多少步，默认 100（1~500）。一次拖动只算一步，调完色还能点到之前某一步
+                </div>
+              </div>
+              <div className="field">
+                <div className="switch-row">
+                  <span>
+                    非破坏性编辑
+                    <span className="hint">
+                      　裁切 / 旋转 / 调色只记操作链，原图字节不动；导出时才套用，随时可「还原」
+                    </span>
+                  </span>
+                  <input
+                    type="checkbox"
+                    checked={!!settings.nonDestructiveEdit}
+                    onChange={(e) => patch({ nonDestructiveEdit: e.target.checked })}
+                  />
+                </div>
+                <div className="hint" style={{ marginTop: 6 }}>
+                  开着时编辑不会再改写原文件，磁盘占用与画质都更安全；代价是编辑多的图每次看图要现算一次成品（会缓存）。
+                  想彻底落盘，在灯箱的「非破坏编辑」里点「应用到底片」。
                 </div>
               </div>
               <div className="settings-subhead">快捷操作</div>

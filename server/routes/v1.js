@@ -11,6 +11,7 @@
 import fs from 'node:fs';
 import { db, getSettings } from '../db.js';
 import * as lib from '../library.js';
+import * as nd from '../lib/nondestructive.js';
 import { getActiveLibrary } from '../libraries.js';
 import { httpFetch } from '../http.js';
 import { requireScope, v1Auth } from '../auth.js';
@@ -109,8 +110,11 @@ export function register(app, ctx) {
     asyncRoute(async (req, res) => {
       const row = lib.getImage(Number(req.params.id));
       if (!row || !fs.existsSync(row.abs_path)) return res.status(404).json({ error: '文件不存在' });
+      // 插件拿到的必须是成品（非破坏编辑套用后），否则导出去的还是原图构图
+      const src =
+        Number(row.edit_ops_count) > 0 ? (await nd.ensureDerived(row, 'full')) || row.abs_path : row.abs_path;
       // 库数据可能落在 .tuku 点目录下，Express send 默认当隐藏文件回 404
-      res.sendFile(row.abs_path, { dotfiles: 'allow' });
+      res.sendFile(src, { dotfiles: 'allow' });
     })
   );
 

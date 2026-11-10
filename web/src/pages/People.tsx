@@ -11,6 +11,7 @@ import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { api, BASE, type FacePerson, type FaceStatus } from '../api';
 import type { ImageItem } from '../types';
 import { IconDownload, IconImages, IconUsers } from '../components/Icons';
+import Select from '../components/Select';
 import { useLang } from '../lib/i18n';
 
 type Props = {
@@ -286,7 +287,8 @@ export default function People({ onToast, onOpen }: Props) {
                 '同一个人判定的严格程度，改完需要「清空并重扫」才会对已有结果生效',
                 'How strict "same person" is. Re-cluster (clear & rescan) for existing results to follow.'
               )}
-              style={{ height: 32, minWidth: 176, paddingRight: 26 }}
+              // .input 自带 9px 上下内边距，再钉 height 就把 13px 的字挤成一条 —— 收掉内边距
+              style={{ height: 32, minWidth: 176, padding: '0 26px 0 10px' }}
             >
               {COS_PRESETS.map((o) => (
                 <option key={o.v} value={o.v}>
@@ -501,7 +503,17 @@ export default function People({ onToast, onOpen }: Props) {
           <span style={{ flex: 1 }} />
           {persons.length > 1 && (
             <>
-              <select className="input" value={mergeTo} onChange={(e) => setMergeTo(e.target.value === '' ? '' : Number(e.target.value))} style={{ height: 32 }}>
+              {/*
+                这串选项是「人物 #2949（126 张）」，比占位文字长得多：用自绘下拉，
+                弹层固定不小于 200px、带搜索框，选中后按钮上的文字超长才省略，
+                不会再出现原生下拉把名字和张数一起压掉的情况
+              */}
+              <Select
+                value={mergeTo === '' ? '' : String(mergeTo)}
+                onChange={(v) => setMergeTo(v === '' ? '' : Number(v))}
+                title={L('选择要合并进去的人物', 'Pick the person to merge into')}
+                style={{ height: 32, padding: '0 10px', minWidth: 168, maxWidth: 300 }}
+              >
                 <option value="">{L('合并到…', 'Merge into…')}</option>
                 {persons
                   .filter((p) => p.id !== active)
@@ -510,7 +522,7 @@ export default function People({ onToast, onOpen }: Props) {
                       {p.name || L(`人物 #${p.id}`, `Person #${p.id}`)}（{p.photoCount ?? p.count} 张）
                     </option>
                   ))}
-              </select>
+              </Select>
               <button className="btn sm" disabled={mergeTo === ''} onClick={() => void merge()}>
                 {L('合并', 'Merge')}
               </button>

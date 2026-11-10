@@ -69,6 +69,18 @@ export function retryFailedThumbs() {
   return { requested: ids.length, queued: queuedCount };
 }
 
+/**
+ * 只重试指定的一张。
+ * 批量重试会把整张清单清空，遇到「200 条里只有一条是临时占用」时，
+ * 用户要么全重跑一遍，要么只能干看着 —— 面板上逐条的重试按钮走这里。
+ */
+export function retryFailedThumb(id) {
+  const n = Number(id);
+  if (!Number.isFinite(n) || n <= 0) return { requested: 0, queued: 0 };
+  const known = failures.delete(n);
+  return { requested: known ? 1 : 0, queued: queueThumb(n) ? 1 : 0 };
+}
+
 /** 清空失败明细（不重试，只让面板恢复干净） */
 export function clearThumbFailures() {
   failures.clear();

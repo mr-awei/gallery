@@ -17,6 +17,8 @@ interface DialogReq {
   password?: boolean;
   /** 补充说明（如「密码忘了就只能从磁盘上解锁」） */
   hint?: string;
+  /** 明细清单（如「具体删哪几个文件」），按换行原样渲染 */
+  detail?: string;
   // 两种对话框的返回类型不同（string|null / boolean），由调用方各自的 Promise 决定
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   resolve: (v: any) => void;
@@ -37,10 +39,10 @@ export function promptDialog(
   });
 }
 
-/** 确认对话框：确认返回 true，取消/Esc 返回 false */
-export function confirmDialog(title: string): Promise<boolean> {
+/** 确认对话框：确认返回 true，取消/Esc 返回 false；detail 用于列出「具体是哪几个」 */
+export function confirmDialog(title: string, opts: { detail?: string } = {}): Promise<boolean> {
   return new Promise((resolve) => {
-    if (pushDialog) pushDialog({ kind: 'confirm', title, value: '', placeholder: '', resolve });
+    if (pushDialog) pushDialog({ kind: 'confirm', title, value: '', placeholder: '', ...opts, resolve });
     else resolve(false);
   });
 }
@@ -103,6 +105,23 @@ export default function DialogHost() {
             />
           )}
           {req.hint && <div className="hint" style={{ marginTop: 8 }}>{req.hint}</div>}
+          {req.detail && (
+            <div
+              className="hint"
+              style={{
+                marginTop: 8,
+                whiteSpace: 'pre-line',
+                wordBreak: 'break-all',
+                maxHeight: 200,
+                overflow: 'auto',
+                padding: '6px 8px',
+                background: 'var(--panel-strong)',
+                borderRadius: 6,
+              }}
+            >
+              {req.detail}
+            </div>
+          )}
         </div>
         <div className="modal-foot">
           <div />

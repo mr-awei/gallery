@@ -1,7 +1,7 @@
 {
   "name": "tuku-gallery",
   "productName": "TuKu",
-  "version": "1.2.4",
+  "version": "1.2.6",
   "private": true,
   "description": "通用图片管理与壁纸工具 — 多源采集 / pHash 去重 / 暗色图片库",
   "author": "图库",
@@ -35,8 +35,8 @@
     "smoke": "node --import ./test/support/ts-ext.mjs scripts/smoke.mjs",
     "bench": "node --import ./test/support/ts-ext.mjs scripts/bench.mjs",
     "bench:quick": "node --import ./test/support/ts-ext.mjs scripts/bench.mjs --quick --samples 5",
-    "unit": "node --import ./test/support/ts-ext.mjs --test --test-concurrency=1 \"test/**/*.test.mjs\"",
-    "verify": "npm run lint && npm run typecheck && npm run unit && npm run smoke && npm run bench:quick && npm run verify:manual",
+    "unit": "node scripts/run-unit.mjs",
+    "verify": "npm run lint && npm run typecheck && npm run unit && npm run smoke && npm run bench:quick && npm run verify:manual && node scripts/doc-stats.mjs",
     "verify:manual": "node scripts/verify-manual.mjs",
     "test": "npm run verify"
   },

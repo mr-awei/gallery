@@ -52,6 +52,7 @@ import { register as registerLan } from './routes/lan.js';
 import { register as registerWorkshop } from './routes/workshop.js';
 import { register as registerSync } from './routes/sync.js';
 import { register as registerFace } from './routes/face.js';
+import { register as registerTimeline } from './routes/timeline.js';
 import { capabilitiesFor, platformSummary } from './lib/platform.js';
 import { markInterruptedJobs, pruneJobs } from './jobs.js';
 import { startThumbRebuild, thumbMissingCount } from './lib/thumb-rebuild.js';
@@ -457,6 +458,7 @@ export function buildApp({ desktop = false } = {}) {
   registerWorkshop(app, ctx);
   registerSync(app, ctx);
   registerFace(app, ctx);
+  registerTimeline(app, ctx);
 
   /* -------------------------------- 系统能力 ------------------------------- */
   app.get('/api/platform', (_req, res) => {
@@ -654,6 +656,103 @@ export function buildApp({ desktop = false } = {}) {
       // 带上堆叠信息：前端用 PATCH 回包就地替换列表项，缺 stackCount 会让角标/详情里的堆叠行消失
       const fresh = lib.toDTO(lib.getImage(id));
       res.json(attachStackInfo([fresh])[0] || fresh);
+    })
+  );
+
+  /**
+   * 批量改元数据：评分 / 收藏 / 标签（增删改）/ 备注。
+   *
+   * 为什么不让前端循环调 PATCH：5000 张就是 5000 个请求 + 5000 条撤销记录，
+   * 撤销时只能一张张点。这里一个事务改完，只记一条 op（整批一次回滚）。
+   * 字段白名单与单图 PATCH 保持一致，不做「批量改标题」——那属于重命名对话框。
+   */
+  app.post(
+    '/api/images/bulk-metadata',
+    asyncRoute(async (req, res) => {
+      const body = req.body || {};
+      const ids = Array.isArray(body.ids)
+        ? [...new Set(body.ids.map(Number).filter((n) => Number.isInteger(n) && n > 0))].slice(0, 5000)
+        : [];
+      if (!ids.length) return res.status(400).json({ error: 'ids 不能为空' });
+      const has = (k) => body[k] !== undefined && body[k] !== null;
+      if (!['rating', 'favorite', 'tags', 'note'].some(has)) return res.status(400).json({ error: '没有要修改的字段' });
+      if (has('rating')) {
+        const r = Number(body.rating);
+        if (!Number.isInteger(r) || r < 0 || r > 5) return res.status(400).json({ error: '评分需为 0~5 的整数' });
+      }
+      const tagMode = ['add', 'remove', 'set'].includes(body.tagMode) ? body.tagMode : 'add';
+      const tagList = Array.isArray(body.tags)
+        ? body.tags
+        : String(body.tags || '')
+            .split(/[,，\n]/)
+            .map((t) => t.trim());
+      const cleanTags = [...new Set(tagList.map((t) => String(t).trim()).filter(Boolean))].slice(0, 100);
+      if (has('tags') && !cleanTags.length) return res.status(400).json({ error: '标签不能为空' });
+
+      const before = { items: [] };
+      let updated = 0;
+      let skipped = 0;
+      // 直接 UPDATE 而不是调 lib.setXxx：后者每张还要 getImage + toDTO，
+      // 5000 张会多出上万次查询，批量操作不该为「顺手返回 DTO」付这个代价
+      const upd = {
+        rating: db.prepare('UPDATE images SET rating = ? WHERE id = ?'),
+        favorite: db.prepare('UPDATE images SET favorite = ? WHERE id = ?'),
+        note: db.prepare('UPDATE images SET note = ? WHERE id = ?'),
+        tags: db.prepare('UPDATE images SET tags = ? WHERE id = ?'),
+      };
+      db.transaction(() => {
+        for (const id of ids) {
+          const row = lib.getImage(id);
+          if (!row) {
+            skipped++;
+            continue;
+          }
+          before.items.push({
+            id,
+            before: { tags: row.tags || '', rating: row.rating || 0, favorite: row.favorite ? 1 : 0, note: row.note || '' },
+          });
+          if (has('rating')) upd.rating.run(Number(body.rating), id);
+          if (has('favorite')) upd.favorite.run(body.favorite ? 1 : 0, id);
+          if (has('note')) upd.note.run(String(body.note || '').slice(0, 1000), id);
+          if (has('tags')) {
+            if (tagMode === 'set') {
+              upd.tags.run(cleanTags.join(','), id);
+            } else {
+              const set = new Set(
+                String(row.tags || '')
+                  .split(',')
+                  .map((t) => t.trim())
+                  .filter(Boolean)
+              );
+              for (const t of cleanTags) {
+                if (tagMode === 'add') set.add(t);
+                else set.delete(t);
+              }
+              upd.tags.run([...set].join(','), id);
+            }
+          }
+          updated++;
+        }
+      })();
+
+      if (updated && before.items.length) {
+        const parts = [];
+        if (has('rating')) parts.push(`评分 ${body.rating}`);
+        if (has('favorite')) parts.push(body.favorite ? '收藏' : '取消收藏');
+        if (has('tags')) parts.push(`${tagMode === 'add' ? '添加' : tagMode === 'remove' ? '移除' : '设置'}标签`);
+        if (has('note')) parts.push('备注');
+        logOp({
+          op: 'meta',
+          summary: `批量修改 ${updated} 张素材（${parts.join('、') || '元数据'}）`,
+          payload: before,
+        });
+      }
+
+      const fresh = ids
+        .map((id) => lib.getImage(id))
+        .filter(Boolean)
+        .map((row) => lib.toDTO(row));
+      res.json({ ok: true, updated, skipped, items: attachStackInfo(fresh) });
     })
   );
 

@@ -14,6 +14,7 @@ const KIND_LABEL: Record<string, string> = {
   edit: '批量编辑',
   enhance: '画质增强',
   'model-install': '模型下载',
+  'eagle-export': '导出 Eagle 库',
 };
 
 const STATUS_LABEL: Record<string, string> = {

@@ -4,6 +4,7 @@ import { subscribeEvents } from './events';
 import type { Filters, ImageItem, Library, SavedFilter, TagNode, View, ViewMode } from './types';
 import Dashboard from './pages/Dashboard';
 import GalleryPage from './pages/Gallery';
+import { Timeline } from './pages/Timeline';
 const Crawl = lazy(() => import('./pages/Crawl'));
 // 低频且体积大的页面按需加载：设置页（含各分区面板）与教程（150 条文案）
 // 不该拖进首包。仪表盘与图库保持静态导入，避免首屏闪骨架。
@@ -1338,6 +1339,8 @@ export default function App() {
               onNavigate={(v) => setView(v as View)}
             />
           )}
+
+          {view === 'timeline' && <Timeline onToast={showToast} onOpen={(item, pool) => openItem(item, pool)} />}
 
           {(view === 'gallery' || view === 'favorites') && (
             <GalleryPage
