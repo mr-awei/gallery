@@ -1,31 +1,30 @@
 // @ts-check
 /**
- * 时间线「按 EXIF 重建拍摄时间」后台任务。
+ * 时间线「重建拍摄时间」后台任务。
  *
- * 为什么需要独立任务：升级前入库的图只有 created_at（入库时间），
- * 拿它当拍摄时间会让时间线整个错位（2019 拍的照片排到 2026）。
- * 全库逐张读 EXIF 是分钟级操作，不能塞进 HTTP 请求；这里按 id 游标分页，
- * 中断后重跑从「仍与 created_at 相同」的行继续，可取消、有进度。
+ * 为什么需要独立任务：升级前的版本只给老库写了 created_at（入库时间），
+ * 拿它当拍摄时间会让时间线整个错位（2019 拍的照片排到 2026）。库里的 fs_mtime
+ * 只覆盖得到「导入时 stat 过」的行，还有一批（早期版本入库、复制进库、文件被外部替换）
+ * 只能重新看一次文件。全库逐张读 EXIF + stat 是分钟级操作，不能塞进 HTTP 请求；
+ * 这里按 id 游标分页，中断后重跑可继续，可取消、有进度。
+ *
+ * 口径与导入完全一致（见 lib/taken-at.js）：
+ *   EXIF 时间 → 文件修改时间 / 创建时间取较早者 → 都没有就保持原样（绝不写入库时间）。
  */
+import fsp from 'node:fs/promises';
 import sharp from 'sharp';
 import { db } from './db.js';
 import { parseExif } from './lib/exif.js';
-import { exifStamp } from './lib/taken-at.js';
+import { exifStamp, fileStamp } from './lib/taken-at.js';
+import { countPending } from './lib/timeline-repair.js';
 import { mapLimit } from './lib/utils.js';
 import { createJob, finishJob, hasRunning, jobProgress } from './jobs.js';
 
 let state = { jobId: 0, canceled: false };
 
-/** 还有多少张图的拍摄时间仍是「入库时间兜底」（界面据此提示要不要重建） */
+/** 还有多少张的拍摄时间仍是「入库时间兜底」或空着（界面据此提示要不要重建） */
 export function pendingCount() {
-  try {
-    const r = db
-      .prepare("SELECT COUNT(*) AS n FROM images WHERE media_kind = 'image' AND taken_at = substr(replace(created_at, 'Z', ''), 1, 19)")
-      .get();
-    return Number(r?.n || 0);
-  } catch {
-    return 0;
-  }
+  return countPending(db);
 }
 
 /**
@@ -38,9 +37,9 @@ export function startTimelineBackfill(o = {}) {
     return { ok: true, jobId: Number(running?.id || 0), already: true };
   }
   const total = Number(
-    db.prepare("SELECT COUNT(*) AS n FROM images WHERE media_kind = 'image'").get()?.n || 0
+    db.prepare('SELECT COUNT(*) AS n FROM images').get()?.n || 0
   );
-  const jobId = createJob({ kind: 'timeline-backfill', title: '按 EXIF 重建拍摄时间', total });
+  const jobId = createJob({ kind: 'timeline-backfill', title: '重建拍摄时间', total });
   state = { jobId, canceled: false };
   run(jobId, total).catch((e) => finishJob(jobId, { status: 'failed', error: e?.message || String(e) }));
   return { ok: true, jobId };
@@ -51,35 +50,62 @@ export function cancelTimelineBackfill() {
   return { ok: true };
 }
 
+/**
+ * 单张素材的最佳已知时间：EXIF 优先，其次文件修改 / 创建时间。
+ * @param {{abs_path:string, media_kind?:string}} row
+ * @returns {Promise<{stamp: string, mtime: number}>} mtime 只有 stat 成功时才有值（补文件指纹用）
+ */
+async function bestStamp(row) {
+  if (row.media_kind === 'image') {
+    try {
+      const meta = await sharp(row.abs_path).metadata();
+      const exif = exifStamp(parseExif(meta.exif).takenAt);
+      if (exif) return { stamp: exif, mtime: 0 };
+    } catch {
+      /* RAW / 损坏 / 已移走：读不到 EXIF 就往下走文件时间 */
+    }
+  }
+  try {
+    const st = await fsp.stat(row.abs_path);
+    const mtime = Math.round(st.mtimeMs / 1000);
+    return {
+      stamp: fileStamp({ fsMtime: mtime, fsBirthtime: Math.round(Number(st.birthtimeMs || 0) / 1000) }),
+      mtime,
+    };
+  } catch {
+    return { stamp: '', mtime: 0 };
+  }
+}
+
 async function run(jobId, total) {
   let cursor = 0;
   let scanned = 0;
   let fixed = 0;
   const batchSize = 200;
   const upd = db.prepare('UPDATE images SET taken_at = ? WHERE id = ?');
+  const updWithMtime = db.prepare('UPDATE images SET taken_at = ?, fs_mtime = ? WHERE id = ?');
   for (;;) {
     if (state.canceled) {
       jobProgress(jobId, { done: scanned, message: `已取消（修正 ${fixed} 张）`, force: true });
       return finishJob(jobId, { status: 'canceled', result: { scanned, fixed } });
     }
     const rows = db
-      .prepare("SELECT id, abs_path FROM images WHERE media_kind = 'image' AND id > ? ORDER BY id LIMIT ?")
+      .prepare('SELECT id, abs_path, taken_at, media_kind, fs_mtime FROM images WHERE id > ? ORDER BY id LIMIT ?')
       .all(cursor, batchSize);
     if (!rows.length) break;
     await mapLimit(rows, 4, async (row) => {
       cursor = Math.max(cursor, Number(row.id));
       scanned++;
-      try {
-        const meta = await sharp(row.abs_path).metadata();
-        const stamp = exifStamp(parseExif(meta.exif).takenAt);
-        // 没有 EXIF 时间就保留原值：不要用 mtime 覆盖已经算好的值
-        if (stamp) {
-          upd.run(stamp, Number(row.id));
-          fixed++;
-        }
-      } catch {
-        /* 单张读不动（RAW/损坏）不影响整批 */
+      const { stamp, mtime } = await bestStamp(row);
+      // 算不出来就保留原值：拿不准的情况下不动已有数据
+      if (!stamp || stamp === row.taken_at) return;
+      if (Number(row.fs_mtime || 0) > 0 || !mtime) {
+        upd.run(stamp, Number(row.id));
+      } else {
+        // 顺手补上文件指纹（老行可能一直是 0，缺它就没有 ?v= 缓存版本号）
+        updWithMtime.run(stamp, mtime, Number(row.id));
       }
+      fixed++;
     });
     jobProgress(jobId, {
       done: scanned,

@@ -200,7 +200,7 @@ export function Timeline({ onToast, onOpen }: Props) {
     try {
       const r = await api.timelineBackfill();
       if (r.already) onToast(t('重建任务已经在跑', 'Rebuild is already running'));
-      else onToast(t('已开始按 EXIF 重建拍摄时间，可以继续浏览', 'Rebuilding capture time from EXIF in the background'));
+      else onToast(t('已开始重建拍摄时间（EXIF → 文件时间），可以继续浏览', 'Rebuilding capture time in the background'));
       pollJob();
     } catch (e) {
       onToast((e as Error)?.message || t('启动失败', 'Failed to start'), 'error');
@@ -259,7 +259,12 @@ export function Timeline({ onToast, onOpen }: Props) {
     return (
       <div className="tl-empty">
         <h2>{t('还没有可排入时间线的素材', 'Nothing on the timeline yet')}</h2>
-        <p>{t('导入照片后，会按拍摄时间（EXIF）自动归档到对应年月。', 'Imported photos are filed by their EXIF capture time.')}</p>
+        <p>
+          {t(
+            '导入照片后，会按拍摄时间自动归档到对应年月：优先 EXIF 拍摄时间，没有 EXIF 时用文件的修改 / 创建时间（不会用收录进来的时间）。',
+            'Imported photos are filed by capture time: EXIF first, otherwise the file’s modified / created time — never the time it was imported.'
+          )}
+        </p>
       </div>
     );
   }
@@ -273,15 +278,15 @@ export function Timeline({ onToast, onOpen }: Props) {
           <h2>{t('时间线', 'Timeline')}</h2>
           <p className="tl-sub">
             {t(
-              `共 ${summary.placed} 张，分布在 ${summary.months.length} 个月`,
-              `${summary.placed} items across ${summary.months.length} months`
+              `共 ${summary.placed} 张，分布在 ${summary.months.length} 个月 · 按拍摄时间归档（EXIF → 文件修改 / 创建时间）`,
+              `${summary.placed} items across ${summary.months.length} months · filed by capture time (EXIF → file time)`
             )}
           </p>
         </div>
         <div className="tl-head-actions">
           {summary.pending > 0 && !running && (
             <button type="button" className="btn" onClick={startBackfill}>
-              {t(`按 EXIF 重建拍摄时间（${summary.pending} 张待校正）`, `Rebuild capture time from EXIF (${summary.pending} pending)`)}
+              {t(`重建拍摄时间（${summary.pending} 张待校正）`, `Rebuild capture time (${summary.pending} pending)`)}
             </button>
           )}
           {running && job && (
@@ -330,8 +335,8 @@ export function Timeline({ onToast, onOpen }: Props) {
           {summary.unplaced > 0 && (
             <p className="tl-note">
               {t(
-                `另有 ${summary.unplaced} 张没有拍摄时间，未排入时间线。`,
-                `${summary.unplaced} items have no capture time and are not on the timeline.`
+                `另有 ${summary.unplaced} 张既没有 EXIF 拍摄时间、也读不到文件时间，未排入时间线。点上方「重建拍摄时间」会重新读一次文件。`,
+                `${summary.unplaced} items have neither EXIF capture time nor readable file time, so they are not on the timeline. Use “Rebuild capture time” to re-read the files.`
               )}
             </p>
           )}

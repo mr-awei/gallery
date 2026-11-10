@@ -2,8 +2,9 @@
 /**
  * 时间线视图接口。
  *
- * 口径统一用 images.taken_at（EXIF 拍摄时间，缺失时导入期已按文件 mtime 兜底），
- * 绝不用 created_at —— 那是「入库时间」，迁移老库时会把 2019 年的照片排到最前面。
+ * 口径统一用 images.taken_at（EXIF 拍摄时间；缺失时导入期按文件修改 / 创建时间兜底；
+ * 两者都没有就留空、这张图暂不排进时间线），绝不用 created_at —— 那是「入库时间」，
+ * 拿它当拍摄时间会把 2019 年拍的照片全排到导入那天。
  *
  * 为什么按「月份」分页而不是一次给全部：百万级图库一次序列化十万 DTO 会卡死事件循环。
  * 月内用 taken_at 范围查询（索引可用），月列表用一次 GROUP BY 聚合。
@@ -29,7 +30,7 @@ function nextMonth(month) {
 export function register(app, ctx) {
   const { asyncRoute } = ctx;
 
-  /** 年份/月份索引 + 总量 + 待重建数量（顶部提示「按 EXIF 重建拍摄时间」用） */
+  /** 年份/月份索引 + 总量 + 待校正数量（顶部提示「重建拍摄时间」用） */
   app.get('/api/timeline/summary', (_req, res) => {
     const hidden = hiddenImagesClause();
     const lockSql = hidden ? ` AND ${hidden.sql}` : '';
@@ -77,7 +78,7 @@ export function register(app, ctx) {
     })
   );
 
-  /** 按 EXIF 重建拍摄时间（后台任务，可取消；界面在时间线顶部提示） */
+  /** 重建拍摄时间（EXIF / 文件时间，后台任务，可取消；界面在时间线顶部提示） */
   app.post(
     '/api/timeline/backfill',
     asyncRoute(async (_req, res) => {

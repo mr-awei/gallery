@@ -45,9 +45,14 @@ export async function ingestMedia({
 
   let finalPath = absPath;
   let sizeBytes;
+  // 源文件的创建时间：复制进库后目标文件的创建时间会变成复制时刻
+  let srcBirthtime = 0;
   if (buffer) sizeBytes = buffer.length;
-  else if (absPath) sizeBytes = fs.statSync(absPath).size;
-  else return { ok: false, reason: 'failed' };
+  else if (absPath) {
+    const src = fs.statSync(absPath);
+    sizeBytes = src.size;
+    srcBirthtime = Math.round(Number(src.birthtimeMs || 0) / 1000);
+  } else return { ok: false, reason: 'failed' };
 
   if (!sizeBytes) return { ok: false, reason: 'small' };
   if (sizeBytes > maxBytes) return { ok: false, reason: 'oversize' };
@@ -67,14 +72,27 @@ export async function ingestMedia({
     });
     finalPath = path.join(dir, uniqueTargetName(dir, base));
     if (buffer) await fsp.writeFile(finalPath, buffer);
-    else await fsp.copyFile(absPath, finalPath);
+    else {
+      await fsp.copyFile(absPath, finalPath);
+      // 还原源文件的修改时间：视频也一样，采集进来的不该显示成导入那天
+      try {
+        const src = await fsp.stat(absPath);
+        await fsp.utimes(finalPath, src.atime, src.mtime);
+      } catch {
+        /* 还原失败不影响入库 */
+      }
+    }
   }
 
   // 文件指纹（秒级 mtime）：DTO 用它拼 ?v= 作为原图/封面的缓存版本号。
   // 非图片素材同样带 7 天强缓存，缺了这个字段，换封面或同名替换后前端永远看不到新图。
   let fsMtime = 0;
+  let fsBirthtime = 0;
   try {
-    fsMtime = Math.round(fs.statSync(finalPath).mtimeMs / 1000);
+    const st = fs.statSync(finalPath);
+    fsMtime = Math.round(st.mtimeMs / 1000);
+    // 复制分支用源文件的创建时间；buffer 分支写完才有文件，创建时间就是这一刻
+    fsBirthtime = !buffer && srcBirthtime ? srcBirthtime : Math.round(Number(st.birthtimeMs || 0) / 1000);
   } catch {
     /* 取不到就留 0，不影响入库 */
   }
@@ -108,8 +126,8 @@ export async function ingestMedia({
       mimeOfPath(nameHint),
       tags,
       new Date().toISOString(),
-      // 非图片素材没有 EXIF：视频用文件 mtime（拍摄/导出时间）当时间线口径
-      resolveTakenAt({ fsMtime }),
+      // 非图片素材没有 EXIF：视频用文件修改 / 创建时间（拍摄、导出时间）当时间线口径
+      resolveTakenAt({ fsMtime, fsBirthtime }),
       kind,
       md5,
       fsMtime

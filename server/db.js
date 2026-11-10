@@ -5,6 +5,7 @@ import { DB_FILE, GLOBAL_DB_FILE, DATA_DIR, THUMB_DIR, DEFAULT_STORAGE_DIR } fro
 import { encryptSecret, decryptSecret } from './secret.js';
 import { settingsBus } from './lib/settings-bus.js';
 import { rgbToOklab } from './lib/oklab.js';
+import { repairTakenAt } from './lib/timeline-repair.js';
 
 /**
  * 跨库共享的设置键：永远存 global.db，所有库共用一份。
@@ -199,6 +200,15 @@ const MIGRATIONS = [
         if (!has(table)) continue;
         conn.prepare(`DELETE FROM ${table} WHERE image_id NOT IN (SELECT id FROM images)`).run();
       }
+    },
+  },
+  {
+    version: 4,
+    note: '时间线口径：taken_at 不再用入库时间兜底，改用文件修改 / 创建时间',
+    run(conn) {
+      // 老版本补 taken_at 列时拿 created_at（入库时间）回填，导致 2019 年的照片全排到导入那天；
+      // 这里按 fs_mtime 重算，连文件指纹都没有的行先清空（时间线页会提示重建）。
+      repairTakenAt(conn);
     },
   },
 ];
@@ -703,11 +713,11 @@ END;
     }
     return false;
   };
-  // 时间线视图：拍摄时间列 + 索引。老库新加列时先用入库时间兜底，
-  // 保证「刚升级就有内容」；真实 EXIF 时间在导入时写入，也可在时间线页重建。
+  // 时间线视图：拍摄时间列 + 索引。老库新加列后立刻按文件时间（fs_mtime）回填 ——
+  // 绝不用入库时间：那会让整库照片堆到导入那天。连文件指纹都没有的行留空，
+  // 时间线页会提示「N 张待校正」，重建任务 stat 一次文件就能补上。
   if (ensureColumn('images', 'taken_at', "taken_at TEXT NOT NULL DEFAULT ''")) {
-    // 用本地风格的无时区串兜底（与 EXIF 写入格式一致），别把 ISO 的 Z/毫秒混进来
-    conn.exec("UPDATE images SET taken_at = substr(replace(created_at, 'Z', ''), 1, 19) WHERE taken_at = ''");
+    repairTakenAt(conn);
   }
   conn.exec('CREATE INDEX IF NOT EXISTS idx_images_taken ON images(taken_at)');
   // 非破坏性编辑：操作链条数冗余在 images 上，列表 DTO 不必为每行查一次 edit_ops

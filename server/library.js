@@ -745,8 +745,8 @@ export function toDTO(row) {
     hue: row.hue ?? '',
     tags,
     createdAt: row.created_at,
-    /** 拍摄时间（时间线视图的唯一口径）；老行缺列时退回入库时间 */
-    takenAt: row.taken_at || row.created_at || '',
+    /** 拍摄时间（EXIF → 文件修改 / 创建时间）；拿不到就是空串，绝不拿入库时间充数 */
+    takenAt: row.taken_at || '',
     /** 非破坏性编辑：尚未写回原图的操作条数（角标 / 「应用到底片」按钮用） */
     editOps: Number(row.edit_ops_count) || 0,
     score: row.score ?? 100,
@@ -825,6 +825,12 @@ export async function ingest(params, settings = getSettings()) {
   let sizeBytes;
   // 文件指纹：批量导入据此跳过内容未变的文件（增量扫描）
   let fsMtime = 0;
+  // 文件创建时间：没有 EXIF 的图（截图 / 下载图 / 社交软件存的图）拿它当拍摄时间。
+  // 与 mtime 取较早者，见 lib/taken-at.js 的 fileStamp()。
+  let fsBirthtime = 0;
+  // 复制进库时，目标文件的创建时间会被重置成复制时刻；留一份源文件的创建时间，
+  // 否则 time 线会把「采集进来的老图」排到导入那天。
+  let srcBirthtime = 0;
 
   if (buffer) {
     sizeBytes = buffer.length;
@@ -835,6 +841,8 @@ export async function ingest(params, settings = getSettings()) {
     const stat = await fsp.stat(absPath);
     sizeBytes = stat.size;
     fsMtime = Math.round(stat.mtimeMs / 1000);
+    fsBirthtime = Math.round(Number(stat.birthtimeMs || 0) / 1000);
+    srcBirthtime = fsBirthtime;
     if (!skipQuality && sizeBytes < minBytes) return { ok: false, reason: KEEP_REASONS.tooLight };
     if (sizeBytes > maxBytes) return { ok: false, reason: KEEP_REASONS.tooLarge };
   } else {
@@ -888,12 +896,26 @@ export async function ingest(params, settings = getSettings()) {
     // 模板里没有 {index}/{random} 时多张会同名：统一用 -1 / -2 追加，绝不互相覆盖
     finalPath = path.join(dir, uniqueTargetName(dir, name));
     if (buffer) await fsp.writeFile(finalPath, buffer);
-    else await fsp.copyFile(absPath, finalPath);
+    else {
+      await fsp.copyFile(absPath, finalPath);
+      // 复制会重置 mtime / 创建时间（Windows 上两者都变成复制时刻），
+      // 不还原就等于「采集进来的图全堆在导入那天」。atime 一起还原，
+      // 免得某些同步盘把「访问时间」当成异常。
+      try {
+        const src = await fsp.stat(absPath);
+        await fsp.utimes(finalPath, src.atime, src.mtime);
+      } catch {
+        /* 还原失败不影响入库：时间线会按复制时刻，比丢失这张图好 */
+      }
+    }
     // 写盘/复制后必须重取文件指纹：buffer 路径原本没有 fs_mtime，导致「上传进来的图」
     // 在 DTO 里永远没有 ?v= 版本号。原图/缩略图响应带 7 天强缓存，没有版本号就意味着
     // 后续裁切/调色/旋转完，浏览器会一直拿旧图。
     try {
-      fsMtime = Math.round((await fsp.stat(finalPath)).mtimeMs / 1000);
+      const st = await fsp.stat(finalPath);
+      fsMtime = Math.round(st.mtimeMs / 1000);
+      // 复制分支：源文件的创建时间才是「照片的创建时间」，目标文件的创建时间是这次复制
+      fsBirthtime = buffer ? Math.round(Number(st.birthtimeMs || 0) / 1000) : srcBirthtime || fsBirthtime;
     } catch {
       /* 取不到就沿用上面 absPath 分支的值（buffer 分支则为 0） */
     }
@@ -917,13 +939,14 @@ export async function ingest(params, settings = getSettings()) {
     /* 指纹失败不影响入库 */
   }
 
-  // 拍摄时间：EXIF 优先（时间线视图按它排序/分月），没有 EXIF 时退回文件 mtime。
+  // 拍摄时间：EXIF 优先（时间线视图按它排序/分月），没有 EXIF 时退回文件修改 / 创建时间。
+  // 入库时间绝不参与；两者都取不到就留空（时间线页会显示「N 张待校正」）。
   // 解析失败不阻断入库——一张照片进不了时间线，总好过导入时报错。
   let takenAt;
   try {
-    takenAt = resolveTakenAt({ exifTakenAt: parseExif(meta.exif).takenAt, fsMtime });
+    takenAt = resolveTakenAt({ exifTakenAt: parseExif(meta.exif).takenAt, fsMtime, fsBirthtime });
   } catch {
-    takenAt = resolveTakenAt({ fsMtime });
+    takenAt = resolveTakenAt({ fsMtime, fsBirthtime });
   }
 
   // OR IGNORE：abs_path 上有唯一索引，watch 与 rescan 并发时后到的那条直接放弃，
