@@ -284,3 +284,126 @@
   padding-top: 12px;
   border-top: 1px dashed var(--border);
 }
+
+/* --------------------------- 关于软件（版本 / 环境 / 目录） --------------------------- */
+.about-hero {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px;
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+}
+.about-hero-mark {
+  flex: 0 0 auto;
+  width: 46px;
+  height: 46px;
+  display: grid;
+  place-items: center;
+  font-size: 13px;
+  font-weight: 700;
+  letter-spacing: 1px;
+  color: #fff;
+  border-radius: 12px;
+  background: linear-gradient(135deg, var(--accent), var(--accent-2));
+}
+.about-hero-text {
+  min-width: 0;
+}
+.about-hero-name {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  font-size: 15px;
+  font-weight: 600;
+  margin-bottom: 2px;
+}
+.about-hero-ver {
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
+}
+.about-actions {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin-top: 12px;
+}
+.about-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 2px 18px;
+}
+.about-row {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 6px 0;
+  border-bottom: 1px dashed var(--border);
+}
+.about-row-label {
+  font-size: 12px;
+  color: var(--muted);
+  white-space: nowrap;
+}
+.about-row-value {
+  font-size: 12px;
+  text-align: right;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+.about-row-value.mono {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+}
+.about-paths {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.about-path {
+  display: grid;
+  grid-template-columns: 76px minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 10px;
+}
+.about-path-label {
+  font-size: 12px;
+  color: var(--muted);
+}
+.about-path code {
+  font-size: 12px;
+  padding: 4px 8px;
+  border-radius: 6px;
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid var(--border);
+  overflow-wrap: anywhere;
+}
+.about-components {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+  gap: 8px;
+}
+.about-component {
+  padding: 8px 10px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.03);
+}
+.about-component-name {
+  font-size: 12px;
+  font-weight: 600;
+  overflow-wrap: anywhere;
+}
+.about-component-use {
+  font-size: 11px;
+  color: var(--muted);
+  line-height: 1.6;
+}
+.about-component-license {
+  font-size: 11px;
+  color: var(--accent);
+  overflow-wrap: anywhere;
+}

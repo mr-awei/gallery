@@ -21,7 +21,7 @@ import path from 'node:path';
 import { app, BrowserWindow } from 'electron';
 
 /** 唯一允许的更新源：写死，避免「设置被改 → 自动装上无关的安装包」 */
-const OFFICIAL_REPO = 'mr-awei/gallery';
+export const OFFICIAL_REPO = 'mr-awei/gallery';
 
 /**
  * 安装连续失败达到这个次数后，强制更新自动降级为非强制。

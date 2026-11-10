@@ -9,6 +9,7 @@ import {
   IconGlobe,
   IconGrid,
   IconImages,
+  IconInfo,
   IconLayers,
   IconLink,
   IconRotateCcw,
@@ -41,6 +42,7 @@ import AiSection from './settings/AiSection';
 import { useSettingsForm, type SectionKey } from './settings/useSettingsForm';
 import ImportNameTemplateCard from './settings/ImportNameTemplateCard';
 import PluginMarket from './settings/PluginMarket';
+import AboutSection from './settings/AboutSection';
 
 /** 分区标题双语内联：与 lib/i18n 同一套做法，不为 13 个标题另建词典 */
 type SectionMeta = {
@@ -210,6 +212,14 @@ const NAV_GROUPS: { label: string; labelEn: string; items: SectionMeta[] }[] = [
         desc: '后台任务历史与操作回滚',
         descEn: 'Background job history and rollback',
         icon: <IconRotateCcw />,
+      },
+      {
+        key: 'about',
+        label: '关于软件',
+        labelEn: 'About',
+        desc: '版本、检查更新、运行环境与诊断目录',
+        descEn: 'Version, updates, runtime info and diagnostic folders',
+        icon: <IconInfo />,
       },
     ],
   },
@@ -557,6 +567,11 @@ export default function Settings({
           )}
 
           {section === 'tasks' && <JobsSection onToast={onToast} />}
+
+          {/* ---------------------- 关于软件（已拆分至 settings/AboutSection.tsx） ---------------------- */}
+          {section === 'about' && (
+            <AboutSection settings={settings} patch={patch} onToast={onToast} onOpenTutorial={onOpenTutorial} />
+          )}
 
           {/* ------------------------------ 壁纸（已拆分至 settings/WallpaperSection.tsx） ------------------------------ */}
           {section === 'wallpaper' && <WallpaperSection settings={settings} patch={patch} onToast={onToast} />}

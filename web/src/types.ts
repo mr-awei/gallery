@@ -783,6 +783,8 @@ export interface Settings {
   theme: 'dark' | 'light';
   /** 开机自动启动（桌面端） */
   autoLaunch?: boolean;
+  /** 启动时自动检查更新（桌面安装版）；关掉后只能手动检查 */
+  autoUpdateCheck?: boolean;
   /** 检查更新用的 GitHub 仓库（owner/repo，空则用内置默认） */
   updateRepo?: string;
 }

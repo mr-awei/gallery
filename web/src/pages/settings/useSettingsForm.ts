@@ -33,7 +33,8 @@ export type SectionKey =
   | 'plugins'
   | 'market'
   | 'lan'
-  | 'tasks';
+  | 'tasks'
+  | 'about';
 
 export type SettingsForm = ReturnType<typeof useSettingsForm>;
 

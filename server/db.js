@@ -8,7 +8,7 @@ import { rgbToOklab } from './lib/oklab.js';
 
 /**
  * 跨库共享的设置键：永远存 global.db，所有库共用一份。
- * - theme / onboarded / updateRepo / autoLaunch：应用级偏好
+ * - theme / onboarded / updateRepo / autoLaunch / autoUpdateCheck：应用级偏好
  * - weiboCookie / weiboUserAgent：微博登录凭据（登录态与 UA 绑定），一处配置全部库可用
  * - network：网络代理，对采集、下载、AI 生效
  * 其余键（采集源 / 并发 / AI 开关 / 壁纸 / 删除策略 / 画质增强 / 存储位置…）
@@ -25,6 +25,7 @@ const GLOBAL_SETTING_KEYS = new Set([
   'tourDone',
   'updateRepo',
   'autoLaunch',
+  'autoUpdateCheck',
   'weiboCookie',
   'weiboUserAgent',
   'network',
@@ -1140,6 +1141,8 @@ export const DEFAULT_SETTINGS = {
   updateRepo: '',
   // 开机自启（桌面端）：应用启动时写入系统登录项
   autoLaunch: false,
+  // 启动时自动检查更新（桌面安装版）：关掉后只在「设置 → 关于」手动检查
+  autoUpdateCheck: true,
   // 关窗行为（桌面端）：true = 收到托盘继续后台跑；false = 关窗即退出
   closeToTray: true,
   // 微博登录 Cookie（微博接口已关闭游客访问，填了才能用微博源）

@@ -13,7 +13,6 @@ import type {
 } from '../../types';
 import Card from './Card';
 import Select from '../../components/Select';
-import AppUpdateCard from './AppUpdateCard';
 import LiveWallpaperExtras from './LiveWallpaperExtras';
 import { useDebouncedCommit } from '../../hooks/useDebouncedCommit';
 
@@ -210,7 +209,6 @@ export default function WallpaperSection({ settings, patch, onToast }: Props) {
                   </div>
                   </Card>
 
-                  <AppUpdateCard appInfo={appInfo} patch={patch} onToast={onToast} />
                   <Card title="托盘与快捷键" desc="不打开主窗口也能换壁纸。">
                   <div className="switch-row">
                     <span>启用全局快捷键</span>

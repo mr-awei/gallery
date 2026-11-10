@@ -30,6 +30,7 @@ import {
   onInstallFailed,
   onUpdateReady,
   resetUpdateFailures,
+  OFFICIAL_REPO,
 } from './updater.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -2144,8 +2145,9 @@ handleIpc('set-auto-launch', (_e, enabled) => {
   app.setLoginItemSettings({ openAtLogin: !!enabled, args: ['--hidden'] });
   return app.getLoginItemSettings().openAtLogin;
 });
-// 检查更新：读 GitHub latest release 与本机版本比较，有新版就给出下载链接（不自动静默更新，
-// 个人分发没有更新服务器；用户自己决定何时升级）
+// 检查更新：读 GitHub latest release 与本机版本比较，有新版就给出下载链接。
+// 安装版走 electron-updater（update-check），这里给「开发模式 / 浏览器预览」兜底：
+// 比对结果与发布页地址都要能拿到，否则设置里的「检查更新」在没打包时只会报错。
 handleIpc('check-for-updates', async () => {
   try {
     const cfg = await fetchJson(
@@ -2153,10 +2155,9 @@ handleIpc('check-for-updates', async () => {
       { method: 'GET' },
       8000
     );
-    const repo = String(cfg?.updateRepo || process.env.TUKU_UPDATE_REPO || '').trim();
-    if (!repo || !/^[\w.-]+\/[\w.-]+$/.test(repo)) {
-      return { ok: false, msg: '未配置更新源（设置 updateRepo，如 user/repo）' };
-    }
+    // 更新源只认官方仓库：设置里即使写了别的项目也不采信（与 updater.js 同一条规则）
+    const configured = String(cfg?.updateRepo || process.env.TUKU_UPDATE_REPO || '').trim().toLowerCase();
+    const repo = configured === OFFICIAL_REPO ? configured : OFFICIAL_REPO;
     const rel = await fetchJson(`https://api.github.com/repos/${repo}/releases/latest`, { method: 'GET' }, 15000);
     const latest = String(rel?.tag_name || '').replace(/^v/i, '');
     const current = app.getVersion();
@@ -2166,6 +2167,7 @@ handleIpc('check-for-updates', async () => {
       latest,
       current,
       url: rel?.html_url || `https://github.com/${repo}/releases/latest`,
+      repo,
     };
   } catch (err) {
     return { ok: false, msg: String(err?.message || err).slice(0, 160) };
@@ -2542,12 +2544,32 @@ app.whenReady().then(async () => {
   } catch (err) {
     console.error('[desktop] 设置开机自启失败:', err);
   }
+  // 关于页面要用的全部「本机事实」都在这里给出，渲染进程不自己猜（也不写死版本号）
   handleIpc('app-info', () => ({
     hotkeys: registeredHotkeys,
     failedHotkeys,
     shortcutEnabled: getSettings().globalShortcuts !== false,
     version: app.getVersion(),
     platform: process.platform,
+    /** x64 / arm64：同一个系统上装错架构的包会白屏，得让用户能核对 */
+    arch: process.arch,
+    /** 安装版才会自动更新：开发态/绿色版要给出不同文案 */
+    packaged: app.isPackaged,
+    versions: {
+      electron: process.versions.electron || '',
+      chromium: process.versions.chrome || '',
+      node: process.versions.node || '',
+      v8: process.versions.v8 || '',
+    },
+    paths: {
+      userData: app.getPath('userData'),
+      logs: getLogDir() || '',
+      crashDumps: app.getPath('crashDumps'),
+      // 资源库数据（各库的 gallery.db）在素材目录下，这里只给程序自己的数据目录
+    },
+    /** 更新通道：正式 Release（tag 构建）才会进更新源，rolling 预发布不会 */
+    updateChannel: 'release',
+    officialRepo: OFFICIAL_REPO,
   }));
 
   // 崩溃转储 / 运行日志目录：崩溃既不自动上报，至少要能让用户找到并导出来
@@ -2563,6 +2585,24 @@ app.whenReady().then(async () => {
   handleIpc('open-log-dir', async () => {
     const dir = getLogDir();
     if (!dir) return '暂无可用的日志目录';
+    try {
+      await fsp.mkdir(dir, { recursive: true });
+    } catch {
+      /* 已存在 */
+    }
+    return shell.openPath(dir);
+  });
+  /* 「关于」页的三个目录按钮：只接受枚举名，路径在主进程里解析。
+   * 不走 open-folder 是因为那条通道按库目录白名单限制，程序数据目录本来就不在白名单里，
+   * 而放开白名单又等于给渲染层任意打开本机目录的能力。 */
+  handleIpc('open-app-dir', async (_e, key) => {
+    const dirs = {
+      userData: app.getPath('userData'),
+      logs: getLogDir(),
+      crashDumps: app.getPath('crashDumps'),
+    };
+    const dir = dirs[String(key || '')];
+    if (!dir) return '未知的目录类型';
     try {
       await fsp.mkdir(dir, { recursive: true });
     } catch {
@@ -2770,6 +2810,12 @@ app.whenReady().then(async () => {
   // 只有包已经落到本地、能立刻安装时才会弹提示
   setTimeout(() => {
     void (async () => {
+      // 用户关掉「启动时自动检查更新」就完全不发请求（隐私 / 内网离线部署会这么选）；
+      // 手动检查不受这个开关影响，否则设置页里的按钮会变成摆设
+      if (getSettings().autoUpdateCheck === false) {
+        console.info('[update] 已按设置跳过启动检查（设置 → 关于可手动检查）');
+        return;
+      }
       try {
         const r = await startBackgroundUpdate({ repo: await updateRepoSetting() });
         // 跳过（开发态 / 已跑过）时返回的是 { skipped: true }，得先用 in 收窄

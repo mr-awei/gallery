@@ -89,6 +89,18 @@ export interface AppInfo {
   shortcutEnabled: boolean;
   version: string;
   platform: string;
+  /** 进程架构（x64 / arm64）：装错架构的包会白屏，关于页要让用户能核对 */
+  arch?: string;
+  /** 是否安装版：只有安装版能走应用内自动更新 */
+  packaged?: boolean;
+  /** 运行时组件版本（关于页「运行环境」列出） */
+  versions?: { electron?: string; chromium?: string; node?: string; v8?: string };
+  /** 程序自己的目录（不含素材）：诊断、日志、崩溃转储 */
+  paths?: { userData?: string; logs?: string; crashDumps?: string };
+  /** 更新通道说明：只有 tag 构建的正式 Release 会进更新源 */
+  updateChannel?: string;
+  /** 唯一允许的更新源（owner/repo），用于拼发布页 / 仓库链接 */
+  officialRepo?: string;
 }
 
 interface DesktopAPI {
@@ -99,6 +111,8 @@ interface DesktopAPI {
   openCrashDir?: () => Promise<string>;
   /** 打开运行日志目录（桌面端） */
   openLogDir?: () => Promise<string>;
+  /** 打开程序自己的目录：userData / logs / crashDumps（路径在主进程解析，渲染层只给名字） */
+  openAppDir?: (key: 'userData' | 'logs' | 'crashDumps') => Promise<string>;
   revealFile: (path: string) => Promise<boolean>;
   download: (url: string) => Promise<boolean>;
   /** 多窗口浏览：再开一个窗口看同一份图库 */

@@ -230,3 +230,12 @@ export const IconBook = () => (
     <path d="M12 6.5v13" />
   </svg>
 );
+
+/** 关于：圆圈里一个 i */
+export const IconInfo = () => (
+  <svg {...base}>
+    <circle cx="12" cy="12" r="8.6" />
+    <path d="M12 11v5.4" />
+    <path d="M12 7.8v.1" />
+  </svg>
+);
