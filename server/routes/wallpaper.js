@@ -120,7 +120,10 @@ export function register(app, ctx) {
   //   flat —— 纯底图抠图：任意纯色背景（白底/灰底/蓝底/绿幕），纯像素、零模型、秒出
   app.get('/api/ai/matting/status', (_req, res) => res.json(matting.mattingStatus()));
   // 后台下载：立刻返回，进度由上面的 status 轮询（或任务中心）提供
-  app.post('/api/ai/matting/install', (_req, res) => res.json(matting.startMattingInstall()));
+  // profile 可选：u2net（轻量）/ birefnet-lite（精细）/ ben2（旗舰）；不传就装轻量档
+  app.post('/api/ai/matting/install', (req, res) =>
+    res.json(matting.startMattingInstall(String(req.body?.profile || 'u2net')))
+  );
   app.post('/api/ai/matting/cancel', (_req, res) => res.json({ ok: matting.cancelMattingInstall() }));
   app.post(
     '/api/images/:id/remove-bg',

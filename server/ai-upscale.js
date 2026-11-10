@@ -18,17 +18,18 @@ import { KNOWN_ZIP_SHA256 } from './model-fetch.js';
  */
 
 const AI_DIR = path.join(DATA_DIR, 'ai');
-const RUNTIME_DIR = path.join(AI_DIR, 'realesrgan');
-const CUGAN_DIR = path.join(AI_DIR, 'realcugan');
+/** 目录常量对外导出：下载中心要按同一份定义做「占用体积 / 删除」统计，不能再抄一遍路径 */
+export const RUNTIME_DIR = path.join(AI_DIR, 'realesrgan');
+export const CUGAN_DIR = path.join(AI_DIR, 'realcugan');
 const TMP_DIR = path.join(AI_DIR, 'tmp');
-const EXE = path.join(RUNTIME_DIR, 'realesrgan-ncnn-vulkan.exe');
-const CUGAN_EXE = path.join(CUGAN_DIR, 'realcugan-ncnn-vulkan.exe');
+export const EXE = path.join(RUNTIME_DIR, 'realesrgan-ncnn-vulkan.exe');
+export const CUGAN_EXE = path.join(CUGAN_DIR, 'realcugan-ncnn-vulkan.exe');
 /** Real-ESRGAN 打包模型目录，社区模型也放这里（exe 用 -n 直接按名字调用） */
-const MODELS_DIR = path.join(RUNTIME_DIR, 'models');
+export const MODELS_DIR = path.join(RUNTIME_DIR, 'models');
 
-const RELEASE_URL =
+export const RELEASE_URL =
   'https://github.com/xinntao/Real-ESRGAN/releases/download/v0.2.5.0/realesrgan-ncnn-vulkan-20220424-windows.zip';
-const CUGAN_RELEASE_URL =
+export const CUGAN_RELEASE_URL =
   'https://github.com/nihui/realcugan-ncnn-vulkan/releases/download/20220728/realcugan-ncnn-vulkan-20220728-windows.zip';
 
 /**
@@ -162,7 +163,11 @@ export function listCommunityModels() {
  * 下载/安装状态随 job 心跳（app.js 每帧带 aiUp）推给前端。
  * error 不为空表示上一次安装失败（前端据此弹错误而不是「安装完成」）。
  */
-let installState = { downloading: false, progress: 0, message: '', error: '' };
+/**
+ * `target` 记录「正在装的是哪一个」：四个入口共用一份状态，
+ * 下载中心要靠它把进度归到正确的那一行（否则点社区模型，运行库那行也在转圈）。
+ */
+let installState = { downloading: false, progress: 0, message: '', error: '', target: '' };
 let lastCheck = { gpu: null, ok: null, error: '' };
 let lastCuganCheck = { ok: null, error: '' };
 
@@ -172,6 +177,8 @@ export function aiStatus() {
     downloading: installState.downloading,
     progress: installState.progress,
     message: installState.message,
+    /** 正在装的是哪一项（下载中心按它归属进度） */
+    target: installState.target || '',
     // 安装失败原因独立成键：error 一直是自检/显卡错误，两种失败混在一个字段里会互相覆盖
     installError: installState.error || '',
     gpu: lastCheck.gpu,
@@ -190,13 +197,42 @@ export function aiStatus() {
   };
 }
 
+/**
+ * 删除运行库（下载中心用）。
+ * 自检结果必须一起清掉：否则界面会拿上次「可用」的缓存说这个功能还能用。
+ */
+export async function removeUpscaleRuntime(which = 'realesrgan') {
+  if (installState.downloading) throw new Error('正在下载/安装，请稍后再试');
+  const dir = which === 'realcugan' ? CUGAN_DIR : RUNTIME_DIR;
+  await fsp.rm(dir, { recursive: true, force: true });
+  if (which === 'realcugan') lastCuganCheck = { ok: null, error: '' };
+  else lastCheck = { gpu: null, ok: null, error: '' };
+  return aiStatus();
+}
+
+/** 删除单个社区模型（.param + .bin） */
+export async function removeCommunityModel(modelId) {
+  const model = communityModelOf(modelId);
+  if (!model) throw new Error('未知的模型');
+  if (installState.downloading && installState.target === modelId) throw new Error('该模型正在下载，请先取消');
+  await fsp.rm(path.join(MODELS_DIR, `${model.name}.param`), { force: true });
+  await fsp.rm(path.join(MODELS_DIR, `${model.name}.bin`), { force: true });
+  return aiStatus();
+}
+
 /** 安装一个社区模型（param + bin，各几 MB）；进度写 installState，随 job 心跳推给前端 */
 export async function installCommunityModel(modelId) {
   const model = communityModelOf(modelId);
   if (!model) throw new Error('未知的模型');
   if (!runtimeInstalled()) throw new Error('请先安装 AI 超分运行库');
   await fsp.mkdir(MODELS_DIR, { recursive: true });
-  installState = { downloading: true, progress: 0, message: `准备下载 ${model.label}…`, error: '' };
+  installState = {
+    downloading: true,
+    progress: 0,
+    message: `准备下载 ${model.label}…`,
+    error: '',
+    target: model.id,
+  };
   try {
     installState.message = `下载 ${model.name}.param…`;
     await downloadFile(`${COMMUNITY_BASE}/${model.name}.param`, path.join(MODELS_DIR, `${model.name}.param`));
@@ -222,7 +258,13 @@ export function startCommunityInstall(modelId) {
   if (installState.downloading) return { ok: true, busy: true, ...aiStatus() };
   // 先同步置「下载中」再起后台任务：否则响应里 downloading 还是 false，
   // 前端第一帧看不到「下载中」，进度条要等下一次心跳才出现
-  installState = { downloading: true, progress: 0, message: `准备下载 ${model.label}…`, error: '' };
+  installState = {
+    downloading: true,
+    progress: 0,
+    message: `准备下载 ${model.label}…`,
+    error: '',
+    target: model.id,
+  };
   installCommunityModel(modelId).catch((err) =>
     console.error('[ai] 社区模型安装失败', model.label, err?.message || err)
   );
@@ -232,7 +274,13 @@ export function startCommunityInstall(modelId) {
 /** 安装 Real-CUGAN 运行库（两级增强的降噪前置引擎） */
 export async function installCuganRuntime() {
   if (installState.downloading) throw new Error('正在下载中，请稍候');
-  installState = { downloading: true, progress: 0, message: '准备下载 Real-CUGAN…', error: '' };
+  installState = {
+    downloading: true,
+    progress: 0,
+    message: '准备下载 Real-CUGAN…',
+    error: '',
+    target: 'upscale:realcugan',
+  };
   try {
     await fsp.mkdir(TMP_DIR, { recursive: true });
     const zip = path.join(TMP_DIR, 'realcugan.zip');
@@ -314,7 +362,7 @@ export async function cuganSelfTest() {
  * 现在优先用远端 Content-Length（真实值），这里只作为离线/未知时的兜底；
  * 数值取自 2026-11-09 固化管理清单时实测的官方包字节数。
  */
-const ZIP_SIZE_HINT = {
+export const ZIP_SIZE_HINT = {
   [RELEASE_URL]: 45_474_481,
   [CUGAN_RELEASE_URL]: 45_977_449,
 };
@@ -588,7 +636,13 @@ function findRuntimeRoot(dir, exeName = 'realesrgan-ncnn-vulkan.exe') {
 
 export async function installRuntime() {
   if (installState.downloading) throw new Error('正在下载中，请稍候');
-  installState = { downloading: true, progress: 0, message: '准备下载…', error: '' };
+  installState = {
+    downloading: true,
+    progress: 0,
+    message: '准备下载…',
+    error: '',
+    target: 'upscale:realesrgan',
+  };
   try {
     await fsp.mkdir(TMP_DIR, { recursive: true });
     const zip = path.join(TMP_DIR, 'realesrgan.zip');

@@ -6,7 +6,8 @@
  * 只靠按钮文字变「扫描中…」形同假死 —— sticky 顶部横幅 + 动画 + 计时给出活的反馈 */
 .job-banner {
   position: sticky;
-  top: 0;
+  /* 页头吸顶后横幅要让到它下面，否则扫描中的进度被页头整个盖住 */
+  top: var(--head-h, 0px);
   z-index: 20;
   display: flex;
   align-items: center;

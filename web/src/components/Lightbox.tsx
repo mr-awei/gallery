@@ -96,6 +96,10 @@ interface Props {
   library?: { id?: string; name: string; path: string } | null;
   /** 打开堆叠查看器（看同素材的其他版本） */
   onOpenStack?: (stackId: number) => void;
+  /** 跳到图库并只看某个文件夹（详情面板里点归属夹名） */
+  onOpenFolder?: (folderId: number) => void;
+  /** 详情面板里点「人物 #123」：跳到人物页并打开这个人的照片墙 */
+  onGotoPerson?: (personId: number) => void;
 }
 
 const ZOOM_MIN = 1;
@@ -146,6 +150,8 @@ export default function Lightbox({
   onChangeToast,
   library,
   onOpenStack,
+  onOpenFolder,
+  onGotoPerson,
 }: Props) {
   const { t } = useLang();
   const item = items[index];
@@ -1026,6 +1032,23 @@ export default function Lightbox({
       run: () => setToolkit('source'),
     },
     {
+      key: 'reverse',
+      label: '全网搜图…',
+      short: '搜图',
+      icon: '🔎',
+      title: '把这张图同时丢给国内外的以图搜图引擎（Yandex / SauceNAO / 百度 / 搜狗 / 360 / Lens / TinEye），国外引擎会先体检国际网络',
+      group: 'tool',
+      show: isImage,
+      run: () => {
+        // 搜图面板统一挂在 App 上，这里只派发事件，避免每个页面各存一份弹窗
+        window.dispatchEvent(
+          new CustomEvent('tuku:reverse-search', {
+            detail: { imageId: item.id, title: item.title, previewUrl: `${BASE}${item.thumbUrl}` },
+          })
+        );
+      },
+    },
+    {
       key: 'versions',
       label: '版本历史…',
       short: '版本',
@@ -1145,8 +1168,17 @@ export default function Lightbox({
           <span className="lb-counter">
             {index + 1} / {items.length}
           </span>
-          {/* 文件名：之前只有序号，连自己在看哪张都不知道（Eagle / 系统看图都放标题） */}
-          <span className="lb-title" title={item.title}>
+          {/* 文件名：之前只有序号，连自己在看哪张都不知道（Eagle / 系统看图都放标题）
+              点它在资源管理器里定位（和卡片右键「打开所在文件夹」同一件事，这里更好找） */}
+          <span
+            className="lb-title is-clickable"
+            title={`${item.title}\n点击在文件夹中显示`}
+            onClick={() =>
+              revealFile(item.path).catch((err: Error) =>
+                onChangeToast?.(`打开所在文件夹失败：${err.message}`)
+              )
+            }
+          >
             {item.title}
           </span>
         </div>
@@ -1694,6 +1726,8 @@ export default function Lightbox({
         onFindColor={onFindColor}
         onOpenSource={() => setToolkit('source')}
         onOpenStack={onOpenStack ? () => onOpenStack(item.stackId || item.id) : undefined}
+        onOpenFolder={onOpenFolder}
+        onGotoPerson={onGotoPerson}
         onSaveTags={onSaveTags}
         tagInput={tagInput}
         setTagInput={setTagInput}

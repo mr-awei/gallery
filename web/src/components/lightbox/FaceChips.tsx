@@ -28,9 +28,11 @@ type Face = {
 type Props = {
   imageId: number;
   onToast?: (msg: string, kind?: 'info' | 'error') => void;
+  /** 点人名 / 头像 / 「全部」：跳到人物页，只看这个人的照片 */
+  onGotoPerson?: (personId: number) => void;
 };
 
-export default function FaceChips({ imageId, onToast }: Props) {
+export default function FaceChips({ imageId, onToast, onGotoPerson }: Props) {
   const [faces, setFaces] = useState<Face[]>([]);
   const [persons, setPersons] = useState<FacePerson[]>([]);
   const [personsTotal, setPersonsTotal] = useState(0);
@@ -158,12 +160,20 @@ export default function FaceChips({ imageId, onToast }: Props) {
           const label = f.name || (f.personId ? `人物 #${f.personId}` : '未归类');
           return (
             <div key={f.id} style={{ display: 'flex', alignItems: 'center', gap: 8, opacity: f.hidden ? 0.6 : 1 }}>
-              <img
-                src={`${BASE}/api/face/crop/${f.id}?size=64`}
-                alt={label}
-                loading="lazy"
-                style={{ width: 34, height: 34, borderRadius: 8, objectFit: 'cover', background: '#111', flex: '0 0 auto' }}
-              />
+              <button
+                type="button"
+                className={`lb-face-avatar${f.personId && onGotoPerson ? ' is-clickable' : ''}`}
+                disabled={!f.personId || !onGotoPerson}
+                onClick={() => f.personId != null && onGotoPerson?.(f.personId)}
+                title={f.personId ? '看这个人的所有照片' : ''}
+              >
+                <img
+                  src={`${BASE}/api/face/crop/${f.id}?size=64`}
+                  alt={label}
+                  loading="lazy"
+                  style={{ width: 34, height: 34, borderRadius: 8, objectFit: 'cover', background: '#111', flex: '0 0 auto' }}
+                />
+              </button>
               {lowQuality && (
                 <span
                   title={`质量分 ${f.quality.toFixed(2)}${
@@ -201,6 +211,16 @@ export default function FaceChips({ imageId, onToast }: Props) {
                   </option>
                 ))}
               </Select>
+              {f.personId != null && onGotoPerson && (
+                <button
+                  className="mini lb-face-goto"
+                  disabled={busy === f.id}
+                  title="看这个人的所有照片（跳到人物页）"
+                  onClick={() => onGotoPerson(f.personId as number)}
+                >
+                  ↗
+                </button>
+              )}
               {f.hidden ? (
                 <button className="mini" disabled={busy === f.id} title="这张其实是人脸，手动收录" onClick={() => void setHidden(f, false)}>
                   收录

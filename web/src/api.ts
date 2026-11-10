@@ -13,6 +13,7 @@ import type {
   AiProviderInfo,
   AiStatus,
   AiUpscaleStatus,
+  ModelsPayload,
   AutoWallpaperConfig,
   EnhanceAiModel,
   EnhanceCandidates,
@@ -772,6 +773,73 @@ export interface FacePerson {
   coverQuality?: number;
 }
 
+/** 全网以图搜图的引擎 */
+export interface ReverseEngine {
+  id: string;
+  name: string;
+  /** cn = 国内，global = 国外（要过国际网络） */
+  region: 'cn' | 'global';
+  /** upload = 服务端真上传；manual = 只能打开识图页由用户粘贴 */
+  mode: 'upload' | 'manual';
+  desc: string;
+  /** manual 档的识图页地址 */
+  url?: string;
+  /** manual 档为什么不支持代传（界面上原样显示，不糊弄） */
+  why?: string;
+  /** upload 档在国际网络不通时为 false */
+  ready: boolean;
+  reason: string;
+}
+
+export interface ReverseNetworkProbe {
+  ok: boolean;
+  ms: number;
+  error: string;
+}
+
+/** 国际网络体检结果（按引擎分别给，前端提示「哪几个国外引擎这次用不了」） */
+export interface ReverseNetwork {
+  ok: boolean;
+  engines: Record<string, ReverseNetworkProbe>;
+  checkedAt: number;
+}
+
+/** SauceNAO 这类能解析出候选的引擎返回的命中条目 */
+export interface ReverseHit {
+  similarity: number;
+  title: string;
+  detail: string;
+  thumb: string;
+  link: string;
+}
+
+export interface ReverseEngineResult {
+  engine: string;
+  name: string;
+  region: 'cn' | 'global';
+  /** url = 采集来的图有公网地址，直接拿地址去搜（不用上传、也不用粘剪贴板） */
+  mode: 'upload' | 'manual' | 'url';
+  ok: boolean;
+  /** 结果页 / 识图页地址 */
+  url?: string;
+  /** 引擎侧预览图（Yandex 上传后的托管地址） */
+  previewUrl?: string;
+  note?: string;
+  /** manual 档：前端要先把图片放进剪贴板 */
+  needsClipboard?: boolean;
+  results?: ReverseHit[];
+  error?: string;
+}
+
+export interface ReverseSearchResponse {
+  ok: boolean;
+  image: { id: number; title: string; width: number; height: number };
+  personId: number | null;
+  picked: { faceId: number; imageId: number; quality: number; facePx: number } | null;
+  bytes: number;
+  results: ReverseEngineResult[];
+}
+
 export const api = {
   stats: () => request<Stats>('/api/stats'),
   /** 时间线：月份索引 + 总量 + 待重建数量 */
@@ -921,6 +989,27 @@ export const api = {
     request<{ ok: boolean; stackId: number; removed: number; image: ImageItem }>(`/api/images/${id}/stack`, {
       method: 'DELETE',
     }),
+
+  /* ------------------------------- 下载中心 ------------------------------- */
+
+  /** 全量模型清单（含体积、状态、分组汇总） */
+  listModels: () => request<ModelsPayload>('/api/models'),
+  installModel: (id: string) =>
+    request<{ ok: boolean; started?: boolean; error?: string; message?: string }>(
+      `/api/models/${encodeURIComponent(id)}/install`,
+      { method: 'POST' }
+    ),
+  cancelModelDownload: (id: string) =>
+    request<{ ok: boolean; error?: string }>(`/api/models/${encodeURIComponent(id)}/cancel`, { method: 'POST' }),
+  removeModel: (id: string) =>
+    request<{ ok: boolean; error?: string } & ModelsPayload>(`/api/models/${encodeURIComponent(id)}`, {
+      method: 'DELETE',
+    }),
+  verifyModel: (id: string) =>
+    request<{ ok: boolean; verified?: boolean; size?: number; message?: string; error?: string }>(
+      `/api/models/${encodeURIComponent(id)}/verify`,
+      { method: 'POST' }
+    ),
 
   /* ------------------------------- 素材笔记 ------------------------------- */
 
@@ -1940,10 +2029,18 @@ export const api = {
       error: string;
       cancelled?: boolean;
       size: number;
+      /** 当前实际生效的档位 */
+      profile?: string;
+      /** 正在下载的档位 */
+      installing?: string;
+      profiles?: { id: string; label: string; desc: string; size: number; sizeHint: number; installed: boolean; verified: boolean; active: boolean }[];
     }>('/api/ai/matting/status'),
-  /** 后台下载：立刻返回，进度看 mattingStatus / 任务中心 */
-  mattingInstall: () =>
-    request<{ ok: boolean; started?: boolean; downloaded?: boolean }>('/api/ai/matting/install', { method: 'POST' }),
+  /** 后台下载：立刻返回，进度看 mattingStatus / 任务中心。profile: u2net | birefnet-lite */
+  mattingInstall: (profile?: string) =>
+    request<{ ok: boolean; started?: boolean; downloaded?: boolean }>('/api/ai/matting/install', {
+      method: 'POST',
+      body: JSON.stringify({ profile }),
+    }),
   mattingCancel: () => request<{ ok: boolean }>('/api/ai/matting/cancel', { method: 'POST' }),
 
   /* ---------------- 任务中心 / 操作撤销 ---------------- */
@@ -2372,6 +2469,19 @@ export const api = {
     // total = 这个人的去重图片总数（不受 limit 影响）
     return request<{ items: ImageItem[]; total: number }>(`/api/face/persons/${id}/items${qs ? `?${qs}` : ''}`);
   },
+  /** 单个人物（灯箱里点人名跳人物页时用，不必整页拉列表再 find） */
+  facePerson: (id: number) => request<FacePerson>(`/api/face/persons/${id}`),
+  /** 全网以图搜图引擎清单 + 国际网络体检（refresh 强制重新探测，忽略 60s 缓存） */
+  reverseEngines: (refresh = false) =>
+    request<{ ok: boolean; engines: ReverseEngine[]; network: ReverseNetwork }>(
+      `/api/reverse/engines${refresh ? '?refresh=1' : ''}`
+    ),
+  /**
+   * 多引擎并发搜图：给 imageId，或给 personId 让服务端挑「最清晰最完整」的那张。
+   * 注意与上面的 reverseSearch(id, engine) 区分：那个是「素材来源」单渠道检索。
+   */
+  reverseSearchAll: (body: { imageId?: number; personId?: number; engines: string[] }) =>
+    request<ReverseSearchResponse>('/api/reverse/search', { method: 'POST', body: JSON.stringify(body) }),
   faceRename: (id: number, name: string) =>
     request<{ ok: boolean; id: number; name: string }>(`/api/face/persons/${id}`, {
       method: 'PATCH',

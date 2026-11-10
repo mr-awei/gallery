@@ -858,6 +858,59 @@ export interface AiUpscaleStatus {
   cugan?: { installed: boolean; usable: boolean | null; error: string; models: string[] };
 }
 
+/** 下载中心：一条模型（后端 model-registry 聚合后的形状） */
+export interface ModelItem {
+  id: string;
+  group: 'upscale' | 'matting' | 'face' | 'semantic';
+  name: string;
+  desc: string;
+  /** 已安装时为磁盘实际体积，未装时为 0 */
+  size: number;
+  /** 官方文件体积（预计） */
+  sizeHint: number;
+  source: string;
+  license: string;
+  required: boolean;
+  pinned: boolean;
+  note?: string;
+  installed: boolean;
+  removable: boolean;
+  verified: boolean;
+  updateAvailable: boolean;
+  path: string;
+  state: 'idle' | 'downloading' | 'installing' | 'installed' | 'error';
+  /** -1 = 总量未知，不画百分比 */
+  progress: number;
+  message: string;
+  error: string;
+}
+
+export interface ModelGroupStat {
+  id: string;
+  label: string;
+  hint: string;
+  total: number;
+  installed: number;
+  bytes: number;
+  updates: number;
+}
+
+export interface ModelsPayload {
+  ok: boolean;
+  items: ModelItem[];
+  groups: ModelGroupStat[];
+  summary: {
+    total: number;
+    installed: number;
+    bytes: number;
+    removableBytes: number;
+    updates: number;
+    active: number;
+    activeId: string;
+    groups: ModelGroupStat[];
+  };
+}
+
 export interface EnhanceJobStatus {
   running: boolean;
   cancelled: boolean;

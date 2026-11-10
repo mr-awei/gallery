@@ -53,6 +53,13 @@ export function register(app, ctx) {
     });
   });
 
+  // 单个人物：灯箱里点「人物 #123」跳人物页时，先拿到这个人本身
+  app.get('/api/face/persons/:id', (req, res) => {
+    const person = face.getPerson(Number(req.params.id));
+    if (!person) return res.status(404).json({ error: '人物不存在' });
+    res.json(person);
+  });
+
   // 存量质量重算 + 重选封面（老数据没有质量分、封面是「第一张脸」时代选的）
   app.post(
     '/api/face/quality/cleanup',

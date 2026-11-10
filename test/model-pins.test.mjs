@@ -37,6 +37,10 @@ test('去背景 / 超分权重都在清单里（运行前必须能强校验）',
   assert.ok(matting, 'matting 权重未固化哈希，首次被替换无法发现');
   assert.match(pins.models[matting], /^[0-9a-f]{64}$/);
 
+  // 旗舰抠图档（BEN2）也必须强校验：它是自动选档里优先级最高的一档，被换掉影响面最大
+  const ben2 = Object.keys(pins.models).find((k) => k.startsWith('PramaLLC/BEN2/'));
+  assert.ok(ben2, 'BEN2 权重未固化哈希');
+
   // 人脸：两个权重缺一个都等于没有强校验（检测模型被换掉同样能伪造结果）
   for (const name of ['det_10g.onnx', 'w600k_r50.onnx']) {
     const key = Object.keys(pins.models).find((k) => k.endsWith(`/buffalo_l/${name}`));

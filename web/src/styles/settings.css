@@ -18,7 +18,10 @@
 }
 .settings-nav {
   position: sticky;
-  top: 16px;
+  /* 页头本身也吸顶（components.css 的 .page-head），侧栏必须从页头下沿开始吸，
+     否则会被页头盖住；--head-h 是 App 里实测的页头高度 */
+  top: calc(var(--head-h, 0px) + 12px);
+  z-index: 29;
   display: flex;
   flex-direction: column;
   gap: 0;
@@ -27,7 +30,7 @@
   border: 1px solid var(--border);
   border-radius: var(--radius);
   /* 分组后共 20 行，超过窗口高度时侧栏自己滚，别把整页撑长 */
-  max-height: calc(100vh - 120px);
+  max-height: calc(100vh - var(--head-h, 0px) - 40px);
   overflow-y: auto;
   scrollbar-width: thin;
 }

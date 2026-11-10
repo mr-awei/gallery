@@ -468,54 +468,92 @@ export default function EnhanceSection({ settings, patch, onToast }: Props) {
 
           {/* AI 去背景 */}
       <div className="settings-subtitle" style={{ marginTop: 14 }}>
-        AI 去背景（U-2-Net 人像分割）
+        AI 去背景（本地 ONNX，三档可选）
       </div>
-      <div className="hint" style={{ marginBottom: 6 }}>
-        这个模型是<strong>人像分割</strong>：人物、宠物效果最好；纯风景、商品、文字图往往抠不干净（工具会提示「几乎没抠出主体」）。
-        需要通用抠图请用外部工具，这里不做承诺。
+      <div className="hint" style={{ marginBottom: 8 }}>
+        按质量自动选档：装了旗舰档（BEN2，1024px）就用它，其次精细档（BiRefNet lite），都没有才用轻量档（U-2-Net，320px）。
+        发丝、绒毛、玻璃与半透明边缘，旗舰 / 精细档明显更干净（代价是 CPU 单张几秒）；
+        <strong>三档都只做人像 / 主体分割</strong>，纯风景、商品、文字图往往抠不干净（工具会提示「几乎没抠出主体」）。
       </div>
-      <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
-        <button
-          className={`btn sm${matting?.downloaded ? '' : ' primary'}`}
-          disabled={!!matting?.downloading}
-          onClick={async () => {
-            try {
-              // 后台下载：接口立刻返回，进度靠下面的轮询/SSE 显示（以前这个请求要等整包下完）
-              await api.mattingInstall();
-              setMatting(await api.mattingStatus());
-              onToast('已开始后台下载去背景模型');
-            } catch (err) {
-              onToast((err as Error).message, 'error');
-            }
-          }}
-        >
-          {matting?.downloading
-            ? `下载中 ${matting.progress}%`
-            : matting?.downloaded
-              ? '重新下载模型'
-              : '↓ 下载模型（约 4.5MB）'}
-        </button>
-        {matting?.downloading && (
-          <button
-            className="btn sm"
-            onClick={async () => {
-              try {
-                await api.mattingCancel();
-                onToast('已取消下载');
-                setMatting(await api.mattingStatus());
-              } catch (err) {
-                onToast((err as Error).message, 'error');
-              }
-            }}
-          >
-            取消下载
-          </button>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+        {(matting?.profiles || []).map((p) => {
+          const isThis = matting?.downloading && matting?.installing === p.id;
+          return (
+            <div
+              key={p.id}
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: 8,
+                flexWrap: 'wrap',
+                border: '1px solid var(--border, #e6e8eb)',
+                borderRadius: 6,
+                padding: '6px 10px',
+              }}
+            >
+              <span style={{ fontSize: 12.5, fontWeight: 600 }}>{p.label}</span>
+              {p.active && matting?.downloaded && (
+                <span
+                  style={{
+                    fontSize: 10.5,
+                    padding: '1px 6px',
+                    borderRadius: 4,
+                    background: 'rgba(37,99,235,.1)',
+                    color: '#2563eb',
+                  }}
+                >
+                  当前使用
+                </span>
+              )}
+              <span style={{ fontSize: 12, color: 'var(--muted)' }}>
+                {p.installed ? `${Math.round(p.size / 1024 / 1024)}MB 已下载` : `约 ${Math.round(p.sizeHint / 1024 / 1024)}MB`}
+              </span>
+              <button
+                className={`btn sm${p.installed ? '' : ' primary'}`}
+                disabled={!!matting?.downloading}
+                style={{ marginLeft: 'auto' }}
+                onClick={async () => {
+                  try {
+                    // 后台下载：接口立刻返回，进度靠 SSE / 轮询（以前这个请求要等整包下完）
+                    await api.mattingInstall(p.id);
+                    setMatting(await api.mattingStatus());
+                    onToast(`已开始后台下载：${p.label}`);
+                  } catch (err) {
+                    onToast((err as Error).message, 'error');
+                  }
+                }}
+              >
+                {isThis ? `下载中 ${matting?.progress}%` : p.installed ? '重新下载' : '下载'}
+              </button>
+              {isThis && (
+                <button
+                  className="btn sm"
+                  onClick={async () => {
+                    try {
+                      await api.mattingCancel();
+                      onToast('已取消下载');
+                      setMatting(await api.mattingStatus());
+                    } catch (err) {
+                      onToast((err as Error).message, 'error');
+                    }
+                  }}
+                >
+                  取消
+                </button>
+              )}
+            </div>
+          );
+        })}
+        {!matting?.profiles?.length && (
+          <span style={{ fontSize: 12.5, color: 'var(--muted)' }}>
+            未下载：去背景功能需要先下载模型（一次性）。完整清单与删除入口见「设置 → 下载中心」。
+          </span>
         )}
-        <span style={{ fontSize: 12.5, color: 'var(--muted)' }}>
-          {matting?.downloaded
-            ? '已就绪：大图预览 → 「✂ 去背景」，生成透明 PNG 存为新图，原图不动'
-            : '未下载：去背景功能需要先下载模型（一次性）'}
-        </span>
+      </div>
+      <div className="hint" style={{ marginTop: 6 }}>
+        {matting?.downloaded
+          ? '已就绪：大图预览 → 「✂ 去背景」，生成透明 PNG 存为新图，原图不动'
+          : '去背景功能需要先下载模型（一次性）'}
       </div>
       {!!matting?.error && (
         <div className="hint" style={{ color: 'var(--err, #e5484d)', marginTop: 6 }}>

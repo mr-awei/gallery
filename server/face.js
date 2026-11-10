@@ -35,9 +35,11 @@ import {
   SOFT_QUALITY,
 } from './lib/face-quality.js';
 
-const DIR = path.join(DATA_DIR, 'ai', 'face');
-const DET_FILE = path.join(DIR, 'det_10g.onnx');
-const REC_FILE = path.join(DIR, 'w600k_r50.onnx');
+/** 路径常量对外导出：下载中心要按同一份定义算体积与删除，不能另抄一份 */
+export const FACE_DIR = path.join(DATA_DIR, 'ai', 'face');
+const DIR = FACE_DIR;
+export const DET_FILE = path.join(DIR, 'det_10g.onnx');
+export const REC_FILE = path.join(DIR, 'w600k_r50.onnx');
 const REPO = 'public-data/insightface';
 const MIRRORS = ['https://hf-mirror.com/', 'https://huggingface.co/'];
 export const DET_KEY = `${REPO}/models/buffalo_l/det_10g.onnx`;
@@ -274,6 +276,27 @@ function getSessions() {
     throw err;
   });
   return sessionPromise;
+}
+
+/**
+ * 删除两个权重（下载中心用）。
+ * 先把 ONNX 会话放掉：Windows 上文件被句柄占着时 rm 会 EPERM，
+ * 光删文件会留下「界面显示已删、实际还占 191MB」的假象。
+ */
+export async function removeFaceModels() {
+  if (state.downloading) throw new Error('人脸模型正在下载，请稍后再试');
+  const s = sessionPromise;
+  sessionPromise = null;
+  try {
+    const sess = s ? await s.catch(() => null) : null;
+    await sess?.det?.release?.();
+    await sess?.rec?.release?.();
+  } catch {
+    /* 老版本 runtime 没有 release；删不掉时下面的 rm 会抛真实原因 */
+  }
+  await fsp.rm(DET_FILE, { force: true });
+  await fsp.rm(REC_FILE, { force: true });
+  return faceStatus();
 }
 
 /* ------------------------------ 图像预处理 ------------------------------ */
@@ -1171,6 +1194,33 @@ export function facesOfImage(imageId) {
 }
 
 /**
+ * 人物 DTO 的固定字段。列表与「单个」共用一份，避免两处 SELECT 漂移
+ * （count 是人脸数，photo_count 是去重照片数：一张合影里同一个人出现两次时两者不等）。
+ */
+const PERSON_SELECT = `SELECT p.id, p.name, p.count, p.cover_face_id, p.cover_px, COALESCE(f.quality, -1) AS cover_quality,
+        f.image_id AS cover_image_id, COALESCE(p.cover_locked, 0) AS cover_locked,
+        (SELECT COUNT(DISTINCT fi.image_id) FROM faces fi
+          WHERE fi.person_id = p.id AND fi.hidden <> 1) AS photo_count
+ FROM persons p LEFT JOIN faces f ON f.id = p.cover_face_id`;
+
+/** @param {any} r */
+function mapPerson(r) {
+  return {
+    id: Number(r.id),
+    name: String(r.name || ''),
+    count: Number(r.count) || 0,
+    photoCount: Number(r.photo_count) || 0,
+    coverFaceId: r.cover_face_id == null ? null : Number(r.cover_face_id),
+    /** 封面脸在哪张照片上：前端据此在人像照片墙上标出「当前封面」 */
+    coverImageId: r.cover_image_id == null ? null : Number(r.cover_image_id),
+    /** 用户手动指定过封面：按钮文案要从「设为封面」变成「正在用作封面」 */
+    coverLocked: Number(r.cover_locked) === 1,
+    coverPx: Number(r.cover_px) || 0,
+    coverQuality: Number(r.cover_quality) || 0,
+  };
+}
+
+/**
  * 人物列表：按人数倒序，带封面脸 id（前端用 /api/face/crop/:faceId 取缩略图）。
  * sharpOnly=true 只返回「封面脸够清晰」的人物：只有一两张糊脸的人物多是误检，
  * 不该占满人物页第一屏；它们仍在库里，切回「全部」就能看到。
@@ -1191,30 +1241,44 @@ export function listPersons({ limit = 200, offset = 0, minCount = 1, q = '', sha
   }
   const where = `WHERE ${conditions.join(' AND ')}`;
   return db
-    .prepare(
-      // count 是「人脸数」，photo_count 是「去重照片数」—— 一张合影里同一个人出现两次时两者不等，
-      // 界面上必须分开写，否则「566 张人脸」会被读成「566 张照片，可我只看到 40 张」
-      `SELECT p.id, p.name, p.count, p.cover_face_id, p.cover_px, COALESCE(f.quality, -1) AS cover_quality,
-              f.image_id AS cover_image_id, COALESCE(p.cover_locked, 0) AS cover_locked,
-              (SELECT COUNT(DISTINCT fi.image_id) FROM faces fi
-                WHERE fi.person_id = p.id AND fi.hidden <> 1) AS photo_count
-       FROM persons p LEFT JOIN faces f ON f.id = p.cover_face_id
-       ${where} ORDER BY p.count DESC, p.id ASC LIMIT ? OFFSET ?`
-    )
+    .prepare(`${PERSON_SELECT} ${where} ORDER BY p.count DESC, p.id ASC LIMIT ? OFFSET ?`)
     .all(...args, Math.min(2000, Math.max(1, limit)), Math.max(0, offset))
-    .map((r) => ({
-      id: Number(r.id),
-      name: String(r.name || ''),
-      count: Number(r.count) || 0,
-      photoCount: Number(r.photo_count) || 0,
-      coverFaceId: r.cover_face_id == null ? null : Number(r.cover_face_id),
-      /** 封面脸在哪张照片上：前端据此在人像照片墙上标出「当前封面」 */
-      coverImageId: r.cover_image_id == null ? null : Number(r.cover_image_id),
-      /** 用户手动指定过封面：按钮文案要从「设为封面」变成「正在用作封面」 */
-      coverLocked: Number(r.cover_locked) === 1,
-      coverPx: Number(r.cover_px) || 0,
-      coverQuality: Number(r.cover_quality) || 0,
-    }));
+    .map(mapPerson);
+}
+
+/**
+ * 单个人物。灯箱里点人名要跳到人物页，得先拿到这个人（名字/封面/张数），
+ * 没必要为此把 2000 人的列表整页拉下来再 find。
+ */
+export function getPerson(personId) {
+  const row = db.prepare(`${PERSON_SELECT} WHERE p.id = ?`).get(Number(personId));
+  return row ? mapPerson(row) : null;
+}
+
+/**
+ * 这个人「最清晰最完整」的一张照片：人脸质量分最高，其次人脸像素最大（人占画幅大、
+ * 不是合影角落），最后原图面积最大。用这张去全网搜图命中率最高。
+ * 一张合格的脸都没有时退回封面脸所在的照片。
+ */
+export function bestPhotoForPerson(personId) {
+  const pid = Number(personId);
+  const person = db.prepare('SELECT id, cover_face_id FROM persons WHERE id = ?').get(pid);
+  if (!person) throw new Error('人物不存在');
+  const row = db
+    .prepare(
+      `SELECT f.id AS face_id, f.image_id, COALESCE(f.quality, 0) AS quality, ${FACE_PX_EXPR} AS px
+       FROM faces f JOIN images i ON i.id = f.image_id
+       WHERE f.person_id = ? AND f.hidden <> 1
+       ORDER BY COALESCE(f.quality, 0) DESC, px DESC, (COALESCE(i.width, 0) * COALESCE(i.height, 0)) DESC
+       LIMIT 1`
+    )
+    .get(pid);
+  if (row) return { faceId: Number(row.face_id), imageId: Number(row.image_id), quality: Number(row.quality) || 0, facePx: Math.round(Number(row.px) || 0) };
+  const coverId = person.cover_face_id == null ? null : Number(person.cover_face_id);
+  if (!coverId) return null;
+  const cover = db.prepare('SELECT id, image_id FROM faces WHERE id = ?').get(coverId);
+  if (!cover) return null;
+  return { faceId: Number(cover.id), imageId: Number(cover.image_id), quality: 0, facePx: 0 };
 }
 
 /** 统计符合当前筛选条件的人物总数（不受 limit 影响，前端据此提示列表被截断） */

@@ -6,12 +6,20 @@
 }
 
 .tut-head {
+  /* 搜索框在页头里，滚到下面还能直接改关键词，不用先滚回顶部。
+     top 为负的理由同 components.css 的 .page-head：贴到 .content 的 padding 之上 */
+  position: sticky;
+  top: -22px;
+  z-index: 30;
   display: flex;
   align-items: flex-end;
   justify-content: space-between;
   gap: 18px;
   flex-wrap: wrap;
-  margin-bottom: 18px;
+  margin-bottom: 0;
+  padding-bottom: 18px;
+  background: var(--surface-head);
+  backdrop-filter: blur(10px);
 }
 
 .tut-head h2 {
@@ -76,7 +84,8 @@
 
 .tut-nav {
   position: sticky;
-  top: 12px;
+  /* 从吸顶页头下沿开始吸（--head-h 由 App 实测），别被页头盖住 */
+  top: calc(var(--head-h, 0px) + 12px);
   display: flex;
   flex-direction: column;
   gap: 2px;

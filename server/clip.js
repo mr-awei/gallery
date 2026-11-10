@@ -9,6 +9,7 @@
  * 索引：磁盘 int16 量化分桶 + 余弦上界剪枝，扫描在 worker 线程按块读盘，不全表驻留内存。
  */
 import fs from 'node:fs';
+import fsp from 'node:fs/promises';
 import path from 'node:path';
 import crypto from 'node:crypto';
 import { Worker } from 'node:worker_threads';
@@ -16,6 +17,7 @@ import { pipeline, env, AutoTokenizer, CLIPTextModelWithProjection } from '@hugg
 import { db, getLibraryGeneration, getActiveLibrary } from './db.js';
 import { MODEL_CACHE_DIR, DATA_DIR } from './config.js';
 import { KNOWN_SHA256 } from './model-fetch.js';
+import { createJob, finishJob } from './jobs.js';
 import { openIndex } from './lib/clip-index.js';
 import { scanBuckets } from './lib/clip-scan.js';
 
@@ -69,6 +71,44 @@ function verifyPinnedModels() {
   pinnedChecked = true;
 }
 
+/**
+ * 下载中心共用：transformers.js 的加载进度。
+ * 以前首次使用是「静默几百 MB 下载 + 界面只转圈」，用户不知道在等下什么、下到哪了。
+ */
+export const downloadState = { downloading: false, progress: 0, message: '', error: '' };
+
+/** 模型在 HF 缓存里的落地目录（下载中心算体积 / 删除都用这一份拼法） */
+export function clipCacheDir() {
+  return path.join(MODEL_CACHE_DIR, MODEL_ID);
+}
+
+/** 权重是否已落地（量化 onnx 大于 1MB 才算完整，半截文件不算） */
+export function clipDownloaded() {
+  const dir = clipCacheDir();
+  try {
+    return fs.readdirSync(dir, { recursive: true }).some((f) => {
+      const name = String(f);
+      if (!name.endsWith('.onnx')) return false;
+      try {
+        return fs.statSync(path.join(dir, name)).size > 1024 * 1024;
+      } catch {
+        return false;
+      }
+    });
+  } catch {
+    return false;
+  }
+}
+
+const onProgress = (tag) => (p) => {
+  if (p?.status === 'progress' && p.total) {
+    downloadState.progress = Math.round((p.loaded / p.total) * 100);
+    downloadState.message = `${tag} ${p.file || ''} ${downloadState.progress}%`.trim();
+  } else if (p?.status === 'done' && p.file) {
+    downloadState.message = `${tag} ${p.file} 完成`;
+  }
+};
+
 /** 懒加载特征提取器（首次调用触发模型下载） */
 function getExtractor() {
   if (CLIP_DISABLED) return Promise.reject(new Error('CLIP 已通过 TUKU_CLIP=off 关闭'));
@@ -79,7 +119,10 @@ function getExtractor() {
   }
   if (!extractorPromise) {
     extractorReady = false;
-    extractorPromise = pipeline('image-feature-extraction', MODEL_ID, { dtype: 'q8' })
+    extractorPromise = pipeline('image-feature-extraction', MODEL_ID, {
+      dtype: 'q8',
+      progress_callback: onProgress('视觉塔'),
+    })
       .then((p) => {
         extractorReady = true;
         return p;
@@ -92,6 +135,52 @@ function getExtractor() {
       });
   }
   return extractorPromise;
+}
+
+/**
+ * 下载中心：主动把两个塔下齐（不等第一次搜图时才偷偷下）。
+ * transformers.js 的加载没有中止接口 —— 取消时只能如实告知，不能假装停住了。
+ */
+export async function startClipInstall() {
+  if (downloadState.downloading) return { ok: true, started: false };
+  downloadState.downloading = true;
+  downloadState.progress = 0;
+  downloadState.error = '';
+  downloadState.message = '准备下载 CLIP…';
+  const jobId = createJob({ kind: 'model-install', title: 'CLIP 语义模型', payload: { model: 'clip' } });
+  (async () => {
+    try {
+      await getExtractor();
+      downloadState.progress = 60;
+      downloadState.message = '视觉塔就绪，下载文本塔…';
+      await textEncoderLoad();
+      downloadState.progress = 100;
+      downloadState.message = 'CLIP 已就绪';
+      finishJob(jobId, { status: 'done' });
+    } catch (err) {
+      downloadState.error = String(err?.message || err).slice(0, 200);
+      downloadState.message = '下载失败';
+      finishJob(jobId, { status: 'failed', error: downloadState.error });
+    } finally {
+      downloadState.downloading = false;
+    }
+  })();
+  return { ok: true, started: true };
+}
+
+/** 删除 CLIP 权重；被加载中的 pipeline 占着时先 dispose 再删 */
+export async function removeClipModel() {
+  if (downloadState.downloading) throw new Error('正在下载，请稍后再试');
+  const p = extractorPromise ? await extractorPromise.catch(() => null) : null;
+  extractorPromise = null;
+  extractorReady = false;
+  try {
+    await p?.dispose?.();
+  } catch {
+    /* 删不掉时下面的报错会如实反馈 */
+  }
+  await fsp.rm(clipCacheDir(), { recursive: true, force: true });
+  return { ok: true };
 }
 
 /** 模型是否可用：只有真正加载完成才算 ready（旧实现只看 promise 是否存在，

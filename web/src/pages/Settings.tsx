@@ -4,6 +4,7 @@ import type { Settings as SettingsType } from '../types';
 import CrawlSection from './settings/CrawlSection';
 import {
   IconBrain,
+  IconDownload,
   IconFolder,
   IconGear,
   IconGlobe,
@@ -43,6 +44,7 @@ import { useSettingsForm, type SectionKey } from './settings/useSettingsForm';
 import ImportNameTemplateCard from './settings/ImportNameTemplateCard';
 import PluginMarket from './settings/PluginMarket';
 import AboutSection from './settings/AboutSection';
+import DownloadSection from './settings/DownloadSection';
 
 /** 分区标题双语内联：与 lib/i18n 同一套做法，不为 13 个标题另建词典 */
 type SectionMeta = {
@@ -212,6 +214,14 @@ const NAV_GROUPS: { label: string; labelEn: string; items: SectionMeta[] }[] = [
         desc: '后台任务历史与操作回滚',
         descEn: 'Background job history and rollback',
         icon: <IconRotateCcw />,
+      },
+      {
+        key: 'models',
+        label: '下载中心',
+        labelEn: 'Downloads',
+        desc: '所有模型与运行库的下载、更新与清理',
+        descEn: 'Download, update and free every model',
+        icon: <IconDownload />,
       },
       {
         key: 'about',
@@ -567,6 +577,9 @@ export default function Settings({
           )}
 
           {section === 'tasks' && <JobsSection onToast={onToast} />}
+
+          {/* ---------------------- 下载中心（已拆分至 settings/DownloadSection.tsx） ---------------------- */}
+          {section === 'models' && <DownloadSection onToast={onToast} />}
 
           {/* ---------------------- 关于软件（已拆分至 settings/AboutSection.tsx） ---------------------- */}
           {section === 'about' && (

@@ -8,16 +8,27 @@
  * 没有下载模型或还没扫描时，明确说清楚缺什么，不用空网格糊过去。
  */
 import React, { useCallback, useEffect, useRef, useState } from 'react';
-import { api, BASE, type FacePerson, type FaceStatus } from '../api';
+import { createPortal } from 'react-dom';
+import { api, BASE, copyImageToClipboard, revealFile, type FacePerson, type FaceStatus } from '../api';
 import type { ImageItem } from '../types';
-import { IconDownload, IconImages, IconUsers } from '../components/Icons';
+import { IconCopy, IconDownload, IconExpand, IconFolder, IconImages, IconSearch, IconTrash, IconUsers } from '../components/Icons';
+import ReverseSearchDialog, { type ReverseTarget } from '../components/ReverseSearchDialog';
 import Select from '../components/Select';
 import { useLang } from '../lib/i18n';
 
 type Props = {
   onToast: (msg: string, kind?: 'info' | 'error') => void;
   onOpen: (item: ImageItem, pool?: ImageItem[]) => void;
+  /** 灯箱里点了「人物 #123」：直接进这个人的照片墙 */
+  focusPersonId?: number | null;
+  /** 同一个人连点两次也要能跳（只靠 id 变化不会触发 effect） */
+  focusNonce?: number;
 };
+
+/** 照片墙的格子宽度：和图片列表页一样能调，人物页常要看细节，默认比列表页大一点 */
+const PEOPLE_COL_MIN = 90;
+const PEOPLE_COL_MAX = 320;
+const PEOPLE_COL_KEY = 'tuku:people-col';
 
 /** 同人阈值预设：值越低越容易合并，也越容易把路人并给同一个人 */
 /** 选项文字要能完整塞进下拉框：收起态被裁掉的数字最容易被误读成「显示不全」 */
@@ -27,7 +38,7 @@ const COS_PRESETS = [
   { v: 0.35, zh: '宽松（0.35）· 更易合并', en: 'Loose (0.35) · easier to merge' },
 ];
 
-export default function People({ onToast, onOpen }: Props) {
+export default function People({ onToast, onOpen, focusPersonId, focusNonce }: Props) {
   const { lang } = useLang();
   /** 双语取词：英文缺失时回退中文，不显示空串 */
   const L = (zh: string, en: string) => (lang === 'en' && en ? en : zh);
@@ -55,6 +66,39 @@ export default function People({ onToast, onOpen }: Props) {
   const [cos, setCos] = useState(0.42);
   const [renaming, setRenaming] = useState<{ id: number; value: string } | null>(null);
   const [mergeTo, setMergeTo] = useState<number | ''>('');
+  /** 照片墙格子宽度（和图片列表页的缩放滑杆一个意思，记在本地） */
+  const [colW, setColW] = useState(() => {
+    const saved = Number(localStorage.getItem(PEOPLE_COL_KEY));
+    return saved >= PEOPLE_COL_MIN && saved <= PEOPLE_COL_MAX ? saved : 150;
+  });
+  useEffect(() => {
+    localStorage.setItem(PEOPLE_COL_KEY, String(colW));
+  }, [colW]);
+  /** 右键菜单：人物卡片与人物照片共用一套 .card-ctx 样式 */
+  const [personCtx, setPersonCtx] = useState<{ x: number; y: number; p: FacePerson } | null>(null);
+  const [photoCtx, setPhotoCtx] = useState<{ x: number; y: number; item: ImageItem } | null>(null);
+  /** 全网以图搜图面板的目标（人物或单张图） */
+  const [rsTarget, setRsTarget] = useState<ReverseTarget | null>(null);
+
+  // 右键菜单：点别处 / 滚动 / Esc 都关掉，别留一个悬浮层挡住图
+  useEffect(() => {
+    if (!personCtx && !photoCtx) return;
+    const close = () => {
+      setPersonCtx(null);
+      setPhotoCtx(null);
+    };
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') close();
+    };
+    window.addEventListener('pointerdown', close);
+    window.addEventListener('wheel', close, { passive: true });
+    window.addEventListener('keydown', onKey);
+    return () => {
+      window.removeEventListener('pointerdown', close);
+      window.removeEventListener('wheel', close);
+      window.removeEventListener('keydown', onKey);
+    };
+  }, [personCtx, photoCtx]);
 
   const toastRef = useRef(onToast);
   toastRef.current = onToast;
@@ -177,22 +221,41 @@ export default function People({ onToast, onOpen }: Props) {
       toastRef.current('已请求取消重建，正在收尾…');
     });
 
-  const openPerson = (p: FacePerson) =>
+  /**
+   * 按 id 打开某个人：列表点击、灯箱跳转、合并后跳转都走这一条。
+   * 没有 snapshot 时先去取人物本身 —— 从灯箱跳进来只有 id，
+   * 名字/封面/张数都得靠这次请求，否则详情页会把「126 张」显示成 0。
+   */
+  const openPersonById = (id: number, snapshot?: FacePerson) =>
     guard(async () => {
-      setActive(p.id);
-      setActivePerson(p);
+      setActive(id);
+      if (snapshot) setActivePerson(snapshot);
       setItems(null);
       setItemsLimit(500);
       setItemsTotal(0);
       setLoadingItems(true);
       try {
-        const r = await api.facePersonItems(p.id, { limit: 500 });
+        if (!snapshot) setActivePerson(await api.facePerson(id).catch(() => null));
+        const r = await api.facePersonItems(id, { limit: 500 });
         setItems(r.items);
         setItemsTotal(r.total ?? r.items.length);
       } finally {
         setLoadingItems(false);
       }
     });
+
+  const openPerson = (p: FacePerson) => openPersonById(p.id, p);
+
+  // 灯箱里点「人物 #123」：切进这一页就直接打开这个人的照片墙
+  const focusRef = useRef(-1);
+  useEffect(() => {
+    if (!focusPersonId) return;
+    const nonce = focusNonce ?? 0;
+    if (focusRef.current === nonce) return;
+    focusRef.current = nonce;
+    void openPersonById(focusPersonId);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [focusPersonId, focusNonce]);
 
   const loadMoreItems = () =>
     guard(async () => {
@@ -224,15 +287,10 @@ export default function People({ onToast, onOpen }: Props) {
       if (t) await openPerson(t);
     });
 
-  const removePerson = () =>
-    guard(async () => {
-      if (active == null) return;
-      if (!window.confirm('把这个人物删掉？该人物的所有人脸记录会被清除（图片本身不受影响）。')) return;
-      await api.faceDeletePerson(active);
-      setActive(null);
-      setItems(null);
-      await refresh();
-    });
+  const removePerson = () => {
+    if (active == null) return;
+    void removePersonById(active);
+  };
 
   /**
    * 手动指定封面。
@@ -263,6 +321,193 @@ export default function People({ onToast, onOpen }: Props) {
     if (hit) setActivePerson(hit);
   }, [persons, active]);
   const coverUrl = (p: FacePerson) => (p.coverFaceId ? `${BASE}/api/face/crop/${p.coverFaceId}?size=224` : '');
+
+  /** 去掉人物的全部人脸记录（图片本身不动） */
+  const removePersonById = (id: number) =>
+    guard(async () => {
+      if (!window.confirm('把这个人物删掉？该人物的所有人脸记录会被清除（图片本身不受影响）。')) return;
+      await api.faceDeletePerson(id);
+      if (active === id) {
+        setActive(null);
+        setItems(null);
+      }
+      await refresh();
+      toastRef.current(L('已删除该人物', 'Person deleted'));
+    });
+
+  /** 用这个人「最清晰最完整」的一张去全网搜图（挑图在服务端做，这里只给预览） */
+  const searchPerson = (p: FacePerson) =>
+    setRsTarget({
+      personId: p.id,
+      previewUrl: coverUrl(p),
+      title: p.name || L(`人物 #${p.id}`, `Person #${p.id}`),
+      hint: L('用这个人最清晰、人脸最大的一张照片去检索', 'Searching this person’s sharpest, largest-face photo'),
+    });
+
+  const searchImage = (it: ImageItem) =>
+    setRsTarget({ imageId: it.id, previewUrl: `${BASE}${it.thumbUrl}`, title: it.title });
+
+  /** 菜单贴着鼠标出现，但不能溢出窗口 */
+  const menuPos = (x: number, y: number, h = 210) => ({
+    left: Math.min(x, Math.max(8, window.innerWidth - 208)),
+    top: Math.min(y, Math.max(8, window.innerHeight - h)),
+  });
+
+  const copyText = (text: string) =>
+    guard(async () => {
+      await navigator.clipboard.writeText(text);
+      toastRef.current(L('已复制路径', 'Path copied'));
+    });
+
+  /* 右键菜单与搜图面板：三个分支（未下载/单人/网格）都要能弹出来 */
+  const overlays = (
+    <>
+      {personCtx &&
+        createPortal(
+          <div
+            className="card-ctx"
+            style={menuPos(personCtx.x, personCtx.y)}
+            onPointerDown={(e) => e.stopPropagation()}
+            onContextMenu={(e) => e.preventDefault()}
+          >
+            <button
+              onClick={() => {
+                const p = personCtx.p;
+                setPersonCtx(null);
+                void openPerson(p);
+              }}
+            >
+              <IconUsers /> {L('查看这个人的照片', 'Open this person')}
+            </button>
+            <button
+              onClick={() => {
+                const p = personCtx.p;
+                setPersonCtx(null);
+                searchPerson(p);
+              }}
+            >
+              <IconSearch /> {L('全网搜图…', 'Reverse image search…')}
+            </button>
+            <button
+              onClick={() => {
+                const p = personCtx.p;
+                setPersonCtx(null);
+                setRenaming({ id: p.id, value: p.name || '' });
+                if (active !== p.id) void openPerson(p);
+              }}
+            >
+              {L('改名…', 'Rename…')}
+            </button>
+            <button
+              onClick={() => {
+                const p = personCtx.p;
+                setPersonCtx(null);
+                void removePersonById(p.id);
+              }}
+            >
+              <IconTrash /> {L('删除该人物', 'Delete person')}
+            </button>
+          </div>,
+          document.body
+        )}
+
+      {photoCtx &&
+        createPortal(
+          <div
+            className="card-ctx"
+            style={menuPos(photoCtx.x, photoCtx.y, 250)}
+            onPointerDown={(e) => e.stopPropagation()}
+            onContextMenu={(e) => e.preventDefault()}
+          >
+            <button
+              onClick={() => {
+                const it = photoCtx.item;
+                setPhotoCtx(null);
+                onOpen(it, items || []);
+              }}
+            >
+              <IconExpand /> {L('大图预览', 'Open preview')}
+            </button>
+            <button
+              onClick={() => {
+                const it = photoCtx.item;
+                setPhotoCtx(null);
+                // 带上归属文件夹：回图库后筛选直接落在那一夹，关掉大图就停在那张图旁边
+                void (async () => {
+                  let folderId: number | null = null;
+                  try {
+                    const r = await api.imageFolders(it.id);
+                    folderId = r.folders[0]?.id ?? null;
+                  } catch {
+                    // 查不到归属夹就按全库定位，不影响「打开这张图」
+                    folderId = null;
+                  }
+                  window.dispatchEvent(
+                    new CustomEvent('tuku:locate-image', { detail: { item: it, folderId } })
+                  );
+                })();
+              }}
+            >
+              <IconImages /> {L('在图库中定位', 'Locate in library')}
+            </button>
+            <button
+              onClick={() => {
+                const it = photoCtx.item;
+                setPhotoCtx(null);
+                searchImage(it);
+              }}
+            >
+              <IconSearch /> {L('全网搜图…', 'Reverse image search…')}
+            </button>
+            <button
+              onClick={() => {
+                const it = photoCtx.item;
+                setPhotoCtx(null);
+                void revealFile(it.path).catch((err: Error) =>
+                  toastRef.current(L('打开所在文件夹失败：', 'Cannot open folder: ') + err.message, 'error')
+                );
+              }}
+            >
+              <IconFolder /> {L('打开所在文件夹', 'Show in folder')}
+            </button>
+            <button
+              onClick={() => {
+                const it = photoCtx.item;
+                setPhotoCtx(null);
+                void copyImageToClipboard(`${BASE}${it.thumbUrl}`)
+                  .then(() => toastRef.current(L('已复制图片', 'Image copied')))
+                  .catch((err: Error) => toastRef.current(err.message, 'error'));
+              }}
+            >
+              <IconCopy /> {L('复制图片', 'Copy image')}
+            </button>
+            <button
+              onClick={() => {
+                const it = photoCtx.item;
+                setPhotoCtx(null);
+                void copyText(it.path);
+              }}
+            >
+              <IconCopy /> {L('复制路径', 'Copy path')}
+            </button>
+            {current?.coverImageId !== photoCtx.item.id && (
+              <button
+                onClick={() => {
+                  const it = photoCtx.item;
+                  setPhotoCtx(null);
+                  void setCover(it.id);
+                }}
+              >
+                {L('设为封面', 'Set as cover')}
+              </button>
+            )}
+          </div>,
+          document.body
+        )}
+
+      <ReverseSearchDialog target={rsTarget} onClose={() => setRsTarget(null)} onToast={onToast} />
+    </>
+  );
 
   /* ------------------------------ 顶部状态条 ------------------------------ */
   const head = (
@@ -528,6 +773,24 @@ export default function People({ onToast, onOpen }: Props) {
               </button>
             </>
           )}
+          <label
+            className="people-size"
+            title={L(
+              '照片墙格子大小（和图片列表页一样能调，拖动即生效并记住）',
+              'Thumbnail size — drag to resize, remembered locally'
+            )}
+          >
+            <IconImages />
+            <input
+              type="range"
+              min={PEOPLE_COL_MIN}
+              max={PEOPLE_COL_MAX}
+              step={10}
+              value={colW}
+              onChange={(e) => setColW(Number(e.target.value))}
+              aria-label={L('照片墙格子大小', 'Thumbnail size')}
+            />
+          </label>
           <button
             className="btn sm"
             onClick={() => void removePerson()}
@@ -546,12 +809,19 @@ export default function People({ onToast, onOpen }: Props) {
         <div
           style={{
             display: 'grid',
-            gridTemplateColumns: 'repeat(auto-fill, minmax(150px, 1fr))',
+            gridTemplateColumns: `repeat(auto-fill, minmax(${colW}px, 1fr))`,
             gap: 8,
           }}
         >
           {(items || []).map((it) => (
-            <div key={it.id} className="people-tile">
+            <div
+              key={it.id}
+              className="people-tile"
+              onContextMenu={(e) => {
+                e.preventDefault();
+                setPhotoCtx({ x: e.clientX, y: e.clientY, item: it });
+              }}
+            >
               <button
                 onClick={() => onOpen(it, items || [])}
                 className="people-tile-img"
@@ -591,6 +861,7 @@ export default function People({ onToast, onOpen }: Props) {
             )}
           </div>
         )}
+        {overlays}
       </div>
     );
   }
@@ -710,6 +981,10 @@ export default function People({ onToast, onOpen }: Props) {
             <button
               key={p.id}
               onClick={() => void openPerson(p)}
+              onContextMenu={(e) => {
+                e.preventDefault();
+                setPersonCtx({ x: e.clientX, y: e.clientY, p });
+              }}
               style={{
                 padding: 0,
                 border: '1px solid var(--line)',
@@ -760,6 +1035,7 @@ export default function People({ onToast, onOpen }: Props) {
           )}
         </div>
       )}
+      {overlays}
     </div>
   );
 }

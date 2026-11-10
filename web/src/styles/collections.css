@@ -896,3 +896,24 @@
   color: #fff;
   pointer-events: none;
 }
+/* 照片墙格子大小：和图片列表页一样能拖，拖动即生效（值记在 localStorage） */
+.people-size {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 32px;
+  padding: 0 10px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  color: var(--muted);
+  cursor: ew-resize;
+}
+.people-size input[type='range'] {
+  width: 96px;
+  accent-color: var(--accent);
+  cursor: ew-resize;
+}
+.people-size:hover {
+  color: var(--text);
+  border-color: var(--accent);
+}

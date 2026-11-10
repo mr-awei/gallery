@@ -10,6 +10,25 @@
   margin-bottom: 18px;
   flex-wrap: wrap;
 }
+/* 长列表页（人物 / 整理 / 书签 / 清单 / 知识库 / 采集 …）的页头常驻：
+   这些页面的操作入口（扫描、筛选、批量按钮）全在页头上，以前一滚就得滚回顶部。
+   页面根节点有两种写法——裸 div（人物页）与 .page（智能检索等），两种都要覆盖；
+   包在 .sticky-head 里的（图库）不在此列，它的吸顶由自己那层负责，别嵌套两层 sticky。
+   间距从 margin-bottom 挪到 padding-bottom：吸顶后 margin 区不画背景，内容会从缝里透出来。
+   top 用 -22px 而不是 0：sticky 的停靠线从 .content 的内容框算（内容是 padding:22px 的
+   滚动容器），写 0 会让页头停在内容框上沿，上方 22px 缝里能看到滚动中的正文。 */
+.content > div > .page-head,
+.content > .page > .page-head {
+  position: sticky;
+  top: -22px;
+  z-index: 30;
+  background: var(--surface-head);
+  backdrop-filter: blur(10px);
+  margin-bottom: 0;
+  padding-top: 6px;
+  padding-bottom: 18px;
+  margin-top: -6px;
+}
 .page-title {
   font-size: 22px;
   font-weight: 700;

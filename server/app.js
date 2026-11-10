@@ -53,6 +53,9 @@ import { register as registerWorkshop } from './routes/workshop.js';
 import { register as registerSync } from './routes/sync.js';
 import { register as registerFace } from './routes/face.js';
 import { register as registerTimeline } from './routes/timeline.js';
+import { register as registerModels } from './routes/models.js';
+import { register as registerReverse } from './routes/reverse.js';
+import { modelsSnapshot } from './lib/model-registry.js';
 import { capabilitiesFor, platformSummary } from './lib/platform.js';
 import { markInterruptedJobs, pruneJobs } from './jobs.js';
 import { startThumbRebuild, thumbMissingCount } from './lib/thumb-rebuild.js';
@@ -378,6 +381,8 @@ export function buildApp({ desktop = false } = {}) {
     matting: matting.mattingStatus(),
     // 批量裁切/调色/水印以前只能各自 800ms 轮询，现在一起走 SSE 快照
     edit: editJobStatus(),
+    // 下载中心：任何模块在下载，这里都能看到「下的是哪一项、到哪了」
+    models: modelsSnapshot(),
   });
   let lastJobJson = '';
   let lastJobPush = 0;
@@ -392,7 +397,9 @@ export function buildApp({ desktop = false } = {}) {
     const json = JSON.stringify(snap);
     // 有任务在跑时即使快照没变也按 5s 心跳推一帧：前端据此确认 SSE 还活着，
     // 不再各自 800ms/1s 轮询；空闲时仍然只在变化时推，避免空转刷屏。
-    const running = Object.values(snap).some((s) => s && (s.running || s.downloading || s.loading));
+    const running = Object.values(snap).some(
+      (s) => s && (s.running || s.downloading || s.loading || s.active > 0)
+    );
     if (json !== lastJobJson || (running && Date.now() - lastJobPush >= 5000)) {
       lastJobPush = Date.now();
       lastJobJson = json;
@@ -459,6 +466,8 @@ export function buildApp({ desktop = false } = {}) {
   registerSync(app, ctx);
   registerFace(app, ctx);
   registerTimeline(app, ctx);
+  registerModels(app, ctx);
+  registerReverse(app, ctx);
 
   /* -------------------------------- 系统能力 ------------------------------- */
   app.get('/api/platform', (_req, res) => {

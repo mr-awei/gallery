@@ -947,6 +947,19 @@ const ImageCard = React.memo(function ImageCard({
           <button onClick={() => { setMenu(null); void copyImage(); }}>📋 复制图片</button>
           <button onClick={() => { setMenu(null); copyLink(); }}>🔗 复制图片链接</button>
           {item.path && <button onClick={() => { setMenu(null); copyPath(); }}>📄 复制文件路径</button>}
+          <button
+            onClick={() => {
+              setMenu(null);
+              // 搜图面板由 App 统一挂载，这里只把目标丢过去
+              window.dispatchEvent(
+                new CustomEvent('tuku:reverse-search', {
+                  detail: { imageId: item.id, title: item.title, previewUrl: `${BASE}${item.thumbUrl}` },
+                })
+              );
+            }}
+          >
+            🔎 全网搜图…
+          </button>
           {item.path && <button onClick={() => { setMenu(null); reveal(); }}>📂 打开所在文件夹</button>}
           <button onClick={() => { setMenu(null); onDownload(item); }}>
             <IconDownload /> 下载

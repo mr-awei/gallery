@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { CSSProperties } from 'react';
 import { createPortal } from 'react-dom';
-import { api, copyText, formatDate, formatSize, pickFolder, quiet } from '../api';
+import { api, copyText, formatDate, formatSize, openFolder, pickFolder, quiet, revealFile } from '../api';
 import type { VersionInfo } from '../api';
 import type { ImageItem } from '../types';
 import { IconClose, IconCopy, IconDownload, IconRefresh, IconTrash, IconWand } from './Icons';
@@ -69,7 +69,7 @@ export default function ImageToolkit({ item, tab = 'info', onClose, onToast, onR
           ))}
         </div>
         <div className="modal-body tk-body">
-          {active === 'info' && <InfoTab item={item} />}
+          {active === 'info' && <InfoTab item={item} onToast={onToast} />}
           {active === 'ocr' && <OcrTab item={item} onToast={onToast} />}
           {active === 'source' && <SourceTab item={item} onToast={onToast} onReplaced={onReplaced} />}
           {active === 'versions' && <VersionsTab item={item} onToast={onToast} onReplaced={onReplaced} />}
@@ -84,7 +84,7 @@ export default function ImageToolkit({ item, tab = 'info', onClose, onToast, onR
 
 /* --------------------------------- 检查器 --------------------------------- */
 
-function InfoTab({ item }: { item: ImageItem }) {
+function InfoTab({ item, onToast }: { item: ImageItem; onToast?: (msg: string, kind?: 'info' | 'error') => void }) {
   const [data, setData] = useState<Awaited<ReturnType<typeof api.exif>> | null>(null);
   const [err, setErr] = useState('');
 
@@ -131,7 +131,14 @@ function InfoTab({ item }: { item: ImageItem }) {
         <span>入库时间</span>
         <b>{formatDate(item.createdAt)}</b>
         <span>原文件</span>
-        <b className="tk-path" title={item.path}>
+        {/* 检查器里显示的本来就是磁盘路径，点它定位比再去右键菜单找一遍省事 */}
+        <b
+          className="tk-path is-clickable"
+          title={`${item.path}\n点击在文件夹中显示`}
+          onClick={() =>
+            revealFile(item.path).catch((err: Error) => onToast?.(`打开所在文件夹失败：${err.message}`, 'error'))
+          }
+        >
           {item.path}
         </b>
       </div>
@@ -646,9 +653,16 @@ function RegionsTab({ item, onToast }: { item: ImageItem; onToast?: (m: string, 
           </button>
         </div>
         {dir && (
-          <div className="tk-hint tk-path" title={dir}>
+          <button
+            type="button"
+            className="tk-hint tk-path tk-path-btn"
+            title={`${dir}\n点击打开该文件夹`}
+            onClick={() =>
+              openFolder(dir).catch((e: Error) => onToast?.(`打开文件夹失败：${e.message}`, 'error'))
+            }
+          >
             {dir}
-          </div>
+          </button>
         )}
         {msg && <div className="tk-hint">{msg}</div>}
       </div>

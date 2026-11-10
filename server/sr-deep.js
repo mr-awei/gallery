@@ -5,6 +5,7 @@
  */
 import path from 'node:path';
 import fs from 'node:fs';
+import fsp from 'node:fs/promises';
 import { createRequire } from 'node:module';
 import { pipeline, env } from '@huggingface/transformers';
 import sharp from 'sharp';
@@ -56,6 +57,30 @@ export function srModelOf(modelId) {
 
 const pipes = new Map(); // repo -> pipeline
 const state = { loading: '', progress: 0, message: '', error: '' };
+
+/** 下载中心用：模型在 HF 缓存里的落地目录（同一份拼法，别另抄） */
+export function srCacheDir(modelId) {
+  const m = srModelOf(modelId);
+  return m ? path.join(env.cacheDir, m.repo) : '';
+}
+
+/** 删除权重并释放已加载的 pipeline（Windows 上句柄不放就删不掉） */
+export async function removeSrModel(modelId) {
+  const m = srModelOf(modelId);
+  if (!m) throw new Error('未知的模型');
+  if (state.loading === modelId) throw new Error('该模型正在加载/下载，请稍后再试');
+  const pipe = pipes.get(m.repo);
+  if (pipe) {
+    pipes.delete(m.repo);
+    try {
+      await pipe.dispose?.();
+    } catch {
+      /* 老版本没有 dispose；文件删不动时下面的报错会如实反馈 */
+    }
+  }
+  await fsp.rm(path.join(env.cacheDir, m.repo), { recursive: true, force: true });
+  return srStatus();
+}
 
 /** 模型是否已下载到本地缓存（避免 UI 显示不确定状态）。.onnx 太小视为半截损坏文件 */
 function modelCached(repo) {

@@ -31,6 +31,7 @@ import FolderAppearanceDialog from './components/FolderAppearanceDialog';
 import BatchCreateDialog from './components/BatchCreateDialog';
 import QuickClassifyDialog from './components/QuickClassifyDialog';
 import StackViewer from './components/StackViewer';
+import ReverseSearchDialog, { type ReverseTarget } from './components/ReverseSearchDialog';
 import CreateLibraryDialog from './components/CreateLibraryDialog';
 import OnboardingTour from './components/OnboardingTour';
 import TagMetaDialog from './components/TagMetaDialog';
@@ -489,6 +490,34 @@ export default function App() {
     return () => window.removeEventListener('tuku:error', onErr);
   }, [showToast]);
 
+  /* 「全网搜图」是一个跨页面的面板：图库卡片、人物卡片、灯箱都能唤起，
+     统一在这里挂一个，别让每个页面各自复制一份对话框 */
+  const [rsTarget, setRsTarget] = useState<ReverseTarget | null>(null);
+  /* 灯箱点人名 → 人物页要打开的那个人（nonce 让「连点同一个人」也能再次跳转） */
+  const [peopleFocus, setPeopleFocus] = useState<{ id: number; n: number } | null>(null);  useEffect(() => {
+    const onReverse = (e: Event) => {
+      const d = (e as CustomEvent<{ imageId?: number; title?: string; previewUrl?: string }>).detail;
+      if (!d || !d.imageId) return;
+      setRsTarget({ imageId: d.imageId, title: d.title || '', previewUrl: d.previewUrl || '' });
+    };
+    window.addEventListener('tuku:reverse-search', onReverse);
+    return () => window.removeEventListener('tuku:reverse-search', onReverse);
+  }, []);
+
+  /* 「在图库中定位」：人物页右键一张照片 → 切回图库、把筛选切到它所在的文件夹，
+     并直接打开这张图（信息面板里能看到归属文件夹 / 资源库，关掉就在那一夹里）。 */
+  useEffect(() => {
+    const onLocate = (e: Event) => {
+      const d = (e as CustomEvent<{ item?: ImageItem; folderId?: number | null }>).detail;
+      if (!d || !d.item) return;
+      setView('gallery');
+      setFolderId(d.folderId ?? null);
+      openItem(d.item, [d.item]);
+    };
+    window.addEventListener('tuku:locate-image', onLocate);
+    return () => window.removeEventListener('tuku:locate-image', onLocate);
+  }, [openItem, setFolderId]);
+
   /* ------------------------- 保存的筛选器：存 / 用 / 改 / 删 ------------------------- */
 
   const openSavedFilter = useCallback((f: SavedFilter) => {
@@ -567,6 +596,60 @@ export default function App() {
     setSelected(new Set());
     load(1, true);
   }, [queryKey, load]);
+
+  /* 页头现在常驻吸顶（styles/components.css 的 .page-head 规则）。页内自己也有吸顶元素
+   * 的页面（设置页左栏 / 整理页任务横幅 / 教程页分类）得从页头下沿开始吸，否则会被页头
+   * 盖住。页头高度随窗口宽度换行变化，写死 px 一定错位 —— 实测高度写成 --head-h 给它们用。
+   *
+   * 数值要减掉 .content 的 padding-top：sticky 的停靠线是从滚动容器的内容框算的，
+   * 页头自己用负 top 顶到 padding 之上贴着容器上沿，所以「页头下沿」在别人的坐标里
+   * 等于 页头高度 - padding-top。页面是 lazy 加载的，切页那一帧还查不到页头，重试几帧。 */
+  useEffect(() => {
+    const host = contentRef.current;
+    if (!host) return;
+    host.style.setProperty('--head-h', '0px');
+    let ro: ResizeObserver | null = null;
+    let mo: MutationObserver | null = null;
+    let timer = 0;
+    /** 页头挂上就开始量；已量过返回 true */
+    const attach = () => {
+      const head = host.querySelector<HTMLElement>('.page-head, .tut-head');
+      if (!head) return false;
+      const padTop = parseFloat(getComputedStyle(host).paddingTop) || 0;
+      const apply = () =>
+        host.style.setProperty(
+          '--head-h',
+          `${Math.max(0, Math.round(head.getBoundingClientRect().height - padTop))}px`
+        );
+      apply();
+      ro?.disconnect();
+      ro = new ResizeObserver(apply);
+      ro.observe(head);
+      mo?.disconnect();
+      mo = null;
+      return true;
+    };
+    if (!attach()) {
+      // 页面是 lazy 加载的，页头要等分包到位才挂上：监听 DOM 变化，再用定时器兜底
+      mo = new MutationObserver(() => {
+        if (attach()) {
+          window.clearTimeout(timer);
+          timer = 0;
+        }
+      });
+      mo.observe(host, { childList: true, subtree: true });
+      timer = window.setTimeout(() => {
+        attach();
+        mo?.disconnect();
+        mo = null;
+      }, 5000);
+    }
+    return () => {
+      window.clearTimeout(timer);
+      mo?.disconnect();
+      ro?.disconnect();
+    };
+  }, [view]);
 
   // 换库同理：旧库的 id 在新库里指向别的图
   useEffect(() => {
@@ -1420,7 +1503,14 @@ export default function App() {
             />
           )}
 
-          {view === 'people' && <People onToast={showToast} onOpen={openItem} />}
+          {view === 'people' && (
+            <People
+              onToast={showToast}
+              onOpen={openItem}
+              focusPersonId={peopleFocus?.id ?? null}
+              focusNonce={peopleFocus?.n ?? 0}
+            />
+          )}
 
           {view === 'tidy' && (
             <Tidy
@@ -1610,6 +1700,18 @@ export default function App() {
           }}
           onOpenSimilar={(pool, id) => setLb({ items: pool, index: Math.max(0, pool.findIndex((x) => x.id === id)) })}
           onOpenStack={(sid) => setStackViewId(sid)}
+          onOpenFolder={(fid) => {
+            // 详情面板里点归属夹名：关掉大图，回图库只看这一夹
+            setLb(null);
+            setView('gallery');
+            setFolderId(fid);
+          }}
+          onGotoPerson={(pid) => {
+            // 详情面板里点「人物 #123」：关掉大图，进人物页直接打开这个人的照片墙
+            setLb(null);
+            setView('people');
+            setPeopleFocus({ id: pid, n: Date.now() });
+          }}
           onChangeToast={(msg) => {
             showToast(msg);
             refreshStats();
@@ -1639,6 +1741,9 @@ export default function App() {
 
       {/* 应用内 prompt/confirm 对话框（替代原生弹窗，全局唯一挂载点） */}
       <DialogHost />
+
+      {/* 全网以图搜图：图库右键、人物右键、灯箱都唤起同一个面板 */}
+      <ReverseSearchDialog target={rsTarget} onClose={() => setRsTarget(null)} onToast={showToast} />
 
       {/* 本地服务重启中：端口可能变，界面此刻的请求都会失败，先遮住再重载 */}
       {serviceRestarting && (

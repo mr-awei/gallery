@@ -61,6 +61,14 @@
   color: var(--muted);
   font-size: 12px;
 }
+/* 文件名可点：定位到磁盘上的这张图 */
+.lb-title.is-clickable {
+  cursor: pointer;
+}
+.lb-title.is-clickable:hover {
+  color: var(--accent);
+  text-decoration: underline;
+}
 @media (max-width: 1100px) {
   .lb-title {
     max-width: 200px;
@@ -368,6 +376,14 @@
   color: var(--muted);
   word-break: break-all;
 }
+/* 库路径可点：在资源管理器里打开库目录（和下面「本地文件」一致的手感） */
+.lb-lib-path.is-clickable {
+  cursor: pointer;
+}
+.lb-lib-path.is-clickable:hover {
+  color: var(--accent);
+  text-decoration: underline;
+}
 .lb-ai-desc {
   font-size: 11.5px;
   color: var(--muted);
@@ -410,6 +426,46 @@
   background: rgba(255, 255, 255, 0.08);
   font-size: 11.5px;
   line-height: 1.7;
+}
+/* 人物区：头像与「↗」都能跳到人物页，头像给悬停描边提示可点 */
+.lb-face-avatar {
+  display: flex;
+  flex: 0 0 auto;
+  padding: 0;
+  border: 0;
+  background: none;
+  border-radius: 8px;
+  cursor: default;
+}
+.lb-face-avatar.is-clickable {
+  cursor: pointer;
+}
+.lb-face-avatar.is-clickable:hover img {
+  outline: 2px solid var(--accent);
+  outline-offset: 1px;
+}
+.lb-face-goto {
+  min-width: 24px;
+  padding: 0 4px;
+  font-size: 12px;
+}
+/* 夹名是按钮：点它跳去该文件夹，样式上要像链接而不是按钮 */
+.lb-folder-open {
+  border: none;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  padding: 0;
+  cursor: pointer;
+  text-align: left;
+  max-width: 220px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.lb-folder-open:hover {
+  color: var(--accent);
+  text-decoration: underline;
 }
 .lb-folder-x {
   border: none;

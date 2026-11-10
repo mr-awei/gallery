@@ -34,6 +34,7 @@ export type SectionKey =
   | 'market'
   | 'lan'
   | 'tasks'
+  | 'models'
   | 'about';
 
 export type SettingsForm = ReturnType<typeof useSettingsForm>;

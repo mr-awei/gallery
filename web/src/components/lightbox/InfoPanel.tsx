@@ -36,6 +36,10 @@ interface Props {
   onOpenSource?: () => void;
   /** 打开堆叠查看器（看同素材的其他版本） */
   onOpenStack?: () => void;
+  /** 跳到图库并只看某个文件夹（点归属文件夹的夹名就走这里） */
+  onOpenFolder?: (folderId: number) => void;
+  /** 点「人物 #123」：跳到人物页并打开这个人的照片墙 */
+  onGotoPerson?: (personId: number) => void;
   onSaveTags: (item: ImageItem, tags: string[]) => void;
   tagInput: string;
   setTagInput: (v: string) => void;
@@ -72,6 +76,8 @@ export default function InfoPanel({
   onFindColor,
   onOpenSource,
   onOpenStack,
+  onOpenFolder,
+  onGotoPerson,
   onSaveTags,
   tagInput,
   setTagInput,
@@ -199,7 +205,19 @@ export default function InfoPanel({
                     >
                       {library.name}
                     </span>
-                    {library.path ? <span className="lb-lib-path">{library.path}</span> : null}
+                    {library.path ? (
+                      <span
+                        className="lb-lib-path is-clickable"
+                        title={`在文件夹中显示：${library.path}`}
+                        onClick={() =>
+                          revealFile(library.path).catch((err) =>
+                            onChangeToast?.(`打开目录失败：${(err as Error).message}`)
+                          )
+                        }
+                      >
+                        {library.path}
+                      </span>
+                    ) : null}
                   </>
                 ) : (
                   <span className="lb-kv-empty">读取中…</span>
@@ -235,8 +253,12 @@ export default function InfoPanel({
               <b>本地文件</b>
               <span
                 className="lb-link"
-                title={item.path}
-                onClick={() => revealFile(item.path)}
+                title={`${item.path || ''}\n点击在文件夹中显示`}
+                onClick={() =>
+                  revealFile(item.path).catch((err) =>
+                    onChangeToast?.(`打开所在文件夹失败：${(err as Error).message}`)
+                  )
+                }
               >
                 {item.path ? item.path.replace(/^.*[\\/]/, '') : '—'}
               </span>
@@ -244,7 +266,7 @@ export default function InfoPanel({
           </section>
 
           {/* 没有检出人脸时整块不渲染，不给空标题占高度 */}
-          <FaceChips imageId={item.id} onToast={(m) => onChangeToast?.(m)} />
+          <FaceChips imageId={item.id} onToast={(m) => onChangeToast?.(m)} onGotoPerson={onGotoPerson} />
 
           <section className="lb-group">
             <h5>归类整理</h5>
@@ -257,9 +279,21 @@ export default function InfoPanel({
                       <span
                         key={f.id}
                         className="lb-folder-chip"
-                        title="点 × 从该文件夹移出（不删除图片）"
+                        title="点夹名打开该文件夹（图库里只看这一夹）；点 × 从该文件夹移出（不删除图片）"
                       >
-                        {f.name}
+                        {/* 夹名本身就是最好的入口：用户看到「第一次完整导出.jpg」这类夹名，
+                            想的就是去这夹里看这张图，不该只给一个移出的 × */}
+                        {onOpenFolder ? (
+                          <button
+                            className="lb-folder-open"
+                            title={`打开文件夹「${f.name}」，只显示这一夹的图片`}
+                            onClick={() => onOpenFolder(f.id)}
+                          >
+                            {f.name}
+                          </button>
+                        ) : (
+                          f.name
+                        )}
                         <button
                           className="lb-folder-x"
                           title={`从「${f.name}」移出`}
