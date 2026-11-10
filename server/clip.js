@@ -270,9 +270,34 @@ let searchWorker = null;
 let workerSeq = 0;
 const pendingScans = new Map();
 
-function failPending(err) {
+/**
+ * worker 平时是 unref 的：它只是查询加速器，不该把进程钉住。
+ * 但「有请求在路上」时它必须 ref —— 否则在没有其它句柄的场景（单测、CLI 脚本、打包后台任务）
+ * 里，事件循环会因为唯一的待办挂在 unref 的 worker 上而直接退出，promise 永远不 resolve
+ * （node:test 报 "Promise resolution is still pending but the event loop has already resolved"）。
+ */
+function holdWorker(w) {
+  if (!w) return;
+  try {
+    w.ref?.();
+  } catch {
+    /* 已退出 */
+  }
+}
+
+function releaseWorker(w) {
+  if (!w || pendingScans.size) return;
+  try {
+    w.unref?.();
+  } catch {
+    /* 已退出 */
+  }
+}
+
+function failPending(err, w) {
   for (const p of pendingScans.values()) p.reject(err);
   pendingScans.clear();
+  releaseWorker(w);
 }
 
 function getSearchWorker() {
@@ -283,16 +308,19 @@ function getSearchWorker() {
       const p = pendingScans.get(msg.seq);
       if (!p) return;
       pendingScans.delete(msg.seq);
+      releaseWorker(w);
       if (msg.ok) p.resolve(msg.hits);
       else p.reject(new Error(msg.error || 'CLIP 扫描 worker 执行失败'));
     });
     w.on('error', (err) => {
-      failPending(err);
+      failPending(err, w);
       w.terminate().catch(() => {});
       searchWorker = null;
     });
     w.on('exit', () => {
       searchWorker = null;
+      // 退出时还有排队中的查询：必须显式失败，否则调用方永远等在 promise 上
+      if (pendingScans.size) failPending(new Error('CLIP 扫描 worker 已退出'), null);
     });
     w.unref?.();
     searchWorker = w;
@@ -314,10 +342,12 @@ async function runScan(payload) {
   const copy = Float32Array.from(payload.query);
   return new Promise((resolve, reject) => {
     pendingScans.set(seq, { resolve, reject });
+    holdWorker(w);
     try {
       w.postMessage({ seq, payload: { ...payload, query: copy.buffer } }, [copy.buffer]);
     } catch (err) {
       pendingScans.delete(seq);
+      releaseWorker(w);
       scanBuckets(payload).then(resolve, reject);
     }
   });
