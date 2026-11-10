@@ -77,6 +77,13 @@ function makeDb(rows) {
 }
 
 const importedAt = '2026-11-10T02:00:00.000Z'; // 入库（UTC）
+/**
+ * 旧兜底逻辑写的是「本地时钟」串：让 SQLite 自己算出来，测试里绝不假设运行时时区。
+ * CI 跑在 UTC（此时本地串 == UTC 串），开发机在 UTC+8（差 8 小时）—— 两种都要能认出来。
+ */
+function localImportStamp(conn) {
+  return conn.prepare("SELECT strftime('%Y-%m-%dT%H:%M:%S', ?, 'localtime') AS s").get(importedAt).s;
+}
 const photoMtime = Math.floor(new Date(2019, 4, 1, 8, 0, 0).getTime() / 1000);
 const photoStamp = mtimeStamp(photoMtime); // 本地串
 
@@ -92,9 +99,8 @@ test('修复：UTC 口径的入库时间 → 文件修改时间', () => {
 });
 
 test('修复：本地口径的入库时间（旧兜底逻辑写的是本地时钟）也要认出来', () => {
-  const conn = makeDb([
-    { abs_path: 'b.jpg', created_at: importedAt, taken_at: '2026-11-10T10:00:00', fs_mtime: photoMtime },
-  ]);
+  const conn = makeDb([{ abs_path: 'b.jpg', created_at: importedAt, taken_at: '', fs_mtime: photoMtime }]);
+  conn.prepare('UPDATE images SET taken_at = ?').run(localImportStamp(conn));
   repairTakenAt(conn);
   assert.equal(conn.prepare('SELECT taken_at FROM images').get().taken_at, photoStamp);
   conn.close();
@@ -113,9 +119,11 @@ test('修复：真实的 EXIF 时间不动', () => {
 
 test('修复：连文件指纹都没有的行退回「未排入」，不再写入库时间', () => {
   const conn = makeDb([
-    { abs_path: 'd.jpg', created_at: importedAt, taken_at: '2026-11-10T10:00:00', fs_mtime: 0 },
+    { abs_path: 'd.jpg', created_at: importedAt, taken_at: '', fs_mtime: 0 },
     { abs_path: 'e.jpg', created_at: importedAt, taken_at: '', fs_mtime: 0 },
   ]);
+  // d.jpg 是「入库时间兜底」的行，e.jpg 本来就是空的 —— 两种都该留在待校正里
+  conn.prepare("UPDATE images SET taken_at = ? WHERE abs_path = 'd.jpg'").run(localImportStamp(conn));
   const r = repairTakenAt(conn);
   assert.equal(r.cleared, 1);
   const rows = conn.prepare('SELECT taken_at FROM images ORDER BY id').all();
