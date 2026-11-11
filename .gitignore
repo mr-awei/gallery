@@ -37,3 +37,6 @@ Thumbs.db
 
 # verify 统计中间文件（由 scripts/doc-stats.mjs 生成）
 docs/.verify-stats.json
+
+# 本地复核用的临时实例（临时库 + 日志 + 备份），只在本机存在
+.tmp-verify*/

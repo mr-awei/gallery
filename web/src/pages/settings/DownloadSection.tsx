@@ -62,12 +62,69 @@ export default function DownloadSection({
     return data.items.some((m) => m.state === 'downloading' || m.state === 'installing') || Object.keys(live).length > 0;
   }, [data, live]);
 
+  /** 还没装、当前也没在下的项：就是「全部下载」要排的队 */
+  const pendingItems = useMemo(
+    () => (data?.items || []).filter((m) => !m.installed && m.state !== 'downloading' && m.state !== 'installing'),
+    [data]
+  );
+  const pendingBytes = useMemo(() => pendingItems.reduce((sum, m) => sum + Number(m.sizeHint || 0), 0), [pendingItems]);
+
   // 有下载在跑时才短轮询：等它结束（体积/状态要重新 stat）
   useEffect(() => {
     if (!anyDownloading) return;
     const t = setInterval(() => void load(), 1500);
     return () => clearInterval(t);
   }, [anyDownloading, load]);
+
+  // 「全部下载」是服务端排队跑的，状态只在它跑的时候问，空闲时一次就够
+  const [allRunning, setAllRunning] = useState(false);
+  useEffect(() => {
+    let stop = false;
+    const tick = async () => {
+      try {
+        const s = await api.installAllModelsStatus();
+        if (!stop) setAllRunning(Boolean(s.running));
+      } catch {
+        if (!stop) setAllRunning(false);
+      }
+    };
+    void tick();
+    if (!allRunning && !anyDownloading) return () => { stop = true; };
+    const t = setInterval(() => void tick(), 2000);
+    return () => {
+      stop = true;
+      clearInterval(t);
+    };
+  }, [allRunning, anyDownloading]);
+
+  async function startAll() {
+    setBusy('install-all');
+    try {
+      const r = await api.installAllModels();
+      if (!r.ok) onToast(r.error || '无法开始批量下载');
+      else if (r.already) onToast('已经有一批在下，等它跑完');
+      else onToast(`已排队下载 ${r.total || 0} 项，会按顺序一个一个装`);
+      setAllRunning(Boolean(r.ok));
+      void load();
+    } catch (err: any) {
+      onToast(String(err?.message || err));
+    } finally {
+      setBusy('');
+    }
+  }
+
+  async function cancelAll() {
+    setBusy('install-all');
+    try {
+      const r = await api.cancelInstallAllModels();
+      onToast(r.ok ? '已取消，当前这项会先停住' : '取消失败');
+      setAllRunning(false);
+    } catch (err: any) {
+      onToast(String(err?.message || err));
+    } finally {
+      setBusy('');
+    }
+  }
 
   async function act(kind: 'install' | 'cancel' | 'remove' | 'verify', item: ModelItem) {
     setBusy(`${kind}:${item.id}`);
@@ -138,7 +195,24 @@ export default function DownloadSection({
         <Stat label="占用空间" value={summary ? fmtBytes(summary.bytes) : '—'} />
         <Stat label="可清理" value={summary ? fmtBytes(summary.removableBytes) : '—'} />
         {summary && summary.updates > 0 && <Stat label="待更新" value={`${summary.updates} 项`} warn />}
-        <div style={{ marginLeft: 'auto', display: 'flex', gap: 8 }}>
+        <div style={{ marginLeft: 'auto', display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
+          {allRunning ? (
+            <>
+              <span style={{ fontSize: 12, color: 'var(--text-3, #8a8f98)' }}>批量下载中，一项一项装…</span>
+              <button className="btn" disabled={busy === 'install-all'} onClick={() => void cancelAll()}>
+                取消全部下载
+              </button>
+            </>
+          ) : (
+            <button
+              className="btn primary"
+              disabled={!pendingItems.length || busy === 'install-all'}
+              title={pendingItems.length ? '把没下载的模型全部排队装好' : '所有模型都已下载'}
+              onClick={() => void startAll()}
+            >
+              {pendingItems.length ? `全部下载（${pendingItems.length} 项 · 约 ${fmtBytes(pendingBytes)}）` : '已全部下载'}
+            </button>
+          )}
           <button className="btn" disabled={checking} onClick={() => void load()}>
             刷新
           </button>

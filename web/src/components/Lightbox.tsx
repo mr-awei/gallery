@@ -640,6 +640,37 @@ export default function Lightbox({
   }, [infoOpen]);
 
 
+  /* 焦点检测 / 换比例重置选框这两个 hook 必须待在「item 为空就 return」之前：
+   * 早退之后再调 hook，hook 数量会随渲染变化，React 直接抛
+   * 「Rendered more hooks than during the previous render」把整个大图打崩。
+   * 依赖项一律用可选链，runCropFocus 里再自己守一次 item。 */
+  const imageAspect = item && item.width && item.height ? item.width / item.height : 1;
+  const cropRatio = cropRatioStr(crop);
+  /* 焦点检测：与批量裁切台同一个接口。序号令牌保证连点/切图时旧结果不会回填 */
+  const focusSeq = useRef(0);
+  const runCropFocus = async () => {
+    if (!item) return;
+    const my = ++focusSeq.current;
+    setCropFocusBusy(true);
+    try {
+      const r = await api.imageFocus(item.id, cropFocusRatio(crop, imageAspect));
+      if (my === focusSeq.current && r?.rect) setCropRect(r.rect);
+    } catch {
+      /* 检测失败就保持居中，不打断用户 */
+    } finally {
+      if (my === focusSeq.current) setCropFocusBusy(false);
+    }
+  };
+
+  // 换比例 / 换图 / 打开面板：选框回到居中最大；勾了自动焦点就再找一次主体
+  useEffect(() => {
+    if (!item || editor !== 'crop') return;
+    setCropRect(initialRect(cropRatio, imageAspect));
+    if (crop.autoFocus) void runCropFocus();
+    // 只在比例变化时重置：拖选框不该被拉回
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [cropRatio, item?.id, editor]);
+
   if (!item) return null;
 
   /** 图片走原有的缩放/裁切/调色管线；GIF 及其它媒体交给 MediaViewer 播放 */
@@ -735,8 +766,6 @@ export default function Lightbox({
     setSaving(false);
   };
 
-  const imageAspect = item.width && item.height ? item.width / item.height : 1;
-  const cropRatio = cropRatioStr(crop);
   const patchCrop = (p: Partial<CropControlState>) => setCrop((s) => ({ ...s, ...p }));
   const cropOut = cropOutputSize(crop);
   // 选框在原图像素上的实际尺寸（「不进行调整」时这就是输出尺寸）
@@ -744,30 +773,6 @@ export default function Lightbox({
     w: Math.round(cropRect.w * (item.width || 0)),
     h: Math.round(cropRect.h * (item.height || 0)),
   };
-
-  /* 焦点检测：与批量裁切台同一个接口。序号令牌保证连点/切图时旧结果不会回填 */
-  const focusSeq = useRef(0);
-  const runCropFocus = async () => {
-    const my = ++focusSeq.current;
-    setCropFocusBusy(true);
-    try {
-      const r = await api.imageFocus(item.id, cropFocusRatio(crop, imageAspect));
-      if (my === focusSeq.current && r?.rect) setCropRect(r.rect);
-    } catch {
-      /* 检测失败就保持居中，不打断用户 */
-    } finally {
-      if (my === focusSeq.current) setCropFocusBusy(false);
-    }
-  };
-
-  // 换比例 / 换图 / 打开面板：选框回到居中最大；勾了自动焦点就再找一次主体
-  useEffect(() => {
-    if (editor !== 'crop') return;
-    setCropRect(initialRect(cropRatio, imageAspect));
-    if (crop.autoFocus) void runCropFocus();
-    // 只在比例变化时重置：拖选框不该被拉回
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [cropRatio, item.id, editor]);
 
   /** 覆盖原图是不可逆写回：值得一次确认（副本模式、非破坏模式都不用问） */
   const confirmOverwrite = async (what: string) => {

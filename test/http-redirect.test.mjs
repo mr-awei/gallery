@@ -6,17 +6,36 @@ import assert from 'node:assert/strict';
 import http from 'node:http';
 import { httpFetch } from '../server/http.js';
 
+/**
+ * Node 的 fetch（undici）有一份「坏端口」黑名单（6000、6566、6665-6669、6697、10080…）。
+ * listen(0) 在部分机器上会把临时端口开进这个范围（netsh 的 dynamicport 起点被改到 1024 时很常见），
+ * 于是测试偶发 `TypeError: fetch failed [cause]: bad port` —— 和被测逻辑毫无关系，只是端口运气不好。
+ * 这里撞上就换一个端口重开。
+ */
+const BAD_PORTS = new Set([
+  1, 7, 9, 11, 13, 15, 17, 19, 20, 21, 22, 23, 25, 37, 42, 43, 53, 69, 77, 79, 87, 95, 101, 102, 103,
+  104, 109, 110, 111, 113, 115, 117, 119, 123, 135, 137, 139, 143, 161, 179, 389, 427, 465, 512, 513,
+  514, 515, 526, 530, 531, 532, 540, 548, 554, 556, 563, 587, 601, 636, 989, 990, 993, 995, 1719,
+  1720, 1723, 2049, 3659, 4045, 4190, 5060, 5061, 6000, 6566, 6665, 6666, 6667, 6668, 6669, 6679,
+  6697, 10080,
+]);
+
 async function withServer(routes, fn) {
-  const server = http.createServer((req, res) => {
-    const handler = routes[req.url];
-    if (!handler) {
-      res.writeHead(404).end('nope');
-      return;
-    }
-    handler(req, res);
-  });
-  await new Promise((resolve) => server.listen(0, '127.0.0.1', resolve));
-  const base = `http://127.0.0.1:${server.address().port}`;
+  let server;
+  for (let attempt = 0; ; attempt++) {
+    server = http.createServer((req, res) => {
+      const handler = routes[req.url];
+      if (!handler) {
+        res.writeHead(404).end('nope');
+        return;
+      }
+      handler(req, res);
+    });
+    await new Promise((resolve) => server.listen(0, '127.0.0.1', resolve));
+    if (!BAD_PORTS.has(/** @type {any} */ (server.address()).port) || attempt > 8) break;
+    await new Promise((resolve) => server.close(resolve));
+  }
+  const base = `http://127.0.0.1:${/** @type {any} */ (server.address()).port}`;
   try {
     return await fn(base, server);
   } finally {

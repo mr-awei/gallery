@@ -459,6 +459,42 @@ try {
     `${thumbOne.status} ${JSON.stringify(thumbOnej)}`
   );
 
+  // 搜索要认路径与夹名：用户记得的是「那张在 43388 这个夹里」，而目录名 / 夹名
+  // 既不在 title 也不在 tags 里（实报：多层目录深层的图，搜夹名 0 张）。
+  if (imageId) {
+    const detail = await (await fetch(`${BASE}/api/images/${imageId}`, auth)).json();
+    const parentDir =
+      String(detail?.path || '')
+        .replace(/\\/g, '/')
+        .split('/')
+        .filter(Boolean)
+        .slice(-2, -1)[0] || '';
+    if (parentDir) {
+      const hit = await (await fetch(`${BASE}/api/images?q=${encodeURIComponent(parentDir)}&limit=50`, auth)).json();
+      check(
+        `搜索按目录名命中（${parentDir}）`,
+        (hit?.items || []).some((it) => it.id === imageId),
+        `hits=${(hit?.items || []).length}`
+      );
+    }
+    const fname = `冒烟深夹${Date.now().toString(36)}`;
+    const fc = await fetch(`${BASE}/api/folders`, {
+      method: 'POST',
+      headers: { ...auth.headers, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ name: fname }),
+    });
+    const fcj = await fc.json().catch(() => ({}));
+    if (fcj?.id) {
+      await fetch(`${BASE}/api/folders/${fcj.id}/images`, {
+        method: 'POST',
+        headers: { ...auth.headers, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ imageIds: [imageId] }),
+      });
+      const hit2 = await (await fetch(`${BASE}/api/images?q=${encodeURIComponent(fname)}&limit=50`, auth)).json();
+      check('搜索按虚拟夹名命中', (hit2?.items || []).some((it) => it.id === imageId), `hits=${(hit2?.items || []).length}`);
+    }
+  }
+
   const getImage = async (id) => (await fetch(`${BASE}/api/images/${id}`, auth)).json();
   const readTags = (img) => (Array.isArray(img?.tags) ? img.tags.join(',') : String(img?.tags || ''));
   const latestOp = async (op) => {
@@ -486,12 +522,17 @@ try {
     await undoById(renOp?.id);
     check('撤销批量重命名还原文件名', (await getImage(imageId))?.title === 'smoke-undo.png');
 
-    await fetch(`${BASE}/api/images/${imageId}`, { method: 'DELETE', ...auth });
+    const delRes = await fetch(`${BASE}/api/images/${imageId}`, { method: 'DELETE', ...auth });
+    const delBody = await delRes.json().catch(() => ({}));
     const trashOp = await latestOp('trash');
     const undoRes = await undoById(trashOp?.id);
     const listed = await (await fetch(`${BASE}/api/images?limit=50`, auth)).json();
     // 恢复是「重新入库」，id 会变，所以按标题确认回来了
-    check('撤销删除把图片从回收站恢复', undoRes.status === 200 && (listed?.items || []).some((it) => it.title === 'smoke-undo.png'));
+    check(
+      '撤销删除把图片从回收站恢复',
+      undoRes.status === 200 && (listed?.items || []).some((it) => it.title === 'smoke-undo.png'),
+      `undo=${undoRes.status} 删除=${delRes.status}:${JSON.stringify(delBody).slice(0, 120)} trashOp=${trashOp?.id} 列表=${(listed?.items || []).length}/${listed?.total ?? '?'}`
+    );
   }
 
   // 调色「预览 = 成品」：前端 renderPixels 与后端 applyRaw 必须算出同一张图。

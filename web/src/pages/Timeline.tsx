@@ -240,6 +240,28 @@ export function Timeline({ onToast, onOpen }: Props) {
     }
   }, [summary?.lastBackfill, pollJob]);
 
+  /**
+   * 整页空但库里有素材：老版本把「收录时间」当拍摄时间，v1.2.8 起这些行被清成空，
+   * 于是一库照片全排不进时间线（用户实报「全部有拍摄时间却提示没有」）。
+   * 页面本来就没内容可看，这里自动重建一次最省事；同一会话只自动试一次，失败退回手动按钮。
+   *
+   * 注意：这个 effect 必须写在下面的早退 return 之前 —— 放在早退之后，
+   * 首屏（loading）比加载完少调用两个 hook，React 会直接抛「Rendered more hooks than during the previous render」把整页打崩。
+   */
+  const startRef = useRef(startBackfill);
+  startRef.current = startBackfill;
+  const autoTried = useRef(false);
+  useEffect(() => {
+    if (autoTried.current || !summary) return;
+    if (summary.months.length) return;
+    if (!(summary.total > 0 && summary.placed === 0)) return;
+    if (!(summary.pending > 0 || summary.unplaced > 0)) return;
+    const last = summary.lastBackfill;
+    if (last && (last.status === 'running' || last.status === 'queued')) return;
+    autoTried.current = true;
+    startRef.current();
+  }, [summary]);
+
   if (loading && !summary) {
     return <div className="tl-empty">{t('正在读取拍摄时间…', 'Reading capture times…')}</div>;
   }
@@ -255,21 +277,49 @@ export function Timeline({ onToast, onOpen }: Props) {
     );
   }
 
+  const running = job && (job.status === 'running' || job.status === 'queued');
+
   if (!summary || !summary.months.length) {
+    const total = Number(summary?.total || 0);
+    const unplaced = Number(summary?.unplaced || 0);
+    // 待校正口径（还是入库时间兜底）与「排不进任何月份」都可能单独出现，两个都要给按钮
+    const rebuildable = Number(summary?.pending || 0) || unplaced;
     return (
       <div className="tl-empty">
         <h2>{t('还没有可排入时间线的素材', 'Nothing on the timeline yet')}</h2>
         <p>
-          {t(
-            '导入照片后，会按拍摄时间自动归档到对应年月：优先 EXIF 拍摄时间，没有 EXIF 时用文件的修改 / 创建时间（不会用收录进来的时间）。',
-            'Imported photos are filed by capture time: EXIF first, otherwise the file’s modified / created time — never the time it was imported.'
-          )}
+          {total > 0
+            ? t(
+                `库里 ${total.toLocaleString('zh-CN')} 张素材目前都没算出拍摄时间（多半是旧版本导入时把「收录时间」当成了拍摄时间，v1.2.8 起这个口径已废弃并被清空）。` +
+                  '照片本身的时间还在 EXIF 和文件属性里，点下面的按钮重建一次就会按年归位。',
+                `All ${total} items currently have no capture time (older versions filed them by import time, which was dropped in v1.2.8).` +
+                  ' The times still exist in EXIF / file attributes — rebuild once and they will be filed by year.'
+              )
+            : t(
+                '导入照片后，会按拍摄时间自动归档到对应年月：优先 EXIF 拍摄时间，没有 EXIF 时用文件的修改 / 创建时间（不会用收录进来的时间）。',
+                'Imported photos are filed by capture time: EXIF first, otherwise the file’s modified / created time — never the time it was imported.'
+              )}
         </p>
+        {total > 0 && (
+          <div className="tl-empty-acts">
+            {!running && rebuildable > 0 && (
+              <button type="button" className="btn primary" onClick={startBackfill}>
+                {t(`重建拍摄时间（${rebuildable} 张待校正）`, `Rebuild capture time (${rebuildable} pending)`)}
+              </button>
+            )}
+            {running && job && (
+              <span className="tl-job">
+                {job.message || t('重建中…', 'Rebuilding…')}
+                <span className="tl-job-bar">
+                  <i style={{ width: `${Math.max(2, Math.min(100, job.progress || 0))}%` }} />
+                </span>
+              </span>
+            )}
+          </div>
+        )}
       </div>
     );
   }
-
-  const running = job && (job.status === 'running' || job.status === 'queued');
 
   return (
     <div className="tl-root">

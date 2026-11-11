@@ -50,6 +50,7 @@ interface Props {
 function FolderGroup({
   folder,
   childCount,
+  pathText,
   open,
   preview,
   loading,
@@ -63,6 +64,8 @@ function FolderGroup({
 }: {
   folder: FolderNode;
   childCount: number;
+  /** 跨层搜索结果里才有：这个夹在整棵树中的位置（父 / 父 / 自己） */
+  pathText?: string;
   open: boolean;
   preview?: Preview;
   loading: boolean;
@@ -152,6 +155,7 @@ function FolderGroup({
             {folder.color && <i className="fg-dot" style={{ background: folder.color }} />}
             {folder.name}
           </span>
+          {pathText && <span className="fg-path">{pathText}</span>}
           <span className="fg-meta">
             {folder.total} 张图片{childCount ? ` · ${childCount} 个子文件夹` : ''}
             {folder.locked ? ' · 已加锁' : ''}
@@ -320,7 +324,44 @@ export default function FolderGroupView({
     });
   }, []);
 
-  const allExpanded = children.length > 0 && children.every((f) => expanded.has(f.id));
+  /**
+   * 搜夹名是「全库跨层」的。用户记得的是夹名（比如 43388 那个夹），
+   * 但不记得它在第几层；只过滤当前层就会一边显示「没有名称包含…的文件夹」，
+   * 一边在左侧树里明明挂着这个夹（实报过）。
+   */
+  const kw = query.trim().toLowerCase();
+  const searching = Boolean(kw);
+
+  /** 每个夹的完整路径（祖先 / … / 自己），跨层结果里要标出它在哪 */
+  const pathOf = useMemo(() => {
+    const byId = new Map<number, FolderNode>();
+    for (const f of folders) byId.set(f.id, f);
+    const cache = new Map<number, string>();
+    const walk = (id: number, guard: Set<number>): string => {
+      const hit = cache.get(id);
+      if (hit) return hit;
+      const self = byId.get(id);
+      if (!self || guard.has(id)) return self?.name || '';
+      guard.add(id);
+      const parent = self.parent_id == null ? null : byId.get(self.parent_id);
+      const text = parent ? `${walk(parent.id, guard)} / ${self.name}` : self.name;
+      cache.set(id, text);
+      return text;
+    };
+    return (id: number) => walk(id, new Set());
+  }, [folders]);
+
+  const matches = useMemo(() => {
+    if (!searching) return [];
+    return folders
+      .filter((f) => f.name.toLowerCase().includes(kw))
+      .sort((a, b) => pathOf(a.id).localeCompare(pathOf(b.id), 'zh-CN'));
+  }, [folders, kw, searching, pathOf]);
+
+  /** 搜索时列出全库命中，否则只看当前层 */
+  const shown = searching ? matches : children;
+
+  const allExpanded = shown.length > 0 && shown.every((f) => expanded.has(f.id));
 
   return (
     <div className="folder-groups" data-tour="folder-view">
@@ -345,33 +386,42 @@ export default function FolderGroupView({
 
       <div className="fg-bar">
         <div className="fg-bar-title">
-          {children.length} 个文件夹{crumbs.length ? `位于「${crumbs[crumbs.length - 1].name}」` : '（顶层）'}
+          {searching ? (
+            <>
+              {matches.length} 个文件夹匹配「{query.trim()}」<span className="fg-bar-sub"> · 已在全库所有层级里找</span>
+            </>
+          ) : (
+            <>
+              {children.length} 个文件夹{crumbs.length ? `位于「${crumbs[crumbs.length - 1].name}」` : '（顶层）'}
+            </>
+          )}
           {!folderId && totalImages > 0 && <span className="fg-bar-sub"> · 全库 {totalImages.toLocaleString('zh-CN')} 张</span>}
         </div>
         <input
           className="input fg-search"
           value={query}
-          placeholder="按名称找文件夹"
-          aria-label="按名称筛选当前层级的文件夹"
+          placeholder="按名称找文件夹（不限层级）"
+          aria-label="按名称在全库各层级里找文件夹"
           onChange={(e) => setQuery(e.target.value)}
         />
         <div className="fg-bar-acts">
           <button
             type="button"
             className="btn sm"
-            onClick={() => setExpanded(allExpanded ? new Set() : new Set(children.map((f) => f.id)))}
-            disabled={!children.length}
+            onClick={() => setExpanded(allExpanded ? new Set() : new Set(shown.map((f) => f.id)))}
+            disabled={!shown.length}
           >
             {allExpanded ? '全部收起' : '全部展开'}
           </button>
         </div>
       </div>
 
-      {children.map((f) => (
+      {shown.map((f) => (
         <FolderGroup
           key={f.id}
           folder={f}
           childCount={childCountOf.get(f.id) || 0}
+          pathText={searching ? pathOf(f.id) : undefined}
           open={expanded.has(f.id)}
           preview={previews[f.id]}
           loading={loadingIds.has(f.id)}
@@ -385,9 +435,9 @@ export default function FolderGroupView({
         />
       ))}
 
-      {!children.length && (
+      {!shown.length && (
         <div className="fg-blank">
-          {query.trim() ? `没有名称包含「${query.trim()}」的文件夹` : '这一层还没有子文件夹'}
+          {searching ? `全库没有名称包含「${query.trim()}」的文件夹` : '这一层还没有子文件夹'}
           <span>在左侧「文件夹」旁的 ＋ 新建，或把图片拖进左侧文件夹树归档。</span>
         </div>
       )}

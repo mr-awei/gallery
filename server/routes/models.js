@@ -1,6 +1,7 @@
 // @ts-check
 // 下载中心路由：统一列出 / 下载 / 取消 / 删除 / 校验所有模型（从各模块状态聚合，不重复实现下载）
 import { installModel, cancelModel, removeModel, verifyModel, listModels } from '../lib/model-registry.js';
+import { cancelInstallAll, installAllStatus, pendingModels, startInstallAll } from '../lib/model-install-all.js';
 import { logOp } from '../oplog.js';
 
 export function register(app, ctx) {
@@ -9,6 +10,27 @@ export function register(app, ctx) {
   app.get('/api/models', (_req, res) => {
     res.set('Cache-Control', 'no-store');
     res.json({ ok: true, ...listModels() });
+  });
+
+  // 「下载全部」必须注册在 /api/models/:id/* 之前：install-all/cancel 与 :id/cancel
+  // 段数相同，Express 先到先得，放后面会被 :id 吞掉
+  app.get('/api/models/install-all', (_req, res) => {
+    res.set('Cache-Control', 'no-store');
+    const pending = pendingModels();
+    res.json({ ok: true, ...installAllStatus(), pending: pending.length });
+  });
+
+  app.post(
+    '/api/models/install-all',
+    asyncRoute(async (_req, res) => {
+      const r = startInstallAll();
+      if (r.ok) logOp({ op: 'model-install-all', summary: String(r.total || 0) });
+      res.status(r.ok ? 200 : 400).json(r);
+    })
+  );
+
+  app.post('/api/models/install-all/cancel', (_req, res) => {
+    res.json(cancelInstallAll());
   });
 
   app.post(

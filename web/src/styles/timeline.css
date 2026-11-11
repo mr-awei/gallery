@@ -25,6 +25,19 @@
   color: var(--text);
 }
 
+.tl-empty p {
+  max-width: 620px;
+  line-height: 1.7;
+}
+
+/* 空状态也要能就地重建：全部素材都没算出拍摄时间时，这里是唯一的出口 */
+.tl-empty-acts {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-top: 4px;
+}
+
 .tl-head {
   display: flex;
   align-items: flex-end;

@@ -994,6 +994,15 @@ export const api = {
 
   /** 全量模型清单（含体积、状态、分组汇总） */
   listModels: () => request<ModelsPayload>('/api/models'),
+  /** 「下载全部」的排队状态与待下数量（服务端排队，一次只下一个） */
+  installAllModelsStatus: () =>
+    request<{ ok: boolean; running: boolean; jobId: number; pending: number }>('/api/models/install-all'),
+  installAllModels: () =>
+    request<{ ok: boolean; started?: boolean; already?: boolean; jobId?: number; total?: number; error?: string }>(
+      '/api/models/install-all',
+      { method: 'POST' }
+    ),
+  cancelInstallAllModels: () => request<{ ok: boolean }>('/api/models/install-all/cancel', { method: 'POST' }),
   installModel: (id: string) =>
     request<{ ok: boolean; started?: boolean; error?: string; message?: string }>(
       `/api/models/${encodeURIComponent(id)}/install`,

@@ -182,6 +182,58 @@ function dropColorScope(table) {
 }
 
 /**
+ * 关键词命中子句（纯函数，单测锁住这条口径：搜索必须认路径与夹名）。
+ *
+ * 用户记住一张图，靠的常常是「它在 43388 那个夹里」。目录名既不在 title 也不在
+ * tags 里，只匹配 FTS 就永远搜不到 —— 实报过：多层目录深层的图，搜夹名 0 张。
+ * 所以除了正文（标题 / 标签 / 备注 / AI 描述 / OCR），还要认：
+ *   abs_path          物理路径（含全部祖先层级，一把就能匹配任意深度的目录名）
+ *   folders.name      虚拟夹名（手动归档、改过名的夹跟磁盘路径不再一致）
+ *
+ * @param {string} raw 关键词原文
+ * @param {unknown[]} params 追加到 WHERE 的参数（顺序与子句里 ? 出现顺序一致）
+ * @returns {string} 形如 `(...)` 的 WHERE 片段；关键词为空时返回空串
+ */
+export function buildSearchClause(raw, params) {
+  const kw = String(raw || '').trim();
+  if (!kw) return '';
+  const like = `%${kw}%`;
+  const aiDescWhere = `id IN (SELECT image_id FROM ai_desc WHERE description LIKE ? OR issues LIKE ?)`;
+  // 图内文字（OCR）也要能被关键词搜到：设计稿/截图里真正有用的信息常常只存在于画面文字里
+  const ocrWhere = 'id IN (SELECT image_id FROM image_ocr WHERE text LIKE ?)';
+  const pathWhere = 'abs_path LIKE ?';
+  const folderWhere =
+    'id IN (SELECT image_id FROM image_folders WHERE folder_id IN (SELECT id FROM folders WHERE name LIKE ?))';
+  // 别名 / 同义词命中：搜「界面」也要搜到只打了 ui 的图（正式标签不在关键词里出现）
+  const aliasTags = tagsMatchingKeyword(kw);
+  const aliasSql = aliasTags.map(() => 'tags LIKE ?');
+  const aliasParams = aliasTags.map((t) => `%${t}%`);
+  let clause;
+  if ([...kw].length >= 3) {
+    // 过滤 FTS5 查询语法特殊字符，整体作为 phrase 查询，避免用户输入被当作 AND/NOT/前缀
+    const clean = kw.replace(/["()*^:+-]/g, ' ').replace(/\s+/g, ' ').trim();
+    if (clean) {
+      clause = `(id IN (SELECT rowid FROM images_fts WHERE images_fts MATCH ?) OR ${aiDescWhere} OR ${ocrWhere}`;
+      params.push(`"${clean}"`, like, like, like);
+    } else {
+      clause = `(${aiDescWhere} OR ${ocrWhere}`;
+      params.push(like, like, like);
+    }
+  } else {
+    clause = `(title LIKE ? OR tags LIKE ? OR keyword LIKE ? OR note LIKE ? OR ${aiDescWhere} OR ${ocrWhere}`;
+    params.push(like, like, like, like, like, like, like);
+  }
+  // 两个 LIKE 参数追加在所有分支之后：clause 里出现顺序 = params 顺序
+  clause += ` OR ${pathWhere} OR ${folderWhere}`;
+  params.push(like, like);
+  if (aliasSql.length) {
+    clause += ` OR ${aliasSql.join(' OR ')}`;
+    params.push(...aliasParams);
+  }
+  return `${clause})`;
+}
+
+/**
  * 列表筛选的 WHERE 拼装（唯一权威）。
  * 之前 app.js 里另有一份 buildFilter，收敛列表逻辑时删了它却漏改路由，
  * 导致「全部标记已看」入口 100% 抛 ReferenceError（P0）。现在两处共用这一份。
@@ -211,35 +263,8 @@ export function buildImageFilter(query = {}, { colorTable = '' } = {}) {
 
   // 全文搜索：FTS5 trigram（>=3 字，中文子串走索引）；短词（1-2 字）trigram 命中为空，回退 LIKE
   if (query.q) {
-    const kw = String(query.q).trim();
-    const like = `%${kw}%`;
-    const aiDescWhere = `id IN (SELECT image_id FROM ai_desc WHERE description LIKE ? OR issues LIKE ?)`;
-    // 图内文字（OCR）也要能被关键词搜到：设计稿/截图里真正有用的信息常常只存在于画面文字里
-    const ocrWhere = 'id IN (SELECT image_id FROM image_ocr WHERE text LIKE ?)';
-    // 别名 / 同义词命中：搜「界面」也要搜到只打了 ui 的图（正式标签不在关键词里出现）
-    const aliasTags = tagsMatchingKeyword(kw);
-    const aliasSql = aliasTags.map(() => 'tags LIKE ?');
-    const aliasParams = aliasTags.map((t) => `%${t}%`);
-    let clause;
-    if ([...kw].length >= 3) {
-      // 过滤 FTS5 查询语法特殊字符，整体作为 phrase 查询，避免用户输入被当作 AND/NOT/前缀
-      const clean = kw.replace(/["()*^:+-]/g, ' ').replace(/\s+/g, ' ').trim();
-      if (clean) {
-        clause = `(id IN (SELECT rowid FROM images_fts WHERE images_fts MATCH ?) OR ${aiDescWhere} OR ${ocrWhere}`;
-        params.push(`"${clean}"`, like, like, like);
-      } else {
-        clause = `(${aiDescWhere} OR ${ocrWhere}`;
-        params.push(like, like, like);
-      }
-    } else {
-      clause = `(title LIKE ? OR tags LIKE ? OR keyword LIKE ? OR note LIKE ? OR ${aiDescWhere} OR ${ocrWhere}`;
-      params.push(like, like, like, like, like, like, like);
-    }
-    if (aliasSql.length) {
-      clause += ` OR ${aliasSql.join(' OR ')}`;
-      params.push(...aliasParams);
-    }
-    where.push(clause + ')');
+    const clause = buildSearchClause(query.q, params);
+    if (clause) where.push(clause);
   }
 
   const source = String(query.source || '').trim();

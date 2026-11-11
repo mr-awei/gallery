@@ -52,6 +52,47 @@ function trashDirFor(absPath) {
 }
 
 /**
+ * Windows 下刚入库/刚改名的文件常被「我们自己」短暂占着（缩略图队列正在解码、
+ * 上一张的响应流还没关），此时 rename/rm 会直接 EBUSY/EPERM。实测冒烟里「删完立刻撤销」
+ * 就会撞上，用户侧表现是随机弹「移到回收站失败」。
+ * 这类锁都是几十毫秒级的，重试几次即可；真被别的程序（PS、看图软件）锁住时照样报错。
+ * @param {() => Promise<any>} run
+ */
+async function withFsRetry(run) {
+  /** @type {string[]} */
+  const retryable = ['EBUSY', 'EPERM', 'EACCES', 'UNKNOWN'];
+  let lastErr;
+  for (let i = 0; i < 6; i++) {
+    try {
+      return await run();
+    } catch (err) {
+      lastErr = err;
+      const code = /** @type {any} */ (err)?.code || '';
+      if (!retryable.includes(code)) throw err;
+      await new Promise((r) => setTimeout(r, 40 + i * 60));
+    }
+  }
+  throw lastErr;
+}
+
+/**
+ * @param {string} from
+ * @param {string} to
+ */
+function renameWithRetry(from, to) {
+  return withFsRetry(() => fsp.rename(from, to));
+}
+
+/** 重试完还是失败：Windows 的 EBUSY/EPERM 几乎都是「文件被占用」，光回错误码用户没法自救 */
+function describeFsError(err) {
+  const code = String(err?.code || '');
+  if (code === 'EBUSY' || code === 'EPERM' || code === 'EACCES' || code === 'UNKNOWN') {
+    return `文件正被其他程序占用（${code}），关掉正在打开它的软件或资源管理器预览后重试`;
+  }
+  return err?.message || String(err);
+}
+
+/**
  * 删除图片。默认策略 trash：把文件移动到应用内回收站（同盘移动，可一键恢复）
  * @returns {Promise<{ok:boolean, error?:string}>}
  */
@@ -74,13 +115,13 @@ export async function removeImage(id, { reason = '' } = {}) {
       try {
         movedTo = await moveToAppTrash(row, reason);
       } catch (err) {
-        fileError = `移到回收站失败：${err.message}`;
+        fileError = `移到回收站失败：${describeFsError(err)}`;
       }
     } else if (policy === 'permanent') {
       try {
-        await fsp.rm(row.abs_path, { force: true });
+        await withFsRetry(() => fsp.rm(row.abs_path, { force: true }));
       } catch (err) {
-        fileError = `删除文件失败：${err.message}`;
+        fileError = `删除文件失败：${describeFsError(err)}`;
       }
     }
     // unlink：仅移出图库，保留文件
@@ -114,7 +155,7 @@ async function moveToAppTrash(row, reason) {
   const trashDir = trashDirFor(row.abs_path);
   let target = path.join(trashDir, base);
   if (fs.existsSync(target)) target = path.join(trashDir, `${Date.now().toString(36)}_${base}`);
-  await fsp.rename(row.abs_path, target);
+  await renameWithRetry(row.abs_path, target);
   try {
     withTransaction(() => {
       db.prepare(
@@ -203,7 +244,7 @@ export async function restoreFromTrash(id) {
   if (fs.existsSync(target)) {
     target = target.replace(/(\.\w+)$/, `_恢复${Date.now().toString(36)}$1`);
   }
-  await fsp.rename(row.trash_path, target);
+  await renameWithRetry(row.trash_path, target);
   let newId;
   try {
     // 入库与清回收站记录必须在同一个事务里：以前是先 rename 再 INSERT，
@@ -309,7 +350,7 @@ export async function renameImage(id, title) {
   const target = path.join(path.dirname(row.abs_path), base);
   if (target !== row.abs_path) {
     if (fs.existsSync(target)) throw new Error('该文件夹下已存在同名文件');
-    await fsp.rename(row.abs_path, target);
+    await renameWithRetry(row.abs_path, target);
   }
   db.prepare('UPDATE images SET abs_path = ?, title = ? WHERE id = ?').run(target, base, id);
   return toDTO(getImage(id));

@@ -1,6 +1,6 @@
 # 图库 TuKu
 
-[![版本](https://img.shields.io/badge/version-1.2.9-2563eb.svg)](https://github.com/mr-awei/gallery/releases/latest)
+[![版本](https://img.shields.io/badge/version-1.2.10-2563eb.svg)](https://github.com/mr-awei/gallery/releases/latest)
 [![平台](https://img.shields.io/badge/platform-Windows%2010%2F11-5b6472.svg)](#1-它是什么)
 [![Electron](https://img.shields.io/badge/Electron-44.4.5-47848f.svg)](#4-架构与数据流)
 [![Node](https://img.shields.io/badge/Node-%E2%89%A522.5-339933.svg)](#11-从源码运行)
@@ -677,6 +677,19 @@ npm run dist -- --publish never
 ---
 
 ## 16 更新记录
+
+### v1.2.10（2026-11-12）
+
+**三条实报 + 三处顺手修的坑：**
+
+- **下载中心能「全部下载」**：头部按钮显示「全部下载（N 项 · 约 X）」，点了把没装的模型一次性排进队列。**串行**而不是并发——同一条带宽、Hub 会限流，多数模块也只有一个下载态，并发只会互相覆盖进度。单项失败（哈希不对、404）不中断整批，跑完汇总「装好几项 / 失败哪几项」；页面上随时能「取消全部下载」，服务端 `GET|POST /api/models/install-all` + `POST /api/models/install-all/cancel`，路由挂在 `:id` 之前，别被 `/:id/install` 吞掉。
+- **文件明明在却搜不到**：搜索原来只看标题 / 标签 / 全文索引，**目录名根本不在检索范围**，多层文件夹里的图搜夹名自然是 0 张。现在多两条命中路径：物理路径 `abs_path LIKE`（含全部祖先层级）和虚拟文件夹名（`image_folders` 反查）。口径抽成纯函数 `buildSearchClause()`，配 5 例单测锁占位符与参数个数，再补两条冒烟（目录名、虚拟夹名各一）。短词仍走 LIKE、≥3 字仍走 trigram。
+- **文件夹视图只在当前层过滤**：左边树里明明挂着这个夹，右边却说「没有」。现在搜索时**跨全库所有层级**找，结果卡标题下多一行层级路径（`20190822清华经管 / 20190823清华经管学院（李伟）`），空结果分「全库没有名称包含…」和「这一层还没有子文件夹」两种说法。
+- **「全部有拍摄时间」却被判成没有**：月份查询原条件 `taken_at <> ''` 漏了空串以外的空态，v1.2.8 清空 `taken_at` 的库整页空白（月份 0、未排入 0）。补上 `IS NOT NULL` 兜底，`IMPORT_TIME_ONLY` 也补上，待校正计数才算得出来；空状态现在会**自动重建一次**（同一会话只试一次，避免死循环），失败再露出「重建拍摄时间（N 张待校正）」按钮和任务进度，不用自己找入口。
+- **顺手修：早退之后再调 hook 会白屏**。时间线空状态的自动重建 effect 一开始写在 `if (loading) return` 之后，首屏比加载完少调两个 hook，React 直接抛「Rendered more hooks than during the previous render」。已把它挪到早退之前，并新增静态守门单测 `test/hooks-order.test.mjs`（TS 编译器 API 扫 `web/src`，找「return 之后又出现 `use*`」）——这类错 lint / tsc 都看不见。大图里同类的隐患（焦点检测那两行 hook 在 `if (!item) return null` 之后）一起挪了。
+- **顺手修：Windows 删除 / 还原偶发 `EBUSY`**。刚入库或刚改名的文件常被我们自己短暂占着（缩略图在解码、上一张响应流没关），`rename` 直接失败，用户侧就是随机「移到回收站失败」。改成 40→340ms 退避重试 6 次，真被别的软件锁着才报错，并且说明「文件正被其他程序占用」而不是甩错误码。冒烟里「删完立刻撤销」原本会偶发失败，现在稳。
+- **顺手修：重定向单测偶发 `bad port`**。undici 有坏端口黑名单（6000 / 6666 / 10080…），`listen(0)` 在把临时端口起点调到 1024 的机器上会撞进去，跟被测逻辑无关。测试撞上就换端口重开。
+- 验证：lint 192 文件 0 错误 0 警 / 单测 392（新增 `hooks-order` 1 例）/ 冒烟 120（新增按目录名、按虚拟夹名两条）/ 基准 15 项全达标。实机复核：时间线清空 `taken_at` 后自动重建把 7541 张全部排回（约 2 分钟）、文件夹视图搜「清华经管」跨层命中 5 个、下载中心「全部下载 / 取消全部下载」状态正常。
 
 ### v1.2.9（2026-11-11）
 

@@ -12,9 +12,13 @@
  * 文件时间也拿不到的行先把 taken_at 清空（＝不排进时间线），交给后台重建任务 stat 文件。
  */
 
-/** taken_at 仍是「入库时间兜底」的三种形态：空串 / UTC 串 / 本地串 */
+/**
+ * taken_at 仍是「入库时间兜底」的四种形态：空串 / UTC 串 / 本地串，外加早期可空列留下的 NULL
+ * （现在的 schema 是 NOT NULL DEFAULT ''，正常「没时间」就是空串，IS NULL 只是兼容老库）
+ */
 export const IMPORT_TIME_ONLY = `(
-  taken_at = ''
+  taken_at IS NULL
+  OR taken_at = ''
   OR taken_at = substr(replace(created_at, 'Z', ''), 1, 19)
   OR taken_at = strftime('%Y-%m-%dT%H:%M:%S', created_at, 'localtime')
 )`;

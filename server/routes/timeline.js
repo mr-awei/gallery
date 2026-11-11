@@ -37,8 +37,11 @@ export function register(app, ctx) {
     const lockParams = hidden ? hidden.params : [];
     const months = db
       .prepare(
+        // 「没有拍摄时间」在本库里是空串（列声明 NOT NULL DEFAULT ''）；IS NOT NULL 只为
+        // 更早版本建出的可空列兜底 —— 那种库里 taken_at <> '' 对 NULL 恒为 NULL，
+        // 会让这些行从月份里消失却仍计进 unplaced，界面就成了「有素材但时间线全空」
         `SELECT substr(taken_at, 1, 7) AS month, COUNT(*) AS count FROM images
-          WHERE taken_at <> ''${STACK_SQL}${lockSql}
+          WHERE taken_at IS NOT NULL AND taken_at <> ''${STACK_SQL}${lockSql}
           GROUP BY month ORDER BY month DESC`
       )
       .all(...lockParams);
