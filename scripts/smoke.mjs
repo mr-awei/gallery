@@ -495,6 +495,33 @@ try {
     }
   }
 
+  // 时间线要「具体到日期」：/api/timeline/days 把月拆成天，天累加必须等于月总数，
+  // 按天取图时每张都必须落在这一天（区间上界算错会静默丢掉当天的图）。
+  const tlSummary = await (await fetch(`${BASE}/api/timeline/summary`, auth)).json();
+  const tlMonth = (tlSummary?.months || [])[0];
+  if (tlMonth) {
+    const dRes = await fetch(`${BASE}/api/timeline/days?month=${tlMonth.month}`, auth);
+    const dj = dRes.ok ? await dRes.json() : null;
+    const dayList = dj?.days || [];
+    const sum = dayList.reduce((s, d) => s + Number(d.count || 0), 0);
+    check(
+      '时间线月份能拆成日期（张数对得上）',
+      dRes.status === 200 && dayList.length > 0 && sum === Number(tlMonth.count),
+      `月=${tlMonth.month} 天=${dayList.length} 合计=${sum}/${tlMonth.count}`
+    );
+    if (dayList.length) {
+      const day = dayList[0].day;
+      const one = await (await fetch(`${BASE}/api/timeline?day=${day}&limit=400`, auth)).json();
+      const items = one?.items || [];
+      const expect = Math.min(Number(one?.total || 0), 400);
+      check(
+        '按天取图只回这一天',
+        items.length === expect && items.every((it) => String(it?.takenAt || '').slice(0, 10) === day),
+        `day=${day} 回=${items.length}/${expect}`
+      );
+    }
+  }
+
   const getImage = async (id) => (await fetch(`${BASE}/api/images/${id}`, auth)).json();
   const readTags = (img) => (Array.isArray(img?.tags) ? img.tags.join(',') : String(img?.tags || ''));
   const latestOp = async (op) => {

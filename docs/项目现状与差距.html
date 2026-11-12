@@ -128,7 +128,7 @@
     <div class="stat hl"><b>8.23 / 8.93</b><span>通用 / 单机总分（10 维加权；Eagle 4 为 8.00 / 8.17）</span></div>
     <div class="stat"><b>3</b><span>硬缺口：地点视图、英文界面长尾、macOS 真机验收</span></div>
     <div class="stat"><b>5</b><span>机会点卡：P1 2 个 / P2 3 个</span></div>
-    <div class="stat"><b data-stat="summary">192 · 392 · 120 · 15</b><span>lint 文件 / 单测 / 冒烟 / 基准，<code>verify</code> 全绿（自动回写）</span></div>
+    <div class="stat"><b data-stat="summary">193 · 399 · 122 · 15</b><span>lint 文件 / 单测 / 冒烟 / 基准，<code>verify</code> 全绿（自动回写）</span></div>
   </div>
 
   <div class="verdict">
@@ -390,10 +390,10 @@
     <table>
       <thead><tr><th>环节</th><th>结果</th><th>覆盖什么</th></tr></thead>
       <tbody>
-        <tr><td><code>npm run lint</code></td><td><b data-stat="lint">192 个文件 0 错误</b></td><td>tutorial 条目数、词典、<code>data-tour</code>、<code>.api-token</code>、<code>@ts-check</code>、<code>electron/</code> 禁 <code>console.log</code></td></tr>
+        <tr><td><code>npm run lint</code></td><td><b data-stat="lint">193 个文件 0 错误</b></td><td>tutorial 条目数、词典、<code>data-tour</code>、<code>.api-token</code>、<code>@ts-check</code>、<code>electron/</code> 禁 <code>console.log</code></td></tr>
         <tr><td><code>npm run typecheck</code></td><td><b>四套 tsconfig 全过</b></td><td>前端 / server / electron / scripts</td></tr>
-        <tr><td><code>npm run unit</code></td><td><b data-stat="unit">392 / 392</b></td><td><span data-stat="testFiles">65</span> 个 <code>test/*.test.mjs</code>：检索注入、导出、文件 API、人脸数学、文件夹公共父目录、出站重定向、库健康</td></tr>
-        <tr><td><code>npm run smoke</code></td><td><b data-stat="smoke">120 / 120</b></td><td>真起服务再打接口（临时库 + 随机端口，只读模式）</td></tr>
+        <tr><td><code>npm run unit</code></td><td><b data-stat="unit">399 / 399</b></td><td><span data-stat="testFiles">66</span> 个 <code>test/*.test.mjs</code>：检索注入、导出、文件 API、人脸数学、文件夹公共父目录、出站重定向、库健康</td></tr>
+        <tr><td><code>npm run smoke</code></td><td><b data-stat="smoke">122 / 122</b></td><td>真起服务再打接口（临时库 + 随机端口，只读模式）</td></tr>
         <tr><td><code>npm run bench</code></td><td><b data-stat="bench">15 / 15</b></td><td>低基数 / 过滤 / 标签交集 / 颜色 / 语义 / 重复 / 时间线 / 大偏移</td></tr>
         <tr><td>手工核对</td><td><b>10 个脚本登记在册</b></td><td>向量往返、调色对拍、导出差分、词表补丁、发布快照、上传校验等</td></tr>
       </tbody>

@@ -41,6 +41,7 @@ import type {
   SimilarGroups,
   Stats,
   SystemInfo,
+  TimelineDay,
   TimelineSummary,
   TrashItem,
   WallpaperMonitors,
@@ -844,10 +845,15 @@ export const api = {
   stats: () => request<Stats>('/api/stats'),
   /** 时间线：月份索引 + 总量 + 待重建数量 */
   timelineSummary: () => request<TimelineSummary>('/api/timeline/summary'),
-  /** 时间线：某月图片（按拍摄时间倒序分页） */
-  timelineMonth: (month: string, offset = 0, limit = 120) =>
-    request<{ month: string; total: number; limit: number; offset: number; items: ImageItem[] }>(
-      `/api/timeline?month=${encodeURIComponent(month)}&offset=${offset}&limit=${limit}`
+  /** 时间线：某月的日期索引（每天几张，每月最多 31 条） */
+  timelineDays: (month: string) =>
+    request<{ month: string; total: number; days: TimelineDay[] }>(
+      `/api/timeline/days?month=${encodeURIComponent(month)}`
+    ),
+  /** 时间线：某天的图片（按拍摄时间倒序分页） */
+  timelineDay: (day: string, offset = 0, limit = 120) =>
+    request<{ day?: string; month: string; total: number; limit: number; offset: number; items: ImageItem[] }>(
+      `/api/timeline?day=${encodeURIComponent(day)}&offset=${offset}&limit=${limit}`
     ),
   /** 按 EXIF 重建拍摄时间（后台任务） */
   timelineBackfill: () =>

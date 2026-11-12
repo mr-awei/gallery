@@ -1318,6 +1318,13 @@ export type View =
   | 'tutorial'
   | 'settings';
 
+/** 时间线：一天及其张数（/api/timeline/days，月内按天分组） */
+export interface TimelineDay {
+  /** 'YYYY-MM-DD' */
+  day: string;
+  count: number;
+}
+
 /** 时间线：一个月及其张数（/api/timeline/summary） */
 export interface TimelineMonth {
   /** 'YYYY-MM' */

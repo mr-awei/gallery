@@ -5,11 +5,14 @@ import { api } from '../api';
 import { useLang } from '../lib/i18n';
 
 /**
- * 时间线视图：按拍摄时间倒序，先给「年 → 月」索引，再按月懒加载图片。
+ * 时间线视图：按拍摄时间倒序，三级索引「年 → 月 → 日」，图片按天懒加载。
+ *
+ * 为什么分到日：只给到月的话，一个月的图是一大片平铺，看不出「哪天拍的」，
+ * 也定位不到「那天那批」。日期由 /api/timeline/days 聚合给出，图片按天拉，
+ * 每天的头（`10 月 5 日 · 周一`）带张数，滚到哪天请求哪天。
  *
  * 为什么不复用 Gallery 的虚拟网格：时间线是「按日期分组的长卷」，分组头要吸顶、
- * 月份要按需拉取；把全部月份塞进一个平铺列表会先序列化几万条 DTO 才出现第一屏。
- * 这里每个月份独立请求（索引可用），滚到哪个月才加载哪个月。
+ * 天要按需拉取；把全部素材塞进一个平铺列表会先序列化几万条 DTO 才出现第一屏。
  */
 
 interface Props {
@@ -18,7 +21,16 @@ interface Props {
   onOpen: (item: ImageItem, pool: ImageItem[]) => void;
 }
 
+/** 一个月内的日期索引（每月最多 31 条，一次给完） */
 interface MonthState {
+  days: { day: string; count: number }[];
+  total: number;
+  loading: boolean;
+  error?: string;
+}
+
+/** 某一天已加载的图片（按天单独分页，一天可能拍上千张） */
+interface DayState {
   items: ImageItem[];
   total: number;
   loading: boolean;
@@ -37,8 +49,25 @@ function monthLabel(month: string, lang: 'zh' | 'en') {
   return `${y} 年 ${Number(m)} 月`;
 }
 
-function MonthBlock({
-  month,
+const WEEK_ZH = ['周日', '周一', '周二', '周三', '周四', '周五', '周六'];
+const WEEK_EN = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+const MONTH_EN = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+
+/**
+ * '2026-10-05' → '10 月 5 日 · 周一' / 'Mon, Oct 5'
+ *
+ * 为什么带星期：具体到日期之后，人回忆素材靠的是「那个周一拍的」，只给数字仍然对不上号。
+ * 年份不重复写（正上方就是年月标题），免得每天一行都拖一长串。
+ */
+function dayLabel(day: string, lang: 'zh' | 'en') {
+  const [, m, d] = day.split('-').map(Number);
+  const wd = new Date(`${day}T00:00:00Z`).getUTCDay();
+  if (lang === 'en') return `${WEEK_EN[wd]}, ${MONTH_EN[m - 1]} ${d}`;
+  return `${m} 月 ${d} 日 · ${WEEK_ZH[wd]}`;
+}
+
+function DayBlock({
+  day,
   count,
   state,
   lang,
@@ -46,9 +75,9 @@ function MonthBlock({
   onLoadMore,
   onOpen,
 }: {
-  month: string;
+  day: string;
   count: number;
-  state?: MonthState;
+  state?: DayState;
   lang: 'zh' | 'en';
   onLoad: () => void;
   onLoadMore: () => void;
@@ -58,7 +87,7 @@ function MonthBlock({
   const ref = useRef<HTMLElement | null>(null);
   const [seen, setSeen] = useState(false);
 
-  // 进入视口才请求：首屏只加载当前月份，往下滚一屏加载一屏
+  // 每一天也懒加载：一个月 3000 张、30 天，滚到哪天拉哪天
   useEffect(() => {
     const el = ref.current;
     if (!el || seen) return;
@@ -80,10 +109,10 @@ function MonthBlock({
   const total = state?.total ?? count;
 
   return (
-    <section className="tl-month" id={`tl-${month}`} ref={ref}>
-      <header className="tl-month-head">
-        <h3>{monthLabel(month, lang)}</h3>
-        <span className="tl-month-count">
+    <section className="tl-day" id={`tl-${day}`} ref={ref}>
+      <header className="tl-day-head">
+        <h4>{dayLabel(day, lang)}</h4>
+        <span className="tl-day-count">
           {total} {t('张', 'items')}
         </span>
         {state?.loading && !items.length && <span className="tl-month-loading">{t('加载中…', 'Loading…')}</span>}
@@ -114,14 +143,90 @@ function MonthBlock({
   );
 }
 
+function MonthBlock({
+  month,
+  count,
+  state,
+  dayStates,
+  lang,
+  onLoadDays,
+  onLoadDay,
+  onMoreDay,
+  onOpen,
+}: {
+  month: string;
+  count: number;
+  state?: MonthState;
+  dayStates: Record<string, DayState>;
+  lang: 'zh' | 'en';
+  onLoadDays: () => void;
+  onLoadDay: (day: string) => void;
+  onMoreDay: (day: string, offset: number) => void;
+  onOpen: (item: ImageItem, pool: ImageItem[]) => void;
+}) {
+  const { t } = useLang();
+  const ref = useRef<HTMLElement | null>(null);
+  const [seen, setSeen] = useState(false);
+
+  // 进入视口才请求：首屏只加载当前月份的日期索引，往下滚一屏加载一屏
+  useEffect(() => {
+    const el = ref.current;
+    if (!el || seen) return;
+    const io = new IntersectionObserver(
+      (entries) => {
+        if (entries.some((e) => e.isIntersecting)) {
+          setSeen(true);
+          onLoadDays();
+          io.disconnect();
+        }
+      },
+      { rootMargin: '600px 0px' }
+    );
+    io.observe(el);
+    return () => io.disconnect();
+  }, [seen, onLoadDays]);
+
+  const days = state?.days || [];
+  const total = state?.total ?? count;
+
+  return (
+    <section className="tl-month" id={`tl-${month}`} ref={ref}>
+      <header className="tl-month-head">
+        <h3>{monthLabel(month, lang)}</h3>
+        <span className="tl-month-count">
+          {total} {t('张', 'items')}
+          {days.length > 0 && ` · ${days.length} ${t('天', 'days')}`}
+        </span>
+        {state?.loading && !days.length && <span className="tl-month-loading">{t('加载中…', 'Loading…')}</span>}
+        {state?.error && <span className="tl-month-error">{state.error}</span>}
+      </header>
+      {days.map((b) => (
+        <DayBlock
+          key={b.day}
+          day={b.day}
+          count={b.count}
+          state={dayStates[b.day]}
+          lang={lang}
+          onLoad={() => onLoadDay(b.day)}
+          onLoadMore={() => onMoreDay(b.day, dayStates[b.day]?.items.length || 0)}
+          onOpen={onOpen}
+        />
+      ))}
+    </section>
+  );
+}
+
 export function Timeline({ onToast, onOpen }: Props) {
   const { t, lang } = useLang();
   const [summary, setSummary] = useState<TimelineSummary | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [months, setMonths] = useState<Record<string, MonthState>>({});
+  const [days, setDays] = useState<Record<string, DayState>>({});
   const [job, setJob] = useState<Pick<JobItem, 'id' | 'status' | 'progress' | 'message'> | null>(null);
   const timers = useRef<number[]>([]);
+  /** 跳月份后的反复对齐定时器（见 jumpTo 的注释） */
+  const jumpTimer = useRef<number | null>(null);
 
   const loadSummary = useCallback(async () => {
     try {
@@ -143,32 +248,58 @@ export function Timeline({ onToast, onOpen }: Props) {
 
   useEffect(() => {
     const list = timers.current;
-    return () => list.forEach((id) => window.clearTimeout(id));
+    return () => {
+      list.forEach((id) => window.clearTimeout(id));
+      if (jumpTimer.current) window.clearTimeout(jumpTimer.current);
+    };
   }, []);
 
-  const loadMonth = useCallback(
-    async (month: string, offset = 0) => {
+  /** 拉某个月的日期索引（只回每天有几张，不回图片） */
+  const loadDays = useCallback(
+    async (month: string) => {
       setMonths((prev) => {
         const cur = prev[month];
         // 已经加载过（或正在加载）就别再请求一次——IntersectionObserver 会重复触发
-        if (offset === 0 && cur && (cur.items.length || cur.loading)) return prev;
-        return {
-          ...prev,
-          [month]: { items: offset ? cur?.items || [] : [], total: cur?.total || 0, loading: true },
-        };
+        if (cur && (cur.days.length || cur.loading)) return prev;
+        return { ...prev, [month]: { days: [], total: 0, loading: true } };
       });
       try {
-        const r = await api.timelineMonth(month, offset, PAGE);
-        setMonths((prev) => {
-          const cur = prev[month];
-          const items = offset > 0 ? [...(cur?.items || []), ...r.items] : r.items;
-          return { ...prev, [month]: { items, total: r.total, loading: false } };
-        });
+        const r = await api.timelineDays(month);
+        setMonths((prev) => ({ ...prev, [month]: { days: r.days, total: r.total, loading: false } }));
       } catch (e) {
         const msg = (e as Error)?.message || t('加载失败', 'Failed to load');
         setMonths((prev) => ({
           ...prev,
-          [month]: { items: prev[month]?.items || [], total: prev[month]?.total || 0, loading: false, error: msg },
+          [month]: { days: prev[month]?.days || [], total: prev[month]?.total || 0, loading: false, error: msg },
+        }));
+      }
+    },
+    [t]
+  );
+
+  /** 拉某一天的图片；一天可能上千张，仍按 PAGE 分页 */
+  const loadDay = useCallback(
+    async (day: string, offset = 0) => {
+      setDays((prev) => {
+        const cur = prev[day];
+        if (offset === 0 && cur && (cur.items.length || cur.loading)) return prev;
+        return {
+          ...prev,
+          [day]: { items: offset ? cur?.items || [] : [], total: cur?.total || 0, loading: true },
+        };
+      });
+      try {
+        const r = await api.timelineDay(day, offset, PAGE);
+        setDays((prev) => {
+          const cur = prev[day];
+          const items = offset > 0 ? [...(cur?.items || []), ...r.items] : r.items;
+          return { ...prev, [day]: { items, total: r.total, loading: false } };
+        });
+      } catch (e) {
+        const msg = (e as Error)?.message || t('加载失败', 'Failed to load');
+        setDays((prev) => ({
+          ...prev,
+          [day]: { items: prev[day]?.items || [], total: prev[day]?.total || 0, loading: false, error: msg },
         }));
       }
     },
@@ -191,9 +322,32 @@ export function Timeline({ onToast, onOpen }: Props) {
     return out;
   }, [summary]);
 
+  /**
+   * 跳月份 + 反复对齐。
+   *
+   * 为什么不能只 scrollIntoView 一次：目标月之前那些月份在途经时会陆续加载日期索引和图片，
+   * 它们的高度是滚上去之后才长出来的 —— 内容一长上面就膨胀，目标被顶得往下跑。
+   * 实测点「2022 年 4 月」会落在 5 月里，差了 1.5 万像素。这里在 1.2 秒内反复对位，
+   * 直到连续两次不再偏移就停手；中途用户自己滚了也不再抢（偏差判定用相对滚动容器的偏移）。
+   */
   const jumpTo = (month: string) => {
-    const el = document.getElementById(`tl-${month}`);
-    el?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    if (jumpTimer.current) window.clearTimeout(jumpTimer.current);
+    let stable = 0;
+    const align = (left: number) => {
+      const el = document.getElementById(`tl-${month}`);
+      const scroller = el?.closest('.tl-scroll');
+      if (!el || !scroller || left <= 0) return;
+      const offset = el.getBoundingClientRect().top - scroller.getBoundingClientRect().top;
+      // scroll-margin-top: 6px（timeline.css），对得上就算稳
+      if (Math.abs(offset - 6) > 3) {
+        stable = 0;
+        el.scrollIntoView({ behavior: left > 9 ? 'smooth' : 'auto', block: 'start' });
+      } else if (++stable >= 2) {
+        return;
+      }
+      jumpTimer.current = window.setTimeout(() => align(left - 1), 100);
+    };
+    align(12);
   };
 
   const startBackfill = async () => {
@@ -220,6 +374,7 @@ export function Timeline({ onToast, onOpen }: Props) {
         }
         if (last && last.status === 'done') {
           setMonths({});
+          setDays({});
           await loadSummary();
           onToast(t('拍摄时间已重建，时间线已刷新', 'Capture times rebuilt — timeline refreshed'));
         } else if (last && last.status === 'failed') {
@@ -328,8 +483,8 @@ export function Timeline({ onToast, onOpen }: Props) {
           <h2>{t('时间线', 'Timeline')}</h2>
           <p className="tl-sub">
             {t(
-              `共 ${summary.placed} 张，分布在 ${summary.months.length} 个月 · 按拍摄时间归档（EXIF → 文件修改 / 创建时间）`,
-              `${summary.placed} items across ${summary.months.length} months · filed by capture time (EXIF → file time)`
+              `共 ${summary.placed} 张，分布在 ${summary.months.length} 个月 · 按拍摄日期分组（EXIF → 文件修改 / 创建时间）`,
+              `${summary.placed} items across ${summary.months.length} months · grouped by capture date (EXIF → file time)`
             )}
           </p>
         </div>
@@ -376,9 +531,11 @@ export function Timeline({ onToast, onOpen }: Props) {
               month={m.month}
               count={m.count}
               state={months[m.month]}
+              dayStates={days}
               lang={lang}
-              onLoad={() => loadMonth(m.month, 0)}
-              onLoadMore={() => loadMonth(m.month, months[m.month]?.items.length || 0)}
+              onLoadDays={() => loadDays(m.month)}
+              onLoadDay={(day) => loadDay(day, 0)}
+              onMoreDay={(day, offset) => loadDay(day, offset)}
               onOpen={onOpen}
             />
           ))}
