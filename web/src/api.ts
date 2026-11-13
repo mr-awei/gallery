@@ -634,6 +634,11 @@ async function request<T>(path: string, init?: RequestOptions): Promise<T> {
         try {
           const data = await res.json();
           if (data?.error) message = data.error;
+          // 423 只有两种情况：当前库锁着（activeLibraryLocked），或切到加密库缺密码。
+          // 只有前者要把整页切到解锁界面，后者由切库对话框自己提示，别把用户踢出当前库
+          if (res.status === 423 && data?.activeLibraryLocked) {
+            window.dispatchEvent(new CustomEvent('tuku:library-locked'));
+          }
         } catch {
           /* ignore */
         }
@@ -878,8 +883,33 @@ export const api = {
       method: 'POST',
       body: JSON.stringify(payload),
     }),
-  activateLibrary: (id: number) =>
-    request<{ ok: boolean; library: Library }>(`/api/libraries/${id}/activate`, { method: 'POST' }),
+  /** 切换到某个库；加密库必须带 password（缺密码/密码错 → 423，不会切过去） */
+  activateLibrary: (id: number, password?: string) =>
+    request<{ ok: boolean; library: Library }>(`/api/libraries/${id}/activate`, {
+      method: 'POST',
+      body: password ? JSON.stringify({ password }) : undefined,
+    }),
+  /** 解锁当前库（本次会话有效） */
+  unlockLibrary: (id: number, password: string) =>
+    request<{ ok: boolean; hasPassword: boolean; locked: boolean }>(`/api/libraries/${id}/unlock`, {
+      method: 'POST',
+      body: JSON.stringify({ password }),
+    }),
+  /** 立即上锁（不改密码） */
+  lockLibrary: (id: number) =>
+    request<{ ok: boolean; hasPassword: boolean; locked: boolean }>(`/api/libraries/${id}/lock`, { method: 'POST' }),
+  /** 设置 / 修改库密码（已有密码必须带 oldPassword） */
+  setLibraryPassword: (id: number, password: string, oldPassword = '') =>
+    request<{ ok: boolean; hasPassword: boolean; locked: boolean }>(`/api/libraries/${id}/password`, {
+      method: 'PUT',
+      body: JSON.stringify({ password, oldPassword }),
+    }),
+  /** 移除库密码（必须验证原密码） */
+  clearLibraryPassword: (id: number, password: string) =>
+    request<{ ok: boolean; hasPassword: boolean; locked: boolean }>(`/api/libraries/${id}/password`, {
+      method: 'DELETE',
+      body: JSON.stringify({ password }),
+    }),
   deleteLibrary: (id: number) =>
     request<{ ok: boolean; libraries: Library[]; activeId: number | null }>(`/api/libraries/${id}`, {
       method: 'DELETE',

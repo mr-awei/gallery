@@ -24,6 +24,7 @@ import * as enhanceJob from './enhance-job.js';
 import * as auto from './auto.js';
 import { liveBus } from './live-bus.js';
 import { apiAuth } from './auth.js';
+import { isActiveLibraryLocked, libraryLockGate } from './lib/library-lock.js';
 import { register as registerTidy } from './routes/tidy.js';
 import { register as registerEnhance } from './routes/enhance.js';
 import { register as registerFiles } from './routes/files.js';
@@ -323,6 +324,9 @@ export function buildApp({ desktop = false } = {}) {
   // 解析上限仍留 50MB：上面已经按路径做过更严的前置拒绝
   app.use(express.json({ limit: '50mb' }));
 
+  // 资源库密码锁：锁着的库一律 423（解锁 / 切库 / 读设置除外，见 lib/library-lock.js）
+  app.use('/api', libraryLockGate);
+
   /* ----------------------------- 实时事件（SSE） ----------------------------- */
   // 前端所有任务进度 / 库变化由此推送，替代各页面散落的 setInterval 轮询。
   // sseClients / sseBroadcast 已在模块顶层定义（bootstrap 也要广播）。
@@ -360,6 +364,7 @@ export function buildApp({ desktop = false } = {}) {
   let ingestPending = 0;
   let ingestTimer = null;
   liveBus.on('library-changed', (payload) => {
+    if (isActiveLibraryLocked()) return; // 锁定时不把库变化推给前端
     ingestPending += Math.max(1, Number(payload?.added) || 1);
     if (ingestTimer) return;
     ingestTimer = setTimeout(() => {
@@ -388,6 +393,8 @@ export function buildApp({ desktop = false } = {}) {
   let lastJobPush = 0;
   setInterval(() => {
     if (!sseClients.size) return;
+    // 库锁着就别推任务快照：里面的 message 会带文件名（「正在增强 IMG_1234.jpg」）
+    if (isActiveLibraryLocked()) return;
     let snap;
     try {
       snap = jobSnapshot();

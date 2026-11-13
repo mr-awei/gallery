@@ -109,7 +109,7 @@ function DayBlock({
   const total = state?.total ?? count;
 
   return (
-    <section className="tl-day" id={`tl-${day}`} ref={ref}>
+    <section className="tl-day" id={`tl-${day}`} data-day={day} ref={ref}>
       <header className="tl-day-head">
         <h4>{dayLabel(day, lang)}</h4>
         <span className="tl-day-count">
@@ -225,8 +225,14 @@ export function Timeline({ onToast, onOpen }: Props) {
   const [days, setDays] = useState<Record<string, DayState>>({});
   const [job, setJob] = useState<Pick<JobItem, 'id' | 'status' | 'progress' | 'message'> | null>(null);
   const timers = useRef<number[]>([]);
-  /** 跳月份后的反复对齐定时器（见 jumpTo 的注释） */
+  /** 跳月份后的反复对齐定时器（见 alignTo 的注释） */
   const jumpTimer = useRef<number | null>(null);
+  /** 滚动节流的 rAF 句柄 */
+  const scrollRaf = useRef(0);
+  /** 左栏当前展开的月份（手风琴，只开一个：全部铺开会有上百行日期，翻不动） */
+  const [openMonth, setOpenMonth] = useState<string | null>(null);
+  /** 滚动位置所在的日期，用于左栏高亮 */
+  const [activeDay, setActiveDay] = useState('');
 
   const loadSummary = useCallback(async () => {
     try {
@@ -322,24 +328,57 @@ export function Timeline({ onToast, onOpen }: Props) {
     return out;
   }, [summary]);
 
+  /** 每个月多少张（左栏月份行右侧的小字），summary 只给一次，顺手摊平 */
+  const monthTotals = useMemo(() => {
+    const out: Record<string, number> = {};
+    for (const m of summary?.months || []) out[m.month] = Number(m.count || 0);
+    return out;
+  }, [summary]);
+
+  /** 当前滚动位置所在月份，左栏据此高亮并展开 */
+  const activeMonth = activeDay.slice(0, 7);
+
+  // 进页面先展开最新一个月：不然左栏只有年月，用户还得先点一下才看得到日期
+  useEffect(() => {
+    if (openMonth || !summary?.months.length) return;
+    setOpenMonth(summary.months[0].month);
+  }, [openMonth, summary]);
+
+  // 主视图滚到别的月份时，左栏跟着换展开月份，并补拉那个月的日期索引
+  useEffect(() => {
+    if (!activeMonth) return;
+    setOpenMonth(activeMonth);
+    loadDays(activeMonth);
+  }, [activeMonth, loadDays]);
+
+  // 还没滚动过时先高亮最新一天：否则首屏左栏一片「没有选中」，
+  // 要等用户滚一下才有反馈
+  useEffect(() => {
+    if (activeDay) return;
+    const m = summary?.months?.[0]?.month;
+    const d = m ? months[m]?.days?.[0]?.day : '';
+    if (d) setActiveDay(d);
+  }, [summary, months, activeDay]);
+
   /**
-   * 跳月份 + 反复对齐。
+   * 跳到某个元素 + 反复对齐（月份与日期共用）。
    *
-   * 为什么不能只 scrollIntoView 一次：目标月之前那些月份在途经时会陆续加载日期索引和图片，
+   * 为什么不能只 scrollIntoView 一次：目标之前那些月份在途经时会陆续加载日期索引和图片，
    * 它们的高度是滚上去之后才长出来的 —— 内容一长上面就膨胀，目标被顶得往下跑。
    * 实测点「2022 年 4 月」会落在 5 月里，差了 1.5 万像素。这里在 1.2 秒内反复对位，
-   * 直到连续两次不再偏移就停手；中途用户自己滚了也不再抢（偏差判定用相对滚动容器的偏移）。
+   * 直到连续两次不再偏移就停手；偏差用「元素顶边 − 滚动容器顶边」判断，不依赖绝对视口位置。
+   *
+   * margin 必须与 timeline.css 的 scroll-margin-top 一致：月 6px、日 38px（让过吸顶的月头）。
    */
-  const jumpTo = (month: string) => {
+  const alignTo = useCallback((id: string, margin: number) => {
     if (jumpTimer.current) window.clearTimeout(jumpTimer.current);
     let stable = 0;
     const align = (left: number) => {
-      const el = document.getElementById(`tl-${month}`);
+      const el = document.getElementById(id);
       const scroller = el?.closest('.tl-scroll');
       if (!el || !scroller || left <= 0) return;
       const offset = el.getBoundingClientRect().top - scroller.getBoundingClientRect().top;
-      // scroll-margin-top: 6px（timeline.css），对得上就算稳
-      if (Math.abs(offset - 6) > 3) {
+      if (Math.abs(offset - margin) > 3) {
         stable = 0;
         el.scrollIntoView({ behavior: left > 9 ? 'smooth' : 'auto', block: 'start' });
       } else if (++stable >= 2) {
@@ -348,6 +387,52 @@ export function Timeline({ onToast, onOpen }: Props) {
       jumpTimer.current = window.setTimeout(() => align(left - 1), 100);
     };
     align(12);
+  }, []);
+
+  const jumpTo = useCallback((month: string) => alignTo(`tl-${month}`, 6), [alignTo]);
+
+  /**
+   * 跳到某一天：先确保该月的日期索引已在手（否则页面上还没有这一天的节点），
+   * 再等节点出现、对齐，并顺手把这一天拉出来 —— 直接跳过去时 IntersectionObserver
+   * 可能还没来得及触发，别让用户看到一整天空白。
+   */
+  const jumpToDay = useCallback(
+    (day: string) => {
+      const month = day.slice(0, 7);
+      setOpenMonth(month);
+      setActiveDay(day);
+      loadDays(month).then(() => {
+        const waitEl = (left: number) => {
+          if (document.getElementById(`tl-${day}`)) {
+            alignTo(`tl-${day}`, 38);
+            return;
+          }
+          if (left > 0) jumpTimer.current = window.setTimeout(() => waitEl(left - 1), 60);
+        };
+        waitEl(10);
+      });
+      loadDay(day, 0);
+    },
+    [alignTo, loadDay, loadDays]
+  );
+
+  /**
+   * 滚动时算「现在滚到哪一天」，用来高亮左栏的日期、并让它所属的月份自动展开。
+   * 判定线放在月头下沿（44px = 38 月头 + 6 余量）：那一天的头刚贴上来就算进来了。
+   */
+  const onTimelineScroll = (e: React.UIEvent<HTMLDivElement>) => {
+    if (scrollRaf.current) return;
+    const scroller = e.currentTarget;
+    scrollRaf.current = requestAnimationFrame(() => {
+      scrollRaf.current = 0;
+      const line = scroller.getBoundingClientRect().top + 44;
+      let cur = '';
+      for (const el of scroller.querySelectorAll<HTMLElement>('.tl-day')) {
+        if (el.getBoundingClientRect().top <= line) cur = el.dataset.day || cur;
+        else break;
+      }
+      setActiveDay(cur);
+    });
   };
 
   const startBackfill = async () => {
@@ -506,7 +591,7 @@ export function Timeline({ onToast, onOpen }: Props) {
       </header>
 
       <div className="tl-body">
-        <nav className="tl-years" aria-label={t('按年跳转', 'Jump by year')}>
+        <nav className="tl-years" aria-label={t('按年月日跳转', 'Jump by year, month, day')}>
           {years.map((y) => (
             <div key={y.year} className="tl-year">
               <button type="button" className="tl-year-btn" onClick={() => jumpTo(y.months[0])}>
@@ -514,17 +599,52 @@ export function Timeline({ onToast, onOpen }: Props) {
                 <span>{y.count}</span>
               </button>
               <div className="tl-year-months">
-                {y.months.map((m) => (
-                  <button key={m} type="button" className="tl-month-link" onClick={() => jumpTo(m)}>
-                    {t(`${Number(m.slice(5))} 月`, monthLabel(m, 'en'))}
-                  </button>
-                ))}
+                {y.months.map((m) => {
+                  const open = openMonth === m;
+                  const state = months[m];
+                  return (
+                    <div key={m} className="tl-month-group">
+                      <button
+                        type="button"
+                        className={`tl-month-link${activeMonth === m ? ' active' : ''}`}
+                        aria-expanded={open}
+                        onClick={() => {
+                          setOpenMonth(open ? null : m);
+                          jumpTo(m);
+                        }}
+                      >
+                        {t(`${Number(m.slice(5))} 月`, monthLabel(m, 'en'))}
+                        <span className="tl-month-link-count">{monthTotals[m]}</span>
+                      </button>
+                      {open && (
+                        <div className="tl-days">
+                          {!state?.days.length && (
+                            <span className="tl-days-hint">
+                              {state?.loading ? t('读取日期…', 'Loading…') : state?.error || t('没有日期', 'No days')}
+                            </span>
+                          )}
+                          {state?.days.map((d) => (
+                            <button
+                              key={d.day}
+                              type="button"
+                              className={`tl-day-link${activeDay === d.day ? ' active' : ''}`}
+                              onClick={() => jumpToDay(d.day)}
+                            >
+                              <span>{t(`${Number(d.day.slice(8))} 日`, `${Number(d.day.slice(8))}`)}</span>
+                              <span className="tl-day-link-count">{d.count}</span>
+                            </button>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
               </div>
             </div>
           ))}
         </nav>
 
-        <div className="tl-scroll">
+        <div className="tl-scroll" onScroll={onTimelineScroll}>
           {summary.months.map((m) => (
             <MonthBlock
               key={m.month}

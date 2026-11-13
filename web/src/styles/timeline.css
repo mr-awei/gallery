@@ -137,24 +137,95 @@
 
 .tl-year-months {
   display: flex;
-  flex-wrap: wrap;
-  gap: 4px;
-  padding: 2px 8px 0;
+  flex-direction: column;
+  gap: 1px;
+  padding: 2px 0 0;
+}
+
+.tl-month-group {
+  display: flex;
+  flex-direction: column;
 }
 
 .tl-month-link {
-  padding: 2px 6px;
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+  width: 100%;
+  padding: 3px 8px;
   border: 0;
-  border-radius: 4px;
+  border-radius: 5px;
   background: none;
-  font-size: 11px;
+  font-size: 12px;
   color: var(--text-dim);
+  text-align: left;
   cursor: pointer;
 }
 
 .tl-month-link:hover {
   color: var(--text);
   background: var(--hover, rgba(127, 127, 127, 0.12));
+}
+
+.tl-month-link.active {
+  color: var(--text);
+  background: var(--hover, rgba(127, 127, 127, 0.12));
+  font-weight: 600;
+}
+
+.tl-month-link-count {
+  margin-left: auto;
+  font-size: 10px;
+  font-weight: 400;
+  font-variant-numeric: tabular-nums;
+  opacity: 0.7;
+}
+
+/* 月份展开后的日期列表：一行一天，左缩进与月份分开，点哪天跳哪天 */
+.tl-days {
+  display: flex;
+  flex-direction: column;
+  padding: 1px 0 4px;
+}
+
+.tl-day-link {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+  width: 100%;
+  padding: 2px 8px 2px 18px;
+  border: 0;
+  border-radius: 4px;
+  background: none;
+  font-size: 11px;
+  color: var(--text-dim);
+  text-align: left;
+  cursor: pointer;
+}
+
+.tl-day-link:hover {
+  color: var(--text);
+  background: var(--hover, rgba(127, 127, 127, 0.12));
+}
+
+.tl-day-link.active {
+  color: var(--accent, #ff4d8d);
+  background: rgba(255, 77, 141, 0.14);
+  font-weight: 600;
+}
+
+.tl-day-link-count {
+  margin-left: auto;
+  font-size: 10px;
+  font-variant-numeric: tabular-nums;
+  opacity: 0.7;
+}
+
+.tl-days-hint {
+  padding: 2px 8px 2px 18px;
+  font-size: 11px;
+  color: var(--text-dim);
+  opacity: 0.75;
 }
 
 .tl-scroll {

@@ -1023,3 +1023,67 @@ body.sidebar-resizing iframe {
     opacity: 0.3;
   }
 }
+
+/* 资源库锁定屏：整页停在这里（不是弹窗）—— 锁着的时候底下没有任何数据 */
+.lock-screen {
+  position: fixed;
+  inset: 0;
+  z-index: 300;
+  display: grid;
+  place-items: center;
+  padding: 24px;
+  background: var(--bg);
+}
+.lock-card {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  width: 100%;
+  max-width: 360px;
+  padding: 28px 26px;
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  background: var(--solid-panel);
+  box-shadow: 0 18px 48px rgba(0, 0, 0, 0.28);
+  text-align: center;
+}
+.lock-badge {
+  font-size: 30px;
+  line-height: 1;
+}
+.lock-title {
+  margin: 2px 0 0;
+  font-size: 18px;
+  color: var(--text);
+}
+.lock-hint {
+  font-size: 13px;
+  color: var(--muted);
+}
+.lock-input,
+.lock-submit {
+  width: 100%;
+}
+.lock-err {
+  font-size: 12px;
+  color: #ef4444;
+  text-align: left;
+}
+.lock-note {
+  margin-top: 2px;
+  font-size: 11px;
+  line-height: 1.6;
+  color: var(--muted);
+  text-align: left;
+  opacity: 0.9;
+}
+.lib-row-lock {
+  flex: 0 0 auto;
+  font-size: 11px;
+  opacity: 0.75;
+}
+.lib-trigger-lock {
+  flex: 0 0 auto;
+  font-size: 10px;
+  opacity: 0.8;
+}

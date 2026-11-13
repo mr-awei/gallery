@@ -20,6 +20,10 @@ interface Props {
   activeLibName: string;
   activeLibRoot: string;
   onSwitchLibrary: (id: number) => void;
+  /** 加密库：验密码后再切（失败返回错误文案） */
+  onSwitchLibraryWithPassword: (id: number, password: string) => Promise<string | null>;
+  /** 库的密码状态变了，刷新列表 */
+  onReloadLibraries: () => void;
   onDeleteLibrary: (lib: Library) => void;
   onCreateLibrary: () => void;
   onOpenLibraryInExplorer: (lib: Library) => void;
@@ -88,6 +92,8 @@ export default function Sidebar({
   activeLibName,
   activeLibRoot,
   onSwitchLibrary,
+  onSwitchLibraryWithPassword,
+  onReloadLibraries,
   onDeleteLibrary,
   onCreateLibrary,
   onOpenLibraryInExplorer,
@@ -157,6 +163,8 @@ export default function Sidebar({
         libraries={libraries}
         activeLibId={activeLibId}
         onSwitch={onSwitchLibrary}
+        onSwitchWithPassword={onSwitchLibraryWithPassword}
+        onReload={onReloadLibraries}
         onDelete={onDeleteLibrary}
         onCreate={onCreateLibrary}
         onOpenInExplorer={onOpenLibraryInExplorer}

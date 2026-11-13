@@ -313,6 +313,10 @@ export interface Library {
   is_active: number;
   /** 是否可删除（默认库不可删） */
   deletable?: boolean;
+  /** 是否设了密码（哈希留在服务端，这里只知道有没有） */
+  hasPassword?: boolean;
+  /** 设了密码且本次会话还没解锁 */
+  locked?: boolean;
 }
 
 /** 文件夹树节点（后端扁平返回，前端按 parent_id 组装） */

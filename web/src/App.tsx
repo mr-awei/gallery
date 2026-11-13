@@ -33,6 +33,7 @@ import QuickClassifyDialog from './components/QuickClassifyDialog';
 import StackViewer from './components/StackViewer';
 import ReverseSearchDialog, { type ReverseTarget } from './components/ReverseSearchDialog';
 import CreateLibraryDialog from './components/CreateLibraryDialog';
+import LibraryLockScreen from './components/LibraryLockScreen';
 import OnboardingTour from './components/OnboardingTour';
 import TagMetaDialog from './components/TagMetaDialog';
 import { applyTheme, getStoredTheme, type Theme } from './theme';
@@ -110,6 +111,8 @@ export default function App() {
   const tourStartedRef = useRef(false);
   // 多资源库（文件夹树在 useFolderTree 里）
   const [libraries, setLibraries] = useState<Library[]>([]);
+  /** 当前库锁着时的信息；非空就把整页切到解锁屏（服务端此时只回 423） */
+  const [lockInfo, setLockInfo] = useState<{ id: number; name: string } | null>(null);
   const [activeLibId, setActiveLibId] = useState<number | null>(null);
   const toolsRef = useRef<HTMLDivElement | null>(null);
 
@@ -247,6 +250,50 @@ export default function App() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  /** 重新拉库列表（设/改/删密码、立即上锁之后用） */
+  const reloadLibraries = useCallback(() => {
+    api
+      .libraries()
+      .then((r) => {
+        setLibraries(r.libraries);
+        setActiveLibId(r.activeId);
+      })
+      .catch(quiet);
+  }, []);
+
+  // 当前库锁着（且本次会话没解锁）→ 整页停下输密码。判断统一走这里，
+  // 启动、切库、立即上锁后都自动生效，不用各处重复写
+  useEffect(() => {
+    const cur = libraries.find((l) => l.id === activeLibId);
+    if (cur?.locked) {
+      setLockInfo((prev) => (prev?.id === cur.id ? prev : { id: cur.id, name: cur.name }));
+    } else if (cur) {
+      setLockInfo(null);
+    }
+  }, [libraries, activeLibId]);
+
+  // 任何接口回 423（当前库锁着）都会派发这个事件：刷新一次库状态，让上面的 effect 接管。
+  // 锁定后页面组件会疯狂重试，这里用一个标志挡掉并发探测
+  const lockProbeRef = useRef(false);
+  useEffect(() => {
+    const onLocked = () => {
+      if (lockProbeRef.current) return;
+      lockProbeRef.current = true;
+      api
+        .libraries()
+        .then((r) => {
+          setLibraries(r.libraries);
+          setActiveLibId(r.activeId);
+        })
+        .catch(quiet)
+        .finally(() => {
+          lockProbeRef.current = false;
+        });
+    };
+    window.addEventListener('tuku:library-locked', onLocked);
+    return () => window.removeEventListener('tuku:library-locked', onLocked);
+  }, []);
+
   /* 分享链接里的 folder 可能属于别的库、或已被删除：树一到就校验，失配退回全库 */
   useEffect(() => {
     if (!folderId || !folders.length) return;
@@ -366,11 +413,12 @@ export default function App() {
   }, []);
 
   // 切换到另一个资源库：重载列表、统计、文件夹树
+  // 返回 null = 成功；返回字符串 = 失败原因（切库对话框要显示在框里，故不当场弹 toast）
   const switchLibrary = useCallback(
-    async (id: number) => {
-      if (id === activeLibId) return;
+    async (id: number, password?: string): Promise<string | null> => {
+      if (id === activeLibId) return null;
       try {
-        await api.activateLibrary(id);
+        await api.activateLibrary(id, password);
         setActiveLibId(id);
         setFolderId(null);
         setFolders([]);
@@ -386,8 +434,12 @@ export default function App() {
         // 保存的筛选器存在各库自己的 gallery.db：不重载就会继续显示上一个库的条目
         setActiveSavedId(null);
         reloadSavedFilters();
+        return null;
       } catch (err) {
-        showToast((err as Error).message);
+        const msg = (err as Error).message;
+        // 带密码来的调用方是切库对话框，它自己会把错误显示在框里
+        if (!password) showToast(msg);
+        return msg;
       }
     },
     [activeLibId, load, refreshStats, followImport, resetLibBaseline, showToast]
@@ -1292,6 +1344,12 @@ export default function App() {
     return () => document.removeEventListener('mousedown', onDown);
   }, [toolsOpen]);
 
+  // 当前库锁着：整页只留解锁屏。必须在所有 hook 之后，且不能把下面的页面渲染出来
+  // ——锁定时服务端对业务接口一律 423，渲染出来也只是一堆空状态
+  if (lockInfo) {
+    return <LibraryLockScreen library={lockInfo} onUnlocked={() => window.location.reload()} />;
+  }
+
   return (
     <div className="app">
       {/* 任意页面都能拖入 / 粘贴入库（Eagle 三件套）；图库页接管时这里自动让位 */}
@@ -1331,6 +1389,8 @@ export default function App() {
         activeLibName={activeLib?.name ?? '全部'}
         activeLibRoot={activeLib?.root_path ?? ''}
         onSwitchLibrary={switchLibrary}
+        onSwitchLibraryWithPassword={switchLibrary}
+        onReloadLibraries={reloadLibraries}
         onDeleteLibrary={deleteLibraryAt}
         onCreateLibrary={() => setShowCreateLib(true)}
         onOpenLibraryInExplorer={(lib) => openFolder(lib.path).catch(quiet)}

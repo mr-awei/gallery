@@ -2,6 +2,7 @@ import path from 'node:path';
 import fs from 'node:fs';
 import { globalDb, openLibrary, setActiveLibrary, getActiveLibrary, getSettings, saveSettings } from './db.js';
 import { resetPrivacy } from './lib/privacy.js';
+import { libraryLockState, resetLibraryLock } from './lib/library-lock.js';
 import { DATA_DIR } from './config.js';
 import { assertWritableDir } from './lib/safe-path.js';
 import { watchStorageDir, cancelLocalImport } from './importer.js';
@@ -25,7 +26,15 @@ export function listLibraries() {
       'SELECT id, name, path, root_path, thumb_dir, created_at, last_opened, is_active FROM libraries ORDER BY id ASC'
     )
     .all()
-    .map((l) => ({ ...l, deletable: path.resolve(l.path) !== path.resolve(DATA_DIR) }));
+    .map((l) => ({
+      ...l,
+      deletable: path.resolve(l.path) !== path.resolve(DATA_DIR),
+      // 锁状态（哈希不出库）：hasPassword 决定是否显示锁标，locked 决定切过去要不要密码
+      ...(() => {
+        const s = libraryLockState(l.id);
+        return { hasPassword: s.hasPassword, locked: s.locked };
+      })(),
+    }));
 }
 
 /** @returns {import('./lib/db-handle.js').DbRow | undefined} */
@@ -133,6 +142,8 @@ export function activateLibrary(id) {
   resetVecCache();
   // 隐私夹的解锁状态是「按文件夹 id」记的：换库后 id 会撞，必须清空，否则新库里同名 id 白给看
   resetPrivacy();
+  // 库锁的解锁态同理按库 id 记：切走就重新锁上，切回来要再输一次密码
+  resetLibraryLock();
   // 把当前库的素材根目录同步到 settings.storageDir（importer / library 都读它）
   saveSettings({ storageDir: lib.root_path || '' });
   // 素材文件夹变了，重挂 fs.watch 监听目标

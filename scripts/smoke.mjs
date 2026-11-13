@@ -952,6 +952,110 @@ try {
     );
   }
 
+  // 资源库密码锁：每个库各自一把，锁着的库业务接口一律 423，切过去必须先验密码
+  {
+    const J = { ...auth.headers, 'Content-Type': 'application/json' };
+    const beforeActive = (await (await fetch(`${BASE}/api/libraries`, auth)).json().catch(() => ({})))?.activeId;
+    const rootDir = path.join(tmpUser, 'lib-lock-root');
+    fs.mkdirSync(rootDir, { recursive: true });
+    const created = await fetch(`${BASE}/api/libraries`, {
+      method: 'POST',
+      headers: J,
+      body: JSON.stringify({ name: '加密库', rootPath: rootDir }),
+    });
+    const newId = (await created.json().catch(() => ({})))?.id;
+
+    // 太短的密码当场拒绝（4 位起），且给的是 400 + 中文原因，不是 500
+    const shortRes = await fetch(`${BASE}/api/libraries/${newId}/password`, {
+      method: 'PUT',
+      headers: J,
+      body: JSON.stringify({ password: '123' }),
+    });
+    const shortBody = await shortRes.json().catch(() => ({}));
+    // 给「非当前库」设密码不影响当前库
+    const setPw = await fetch(`${BASE}/api/libraries/${newId}/password`, {
+      method: 'PUT',
+      headers: J,
+      body: JSON.stringify({ password: 'smoke-1234' }),
+    });
+    const statsStillOk = (await fetch(`${BASE}/api/stats`, auth)).status === 200;
+    check(
+      '资源库密码：少于 4 位被拒，加锁不影响其它库',
+      shortRes.status === 400 && !!shortBody.error && setPw.ok && statsStillOk,
+      `short=${shortRes.status} set=${setPw.status}`
+    );
+
+    // 给「不是当前库」的库上锁：它自己被标成 locked，当前库的接口一点不受影响
+    // （刚设完密码那一刻是解锁状态 —— 设密码的人当场不该被关在门外，所以这里先手动上锁）
+    const sealRes = await fetch(`${BASE}/api/libraries/${newId}/lock`, { method: 'POST', headers: J });
+    const otherLibStats = (await fetch(`${BASE}/api/stats`, auth)).status;
+    const lockedRow = ((await (await fetch(`${BASE}/api/libraries`, auth)).json())?.libraries || []).find((l) => l.id === newId);
+    check(
+      '资源库密码：上锁只影响这个库，当前库照常',
+      sealRes.ok && otherLibStats === 200 && lockedRow?.locked === true && lockedRow?.hasPassword === true,
+      `seal=${sealRes.status} other=${otherLibStats} flag=${lockedRow?.locked}`
+    );
+
+    // 没密码 / 密码错都是 423，且带 code=library_locked（前端据此弹解锁框）
+    const noPwdRes = await fetch(`${BASE}/api/libraries/${newId}/activate`, { method: 'POST', headers: J });
+    const noPwdBody = await noPwdRes.json().catch(() => ({}));
+    const badPwdRes = await fetch(`${BASE}/api/libraries/${newId}/activate`, {
+      method: 'POST',
+      headers: J,
+      body: JSON.stringify({ password: 'not-the-password' }),
+    });
+    const okPwdRes = await fetch(`${BASE}/api/libraries/${newId}/activate`, {
+      method: 'POST',
+      headers: J,
+      body: JSON.stringify({ password: 'smoke-1234' }),
+    });
+    const statsAfter = (await fetch(`${BASE}/api/stats`, auth)).status;
+    check(
+      '资源库密码：没密码/密码错切不过去，密码对能进',
+      noPwdRes.status === 423 && noPwdBody.code === 'library_locked' && badPwdRes.status === 423 && okPwdRes.ok && statsAfter === 200,
+      `no=${noPwdRes.status} bad=${badPwdRes.status} ok=${okPwdRes.status} stats=${statsAfter}`
+    );
+
+    // 现在这个库已经是当前库：在当前库上手动上锁 → 业务接口立刻 423；解锁后恢复
+    await fetch(`${BASE}/api/libraries/${newId}/lock`, { method: 'POST', headers: J });
+    const lockedStats = (await fetch(`${BASE}/api/stats`, auth)).status;
+    const unlockRes = await fetch(`${BASE}/api/libraries/${newId}/unlock`, {
+      method: 'POST',
+      headers: J,
+      body: JSON.stringify({ password: 'smoke-1234' }),
+    });
+    const statsBack = (await fetch(`${BASE}/api/stats`, auth)).status;
+    check(
+      '资源库密码：当前库上锁后接口 423，解锁后恢复',
+      lockedStats === 423 && unlockRes.ok && statsBack === 200,
+      `locked=${lockedStats} unlock=${unlockRes.status} back=${statsBack}`
+    );
+
+    // 移除密码要原密码；移除后再切过去不用密码
+    const rmBad = await fetch(`${BASE}/api/libraries/${newId}/password`, {
+      method: 'DELETE',
+      headers: J,
+      body: JSON.stringify({ password: 'nope' }),
+    });
+    const rmOk = await fetch(`${BASE}/api/libraries/${newId}/password`, {
+      method: 'DELETE',
+      headers: J,
+      body: JSON.stringify({ password: 'smoke-1234' }),
+    });
+    if (beforeActive) await fetch(`${BASE}/api/libraries/${beforeActive}/activate`, { method: 'POST', headers: J });
+    const reActivate = await fetch(`${BASE}/api/libraries/${newId}/activate`, { method: 'POST', headers: J });
+    const afterRow = ((await (await fetch(`${BASE}/api/libraries`, auth)).json())?.libraries || []).find((l) => l.id === newId);
+    check(
+      '资源库密码：移除要原密码，移除后不再拦',
+      rmBad.status === 400 && rmOk.ok && reActivate.ok && afterRow?.hasPassword === false,
+      `rmBad=${rmBad.status} rmOk=${rmOk.status} re=${reActivate.status} has=${afterRow?.hasPassword}`
+    );
+
+    // 收拾：切回原库并删掉测试库
+    if (beforeActive) await fetch(`${BASE}/api/libraries/${beforeActive}/activate`, { method: 'POST', headers: J });
+    await fetch(`${BASE}/api/libraries/${newId}`, { method: 'DELETE', ...auth });
+  }
+
   // 导出 HTML 网页画廊：单文件 + 缩略图内嵌（不能是 /api/... 链接，否则发给别人就是空白）
   // 以及文件夹封面（手动指定 / 恢复自动兜底）。两张卡共用一个新上传的素材，
   // 不复用前面的 imageId——它可能已经被回收站/撤销那几条测试改过状态。

@@ -37,6 +37,15 @@ import {
   setActiveRoot,
 } from '../libraries.js';
 import { watchStorageDir } from '../importer.js';
+import {
+  clearLibraryPassword,
+  libraryLockState,
+  markLibraryUnlocked,
+  sealLibrary,
+  setLibraryPassword,
+  unlockLibrary,
+  verifyLibraryPassword,
+} from '../lib/library-lock.js';
 import { autoMergeLegacy, refreshMergedRows } from '../lib/legacy-db.js';
 import { NAME_TEMPLATE_PRESETS, NAME_TEMPLATE_TOKENS, previewNameTemplate } from '../lib/name-template.js';
 import { logOp } from '../oplog.js';
@@ -122,7 +131,23 @@ export function register(app, ctx) {
   app.post(
     '/api/libraries/:id/activate',
     asyncRoute(async (req, res) => {
-      const library = activateLibrary(Number(req.params.id));
+      const targetId = Number(req.params.id);
+      // 加密库必须先验密码：否则「切过去」就是绕过整把锁（列表张数、图片全都能看）
+      const lock = libraryLockState(targetId);
+      if (lock.locked) {
+        const pwd = String(req.body?.password || '');
+        const lockedBody = {
+          error: pwd ? '密码不正确' : '这个资源库已加锁：请输入密码后再切换',
+          code: 'library_locked',
+          libraryId: targetId,
+          libraryName: lock.name,
+        };
+        // 都用 423 而不是 401：401 在 request() 里被当成「令牌失效」，会把密码错误说成登录问题
+        if (!pwd || !verifyLibraryPassword(targetId, pwd)) return res.status(423).json(lockedBody);
+      }
+      const library = activateLibrary(targetId);
+      // 切库会清空所有解锁态，验过密码的这个库要重新记上
+      if (lock.hasPassword) markLibraryUnlocked(targetId);
       // 升级自旧版：素材目录里可能还躺着单库时代的 <素材目录>/gallery.db，而新库是空的。
       // 不处理的话用户升级后看到的就是「一张图都没有」（文件、标签其实都在老库里）。
       // 只在目标库为空时自动合并；有数据的库交给用户决定，避免合并出重复记录。
@@ -171,6 +196,39 @@ export function register(app, ctx) {
       res.json({ ok: true, libraries: listLibraries(), activeId: getActiveLibrary()?.id ?? null });
     })
   );
+
+  /* ---------------- 资源库密码锁（每个库各自一把，互不影响） ---------------- */
+
+  // 密码操作统一走这里：业务错误（密码太短 / 原密码不对）回 400 并带中文原因，
+  // 不能甩 500 —— 用户看到「请求失败 500」根本不知道是自己输错了
+  const lockRoute = (fn) =>
+    asyncRoute(async (req, res) => {
+      try {
+        const r = fn(req);
+        sseBroadcast('library', { path: req.path });
+        res.json({ ok: true, ...r });
+      } catch (err) {
+        res.status(400).json({ error: String(err?.message || err) });
+      }
+    });
+
+  // 解锁当前/指定库（本次会话有效；重启回到锁定态）
+  app.post('/api/libraries/:id/unlock', lockRoute((req) => unlockLibrary(Number(req.params.id), req.body?.password)));
+
+  // 立即上锁（不改密码）：离开电脑前一键封上
+  app.post('/api/libraries/:id/lock', lockRoute((req) => sealLibrary(Number(req.params.id))));
+
+  // 设置 / 修改密码（已有密码必须带 oldPassword）
+  app.put(
+    '/api/libraries/:id/password',
+    lockRoute((req) => {
+      const { password, oldPassword } = req.body || {};
+      return setLibraryPassword(Number(req.params.id), password, oldPassword);
+    })
+  );
+
+  // 移除密码（必须验证原密码）
+  app.delete('/api/libraries/:id/password', lockRoute((req) => clearLibraryPassword(Number(req.params.id), req.body?.password)));
 
   // 文件夹树（多层级文件夹）
   app.get('/api/folders', (_req, res) => {

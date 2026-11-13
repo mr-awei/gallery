@@ -85,7 +85,9 @@ CREATE TABLE IF NOT EXISTS libraries (
   created_at TEXT NOT NULL,
   last_opened TEXT NOT NULL DEFAULT '',
   is_active INTEGER NOT NULL DEFAULT 0,
-  import_pending INTEGER NOT NULL DEFAULT 0   -- 1 = 上次扫描未完成，重启后要继续
+  import_pending INTEGER NOT NULL DEFAULT 0,  -- 1 = 上次扫描未完成，重启后要继续
+  lock_hash TEXT NOT NULL DEFAULT '',        -- 库密码（scrypt 哈希，空 = 未加锁）
+  lock_salt TEXT NOT NULL DEFAULT ''         -- 哈希用的随机盐
 );
 `);
 // 存量库迁移：libraries 表的多库字段是分批加的，老全局库缺列时
@@ -102,6 +104,8 @@ CREATE TABLE IF NOT EXISTS libraries (
   ensureLibColumn('last_opened', "last_opened TEXT NOT NULL DEFAULT ''");
   ensureLibColumn('is_active', 'is_active INTEGER NOT NULL DEFAULT 0');
   ensureLibColumn('import_pending', 'import_pending INTEGER NOT NULL DEFAULT 0');
+  ensureLibColumn('lock_hash', "lock_hash TEXT NOT NULL DEFAULT ''");
+  ensureLibColumn('lock_salt', "lock_salt TEXT NOT NULL DEFAULT ''");
 }
 
 /* ------------------------------- 库连接 ------------------------------- */
