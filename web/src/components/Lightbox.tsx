@@ -34,6 +34,7 @@ const LB_PINNED_DEFAULT = ['anno', 'ocr', 'download'];
 import InfoPanel from './lightbox/InfoPanel';
 import EditOpsPanel from './lightbox/EditOpsPanel';
 import { confirmDialog } from './Dialogs';
+import { ensureHardware } from '../lib/hardware';
 import type { WbSample } from './AdjustPanel';
 import {
   IconClose,
@@ -703,6 +704,8 @@ export default function Lightbox({
    * AI 模型没装时后端回 409，这里顺手把下载挂上，免得用户还要自己去设置页找。
    */
   const runCut = async (mode: 'ai' | 'flat') => {
+    // AI 抠图要吃内存（1024² 输入 + 常驻权重）：不够时先把话说清楚，别让用户等一次 OOM
+    if (mode === 'ai' && !(await ensureHardware('matting'))) return;
     setMatting(true);
     try {
       // 先问一句模型在不在：没下载就直接开始下载并引导，不做一次注定失败的请求

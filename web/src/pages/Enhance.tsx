@@ -1,6 +1,7 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { api, quiet } from '../api';
 import { confirmDialog } from '../components/Dialogs';
+import { ensureHardware, hardwareFeatureForModel } from '../lib/hardware';
 import { subscribeEvents } from '../events';
 import type {
   AiUpscaleStatus,
@@ -124,6 +125,8 @@ export default function Enhance({ onToast, onLibraryChanged }: Props) {
   }, [loadCandidates, onLibraryChanged]);
 
   const doEnhance = async (id: number) => {
+    // 模型档（Vulkan 外部程序 / Swin2SR）先过硬件门槛：内插值档不碰模型，不用检查
+    if (!(await ensureHardware(hardwareFeatureForModel(model)))) return;
     setProcessing((p) => new Set(p).add(id));
     try {
       const { item, noop } = await api.enhanceImage(id, model, candidates.standard);
@@ -163,6 +166,7 @@ export default function Enhance({ onToast, onLibraryChanged }: Props) {
 
   const doAll = async () => {
     if (!candidates.items.length) return;
+    if (!(await ensureHardware(hardwareFeatureForModel(model)))) return;
     if (
       isAi &&
       !(await confirmDialog(`AI 超分较慢（每张约数秒到数十秒），将处理 ${candidates.count} 张，可能耗时较长。继续？`))

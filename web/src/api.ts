@@ -29,6 +29,7 @@ import type {
   WallpaperLogItem,
   FeedbackItem,
   Filters,
+  HardwareReport,
   FolderNode,
   ImageItem,
   ImageNote,
@@ -165,6 +166,8 @@ interface DesktopAPI {
   restartService?: () => Promise<{ ok: boolean; error?: string }>;
   /** 忽略本次更新提示（安装失败时的出口） */
   updateDismiss?: () => Promise<{ ok: boolean }>;
+  /** 「下次打开时安装」：记下要装的版本，下次启动必须先装完（不装就退出） */
+  updateDefer?: () => Promise<{ ok: boolean; version?: string; msg?: string }>;
   /** 清零连续安装失败计数，恢复强制更新策略 */
   updateResetFailures?: () => Promise<{ ok: boolean }>;
   /** 退出应用（强制更新失败时的兜底出口） */
@@ -239,6 +242,12 @@ export interface UpdateState {
   ready?: boolean;
   /** 用户选了「本次先继续用」，本次会话不再遮挡 */
   dismissed?: boolean;
+  /** 用户选过「下次打开时安装」：本次已放行，下次启动要装 */
+  deferred?: boolean;
+  /** 本次启动必须先装完更新：遮罩只有「安装 / 退出」，没有继续用 */
+  mandatory?: boolean;
+  /** 延后安装的目标版本 */
+  deferredVersion?: string;
   /** 连续装不上、强制更新已自动降级为非强制 */
   degraded?: boolean;
   /** 记录下来的连续安装失败次数 */
@@ -1652,6 +1661,8 @@ export const api = {
       };
     }>('/api/import/status'),
   systemInfo: () => request<SystemInfo>('/api/system/info'),
+  /** 本机硬件 + 大模型功能的最低配置判定（refresh=true 强制重探，否则服务端 30s 缓存） */
+  hardware: (refresh = false) => request<HardwareReport>(`/api/hardware${refresh ? '?refresh=1' : ''}`),
   /** 浏览器扩展：目录 / 版本 / 固定 ID（装不上时用来核对） */
   extensionInfo: () =>
     request<{ ok: boolean; dir: string; version: string; name: string; id: string; exists: boolean }>(

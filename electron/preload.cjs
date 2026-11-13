@@ -64,6 +64,8 @@ contextBridge.exposeInMainWorld('desktopAPI', {
   updateInstall: () => ipcRenderer.invoke('update-install'),
   // 「本次先继续用」：装不上时的出口，下次启动仍会重新检查
   updateDismiss: () => ipcRenderer.invoke('update-dismiss'),
+  // 「下次打开时安装」：本次照常用，下次启动必须先装完（不装就退出）
+  updateDefer: () => ipcRenderer.invoke('update-defer'),
   updateState: () => ipcRenderer.invoke('update-state'),
   // 更新状态变化（检查/下载进度/已下载/出错），返回取消订阅函数
   onUpdateState: (cb) => {

@@ -1,13 +1,15 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
-import { api, quiet } from '../../api';
+import { api, formatSize, quiet } from '../../api';
 import { subscribeEvents } from '../../events';
 import type {
   AiUpscaleStatus,
   EnhanceAiModel,
   EnhanceModel,
   EnhanceRemoteService,
+  HardwareReport,
   Settings as SettingsType,
 } from '../../types';
+import { loadHardware, refreshHardware } from '../../lib/hardware';
 import { IconTrash } from '../../components/Icons';
 import Select from '../../components/Select';
 import Card from './Card';
@@ -139,6 +141,9 @@ export default function EnhanceSection({ settings, patch, onToast }: Props) {
   const [matting, setMatting] = useState<Awaited<ReturnType<typeof api.mattingStatus>> | null>(null);
   const [remoteTest, setRemoteTest] = useState<Record<string, { ok: boolean; message: string }>>({});
   const [remoteTesting, setRemoteTesting] = useState<string>('');
+  // 本机硬件 + 各模型功能的最低配置判定（服务端 /api/hardware）
+  const [hw, setHw] = useState<HardwareReport | null>(null);
+  const [hwBusy, setHwBusy] = useState(false);
 
   // 模型列表读不到时，下拉框会变成空的，用户只会觉得「增强功能没了」——得说清原因
   const [modelsErr, setModelsErr] = useState('');
@@ -171,6 +176,8 @@ export default function EnhanceSection({ settings, patch, onToast }: Props) {
     api.aiSrStatus().then(setSr).catch(quiet);
     api.prefStatus().then(setPref).catch(quiet);
     api.mattingStatus().then(setMatting).catch(quiet);
+    // 硬件探测要起一次 PowerShell，读不到就留空（界面显示「读取失败」，不影响其它设置）
+    loadHardware().then(setHw).catch(quiet);
   }, []);
 
   // 下载进度推送（sr / AI 超分运行库）→ 订阅 job 事件（原样迁自父组件）
@@ -964,6 +971,100 @@ export default function EnhanceSection({ settings, patch, onToast }: Props) {
       · 软件会自动：上传图片 → 按参数请求 → 下载结果 → 覆盖原文件（其他软件打开即为增强后效果）
       <br />· 线上服务需自备接口（开源/免费增强 API 均可），请遵守其使用条款
     </div>
+
+      {/* 硬件门槛：抠图 / 超分要跑本地模型，机器不够时得先让用户看见差距 */}
+      <div className="settings-subtitle" style={{ marginTop: 18 }}>
+        本机硬件与大模型功能的最低要求
+      </div>
+      <div className="hint" style={{ marginBottom: 8 }}>
+        抠图、AI 超分、人脸扫描、语义检索都是本地跑模型：内存不够会卡死或中途失败，AI 超分还必须有能跑
+        Vulkan 的显卡。达不到最低配置时，点功能会先弹一张对照表；配置偏低但仍能试的，会给你「仍然继续」。
+      </div>
+      {hw ? (
+        <>
+          <div className="hint" style={{ lineHeight: 1.9 }}>
+            · 处理器：{hw.hardware.cpu.model}（{hw.hardware.cpu.cores} 核 · {hw.hardware.cpu.arch} ·{' '}
+            {hw.hardware.cpu.platform}）
+            <br />· 内存：{formatSize(hw.hardware.ram.totalMB * 1048576)}，当前可用{' '}
+            {formatSize(hw.hardware.ram.freeMB * 1048576)}
+            <br />· 显卡：
+            {hw.hardware.gpu.devices.length
+              ? hw.hardware.gpu.devices
+                  .map((d) => (d.vramMB ? `${d.name}（${formatSize(d.vramMB * 1048576)}）` : d.name))
+                  .join(' / ')
+              : '未读到'}
+            {' · Vulkan '}
+            {hw.hardware.gpu.vulkan.capable === true
+              ? '可用'
+              : hw.hardware.gpu.vulkan.capable === false
+                ? '不可用'
+                : '未确认（装好运行库后点「重新检测」）'}
+          </div>
+          <table className="hw-table" style={{ marginTop: 10 }}>
+            <colgroup>
+              <col style={{ width: '36%' }} />
+              <col />
+              <col style={{ width: 72 }} />
+            </colgroup>
+            <thead>
+              <tr>
+                <th>功能 / 引擎</th>
+                <th>最低要求</th>
+                <th>判定</th>
+              </tr>
+            </thead>
+            <tbody>
+              {hw.features.map((f) => (
+                <tr key={f.id} className={f.level === 'ok' ? 'ok' : f.level === 'warn' ? 'warn' : 'bad'}>
+                  <td>
+                    {f.label}
+                    <div className="hw-engine">{f.engine}</div>
+                  </td>
+                  <td title={f.basis.join('\n')}>
+                    {f.checks.length ? (
+                      <ul className="hw-reqs">
+                        {f.checks.map((c) => (
+                          <li key={c.id}>
+                            {c.label} {c.need}
+                          </li>
+                        ))}
+                      </ul>
+                    ) : (
+                      '无需检查（不用模型）'
+                    )}
+                  </td>
+                  <td className="hw-verdict" title={f.reason}>
+                    {f.level === 'ok' ? '满足' : f.level === 'warn' ? '偏低，可试' : '不可用'}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+          <div className="hint" style={{ marginTop: 8, lineHeight: 1.8 }}>
+            把鼠标停在上面的「最低要求 / 判定」上可以看到门槛的依据（哪些是官方说明、哪些是我们按模型规模估的）。
+          </div>
+          <button
+            className="btn sm"
+            style={{ marginTop: 8 }}
+            disabled={hwBusy}
+            onClick={async () => {
+              setHwBusy(true);
+              try {
+                setHw(await refreshHardware());
+                onToast('硬件信息已重新检测');
+              } catch (err) {
+                onToast(`检测失败：${(err as Error).message}`, 'error');
+              } finally {
+                setHwBusy(false);
+              }
+            }}
+          >
+            {hwBusy ? '检测中…' : '重新检测'}
+          </button>
+        </>
+      ) : (
+        <div className="hint">正在读取本机硬件…（读不到不影响其它设置）</div>
+      )}
   </Card>
   );
 }

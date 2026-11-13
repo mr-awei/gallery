@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { createPortal } from 'react-dom';
 import { api } from '../api';
 import type { Library } from '../types';
 import { IconClose } from './Icons';
@@ -89,7 +90,10 @@ export default function LibraryLockDialog({
           ? `修改「${library.name}」的密码`
           : `移除「${library.name}」的密码`;
 
-  return (
+  // 必须挂到 body：这个对话框由侧栏里的资源库切换器渲染，而 .sidebar 有
+  // backdrop-filter（会把自己变成 fixed 后代的包含块）且 overflow-x:hidden，
+  // 不 portal 出去时 fixed 遮罩只能铺满侧栏，输入框被侧栏右缘裁掉半截。
+  return createPortal(
     <div className="modal-backdrop" onClick={onClose}>
       <div className="modal-card" style={{ width: 400 }} onClick={(e) => e.stopPropagation()}>
         <div className="modal-head">
@@ -98,7 +102,7 @@ export default function LibraryLockDialog({
             <IconClose />
           </button>
         </div>
-        <div className="modal-body">
+        <div className="modal-body lock-body">
           {mode === 'unlock' ? (
             <div className="field">
               <label>密码</label>
@@ -166,6 +170,7 @@ export default function LibraryLockDialog({
           </button>
         </div>
       </div>
-    </div>
+    </div>,
+    document.body
   );
 }

@@ -194,6 +194,56 @@ export interface SystemInfo {
   hasBuild: boolean;
 }
 
+/* -------------------- 大模型功能的硬件门槛（/api/hardware） -------------------- */
+
+export interface HardwareCheck {
+  id: string;
+  label: string;
+  /** 最低要求（人话，如「≥ 4.0 GB（建议 8.0 GB）」） */
+  need: string;
+  /** 本机实际（人话） */
+  have: string;
+  ok: boolean;
+  /** 不满足时是否直接不能跑（否则只是警告，允许用户试一把） */
+  hard: boolean;
+  note: string;
+}
+
+export interface HardwareFeature {
+  id: string;
+  label: string;
+  engine: string;
+  models: string;
+  min: { ramMB?: number; cores?: number; vramMB?: number; platform?: string; arch?: string };
+  recommend: { ramMB?: number; cores?: number; vramMB?: number };
+  /** 门槛从哪来的（官方说明 / 我们的估算口径），界面要照实展示 */
+  basis: string[];
+  checks: HardwareCheck[];
+  level: 'ok' | 'warn' | 'blocked';
+  ok: boolean;
+  /** 性能不足时是否还给「仍然继续」 */
+  canProceedAnyway: boolean;
+  reason: string;
+}
+
+export interface HardwareInfo {
+  cpu: { model: string; cores: number; speedMHz: number; arch: string; platform: string; release: string };
+  ram: { totalMB: number; freeMB: number };
+  gpu: {
+    devices: { name: string; vramMB: number | null; driver: string; kind: 'real' | 'basic' | 'virtual' }[];
+    /** capable 为 null = 读不到/没自检，不等于不能跑 */
+    vulkan: { capable: boolean | null; reason: string };
+    selfTest: { usable: boolean | null; gpu: string | null; error: string } | null;
+  };
+  probedAt: string;
+}
+
+export interface HardwareReport {
+  ok: boolean;
+  hardware: HardwareInfo;
+  features: HardwareFeature[];
+}
+
 export interface Stats {
   /** 当前资源库身份：多库各存各的 DB，图片记录本身不带库字段，只能由服务端告知 */
   library?: { id: string; name: string; path: string } | null;

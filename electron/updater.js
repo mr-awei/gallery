@@ -2,12 +2,19 @@
 /**
  * 应用内更新（electron-updater）
  *
- * 流程（2026-11 调整）：
+ * 流程（2026-11 再调整）：
  *   启动 → 后台静默检查 → 有新版本就在后台静默下载 → **下载完成才提示用户**
  *
  * 用户不会在「检查中 / 下载中」被一块遮罩锁住——那段时间照常使用应用；
- * 下载失败也只是后台按退避重试，不打扰。只有更新包已经躺在本机磁盘上、
- * 可以立刻安装时，才弹出全屏提示（web 端 ForcedUpdateOverlay）并自动重启安装。
+ * 下载失败也只是后台按退避重试，不打扰。只有更新包已经躺在本机磁盘上时，
+ * 才弹出全屏提示（web 端 ForcedUpdateOverlay），并且**由用户二选一**：
+ *   · 现在安装 → 立刻重启装（原来的强制行为）
+ *   · 下次打开时安装 → 本次照常用，把版本记到 update-deferred.json
+ *
+ * 「下次打开时安装」是有约束的延后：下次启动**必须先把这个版本装掉**，
+ * 不装就退出（遮罩只给「安装」和「退出应用」，没有「继续用」）。
+ * 只有装不上的极端情况才回到旧的出口（连续失败 → 降级成非强制），
+ * 否则一份装不上的包会把人永久锁在门外。
  *
  * 装不上时有出口：安装失败会关闭 autoInstallOnAppQuit（否则用户一退出就重装、
  * 又失败，形成死循环），并允许「本次先继续用，下次启动再试」。
@@ -19,6 +26,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { app, BrowserWindow } from 'electron';
+import { deferralVerdict } from './lib/update-policy.js';
 
 /** 唯一允许的更新源：写死，避免「设置被改 → 自动装上无关的安装包」 */
 export const OFFICIAL_REPO = 'mr-awei/gallery';
@@ -64,6 +72,63 @@ export function resetUpdateFailures() {
   writeFailures({ count: 0, version: app.getVersion() });
 }
 
+/* --------------------------- 「下次打开时安装」记账 --------------------------- */
+
+/** 用户选了「下次打开时安装」后要记住的目标版本（跨启动） */
+function deferFile() {
+  return path.join(app.getPath('userData'), 'update-deferred.json');
+}
+
+function readDeferral() {
+  try {
+    const raw = JSON.parse(fs.readFileSync(deferFile(), 'utf8'));
+    return { version: String(raw?.version || ''), at: String(raw?.at || '') };
+  } catch {
+    return { version: '', at: '' };
+  }
+}
+
+function writeDeferral(version) {
+  try {
+    fs.writeFileSync(deferFile(), JSON.stringify({ version, at: new Date().toISOString() }));
+  } catch {
+    /* userData 不可写时退化为「本次会话内记住」，不能因此拦住启动 */
+  }
+}
+
+function clearDeferral() {
+  try {
+    fs.unlinkSync(deferFile());
+  } catch {
+    /* 文件本来就不存在 */
+  }
+}
+
+/**
+ * 启动时套用上次的「下次打开时安装」。
+ * 返回 true = 本次启动必须先装完更新（调用方据此不做「关掉自动检查」的跳过）。
+ */
+export function applyDeferral() {
+  if (!isSupported()) return false;
+  const d = readDeferral();
+  const verdict = deferralVerdict(d.version, app.getVersion());
+  if (verdict === 'none') return false;
+  if (verdict === 'done') {
+    // 上次其实装成了（或已被手动升级到更高版本）：旧账作废
+    clearDeferral();
+    return false;
+  }
+  if (forceUpdateEnabled() === false) {
+    // 强制更新被关掉（内网离线部署 / 连续装不上已降级）：不许用一个开关把人锁死
+    console.warn('[update] 有待安装的延后更新，但强制更新已关闭，本次不强制');
+    setState({ deferred: true, deferredVersion: d.version, mandatory: false });
+    return false;
+  }
+  console.info(`[update] 上次选择了「下次打开时安装」：本次启动必须先装上 v${d.version}`);
+  setState({ deferred: true, deferredVersion: d.version, mandatory: true });
+  return true;
+}
+
 /** 后台失败重试的退避间隔（检查或下载失败时用） */
 const RETRY_DELAYS = [60_000, 180_000, 600_000];
 
@@ -81,6 +146,12 @@ const state = {
   ready: false,
   /** 用户选择「本次先继续用」后置 true，本次会话不再遮挡 */
   dismissed: false,
+  /** 用户选过「下次打开时安装」（本次会话已放行，下次启动要装） */
+  deferred: false,
+  /** 本次启动处于「必须先装完」状态：遮罩只给「安装 / 退出」，没有继续用 */
+  mandatory: false,
+  /** 延后安装的目标版本 */
+  deferredVersion: '',
   /** 连续装不上、强制更新已自动降级：界面据此给出正确文案 */
   degraded: false,
 };
@@ -101,6 +172,7 @@ export function snapshot() {
     installFailures: readFailures().count,
   };
 }
+
 
 function broadcast() {
   const payload = snapshot();
@@ -162,10 +234,15 @@ function failInstall(msg) {
   const text = String(msg || '安装程序未能启动').slice(0, 240);
   const failures = bumpInstallFailure();
   const degraded = failures >= MAX_INSTALL_FAILURES;
+  // 降级 = 承认这台机器装不上：连同「下次打开时安装」的记账一起清掉，
+  // 否则下次启动又会被同一份装不上的包挡住（死循环）
+  if (degraded) clearDeferral();
   setState({
     status: 'error',
     ready: true,
     degraded,
+    mandatory: degraded ? false : state.mandatory,
+    deferred: degraded ? false : state.deferred,
     error: degraded
       ? `启动安装程序失败：${text}。已连续 ${failures} 次装不上，强制更新已自动关闭：本次可正常使用，想再试请到「设置 → 检查更新」手动触发。`
       : `启动安装程序失败：${text}`,
@@ -231,12 +308,18 @@ function wire(up) {
       error: '',
     });
     // 后台直接下：界面仍然可用，不遮挡、不提示「正在下载」
-    if (forceMode) void downloadUpdate();
+    if (forceMode || state.mandatory) void downloadUpdate();
   });
 
   up.on('update-not-available', () => {
     retries = 0;
-    setState({ status: 'idle', percent: 0, error: '' });
+    // 服务器上已经没有比当前更新的版本了（或延后要装的那个被撤了）：
+    // 没有任何东西可装，就不能拿「必须安装」把人锁死，清账放行
+    if (state.mandatory) {
+      console.warn('[update] 本次必须先安装，但更新源已没有可用版本，解除强制');
+      clearDeferral();
+    }
+    setState({ status: 'idle', percent: 0, error: '', mandatory: false, deferred: false, deferredVersion: '' });
   });
 
   up.on('download-progress', (p) => {
@@ -261,7 +344,11 @@ function wire(up) {
     } catch (err) {
       console.warn('[update] 就绪回调失败：', err?.message || err);
     }
-    if (forceMode) {
+    // 只有「上次选了下次打开时安装」这一种情况才不再问、直接装：
+    // 用户上次已经明确授权过，本次启动就是来履行承诺的。
+    // 普通流程（刚下载完）一律等用户在遮罩上二选一，不强制重启。
+    if (state.mandatory) {
+      console.info('[update] 延后安装到期：本次启动直接安装');
       // 给界面 1.2s 把「正在重启安装」画出来
       setTimeout(() => {
         void installUpdate();
@@ -406,9 +493,31 @@ export async function installUpdate() {
   return { ok: true };
 }
 
-/** 「本次先继续用」：不让遮罩挡住这一轮，下次启动仍会重新检查 */
+/**
+ * 「下次打开时安装」：本次照常用，记下要装的版本。
+ * 下次启动 applyDeferral() 会把 mandatory 打开——不装就退出。
+ */
+export function deferUpdate() {
+  if (!state.ready) return { ok: false, msg: '更新包还没下载完成' };
+  const version = state.version || '';
+  if (!version) return { ok: false, msg: '不知道要安装哪个版本' };
+  writeDeferral(version);
+  clearWatchdog();
+  installing = false;
+  setState({ deferred: true, deferredVersion: version, mandatory: false, dismissed: true });
+  console.info(`[update] 已安排下次启动安装 v${version}`);
+  return { ok: true, version };
+}
+
+/**
+ * 「本次先继续用」：不让遮罩挡住这一轮，下次启动仍会重新检查。
+ * 处于「必须先装完」的启动里不生效——那种情况下只有安装和退出两条路。
+ */
 export function dismissUpdate() {
   if (!state.ready) return { ok: false, msg: '没有待安装的更新' };
+  if (state.mandatory) {
+    return { ok: false, msg: '上次选择了「下次打开时安装」，这次必须先完成更新（也可以直接退出应用）' };
+  }
   clearWatchdog();
   installing = false;
   setState({ dismissed: true });

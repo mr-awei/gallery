@@ -15,6 +15,7 @@ import { IconCopy, IconDownload, IconExpand, IconFolder, IconImages, IconSearch,
 import ReverseSearchDialog, { type ReverseTarget } from '../components/ReverseSearchDialog';
 import Select from '../components/Select';
 import { useLang } from '../lib/i18n';
+import { ensureHardware } from '../lib/hardware';
 
 type Props = {
   onToast: (msg: string, kind?: 'info' | 'error') => void;
@@ -172,6 +173,8 @@ export default function People({ onToast, onOpen, focusPersonId, focusNonce }: P
 
   const scan = (force: boolean) =>
     guard(async () => {
+      // 扫全库是逐张跑 SCRFD + ArcFace 两套 ONNX：先把内存/核心说清楚，别让用户等一次 OOM
+      if (!(await ensureHardware('face'))) return;
       if (force && !window.confirm('清空已识别的人脸并重新聚类？已起的人物名会一起清掉。')) return;
       const r = await api.faceScan({ force, minCos: cos });
       setSt(r);

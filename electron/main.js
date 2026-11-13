@@ -26,6 +26,8 @@ import {
   updateState,
   startBackgroundUpdate,
   dismissUpdate,
+  deferUpdate,
+  applyDeferral,
   onBeforeInstall,
   onInstallFailed,
   onUpdateReady,
@@ -2200,6 +2202,8 @@ handleIpc('update-check', async () => {
 handleIpc('update-download', () => downloadUpdate());
 handleIpc('update-install', () => installUpdate());
 handleIpc('update-dismiss', () => dismissUpdate());
+/** 「下次打开时安装」：本次放行，下次启动必须先装完（不装就退出） */
+handleIpc('update-defer', () => deferUpdate());
 handleIpc('update-state', () => updateState());
 /** 设置页「清零安装失败计数」：用户修好环境后主动恢复强制更新策略 */
 handleIpc('update-reset-failures', () => {
@@ -2810,9 +2814,12 @@ app.whenReady().then(async () => {
   // 只有包已经落到本地、能立刻安装时才会弹提示
   setTimeout(() => {
     void (async () => {
+      // 上次选了「下次打开时安装」：这次启动必须先装完，设置里关掉自动检查也不作数
+      // （用户已经答应过要装，不能用另一个开关把它无声跳过）
+      const mustInstall = applyDeferral();
       // 用户关掉「启动时自动检查更新」就完全不发请求（隐私 / 内网离线部署会这么选）；
       // 手动检查不受这个开关影响，否则设置页里的按钮会变成摆设
-      if (getSettings().autoUpdateCheck === false) {
+      if (!mustInstall && getSettings().autoUpdateCheck === false) {
         console.info('[update] 已按设置跳过启动检查（设置 → 关于可手动检查）');
         return;
       }

@@ -4,6 +4,7 @@ import type { ImageItem } from '../types';
 import ImageCard from '../components/ImageCard';
 import ColorPad from '../components/ColorPad';
 import MasonryGrid from '../components/MasonryGrid';
+import { ensureHardware } from '../lib/hardware';
 
 type Mode = 'color' | 'ai' | 'image';
 
@@ -68,6 +69,8 @@ export default function Search({ onToast, onOpenItem }: Props) {
     runSearch(async () => {
       const q = query.trim();
       if (!q) return onToast('请输入想找的图，例如「白底人像」「暖色调的日落海边」');
+      // 语义检索要本地加载 CLIP 文本塔（约 85MB）：内存/核心不够时先说明，再让用户决定
+      if (!(await ensureHardware('semantic'))) return;
       let r = await api.hybridSearch(q, 60);
       // 文本塔首次加载要下载 ~85MB：后端会先回 loading，这里等它，最多等约 25 秒
       let tries = 0;

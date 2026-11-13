@@ -290,6 +290,39 @@ try {
     `${badJson.status} ${badJsonText.slice(0, 40)}`
   );
 
+  // 硬件门槛：抠图 / 超分这类本地模型功能开跑前要判「这台机器顶不顶得住」。
+  // 探测是要起 PowerShell 的，读不到显卡时必须回「未知」而不是「没有显卡」——否则
+  // 一次探测超时就会把能用的机器全判成跑不了。
+  {
+    const hw = await (await fetch(`${BASE}/api/hardware`, { headers: auth0 })).json();
+    check(
+      '硬件：/api/hardware 上报本机配置与各模型功能的门槛',
+      hw.ok === true &&
+        typeof hw.hardware?.ram?.totalMB === 'number' &&
+        Array.isArray(hw.features) &&
+        hw.features.some((f) => f.id === 'matting' && f.checks?.length > 0) &&
+        // 抠图 / 超分 / 人脸 / 语义 都要在表里（都是本地模型，缺一条就等于漏检）
+        ['matting', 'upscale-vulkan', 'upscale-onnx', 'face', 'semantic', 'inpaint'].every((id) =>
+          hw.features.some((f) => f.id === id)
+        ) &&
+        // 消除是纯像素算法：必须在表里，但一条硬件要求都不该有
+        hw.features.some((f) => f.id === 'inpaint' && f.level === 'ok' && f.checks.length === 0),
+      `${hw.hardware?.ram?.totalMB}MB / ${hw.features?.length} 项`
+    );
+    const one = await (await fetch(`${BASE}/api/hardware?feature=upscale-vulkan`, { headers: auth0 })).json();
+    check(
+      '硬件：单功能查询带门槛依据与「能否继续」',
+      one.ok === true &&
+        one.feature?.id === 'upscale-vulkan' &&
+        Array.isArray(one.feature.basis) &&
+        one.feature.basis.length > 0 &&
+        typeof one.feature.canProceedAnyway === 'boolean',
+      `${one.feature?.level}`
+    );
+    const bad = await fetch(`${BASE}/api/hardware?feature=nope`, { headers: auth0 });
+    check('硬件：未知功能回 404 而非 500', bad.status === 404, `${bad.status}`);
+  }
+
   // SSE 事件流：能收到 hello 事件
   const sse = await fetch(`${BASE}/api/events?token=${encodeURIComponent(token)}`, {
     headers: { Accept: 'text/event-stream' },

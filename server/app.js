@@ -63,6 +63,7 @@ import { startThumbRebuild, thumbMissingCount } from './lib/thumb-rebuild.js';
 import { autoMergeLegacy, refreshMergedRows } from './lib/legacy-db.js';
 import { backfillMissingFolderLinks, folderDiskDir } from './folders.js';
 import { attachStackInfo } from './lib/stacks.js';
+import { hardwareReport } from './lib/hardware.js';
 
 const asyncRoute = (fn) => (req, res, next) => Promise.resolve(fn(req, res, next)).catch(next);
 
@@ -491,6 +492,21 @@ export function buildApp({ desktop = false } = {}) {
       hasBuild: fs.existsSync(WEB_DIST),
     });
   });
+
+  // 大模型功能的硬件门槛：设置页展示本机配置 + 抠图/超分开跑前的一次判定。
+  // 探测要起 PowerShell（Windows），所以模块内有 30s 缓存，?refresh=1 才强制重探。
+  app.get(
+    '/api/hardware',
+    asyncRoute(async (req, res) => {
+      const refresh = req.query.refresh === '1';
+      const report = await hardwareReport({ refresh });
+      const want = typeof req.query.feature === 'string' ? req.query.feature : '';
+      if (!want) return res.json(report);
+      const one = report.features.find((f) => f.id === want);
+      if (!one) return res.status(404).json({ error: '没有这个功能' });
+      res.json({ ok: true, feature: one, hardware: report.hardware });
+    })
+  );
 
   app.post(
     '/api/system/open-folder',

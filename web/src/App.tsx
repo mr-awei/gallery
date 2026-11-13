@@ -43,6 +43,7 @@ const Tutorial = lazy(() => import('./pages/Tutorial'));
 import CommandPalette, { type PaletteCommand } from './components/CommandPalette';
 import { buildRoute, parseRoute, sameRoute, type RouteState } from './lib/route';
 import { THUMB_DEFAULT, clampThumbWidth } from './lib/thumb-size';
+import { ensureHardware, hardwareFeatureForModel } from './lib/hardware';
 import TopBar from './layout/TopBar';
 import Sidebar from './layout/Sidebar';
 import StatusBar from './layout/StatusBar';
@@ -1210,6 +1211,8 @@ export default function App() {
   /** 大图预览中直接增强：按默认模型放大到标准以上并覆盖原文件 */
   const enhanceOne = useCallback(
     async (item: ImageItem) => {
+      // 默认模型可能被设成 AI 档：开跑前过一遍硬件门槛，不够就先把原因摊开
+      if (!(await ensureHardware(hardwareFeatureForModel(enhanceModel || 'sharp-standard')))) return;
       setEnhancingId(item.id);
       try {
         const { item: updated, noop } = await api.enhanceImage(item.id, enhanceModel || 'sharp-standard');

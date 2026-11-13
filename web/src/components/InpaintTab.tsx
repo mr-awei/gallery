@@ -2,6 +2,7 @@ import { useRef, useState } from 'react';
 import type { PointerEvent as ReactPointerEvent } from 'react';
 import { api } from '../api';
 import type { ImageItem } from '../types';
+import { ensureHardware } from '../lib/hardware';
 
 /** 擦除修复面板：在原图上涂白色蒙版，白色区域由内容感知扩散补上。 */
 interface Props {
@@ -91,6 +92,10 @@ export default function InpaintTab({ item, onToast, onReplaced }: Props) {
 
   const apply = async (copy: boolean) => {
     if (busy) return;
+    // 消除走的是纯像素算法（chamfer + Jacobi），不吃模型也不吃显卡：
+    // 这一步在服务端的门槛表里就是「无需检查」，留着是为了和其他大模型功能走同一条路，
+    // 哪天这一档换成生成式模型，这里不用改。
+    if (!(await ensureHardware('inpaint'))) return;
     const mask = maskDataUrl();
     if (!mask) return;
     setBusy(true);

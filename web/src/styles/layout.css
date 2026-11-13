@@ -143,6 +143,9 @@
   display: flex;
   flex-direction: column;
   background: var(--surface-side);
+  /* 注意：backdrop-filter 会让侧栏成为 fixed 后代的包含块（配合 overflow-x:hidden 会裁掉弹层）。
+     所以侧栏里弹出的 .modal-backdrop / 面板必须用 createPortal 挂到 document.body，
+     直接写在侧栏子树里的话，遮罩只铺满侧栏、输入框会被右缘切掉半截。 */
   backdrop-filter: blur(18px);
   border-right: 1px solid var(--border);
   padding: 14px 12px;
