@@ -150,7 +150,7 @@ export function startBackgroundUpdateCheck() {
       try {
         const r = await startBackgroundUpdate({ repo: await updateRepoSetting() });
         // 跳过（开发态 / 已跑过）时返回的是 { skipped: true }，得先用 in 收窄
-        if (r && 'hasUpdate' in r && r.hasUpdate) console.info('[update] 后台下载新版本', r.latest);
+        if (r && 'hasUpdate' in r && r.hasUpdate) console.info('[update] 后台检查到新版本', r.latest);
       } catch (err) {
         console.warn('[update] 启动检查失败：', err?.message || err);
       }

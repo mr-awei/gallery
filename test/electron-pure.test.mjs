@@ -21,6 +21,12 @@ test('版本比较：三段数字逐位比较，缺省按 0', () => {
   assert.equal(isNewer('1.10.0', '1.9.0'), true);
 });
 
+test('版本比较：本机比发布源还新时不算有更新（否则点安装就是降级）', () => {
+  assert.equal(isNewer('1.2.15', '1.2.16'), false);
+  assert.equal(isNewer('1.2.16', '1.2.16'), false);
+  assert.equal(isNewer('1.2.17', '1.2.16'), true);
+});
+
 test('版本比较：脏输入不抛错，按 0 处理', () => {
   assert.equal(isNewer('', '0.0.1'), false);
   assert.equal(isNewer('1.0.0', ''), true);

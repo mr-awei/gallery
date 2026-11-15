@@ -26,6 +26,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { app, BrowserWindow } from 'electron';
+import { isNewer } from './lib/pure.js';
 import { deferralVerdict } from './lib/update-policy.js';
 
 /** 唯一允许的更新源：写死，避免「设置被改 → 自动装上无关的安装包」 */
@@ -414,7 +415,9 @@ export async function checkForUpdates(opts = {}) {
     setState({ supported: true, error: '' });
     const r = await up.checkForUpdates();
     const latest = String(r?.updateInfo?.version || '');
-    const hasUpdate = !!latest && latest !== app.getVersion();
+    // 只认「严格更新」：用 !== 会把「本机比发布源还新」判成有更新（开发机 / 刚发版还没传完时），
+    // 用户点安装就是一次降级
+    const hasUpdate = !!latest && isNewer(latest, app.getVersion());
     if (hasUpdate) setState({ version: latest });
     // 服务端确认「已是最新版」：此前的安装失败账目可以清掉了
     else writeFailures({ count: 0, version: app.getVersion() });
