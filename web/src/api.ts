@@ -606,6 +606,25 @@ export async function getApiToken(): Promise<string> {
   return tokenCache;
 }
 
+/**
+ * 带状态码与业务错误码的接口错误。
+ * 有些失败不能只当一句文案：切到加密库时服务端回 423 + code=library_locked，
+ * 意思是「这个库有密码、本次运行还没解锁」——界面该弹密码框，而不是丢一句 toast
+ * 让用户去重启（v1.2.14 的库锁串台就是这个表现）。`.message` 与原先的 plain Error
+ * 完全一致，现存的 catch 不需要改。
+ */
+export class ApiError extends Error {
+  readonly status: number;
+  readonly code: string;
+
+  constructor(message: string, status: number, code = '') {
+    super(message);
+    this.name = 'ApiError';
+    this.status = status;
+    this.code = code;
+  }
+}
+
 type RequestOptions = RequestInit & { timeoutMs?: number; retries?: number };
 
 async function request<T>(path: string, init?: RequestOptions): Promise<T> {
@@ -640,9 +659,11 @@ async function request<T>(path: string, init?: RequestOptions): Promise<T> {
         if (res.status === 401) throw new Error('登录令牌已失效：请重启应用后重试');
         if (res.status === 403) throw new Error('没有权限执行这个操作');
         let message = `请求失败 ${res.status}`;
+        let code = '';
         try {
           const data = await res.json();
           if (data?.error) message = data.error;
+          if (typeof data?.code === 'string') code = data.code;
           // 423 只有两种情况：当前库锁着（activeLibraryLocked），或切到加密库缺密码。
           // 只有前者要把整页切到解锁界面，后者由切库对话框自己提示，别把用户踢出当前库
           if (res.status === 423 && data?.activeLibraryLocked) {
@@ -656,7 +677,7 @@ async function request<T>(path: string, init?: RequestOptions): Promise<T> {
           await sleep(250 * 2 ** attempt);
           continue;
         }
-        throw new Error(message);
+        throw new ApiError(message, res.status, code);
       }
       // 204 / 空 body 是合法的成功响应（DELETE 之类），无条件 res.json() 会抛
       // SyntaxError → 被下面翻译成「服务端返回了无效数据」，成功的操作反而报错

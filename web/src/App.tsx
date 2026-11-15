@@ -1,7 +1,7 @@
 import { Suspense, lazy, useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { api, desktop, downloadFile, isDesktop, onApiError, openFolder, openFolderById, quiet } from './api';
+import { ApiError, api, desktop, downloadFile, isDesktop, onApiError, openFolder, openFolderById, quiet } from './api';
 import { subscribeEvents } from './events';
-import type { Filters, ImageItem, Library, SavedFilter, TagNode, View, ViewMode } from './types';
+import type { Filters, ImageItem, Library, SavedFilter, SwitchLibraryResult, TagNode, View, ViewMode } from './types';
 import Dashboard from './pages/Dashboard';
 import GalleryPage from './pages/Gallery';
 import { Timeline } from './pages/Timeline';
@@ -157,7 +157,7 @@ export default function App() {
     pendingCounts, annotationCounts, setAnnotationCounts, dupeCounts,
     missingCount,
     libTotalRef,
-    refreshStats, scheduleStatsRefresh, statsThrottleRef,
+    refreshStats, scheduleStatsRefresh, reloadOnIngest, statsThrottleRef,
     reloadTags, loadMoreTags, tagTree,
   } = useStatsAndTags({
     showToast,
@@ -251,16 +251,28 @@ export default function App() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  /**
+   * 拉一次库列表并把 hasPassword / locked 同步到本地。
+   * 切库必须 await 它：服务端在 activateLibrary 里会清空所有解锁态再记上目标库，
+   * 本地快照不同步就会出现两种错——刚输过密码的库又弹一次解锁屏；切走的库
+   * 本地还显示「已解锁」，点回来不带密码直接 423。
+   */
+  const syncLibraries = useCallback(async () => {
+    try {
+      const r = await api.libraries();
+      setLibraries(r.libraries);
+      setActiveLibId(r.activeId);
+      return r;
+    } catch (err) {
+      quiet(err);
+      return null;
+    }
+  }, []);
+
   /** 重新拉库列表（设/改/删密码、立即上锁之后用） */
   const reloadLibraries = useCallback(() => {
-    api
-      .libraries()
-      .then((r) => {
-        setLibraries(r.libraries);
-        setActiveLibId(r.activeId);
-      })
-      .catch(quiet);
-  }, []);
+    void syncLibraries();
+  }, [syncLibraries]);
 
   // 当前库锁着（且本次会话没解锁）→ 整页停下输密码。判断统一走这里，
   // 启动、切库、立即上锁后都自动生效，不用各处重复写
@@ -414,13 +426,17 @@ export default function App() {
   }, []);
 
   // 切换到另一个资源库：重载列表、统计、文件夹树
-  // 返回 null = 成功；返回字符串 = 失败原因（切库对话框要显示在框里，故不当场弹 toast）
+  // 返回 SwitchLibraryResult：失败时给调用方文案，并说明「是不是缺密码」
   const switchLibrary = useCallback(
-    async (id: number, password?: string): Promise<string | null> => {
-      if (id === activeLibId) return null;
+    async (id: number, password?: string): Promise<SwitchLibraryResult> => {
+      if (id === activeLibId) return { ok: true };
       try {
         await api.activateLibrary(id, password);
-        setActiveLibId(id);
+        // 先同步库列表再落 activeLibId：本地库列表里目标库的 locked 还是旧值（true），
+        // 不刷新的话整页解锁屏会紧接着弹出来 —— 用户刚在切库框输完密码，又被要求
+        // 在另一个界面输第二遍（v1.2.14 报的问题）。反过来说，切走后旧库会被服务端
+        // 重新锁上，本地不同步就会在下次点回来时「不发密码直接切」→ 423 只剩一句 toast。
+        if (!(await syncLibraries())) setActiveLibId(id);
         setFolderId(null);
         setFolders([]);
         setView('gallery');
@@ -435,15 +451,17 @@ export default function App() {
         // 保存的筛选器存在各库自己的 gallery.db：不重载就会继续显示上一个库的条目
         setActiveSavedId(null);
         reloadSavedFilters();
-        return null;
+        return { ok: true };
       } catch (err) {
-        const msg = (err as Error).message;
-        // 带密码来的调用方是切库对话框，它自己会把错误显示在框里
-        if (!password) showToast(msg);
-        return msg;
+        const message = (err as Error).message;
+        // 服务端说「这个库有密码、本次运行还没解锁」→ 调用方该弹密码框，不是丢一句 toast
+        const needsPassword = err instanceof ApiError && err.code === 'library_locked';
+        // 带着密码来的调用方是对话框，它自己把错误显示在框里
+        if (!password && !needsPassword) showToast(message);
+        return { ok: false, message, needsPassword };
       }
     },
-    [activeLibId, load, refreshStats, followImport, resetLibBaseline, showToast]
+    [activeLibId, load, refreshStats, followImport, resetLibBaseline, showToast, syncLibraries]
   );
 
   // 删除资源库（Eagle 式「从列表删除」：可删任意库，不必先切换过去。
@@ -779,7 +797,12 @@ export default function App() {
     const timer = window.setInterval(() => {
       if (!document.hidden) refreshStats();
     }, 60000);
-    const off = subscribeEvents('library', scheduleStatsRefresh);
+    // source: 'ingest' 是服务端目录监听 / 采集协程自己入库（不走 HTTP，前端没有别的时机知道）
+    // → 直接重载列表；其余 library 事件只是写操作的附带通知，交给 stats 对账就够
+    const off = subscribeEvents('library', (d) => {
+      if (d?.source === 'ingest') reloadOnIngest();
+      else scheduleStatsRefresh();
+    });
     return () => {
       clearInterval(timer);
       off();
@@ -789,7 +812,7 @@ export default function App() {
         statsThrottleRef.current = 0;
       }
     };
-  }, [refreshStats, scheduleStatsRefresh]);
+  }, [refreshStats, scheduleStatsRefresh, reloadOnIngest]);
 
   useEffect(() => {
     // 导入状态改为订阅 job 事件（原 3s 轮询）；导入进行中顺带刷新统计
@@ -1392,7 +1415,6 @@ export default function App() {
         activeLibName={activeLib?.name ?? '全部'}
         activeLibRoot={activeLib?.root_path ?? ''}
         onSwitchLibrary={switchLibrary}
-        onSwitchLibraryWithPassword={switchLibrary}
         onReloadLibraries={reloadLibraries}
         onDeleteLibrary={deleteLibraryAt}
         onCreateLibrary={() => setShowCreateLib(true)}

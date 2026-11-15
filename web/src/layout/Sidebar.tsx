@@ -5,7 +5,7 @@
  * 这里保持纯展示：所有状态与副作用都还由 App 持有，避免拆分时改变行为。
  */
 import type { CSSProperties, PointerEvent } from 'react';
-import type { Filters, FolderNode, Library, SavedFilter, Stats, TagNode, View } from '../types';
+import type { Filters, FolderNode, Library, SavedFilter, Stats, SwitchLibraryResult, TagNode, View } from '../types';
 import FolderTree from '../components/FolderTree';
 import LibrarySwitcher from '../components/LibrarySwitcher';
 import SavedFilterList from '../components/SavedFilterList';
@@ -19,9 +19,8 @@ interface Props {
   activeLibId: number | null;
   activeLibName: string;
   activeLibRoot: string;
-  onSwitchLibrary: (id: number) => void;
-  /** 加密库：验密码后再切（失败返回错误文案） */
-  onSwitchLibraryWithPassword: (id: number, password: string) => Promise<string | null>;
+  /** 切库；加密库把密码一起带上。失败返回结果对象（缺密码时由切换器弹框） */
+  onSwitchLibrary: (id: number, password?: string) => Promise<SwitchLibraryResult>;
   /** 库的密码状态变了，刷新列表 */
   onReloadLibraries: () => void;
   onDeleteLibrary: (lib: Library) => void;
@@ -92,7 +91,6 @@ export default function Sidebar({
   activeLibName,
   activeLibRoot,
   onSwitchLibrary,
-  onSwitchLibraryWithPassword,
   onReloadLibraries,
   onDeleteLibrary,
   onCreateLibrary,
@@ -163,7 +161,6 @@ export default function Sidebar({
         libraries={libraries}
         activeLibId={activeLibId}
         onSwitch={onSwitchLibrary}
-        onSwitchWithPassword={onSwitchLibraryWithPassword}
         onReload={onReloadLibraries}
         onDelete={onDeleteLibrary}
         onCreate={onCreateLibrary}

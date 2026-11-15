@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { createPortal } from 'react-dom';
 import { api } from '../api';
-import type { Library } from '../types';
+import type { Library, SwitchLibraryResult } from '../types';
 import { IconClose } from './Icons';
 
 /**
@@ -27,8 +27,8 @@ export default function LibraryLockDialog({
   onClose: () => void;
   /** 设置 / 修改 / 移除密码后回调，用来刷新库列表的锁状态 */
   onChanged: () => void;
-  /** 解锁并切过去：成功返回 null，失败返回错误信息（由对话框自己显示） */
-  onSwitch?: (id: number, password: string) => Promise<string | null>;
+  /** 解锁并切过去：失败结果由对话框自己显示（ok=成功，App 那边已经把库状态同步好了） */
+  onSwitch?: (id: number, password: string) => Promise<SwitchLibraryResult>;
 }) {
   const [pwd, setPwd] = useState('');
   const [pwd2, setPwd2] = useState('');
@@ -56,12 +56,15 @@ export default function LibraryLockDialog({
     setErr('');
     try {
       if (mode === 'unlock') {
-        const msg = await onSwitch?.(library.id, pwd);
-        if (msg) {
-          setErr(msg);
+        const r = await onSwitch?.(library.id, pwd);
+        if (r && !r.ok) {
+          setErr(r.message || '解锁失败');
           setBusy(false);
           return;
         }
+        // 切库流程里 App 已经同步过库列表（locked 变 false），这里再刷一次纯属兜底：
+        // 列表要是还显示「锁着」，整页解锁屏会立刻盖上来让用户输第二遍
+        onChanged();
         onClose();
         return;
       }

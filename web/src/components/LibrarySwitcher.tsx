@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { api } from '../api';
-import type { Library } from '../types';
+import type { Library, SwitchLibraryResult } from '../types';
 import { IconFolder } from './Icons';
 import LibraryLockDialog from './LibraryLockDialog';
 
@@ -15,12 +15,11 @@ import LibraryLockDialog from './LibraryLockDialog';
 interface Props {
   libraries: Library[];
   activeLibId: number | null;
-  onSwitch: (id: number) => void;
+  /** 切库（带密码走同一条路）：失败结果里 needsPassword 为真就弹密码框 */
+  onSwitch: (id: number, password?: string) => Promise<SwitchLibraryResult>;
   onDelete: (lib: Library) => void;
   onCreate: () => void;
   onOpenInExplorer: (lib: Library) => void;
-  /** 解密并切过去（走 App 的完整切库流程；失败返回错误文案） */
-  onSwitchWithPassword: (id: number, password: string) => Promise<string | null>;
   /** 密码状态变化后刷新库列表的 hasPassword / locked */
   onReload: () => void;
 }
@@ -32,7 +31,6 @@ export default function LibrarySwitcher({
   onDelete,
   onCreate,
   onOpenInExplorer,
-  onSwitchWithPassword,
   onReload,
 }: Props) {
   const [open, setOpen] = useState(false);
@@ -107,6 +105,19 @@ export default function LibrarySwitcher({
     setMenuFor(null);
   };
 
+  /** 点行切库：本地知道它锁着就先要密码；不知道（本地状态过期）也要在 423 后回落到密码框 */
+  const pickLibrary = async (lib: Library) => {
+    setOpen(false);
+    setMenuFor(null);
+    if (lib.id === activeLibId) return;
+    const r = await onSwitch(lib.id);
+    if (r.ok) return;
+    // needsPassword：服务端说这个库其实还锁着（本地 locked 快照过期）。
+    // 以前这里只有一句「请输入密码后再切换」toast，没有任何入口能输密码，只好重启应用。
+    if (r.needsPassword) setDialog({ lib, mode: 'unlock' });
+    // 其余失败 App 里已经 toast 过了，不再叠一层
+  };
+
   const menuLib = libraries.find((l) => l.id === menuFor);
 
   /** 立即上锁：接口成功后让 App 立刻切到锁定屏（后续请求都会 423） */
@@ -144,12 +155,16 @@ export default function LibrarySwitcher({
                   key={lib.id}
                   className={`lib-row${lib.id === activeLibId ? ' active' : ''}`}
                   onClick={() => {
-                    setOpen(false);
-                    setMenuFor(null);
-                    if (lib.id === activeLibId) return;
-                    // 加锁的库不能直接 activate：服务端会 423，先要密码
-                    if (lib.locked) setDialog({ lib, mode: 'unlock' });
-                    else onSwitch(lib.id);
+                    // 加锁的库不能直接 activate：服务端会 423，先要密码。
+                    // 本地 locked 可能是过期快照（切走时服务端会把旧库重新锁上），
+                    // 所以 pickLibrary 里还会接一次 needsPassword 的回落
+                    if (lib.locked) {
+                      setOpen(false);
+                      setMenuFor(null);
+                      setDialog({ lib, mode: 'unlock' });
+                    } else {
+                      void pickLibrary(lib);
+                    }
                   }}
                   title={lib.root_path ? `素材根目录：${lib.root_path}` : lib.path}
                 >
@@ -238,7 +253,7 @@ export default function LibrarySwitcher({
           mode={dialog.mode}
           onClose={() => setDialog(null)}
           onChanged={onReload}
-          onSwitch={onSwitchWithPassword}
+          onSwitch={onSwitch}
         />
       )}
     </div>

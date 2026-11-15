@@ -108,6 +108,39 @@ export function useStatsAndTags({
     }, 800);
   }, [refreshStats]);
 
+  /**
+   * 「后端自己入库了」（目录监听自动导入 / 采集协程）推送 → 直接重载当前列表。
+   *
+   * 以前只靠 refreshStats 的「库变大就对账」：但 /api/stats 是 120s 快照，
+   * 目录监听入库不走 HTTP，没人让快照过期 → total 恒为旧值 → 列表永不重载，
+   * 用户必须手动点一下刷新（v1.2.14 报的问题，根因在服务端缓存）。
+   * 服务端现在会在入库时让快照过期；但推送里已经明说了这是入库，这里直接重载
+   * 一次最省事，也让「拷进去几秒后自己冒出来」成立。
+   */
+  const ingestThrottleRef = useRef(0);
+  const reloadOnIngest = useCallback(() => {
+    // 目录监听会一批一批推（拷贝几百张时 600ms 一条），节流成 1.2s 一次重载
+    if (ingestThrottleRef.current) return;
+    ingestThrottleRef.current = window.setTimeout(() => {
+      ingestThrottleRef.current = 0;
+      if (pageRef.current <= 1) {
+        pageRef.current = 1;
+        void load(1, true);
+      } else if (!newAtTopRef.current) {
+        newAtTopRef.current = true;
+        showToast('有新图片入库，回到顶部即可看到');
+      }
+      refreshStats();
+    }, 1200);
+  }, [load, pageRef, newAtTopRef, showToast, refreshStats]);
+
+  useEffect(
+    () => () => {
+      if (ingestThrottleRef.current) window.clearTimeout(ingestThrottleRef.current);
+    },
+    []
+  );
+
   /** 只重取标签/分组：智能文件夹页改名、合并、删除后要让侧栏同步，不必重拉统计 */
   const reloadTags = useCallback(() => {
     api
@@ -200,6 +233,7 @@ export function useStatsAndTags({
     libTotalRef,
     refreshStats,
     scheduleStatsRefresh,
+    reloadOnIngest,
     statsThrottleRef,
     reloadTags,
     loadMoreTags,

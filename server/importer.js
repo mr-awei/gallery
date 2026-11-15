@@ -203,16 +203,22 @@ let watchedDir = '';
 // 旧库的积压事件绝不能写进新库（曾导致 A 库的文件被整批 ingest 进 B 库）
 const watchPending = new Map();
 let watchTimer = null;
+// 挂 watcher 的冷却定时器（见 watchStorageDir 里的 Windows 说明）
+let watchOpenTimer = null;
 
 function closeWatcher() {
   if (watcher) {
     watcher.close();
     watcher = null;
-    watchedDir = '';
   }
+  watchedDir = '';
   if (watchTimer) {
     clearTimeout(watchTimer);
     watchTimer = null;
+  }
+  if (watchOpenTimer) {
+    clearTimeout(watchOpenTimer);
+    watchOpenTimer = null;
   }
 }
 
@@ -311,12 +317,27 @@ export function watchStorageDir() {
     closeWatcher();
     return;
   }
-  if (watcher && watchedDir === dir) return;
+  // 已经挂上、或正在冷却期等着挂，都算到位（重复调用不该反复排队）
+  if (watchedDir === dir && (watcher || watchOpenTimer)) return;
   closeWatcher();
   // 重挂 = 换库/换目录：作废上一个目录积累的变化事件，
   // 否则旧目录的积压会被防抖回调 ingest 进当前库（跨库串图的根源）
   watchPending.clear();
-  const gen = getLibraryGeneration();
+  watchedDir = dir;
+  // Windows 上 fs.watch 关掉之后**同一 tick 立刻重开**同一（或同为素材根的）目录，
+  // 旧句柄还没释放，新 watcher 会「挂上了但一条事件都收不到」。现象正是切库回来
+  // 往素材夹丢图，头几张永远不入库，用户以为自动更新坏了、只能重启软件。
+  // 留 200ms 让句柄释放再挂；期间若又切库，下面会因 watchedDir 变了直接放弃。
+  watchOpenTimer = setTimeout(() => {
+    watchOpenTimer = null;
+    if (watchedDir !== dir) return; // 冷却期间又切库了，交给后一次调用去挂
+    openWatcher(dir);
+  }, 200);
+  if (typeof watchOpenTimer.unref === 'function') watchOpenTimer.unref();
+}
+
+/** 真正建立 fs.watch（watchStorageDir 的冷却定时器会调用） */
+function openWatcher(dir) {
   try {
     watcher = fs.watch(dir, { recursive: true }, (_event, filename) => {
       if (!filename) return;
@@ -327,14 +348,36 @@ export function watchStorageDir() {
       // 跳过回收站 / 缩略图 / 库数据目录（.tuku）/ 资产目录（.library）等内部目录。
       // 这一条尤其关键：库数据默认就在素材文件夹里，监听不过滤的话
       // 每写一张缩略图就触发一轮回扫
-      if (isSkippedPath(full)) return;
-      watchPending.set(full, gen);
+      //
+      // 只拿「素材目录内部」的相对路径去判断：排除表里同时装着 storage / data / app /
+      // dist 这类通用目录名，直接喂绝对路径的话，素材根目录本身叫 storage（如 D:\storage）
+      // 或路径里带 app（如 …\AppData\… 之外的 app 目录）时，整棵树都被当内部目录拦掉，
+      // 监听静默失效。扫描（bulk-import）走的是相对目录判断，不受影响 —— 于是只有
+      // 「丢文件自动入库」坏掉，更难被发现。
+      if (isSkippedPath(path.relative(dir, full))) return;
+      // 记「事件发生这一刻」的库代数，不是建 watcher 那一刻的：
+      // 早先抓在闭包里，库代数一变（同库重新 activate / 换库但目录相同 → 上面的
+      // `watchedDir === dir` 提前 return 不重建），防抖阶段就会把事件全当过期丢掉，
+      // 监听静默失效、只能重启软件。取当下代数是自愈的：重建后照常工作。
+      watchPending.set(full, getLibraryGeneration());
       scheduleWatchIngest();
     });
-    watchedDir = dir;
+    watcher.on('error', (err) => {
+      // 目录被删/网络盘掉线/句柄出错时 fs.watch 会停止投递事件，之后「自动导入」
+      // 静默失效（不重启永远不生效）。摘掉重挂一次，代价只是重新扫描目录树。
+      console.error('[watch] 监听出错，1 秒后重挂:', err?.message || err);
+      closeWatcher();
+      const t = setTimeout(() => watchStorageDir(), 1000);
+      if (typeof t.unref === 'function') t.unref();
+    });
     console.log('[watch] 正在监听素材文件夹:', dir);
   } catch (err) {
-    console.error('[watch] 监听失败', err?.message || err);
+    // 挂不上就退避重试，别让「自动导入」从此静默失效（同上：用户只能重启）
+    console.error('[watch] 监听失败，3 秒后重试:', err?.message || err);
+    const t = setTimeout(() => {
+      if (watchedDir === dir) watchStorageDir();
+    }, 3000);
+    if (typeof t.unref === 'function') t.unref();
   }
 }
 

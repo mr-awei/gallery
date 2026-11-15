@@ -49,7 +49,10 @@ export function shouldSkipDir(name) {
 
 /**
  * 整条路径里任意一段命中排除表就算不该入库。
- * fs.watch 给的相对路径、DB 里的相对目录都走这个判断。
+ *
+ * 只传「素材根目录之内」的路径（相对路径），不要传绝对路径：表里有 storage / data /
+ * app / dist 这类通用名字，素材夹本身叫 D:\storage 时整棵树会被连根拦掉。
+ * fs.watch 那边一律先 path.relative(root, full) 再问这里。
  */
 export function isSkippedPath(full) {
   return String(full || '')

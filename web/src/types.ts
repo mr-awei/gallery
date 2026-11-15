@@ -369,6 +369,15 @@ export interface Library {
   locked?: boolean;
 }
 
+/**
+ * 切库结果。失败时不能只给一句文案：
+ * `needsPassword` 为真说明服务端拒绝了「没带密码的切库」（code=library_locked），
+ * 调用方应该弹密码框；其它失败才是该直接 toast 的错误。
+ */
+export type SwitchLibraryResult =
+  | { ok: true }
+  | { ok: false; message: string; needsPassword: boolean };
+
 /** 文件夹树节点（后端扁平返回，前端按 parent_id 组装） */
 export interface FolderNode {
   id: number;

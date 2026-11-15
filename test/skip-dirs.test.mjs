@@ -29,3 +29,15 @@ test('正常素材目录不受影响', () => {
   assert.equal(isSkippedPath('E:\\白底图\\2509李\\001.jpg'), false);
   assert.equal(isSkippedPath(''), false);
 });
+
+// 监听侧必须喂「素材根目录之内」的相对路径：排除表里同时有 storage / data / app /
+// dist 这类通用目录名，拿绝对路径去判断会把整个素材夹连根拦掉（D:\storage 丢文件
+// 永远不会入库，而手动扫描一切正常，极难排查）。
+test('素材根目录本身叫 storage / data 时，监听侧仍要能入库', () => {
+  const rel = (root, full) => full.slice(root.length).replace(/^[\\/]+/, '');
+  assert.equal(isSkippedPath(rel('E:\\storage', 'E:\\storage\\001.jpg')), false);
+  assert.equal(isSkippedPath(rel('E:\\data', 'E:\\data\\子夹\\001.jpg')), false);
+  // 根目录里面的真内部目录照旧挡住
+  assert.equal(isSkippedPath(rel('E:\\storage', 'E:\\storage\\.tuku\\thumbs\\01\\12.jpg')), true);
+  assert.equal(isSkippedPath(rel('E:\\storage', 'E:\\storage\\thumbs\\12.jpg')), true);
+});

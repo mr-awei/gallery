@@ -1686,6 +1686,71 @@ try {
     }
   }
 
+  // 目录监听自动入库：往**当前库的素材文件夹**里丢图，不点刷新、不带 ?fresh=1，
+  // /api/stats 的 total 必须自己涨上来。
+  // 特意用当前激活库的真实素材目录，而不是新建一个临时库：用户就是这么用的，
+  // 而「新建库 → 首次挂 watcher」还夹着切库时序，测出来的失败说不清是谁的锅。
+  // 两个曾经的真 bug：
+  //  ① 监听/采集入库不走 HTTP，没人让 /api/stats 的 120s 快照过期 → 前端永远看到旧张数，
+  //     用户以为「没实现自动更新，得手动点一下刷新」；
+  //  ② fs.watch 回调把库代数抓在闭包里 → 同库重新 activate（代数 +1、目录没变、
+  //     不重建 watcher）之后事件全被当过期丢掉，监听静默失效、只能重启软件。
+  {
+    const J = { ...auth.headers, 'Content-Type': 'application/json' };
+    const settings = await (await fetch(`${BASE}/api/settings`, auth)).json().catch(() => ({}));
+    const watchDir = settings?.storageDir || '';
+    const libs = await (await fetch(`${BASE}/api/libraries`, auth)).json().catch(() => ({}));
+    const activeId = libs?.activeId;
+    const statsTotal = async () => {
+      const r = await fetch(`${BASE}/api/stats`, auth);
+      if (!r.ok) return -1;
+      return Number((await r.json())?.total);
+    };
+    // 刻意不带 ?fresh=1：带上就等于用户手动点了刷新，测不出快照过期到底有没有做
+    const waitTotal = async (want, budget = 20000) => {
+      const t0 = Date.now();
+      while (Date.now() - t0 < budget) {
+        if ((await statsTotal()) >= want) return Date.now() - t0;
+        await sleep(400);
+      }
+      return -1;
+    };
+    // 900×900 噪声光带 JPEG ≈ 500KB：越过监听入库的 30KB 下限，低频结构不同不会撞 pHash
+    const sharp = (await import('sharp')).default;
+    const shot = async (seed) =>
+      sharp(testPixels(900, 900, seed), { raw: { width: 900, height: 900, channels: 3 } })
+        .jpeg({ quality: 90 })
+        .toBuffer();
+
+    const dirOk = !!watchDir && fs.existsSync(watchDir);
+    check('目录监听：能定位到当前库的素材文件夹', dirOk, `storageDir=${watchDir}`);
+    if (dirOk) {
+      // 失败时要能区分「文件根本没入库」和「入库了但统计没刷新」
+      const landed = async (name) => {
+        const b = await (await fetch(`${BASE}/api/images?limit=500`, auth)).json().catch(() => ({}));
+        return (b.items || []).some((x) => String(x.abs_path || x.path || '').includes(name));
+      };
+      const base = await statsTotal();
+      fs.writeFileSync(path.join(watchDir, 'watch-a.jpg'), await shot(41));
+      const ms1 = await waitTotal(base + 1);
+
+      // 同库再 activate 一次 = 以前让监听静默失效的那个场景（目录没变、代数 +1）
+      if (activeId) {
+        await fetch(`${BASE}/api/libraries/${activeId}/activate`, { method: 'POST', headers: J, body: '{}' });
+        await sleep(1500);
+      }
+      fs.writeFileSync(path.join(watchDir, 'watch-b.jpg'), await shot(42));
+      const ms2 = await waitTotal(base + 2);
+
+      check(
+        '目录监听：丢文件进素材夹后统计自动增长（不用手动刷新）',
+        ms1 > 0,
+        `base=${base} 用时=${ms1}ms 已入库=${await landed('watch-a')}`
+      );
+      check('目录监听：同库重新激活后仍然有效', ms2 > 0, `期望 total=${base + 2} 用时=${ms2}ms`);
+    }
+  }
+
   // 首页与安全头：安全头与「dist 有没有构建」无关，必须无条件断言。
   // 以前整段包在 #root 判断里，未构建时 CSP 检查被静默跳过——安全回归就没人发现了。
 

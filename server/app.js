@@ -28,7 +28,7 @@ import { isActiveLibraryLocked, libraryLockGate } from './lib/library-lock.js';
 import { register as registerTidy } from './routes/tidy.js';
 import { register as registerEnhance } from './routes/enhance.js';
 import { register as registerFiles } from './routes/files.js';
-import { register as registerStats } from './routes/stats.js';
+import { expireStatsCache, register as registerStats } from './routes/stats.js';
 import { register as registerCatalog } from './routes/catalog.js';
 import { register as registerWallpaper } from './routes/wallpaper.js';
 import { register as registerKeywords } from './routes/keywords.js';
@@ -365,6 +365,9 @@ export function buildApp({ desktop = false } = {}) {
   let ingestPending = 0;
   let ingestTimer = null;
   liveBus.on('library-changed', (payload) => {
+    // 入库了就把统计快照打过期：否则 /api/stats 继续返回旧 total 整整 120s，
+    // 前端「库变大就重载列表」的对账不成立 → 新图要手动刷新才出现
+    expireStatsCache();
     if (isActiveLibraryLocked()) return; // 锁定时不把库变化推给前端
     ingestPending += Math.max(1, Number(payload?.added) || 1);
     if (ingestTimer) return;

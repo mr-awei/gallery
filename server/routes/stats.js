@@ -15,16 +15,45 @@ import { logOp } from '../oplog.js';
 import { hiddenImagesClause } from '../lib/privacy.js';
 import { deleteAlias, listAliases, setAlias } from '../lib/tags.js';
 
+// /api/stats 的聚合缓存（细节见路由内注释）：key 带库 id 与隐私锁条件，切库不会串数
+// 快照有效期：过期后仍先返回旧快照（仪表盘不该为一次聚合把首屏卡两秒），后台算完再替换。
+// ?fresh=1 强制当场重算：刷新按钮与性能基准的冷查询走这条。
+const STATS_TTL_MS = 120000;
+let statsCache = { at: 0, key: '', data: null, fp: -1 };
+let statsBuilding = null;
+
+/**
+ * 素材表「有没有新行」的指纹：MAX(id) 走主键索引，百万行也是微秒级。
+ *
+ * 快照失效不能只指望入库方记得 emit：采集协程、目录监听、迁移脚本、用户手工塞库
+ * 都可能漏掉一次通知。一旦漏了，前端看到的就永远是旧张数 ——
+ * 用户的原话是「拷了新图进去没反应，得手动点一下刷新」。
+ * 所以每次 GET 顺带比一眼指纹，变了当场重算（一次聚合换来「一定是新的」，划算）。
+ * 只认新增：删除/改标记由 expireStatsCache() 负责（HTTP 写操作都会走到它）。
+ */
+function imageFingerprint() {
+  try {
+    return Number(db.prepare('SELECT IFNULL(MAX(id),0) AS m FROM images').get()?.m) || 0;
+  } catch {
+    return 0;
+  }
+}
+
+/**
+ * 让统计快照立刻过期（数据留着，下一次 GET 先照旧返回、后台单飞重算）。
+ *
+ * 素材入库有三条路：HTTP 导入、采集协程、目录监听。后两条完全不经过 HTTP，
+ * 没人让快照过期的话 /api/stats 会把旧 total 一直续期 120s，前端那套
+ * 「库变大就重载列表」的对账就永远不成立 —— 用户看到的现象是
+ * 「拷了新图进去没反应，得手动点一下刷新」。
+ */
+export function expireStatsCache() {
+  if (statsCache.data) statsCache = { ...statsCache, at: 0 };
+}
+
 export function register(app, ctx) {
   // ctx.importState 是 getter 函数（app.js 里 `importState: () => importState`）
   const { asyncRoute, sseBroadcast, importState: importStateRef } = ctx;
-
-  // /api/stats 的聚合缓存（细节见路由内注释）：key 带库 id 与隐私锁条件，切库不会串数
-  // 快照有效期：过期后仍先返回旧快照（仪表盘不该为一次聚合把首屏卡两秒），后台算完再替换。
-  // ?fresh=1 强制当场重算：刷新按钮与性能基准的冷查询走这条。
-  const STATS_TTL_MS = 120000;
-  let statsCache = { at: 0, key: '', data: null };
-  let statsBuilding = null;
 
   /**
    * 真正算一次（同步）。百万行实测 2.5s → 现在约 1.4s：
@@ -143,12 +172,16 @@ export function register(app, ctx) {
       const hidden = hiddenImagesClause();
       const cacheKey = `${currentLibraryInfo()?.id || 0}|${hidden ? hidden.sql : ''}`;
       const fresh = String(req.query.fresh || '') === '1';
+      const fp = imageFingerprint();
       const hit = statsCache.key === cacheKey ? statsCache.data : null;
+      // 库里有新行（哪怕没人 emit）也必须当场给新数：这里返回旧快照的话，
+      // 用户刚拷进来的图在仪表盘/侧栏上就是「不存在」，怎么等都不出现
+      const grew = !!hit && statsCache.fp !== fp;
 
-      if (fresh || !hit) {
-        // 强制刷新 / 刚切库：只能当场算，算完写快照
+      if (fresh || !hit || grew) {
+        // 强制刷新 / 刚切库 / 有新入库：只能当场算，算完写快照
         const data = buildStats();
-        statsCache = { at: Date.now(), key: cacheKey, data };
+        statsCache = { at: Date.now(), key: cacheKey, data, fp };
         return res.json(data);
       }
       if (Date.now() - statsCache.at >= STATS_TTL_MS && !statsBuilding) {
@@ -157,7 +190,7 @@ export function register(app, ctx) {
         setImmediate(() => {
           try {
             const data = buildStats();
-            if (statsCache.key === cacheKey) statsCache = { at: Date.now(), key: cacheKey, data };
+            if (statsCache.key === cacheKey) statsCache = { at: Date.now(), key: cacheKey, data, fp: imageFingerprint() };
           } catch (err) {
             console.warn('[stats] 快照刷新失败，继续用旧快照：', err?.message || err);
           } finally {
