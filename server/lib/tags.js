@@ -6,7 +6,7 @@ import { hiddenImagesClause } from './privacy.js';
 
 /**
  * 只把「老库还没建这张表」当成可忽略的兼容错误。
- * 以前这里是裸 catch{}：BUSY、约束冲突、磁盘写满全被当成「没这张表」吞掉，
+ * 以前这里是裸 catch：BUSY、约束冲突、磁盘写满全被当成「没这张表」吞掉，
  * 调用方拿到 ok:true，别名表却停在旧值上。
  */
 function isMissingTable(err) {
@@ -371,15 +371,6 @@ export function deleteTag(name) {
 export function listAliases() {
   try {
     return db.prepare('SELECT alias, tag FROM tag_alias ORDER BY alias ASC').all();
-  } catch {
-    return [];
-  }
-}
-
-/** 某个标签的所有别名 */
-export function aliasesOfTag(tag) {
-  try {
-    return db.prepare('SELECT alias FROM tag_alias WHERE tag = ? ORDER BY alias ASC').all(String(tag || '').trim()).map((r) => r.alias);
   } catch {
     return [];
   }

@@ -1,7 +1,8 @@
 import type { TutorialCategory } from './types';
 
 /** 设置逐项 + 数据出口 + 开发者集成 */
-export const SETTINGS_TUTORIAL: TutorialCategory[] = [
+export function settingsTutorial(): TutorialCategory[] {
+  return [
   {
     id: 'settings',
     title: '设置逐项',
@@ -268,4 +269,5 @@ export const SETTINGS_TUTORIAL: TutorialCategory[] = [
       },
     ],
   },
-];
+  ];
+}

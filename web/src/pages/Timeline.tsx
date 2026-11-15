@@ -1,8 +1,7 @@
-import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+﻿import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { ImageItem, TimelineSummary } from '../types';
 import type { JobItem } from '../api';
 import { api } from '../api';
-import { useLang } from '../lib/i18n';
 
 /**
  * 时间线视图：按拍摄时间倒序，三级索引「年 → 月 → 日」，图片按天懒加载。
@@ -39,30 +38,23 @@ interface DayState {
 
 const PAGE = 120;
 
-/** '2026-11' → '2026年11月' / 'Nov 2026' */
-function monthLabel(month: string, lang: 'zh' | 'en') {
+/** '2026-11' → '2026年11月' */
+function monthLabel(month: string) {
   const [y, m] = month.split('-');
-  if (lang === 'en') {
-    const names = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
-    return `${names[Number(m) - 1] || m} ${y}`;
-  }
   return `${y} 年 ${Number(m)} 月`;
 }
 
 const WEEK_ZH = ['周日', '周一', '周二', '周三', '周四', '周五', '周六'];
-const WEEK_EN = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
-const MONTH_EN = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
 
 /**
- * '2026-10-05' → '10 月 5 日 · 周一' / 'Mon, Oct 5'
+ * '2026-10-05' → '10 月 5 日 · 周一'
  *
  * 为什么带星期：具体到日期之后，人回忆素材靠的是「那个周一拍的」，只给数字仍然对不上号。
  * 年份不重复写（正上方就是年月标题），免得每天一行都拖一长串。
  */
-function dayLabel(day: string, lang: 'zh' | 'en') {
+function dayLabel(day: string) {
   const [, m, d] = day.split('-').map(Number);
   const wd = new Date(`${day}T00:00:00Z`).getUTCDay();
-  if (lang === 'en') return `${WEEK_EN[wd]}, ${MONTH_EN[m - 1]} ${d}`;
   return `${m} 月 ${d} 日 · ${WEEK_ZH[wd]}`;
 }
 
@@ -70,7 +62,6 @@ function DayBlock({
   day,
   count,
   state,
-  lang,
   onLoad,
   onLoadMore,
   onOpen,
@@ -78,12 +69,10 @@ function DayBlock({
   day: string;
   count: number;
   state?: DayState;
-  lang: 'zh' | 'en';
   onLoad: () => void;
   onLoadMore: () => void;
   onOpen: (item: ImageItem, pool: ImageItem[]) => void;
 }) {
-  const { t } = useLang();
   const ref = useRef<HTMLElement | null>(null);
   const [seen, setSeen] = useState(false);
 
@@ -111,11 +100,11 @@ function DayBlock({
   return (
     <section className="tl-day" id={`tl-${day}`} data-day={day} ref={ref}>
       <header className="tl-day-head">
-        <h4>{dayLabel(day, lang)}</h4>
+        <h4>{dayLabel(day)}</h4>
         <span className="tl-day-count">
-          {total} {t('张', 'items')}
+          {total} {'张'}
         </span>
-        {state?.loading && !items.length && <span className="tl-month-loading">{t('加载中…', 'Loading…')}</span>}
+        {state?.loading && !items.length && <span className="tl-month-loading">{'加载中…'}</span>}
         {state?.error && <span className="tl-month-error">{state.error}</span>}
       </header>
       {items.length > 0 && (
@@ -129,14 +118,14 @@ function DayBlock({
               onClick={() => onOpen(it, items)}
             >
               <img src={it.thumbUrl} alt={it.title} loading="lazy" decoding="async" />
-              {(it.editOps || 0) > 0 && <span className="tl-nondestructive" title={t('非破坏编辑未写入原图', 'Non-destructive edits')}>◐</span>}
+              {(it.editOps || 0) > 0 && <span className="tl-nondestructive" title={'非破坏编辑未写入原图'}>◐</span>}
             </button>
           ))}
         </div>
       )}
       {items.length > 0 && items.length < total && (
         <button type="button" className="tl-more" disabled={state?.loading} onClick={onLoadMore}>
-          {state?.loading ? t('加载中…', 'Loading…') : t(`加载更多（还有 ${total - items.length} 张）`, `Load more (${total - items.length} left)`)}
+          {state?.loading ? '加载中…' : `加载更多（还有 ${total - items.length} 张）`}
         </button>
       )}
     </section>
@@ -148,7 +137,6 @@ function MonthBlock({
   count,
   state,
   dayStates,
-  lang,
   onLoadDays,
   onLoadDay,
   onMoreDay,
@@ -158,13 +146,11 @@ function MonthBlock({
   count: number;
   state?: MonthState;
   dayStates: Record<string, DayState>;
-  lang: 'zh' | 'en';
   onLoadDays: () => void;
   onLoadDay: (day: string) => void;
   onMoreDay: (day: string, offset: number) => void;
   onOpen: (item: ImageItem, pool: ImageItem[]) => void;
 }) {
-  const { t } = useLang();
   const ref = useRef<HTMLElement | null>(null);
   const [seen, setSeen] = useState(false);
 
@@ -192,12 +178,12 @@ function MonthBlock({
   return (
     <section className="tl-month" id={`tl-${month}`} ref={ref}>
       <header className="tl-month-head">
-        <h3>{monthLabel(month, lang)}</h3>
+        <h3>{monthLabel(month)}</h3>
         <span className="tl-month-count">
-          {total} {t('张', 'items')}
-          {days.length > 0 && ` · ${days.length} ${t('天', 'days')}`}
+          {total} {'张'}
+          {days.length > 0 && ` · ${days.length} ${'天'}`}
         </span>
-        {state?.loading && !days.length && <span className="tl-month-loading">{t('加载中…', 'Loading…')}</span>}
+        {state?.loading && !days.length && <span className="tl-month-loading">{'加载中…'}</span>}
         {state?.error && <span className="tl-month-error">{state.error}</span>}
       </header>
       {days.map((b) => (
@@ -206,7 +192,6 @@ function MonthBlock({
           day={b.day}
           count={b.count}
           state={dayStates[b.day]}
-          lang={lang}
           onLoad={() => onLoadDay(b.day)}
           onLoadMore={() => onMoreDay(b.day, dayStates[b.day]?.items.length || 0)}
           onOpen={onOpen}
@@ -217,7 +202,6 @@ function MonthBlock({
 }
 
 export function Timeline({ onToast, onOpen }: Props) {
-  const { t, lang } = useLang();
   const [summary, setSummary] = useState<TimelineSummary | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
@@ -241,12 +225,12 @@ export function Timeline({ onToast, onOpen }: Props) {
       setError('');
       return s;
     } catch (e) {
-      setError((e as Error)?.message || t('加载失败', 'Failed to load'));
+      setError((e as Error)?.message || '加载失败');
       return null;
     } finally {
       setLoading(false);
     }
-  }, [t]);
+  }, []);
 
   useEffect(() => {
     loadSummary();
@@ -273,14 +257,14 @@ export function Timeline({ onToast, onOpen }: Props) {
         const r = await api.timelineDays(month);
         setMonths((prev) => ({ ...prev, [month]: { days: r.days, total: r.total, loading: false } }));
       } catch (e) {
-        const msg = (e as Error)?.message || t('加载失败', 'Failed to load');
+        const msg = (e as Error)?.message || '加载失败';
         setMonths((prev) => ({
           ...prev,
           [month]: { days: prev[month]?.days || [], total: prev[month]?.total || 0, loading: false, error: msg },
         }));
       }
     },
-    [t]
+    []
   );
 
   /** 拉某一天的图片；一天可能上千张，仍按 PAGE 分页 */
@@ -302,14 +286,14 @@ export function Timeline({ onToast, onOpen }: Props) {
           return { ...prev, [day]: { items, total: r.total, loading: false } };
         });
       } catch (e) {
-        const msg = (e as Error)?.message || t('加载失败', 'Failed to load');
+        const msg = (e as Error)?.message || '加载失败';
         setDays((prev) => ({
           ...prev,
           [day]: { items: prev[day]?.items || [], total: prev[day]?.total || 0, loading: false, error: msg },
         }));
       }
     },
-    [t]
+    []
   );
 
   /** 年份索引（月份已按倒序返回，只需顺序分组） */
@@ -438,11 +422,11 @@ export function Timeline({ onToast, onOpen }: Props) {
   const startBackfill = async () => {
     try {
       const r = await api.timelineBackfill();
-      if (r.already) onToast(t('重建任务已经在跑', 'Rebuild is already running'));
-      else onToast(t('已开始重建拍摄时间（EXIF → 文件时间），可以继续浏览', 'Rebuilding capture time in the background'));
+      if (r.already) onToast('重建任务已经在跑');
+      else onToast('已开始重建拍摄时间（EXIF → 文件时间），可以继续浏览');
       pollJob();
     } catch (e) {
-      onToast((e as Error)?.message || t('启动失败', 'Failed to start'), 'error');
+      onToast((e as Error)?.message || '启动失败', 'error');
     }
   };
 
@@ -461,16 +445,16 @@ export function Timeline({ onToast, onOpen }: Props) {
           setMonths({});
           setDays({});
           await loadSummary();
-          onToast(t('拍摄时间已重建，时间线已刷新', 'Capture times rebuilt — timeline refreshed'));
+          onToast('拍摄时间已重建，时间线已刷新');
         } else if (last && last.status === 'failed') {
-          onToast(last.error || t('重建失败', 'Rebuild failed'), 'error');
+          onToast(last.error || '重建失败', 'error');
         }
       } catch {
         /* 轮询失败不打扰用户，任务中心里有记录 */
       }
     };
     tick();
-  }, [loadSummary, onToast, t]);
+  }, [loadSummary, onToast]);
 
   // 进来时如果后台已经在跑（比如从别的页面启动），继续显示进度
   useEffect(() => {
@@ -503,7 +487,7 @@ export function Timeline({ onToast, onOpen }: Props) {
   }, [summary]);
 
   if (loading && !summary) {
-    return <div className="tl-empty">{t('正在读取拍摄时间…', 'Reading capture times…')}</div>;
+    return <div className="tl-empty">{'正在读取拍摄时间…'}</div>;
   }
 
   if (error && !summary) {
@@ -511,7 +495,7 @@ export function Timeline({ onToast, onOpen }: Props) {
       <div className="tl-empty">
         {error}
         <button type="button" className="btn" onClick={() => { setLoading(true); loadSummary(); }}>
-          {t('重试', 'Retry')}
+          {'重试'}
         </button>
       </div>
     );
@@ -526,30 +510,23 @@ export function Timeline({ onToast, onOpen }: Props) {
     const rebuildable = Number(summary?.pending || 0) || unplaced;
     return (
       <div className="tl-empty">
-        <h2>{t('还没有可排入时间线的素材', 'Nothing on the timeline yet')}</h2>
+        <h2>{'还没有可排入时间线的素材'}</h2>
         <p>
           {total > 0
-            ? t(
-                `库里 ${total.toLocaleString('zh-CN')} 张素材目前都没算出拍摄时间（多半是旧版本导入时把「收录时间」当成了拍摄时间，v1.2.8 起这个口径已废弃并被清空）。` +
-                  '照片本身的时间还在 EXIF 和文件属性里，点下面的按钮重建一次就会按年归位。',
-                `All ${total} items currently have no capture time (older versions filed them by import time, which was dropped in v1.2.8).` +
-                  ' The times still exist in EXIF / file attributes — rebuild once and they will be filed by year.'
-              )
-            : t(
-                '导入照片后，会按拍摄时间自动归档到对应年月：优先 EXIF 拍摄时间，没有 EXIF 时用文件的修改 / 创建时间（不会用收录进来的时间）。',
-                'Imported photos are filed by capture time: EXIF first, otherwise the file’s modified / created time — never the time it was imported.'
-              )}
+            ? `库里 ${total.toLocaleString('zh-CN')} 张素材目前都没算出拍摄时间（多半是旧版本导入时把「收录时间」当成了拍摄时间，v1.2.8 起这个口径已废弃并被清空）。` +
+                  '照片本身的时间还在 EXIF 和文件属性里，点下面的按钮重建一次就会按年归位。'
+            : '导入照片后，会按拍摄时间自动归档到对应年月：优先 EXIF 拍摄时间，没有 EXIF 时用文件的修改 / 创建时间（不会用收录进来的时间）。'}
         </p>
         {total > 0 && (
           <div className="tl-empty-acts">
             {!running && rebuildable > 0 && (
               <button type="button" className="btn primary" onClick={startBackfill}>
-                {t(`重建拍摄时间（${rebuildable} 张待校正）`, `Rebuild capture time (${rebuildable} pending)`)}
+                {`重建拍摄时间（${rebuildable} 张待校正）`}
               </button>
             )}
             {running && job && (
               <span className="tl-job">
-                {job.message || t('重建中…', 'Rebuilding…')}
+                {job.message || '重建中…'}
                 <span className="tl-job-bar">
                   <i style={{ width: `${Math.max(2, Math.min(100, job.progress || 0))}%` }} />
                 </span>
@@ -565,23 +542,20 @@ export function Timeline({ onToast, onOpen }: Props) {
     <div className="tl-root">
       <header className="tl-head">
         <div>
-          <h2>{t('时间线', 'Timeline')}</h2>
+          <h2>{'时间线'}</h2>
           <p className="tl-sub">
-            {t(
-              `共 ${summary.placed} 张，分布在 ${summary.months.length} 个月 · 按拍摄日期分组（EXIF → 文件修改 / 创建时间）`,
-              `${summary.placed} items across ${summary.months.length} months · grouped by capture date (EXIF → file time)`
-            )}
+            {`共 ${summary.placed} 张，分布在 ${summary.months.length} 个月 · 按拍摄日期分组（EXIF → 文件修改 / 创建时间）`}
           </p>
         </div>
         <div className="tl-head-actions">
           {summary.pending > 0 && !running && (
             <button type="button" className="btn" onClick={startBackfill}>
-              {t(`重建拍摄时间（${summary.pending} 张待校正）`, `Rebuild capture time (${summary.pending} pending)`)}
+              {`重建拍摄时间（${summary.pending} 张待校正）`}
             </button>
           )}
           {running && job && (
             <span className="tl-job">
-              {job.message || t('重建中…', 'Rebuilding…')}
+              {job.message || '重建中…'}
               <span className="tl-job-bar">
                 <i style={{ width: `${Math.max(2, Math.min(100, job.progress || 0))}%` }} />
               </span>
@@ -591,7 +565,7 @@ export function Timeline({ onToast, onOpen }: Props) {
       </header>
 
       <div className="tl-body">
-        <nav className="tl-years" aria-label={t('按年月日跳转', 'Jump by year, month, day')}>
+        <nav className="tl-years" aria-label={'按年月日跳转'}>
           {years.map((y) => (
             <div key={y.year} className="tl-year">
               <button type="button" className="tl-year-btn" onClick={() => jumpTo(y.months[0])}>
@@ -613,14 +587,14 @@ export function Timeline({ onToast, onOpen }: Props) {
                           jumpTo(m);
                         }}
                       >
-                        {t(`${Number(m.slice(5))} 月`, monthLabel(m, 'en'))}
+                        {`${Number(m.slice(5))} 月`}
                         <span className="tl-month-link-count">{monthTotals[m]}</span>
                       </button>
                       {open && (
                         <div className="tl-days">
                           {!state?.days.length && (
                             <span className="tl-days-hint">
-                              {state?.loading ? t('读取日期…', 'Loading…') : state?.error || t('没有日期', 'No days')}
+                              {state?.loading ? '读取日期…' : state?.error || '没有日期'}
                             </span>
                           )}
                           {state?.days.map((d) => (
@@ -630,7 +604,7 @@ export function Timeline({ onToast, onOpen }: Props) {
                               className={`tl-day-link${activeDay === d.day ? ' active' : ''}`}
                               onClick={() => jumpToDay(d.day)}
                             >
-                              <span>{t(`${Number(d.day.slice(8))} 日`, `${Number(d.day.slice(8))}`)}</span>
+                              <span>{`${Number(d.day.slice(8))} 日`}</span>
                               <span className="tl-day-link-count">{d.count}</span>
                             </button>
                           ))}
@@ -652,7 +626,6 @@ export function Timeline({ onToast, onOpen }: Props) {
               count={m.count}
               state={months[m.month]}
               dayStates={days}
-              lang={lang}
               onLoadDays={() => loadDays(m.month)}
               onLoadDay={(day) => loadDay(day, 0)}
               onMoreDay={(day, offset) => loadDay(day, offset)}
@@ -661,10 +634,7 @@ export function Timeline({ onToast, onOpen }: Props) {
           ))}
           {summary.unplaced > 0 && (
             <p className="tl-note">
-              {t(
-                `另有 ${summary.unplaced} 张既没有 EXIF 拍摄时间、也读不到文件时间，未排入时间线。点上方「重建拍摄时间」会重新读一次文件。`,
-                `${summary.unplaced} items have neither EXIF capture time nor readable file time, so they are not on the timeline. Use “Rebuild capture time” to re-read the files.`
-              )}
+              {`另有 ${summary.unplaced} 张既没有 EXIF 拍摄时间、也读不到文件时间，未排入时间线。点上方「重建拍摄时间」会重新读一次文件。`}
             </p>
           )}
         </div>

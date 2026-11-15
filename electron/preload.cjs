@@ -51,6 +51,8 @@ contextBridge.exposeInMainWorld('desktopAPI', {
   // 崩溃转储 / 运行日志目录（排查问题时让用户把文件发给开发者）
   openCrashDir: () => ipcRenderer.invoke('open-crash-dir'),
   openLogDir: () => ipcRenderer.invoke('open-log-dir'),
+  // 一键打包「日志 + 环境 + 崩溃清单」成 zip，用户报障时直接发这个文件
+  exportDiagnostics: () => ipcRenderer.invoke('export-diagnostics'),
   // 「关于」页：按枚举名打开程序自己的目录（userData / logs / crashDumps）
   openAppDir: (key) => ipcRenderer.invoke('open-app-dir', key),
   // 开机自启开关（读/写系统登录项）

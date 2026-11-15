@@ -58,6 +58,42 @@ export default function DataTransferCard({ onLibraryChanged, onToast }: Props) {
 
   useEffect(load, [load]);
 
+  /* 自动备份配置：与手动备份同一个面板，用户不用去别处找「多久备一次」 */
+  const [autoBackup, setAutoBackup] = useState<Awaited<ReturnType<typeof api.transferAuto>> | null>(null);
+  useEffect(() => {
+    api
+      .transferAuto()
+      .then(setAutoBackup)
+      .catch((err) => onToast(`自动备份配置读取失败：${(err as Error).message}`, 'error'));
+  }, [onToast]);
+
+  const saveAuto = async (patch: { enabled?: boolean; dir?: string; everyDays?: number; keep?: number }) => {
+    try {
+      setAutoBackup(await api.transferAutoSave(patch));
+    } catch (e) {
+      onToast(`保存自动备份设置失败：${(e as Error).message}`, 'error');
+    }
+  };
+
+  const runAutoNow = async () => {
+    setBusy('auto');
+    try {
+      const r = await api.transferAutoRun();
+      if (r.skipped) onToast(r.reason || '已跳过', 'info');
+      else {
+        onToast(
+          `自动备份完成：${r.dir}${r.removed ? `（清理旧份 ${r.removed} 个）` : ''}`,
+        );
+        setLastBackup(r.dir || '');
+      }
+      setAutoBackup(await api.transferAuto());
+    } catch (e) {
+      onToast(`自动备份失败：${(e as Error).message}`, 'error');
+    } finally {
+      setBusy('');
+    }
+  };
+
   const backup = async () => {
     const dir = await pickFolder();
     if (!dir) return;
@@ -66,7 +102,9 @@ export default function DataTransferCard({ onLibraryChanged, onToast }: Props) {
     try {
       const r = await api.transferBackup(dir, includeThumbs);
       setLastBackup(r.dir);
-      setLog(`已备份 ${r.counts.images} 张的元数据${r.thumbsBytes ? `与 ${formatSize(r.thumbsBytes)} 缩略图` : ''} 到 ${r.dir}`);
+      setLog(
+        `已备份 ${r.counts.images} 张的元数据${r.thumbsBytes ? `与 ${formatSize(r.thumbsBytes)} 缩略图` : ''} 到 ${r.dir}`,
+      );
       onToast('备份完成');
     } catch (e) {
       // 备份失败只落在小字 log 里太容易被忽略（尤其卡片下半屏），同时弹提示
@@ -80,6 +118,25 @@ export default function DataTransferCard({ onLibraryChanged, onToast }: Props) {
   const restore = async () => {
     if (!restoreSrc) return setLog('先选择备份文件夹');
     if (!restoreRoot) return setLog('先选择新库的素材文件夹');
+    // 先预检再动手：半途失败的备份要在这里挡下，并说清缺什么，
+    // 而不是等拷贝到一半才炸（那时已经建了库、改过注册表）
+    setBusy('restore');
+    setLog('');
+    try {
+      const pre = await api.transferVerify(restoreSrc);
+      if (!pre.ok) {
+        setLog(`备份预检未通过：${pre.problems.join('；')}`);
+        onToast('这份备份不完整，已中止恢复', 'error');
+        return;
+      }
+      if (pre.warnings?.length) setLog(`预检提示：${pre.warnings.join('；')}`);
+    } catch (e) {
+      setLog(`预检失败：${(e as Error).message}`);
+      onToast(`预检失败：${(e as Error).message}`, 'error');
+      return;
+    } finally {
+      setBusy('');
+    }
     if (!(await confirmDialog('将从备份恢复成一个「新资源库」，当前库不受影响。继续？'))) return;
     setBusy('restore');
     setLog('');
@@ -87,8 +144,8 @@ export default function DataTransferCard({ onLibraryChanged, onToast }: Props) {
       const r = await api.transferRestore(restoreSrc, restoreName || undefined, restoreRoot);
       setLog(
         `已创建资源库「${r.name}」：${r.dbPath}${r.remapped ? `；重映射 ${r.remapped} 条路径` : ''}${
-          r.missing ? `；其中 ${r.missing} 张在新目录里找不到` : ''
-        }`
+            r.missing ? `；其中 ${r.missing} 张在新目录里找不到` : ''
+          }`,
       );
       onToast('恢复完成，可在左上角切换到新库');
       onLibraryChanged();
@@ -109,13 +166,17 @@ export default function DataTransferCard({ onLibraryChanged, onToast }: Props) {
       setEagleLeft(r.remaining || 0);
       setLog(
         `Eagle 迁移：库里共 ${r.total} 个素材（含回收站），本轮处理 ${r.processed} 个 → 新增 ${r.imported} 张、` +
-          `已存在跳过 ${r.existing} 张` +
-          `${r.skipped ? `、无原图或已删除 ${r.skipped} 个` : ''}` +
-          `${r.folders ? `、新建文件夹 ${r.folders} 个` : ''}` +
-          `${r.failed ? `、失败 ${r.failed} 张（${r.errors.slice(0, 3).join('；')}）` : ''}` +
-          `${r.remaining ? `。还剩 ${r.remaining} 个，点「继续迁移」接着来` : '。全部完成'}`
+            `已存在跳过 ${r.existing} 张` +
+            `${r.skipped ? `、无原图或已删除 ${r.skipped} 个` : ''}` +
+            `${r.folders ? `、新建文件夹 ${r.folders} 个` : ''}` +
+            `${r.failed ? `、失败 ${r.failed} 张（${r.errors.slice(0, 3).join('；')}）` : ''}` +
+            `${r.remaining ? `。还剩 ${r.remaining} 个，点「继续迁移」接着来` : '。全部完成'}`,
       );
-      onToast(r.remaining ? `本轮导入 ${r.imported} 张，还剩 ${r.remaining} 个` : `已从 Eagle 导入 ${r.imported} 张`);
+      onToast(
+        r.remaining
+          ? `本轮导入 ${r.imported} 张，还剩 ${r.remaining} 个`
+          : `已从 Eagle 导入 ${r.imported} 张`,
+      );
       onLibraryChanged();
     } catch (e) {
       setLog(`Eagle 迁移失败：${(e as Error).message}`);
@@ -152,8 +213,8 @@ export default function DataTransferCard({ onLibraryChanged, onToast }: Props) {
         const errs = Array.isArray(r.errors) ? r.errors : [];
         setLog(
           `已导出 ${r.exported ?? 0} 个素材、${r.folders ?? 0} 个文件夹 → ${r.dir || dir}` +
-            `${r.missing ? `；${r.missing} 个原文件读不到已跳过` : ''}` +
-            `${errs.length ? `（${errs.slice(0, 3).join('；')}）` : ''}`
+              `${r.missing ? `；${r.missing} 个原文件读不到已跳过` : ''}` +
+              `${errs.length ? `（${errs.slice(0, 3).join('；')}）` : ''}`,
         );
         onToast(`Eagle 库已生成：${r.dir || dir}`);
       } else if (job.status === 'canceled') {
@@ -182,14 +243,15 @@ export default function DataTransferCard({ onLibraryChanged, onToast }: Props) {
 
   return (
     <Card
-      title="数据出口"
-      desc="备份、恢复、导出清单、从 Eagle 4 迁移。数据始终在你自己手里，随时能带走。"
+      title={'数据出口'}
+      desc={'备份、恢复、导出清单、从 Eagle 4 迁移。数据始终在你自己手里，随时能带走。'}
     >
       {loadErr && (
         <div style={{ color: 'var(--err, #e5484d)', fontSize: 12.5, marginBottom: 8 }}>
-          备份信息读取失败：{loadErr}
+          {'备份信息读取失败：'}
+          {loadErr}
           <button className="btn sm ghost" style={{ marginLeft: 8 }} onClick={load}>
-            重试
+            {'重试'}
           </button>
         </div>
       )}
@@ -197,45 +259,48 @@ export default function DataTransferCard({ onLibraryChanged, onToast }: Props) {
         <div className="maint-grid">
           <div>
             <b>{preview.counts.images}</b>
-            <span>素材</span>
+            <span>{'素材'}</span>
           </div>
           <div>
             <b>{preview.counts.folders}</b>
-            <span>文件夹</span>
+            <span>{'文件夹'}</span>
           </div>
           <div>
             <b>{preview.counts.tags}</b>
-            <span>标签</span>
+            <span>{'标签'}</span>
           </div>
           <div>
             <b>{preview.counts.ocr}</b>
-            <span>OCR 记录</span>
+            <span>{'OCR 记录'}</span>
           </div>
           <div>
             <b>{preview.counts.actions}</b>
-            <span>动作</span>
+            <span>{'动作'}</span>
           </div>
           <div>
             <b>{formatSize(preview.thumbsBytes)}</b>
-            <span>缩略图占用</span>
+            <span>{'缩略图占用'}</span>
           </div>
         </div>
       )}
       <div className="hint" style={{ marginTop: 8, wordBreak: 'break-all' }}>
-        素材文件夹：{preview?.library.rootPath || '—'}
+        {'素材文件夹：'}
+        {preview?.library.rootPath || '—'}
         <br />
-        数据库：{preview?.library.dbPath || '—'}
+        {'数据库：'}
+        {preview?.library.dbPath || '—'}
       </div>
 
       <div className="maint-missing" style={{ marginTop: 12 }}>
-        <b style={{ fontSize: 13 }}>备份</b>
+        <b style={{ fontSize: 13 }}>{'备份'}</b>
         <div className="hint" style={{ lineHeight: 1.9 }}>
-          备份包含 gallery.db（文件夹 / 标签 / 备注 / 评分 / OCR / 动作）、可读的 library.json 与缩略图；
-          <b> 原图不在备份里</b>——它们一直在你的素材文件夹中，不需要重复拷贝。
+          {'备份包含 gallery.db（文件夹 / 标签 / 备注 / 评分 / OCR / 动作）、可读的 library.json 与缩略图；'}
+          <b>{' 原图不在备份里'}</b>
+          {'——它们一直在你的素材文件夹中，不需要重复拷贝。'}
         </div>
         <label className="hint" style={{ display: 'inline-flex', gap: 6, alignItems: 'center', marginTop: 6 }}>
           <input type="checkbox" checked={includeThumbs} onChange={(e) => setIncludeThumbs(e.target.checked)} />
-          同时复制缩略图（体积更大，但恢复后无需重建）
+          {'同时复制缩略图（体积更大，但恢复后无需重建）'}
         </label>
         <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginTop: 8 }}>
           <button className="btn sm" disabled={!!busy}
@@ -243,23 +308,91 @@ export default function DataTransferCard({ onLibraryChanged, onToast }: Props) {
             {busy === 'backup' ? '备份中…' : '备份到…'}
           </button>
           <button className="btn sm ghost" onClick={() => downloadFile('/api/transfer/metadata.json')}>
-            导出元数据 JSON
+            {'导出元数据 JSON'}
           </button>
           <button className="btn sm ghost" onClick={() => downloadFile('/api/transfer/metadata.csv')}>
-            导出清单 CSV（Excel 可开）
+            {'导出清单 CSV（Excel 可开）'}
           </button>
         </div>
         {lastBackup && (
           <div className="hint" style={{ marginTop: 6, wordBreak: 'break-all' }}>
-            最近一次备份：{lastBackup}
+            {'最近一次备份：'}
+            {lastBackup}
+          </div>
+        )}
+      </div>
+
+      <div className="maint-missing" style={{ marginTop: 12 }}>
+        <b style={{ fontSize: 13 }}>{'自动备份'}</b>
+        <div className="hint" style={{ lineHeight: 1.9 }}>
+          {'开着应用时每小时检查一次，到间隔就自动备份到指定目录（每次一个 '}
+          <code>{'tuku-日期-时间'}</code>
+          {' 子目录，按份数保留）。'}
+          {'备份在 '}
+          <b>{'另一块盘'}</b>
+          {' 才有意义：同一块盘坏掉时，备份会跟着一起没。'}
+        </div>
+        <label className="hint" style={{ display: 'inline-flex', gap: 6, alignItems: 'center', marginTop: 6 }}>
+          <input
+            type="checkbox"
+            checked={!!autoBackup?.enabled}
+            disabled={!autoBackup}
+            onChange={(e) => void saveAuto({ enabled: e.target.checked })}
+          />
+          {'开启自动备份'}
+        </label>
+        <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center', marginTop: 8 }}>
+          <button
+            className="btn sm"
+            onClick={async () => {
+              const dir = await pickFolder();
+              if (dir) void saveAuto({ dir });
+            }}
+          >
+            {autoBackup?.dir ? '更换备份目录…' : '选择备份目录…'}
+          </button>
+          <span className="hint">{'每'}</span>
+          <input
+            className="input sm"
+            style={{ width: 64 }}
+            type="number"
+            min={1}
+            max={90}
+            value={autoBackup?.everyDays ?? 7}
+            onChange={(e) => void saveAuto({ everyDays: Number(e.target.value) || 7 })}
+          />
+          <span className="hint">{'天备份一次，保留'}</span>
+          <input
+            className="input sm"
+            style={{ width: 64 }}
+            type="number"
+            min={1}
+            max={30}
+            value={autoBackup?.keep ?? 3}
+            onChange={(e) => void saveAuto({ keep: Number(e.target.value) || 3 })}
+          />
+          <span className="hint">{'份'}</span>
+          <button className="btn sm ghost" disabled={!!busy || !autoBackup?.dir} onClick={() => void runAutoNow()}>
+            {busy === 'auto' ? '备份中…' : '立即备份一次'}
+          </button>
+        </div>
+        {autoBackup?.dir && (
+          <div className="hint" style={{ marginTop: 6, wordBreak: 'break-all' }}>
+            {'备份到：'}
+            {autoBackup.dir}
+            <br />
+            {autoBackup.lastAt
+              ? `上次自动备份：${new Date(autoBackup.lastAt).toLocaleString()}`
+              : '还没跑过自动备份'}
+            {autoBackup.lastError ? ` · 上次失败：${autoBackup.lastError}` : ''}
           </div>
         )}
       </div>
 
       <div className="maint-missing">
-        <b style={{ fontSize: 13 }}>从备份恢复</b>
+        <b style={{ fontSize: 13 }}>{'从备份恢复'}</b>
         <div className="hint" style={{ lineHeight: 1.9 }}>
-          恢复为「新资源库」，不会覆盖当前库；换机器 / 换盘符时按备份里记录的旧根目录自动重映射绝对路径。
+          {'恢复为「新资源库」，不会覆盖当前库；换机器 / 换盘符时按备份里记录的旧根目录自动重映射绝对路径。'}
         </div>
         <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginTop: 8 }}>
           <button className="btn sm" onClick={async () => setRestoreSrc((await pickFolder()) || restoreSrc)}>
@@ -271,7 +404,7 @@ export default function DataTransferCard({ onLibraryChanged, onToast }: Props) {
           <input
             className="input"
             style={{ width: 160 }}
-            placeholder="新库名称（可选）"
+            placeholder={'新库名称（可选）'}
             value={restoreName}
             onChange={(e) => setRestoreName(e.target.value)}
           />
@@ -282,18 +415,23 @@ export default function DataTransferCard({ onLibraryChanged, onToast }: Props) {
         </div>
         {(restoreSrc || restoreRoot) && (
           <div className="hint" style={{ marginTop: 6, wordBreak: 'break-all' }}>
-            {restoreSrc && <>备份：{restoreSrc}<br /></>}
-            {restoreRoot && <>新库：{restoreRoot}</>}
+            {restoreSrc && <>{'备份：'}{restoreSrc}<br /></>}
+            {restoreRoot && <>{'新库：'}{restoreRoot}</>}
           </div>
         )}
       </div>
 
       <div className="maint-missing">
-        <b style={{ fontSize: 13 }}>从 Eagle 4 迁移</b>
+        <b style={{ fontSize: 13 }}>{'从 Eagle 4 迁移'}</b>
         <div className="hint" style={{ lineHeight: 1.9 }}>
-          选择 Eagle 的 <code>.library</code> 目录：把每个 <code>images/&lt;id&gt;.info</code> 里体积最大的原图复制进
-          <b>当前库</b>，并完整还原「文件夹层级 / 标签 / 星级 / 备注 / 来源地址 / 拍摄时间」；回收站里已删的素材不迁。
-          为了不让一次请求卡太久，单轮最多迁 1000 个，迁完会显示还剩多少，再点一次继续即可（已迁过的会自动跳过，不会重复）。
+          {'选择 Eagle 的 '}
+          <code>.library</code>
+          {' 目录：把每个 '}
+          <code>images/&lt;id&gt;.info</code>
+          {' 里体积最大的原图复制进'}
+          <b>{'当前库'}</b>
+          {'，并完整还原「文件夹层级 / 标签 / 星级 / 备注 / 来源地址 / 拍摄时间」；回收站里已删的素材不迁。'}
+          {'为了不让一次请求卡太久，单轮最多迁 1000 个，迁完会显示还剩多少，再点一次继续即可（已迁过的会自动跳过，不会重复）。'}
         </div>
         <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginTop: 8 }}>
           <button className="btn sm" onClick={async () => setEagleSrc((await pickFolder()) || eagleSrc)}>
@@ -304,7 +442,11 @@ export default function DataTransferCard({ onLibraryChanged, onToast }: Props) {
           </button>
           <button className="btn sm" disabled={!!busy}
             title={busy ? '上一个操作还在进行，完成后再试' : undefined} onClick={importEagle}>
-            {busy === 'eagle' ? '迁移中…' : eagleLeft ? `继续迁移（还剩 ${eagleLeft}）` : '开始迁移'}
+            {busy === 'eagle'
+              ? '迁移中…'
+              : eagleLeft
+                ? `继续迁移（还剩 ${eagleLeft}）`
+                : '开始迁移'}
           </button>
         </div>
         {eagleSrc && (
@@ -315,11 +457,14 @@ export default function DataTransferCard({ onLibraryChanged, onToast }: Props) {
       </div>
 
       <div className="maint-missing">
-        <b style={{ fontSize: 13 }}>导出为 Eagle 库（反向互通）</b>
+        <b style={{ fontSize: 13 }}>{'导出为 Eagle 库（反向互通）'}</b>
         <div className="hint" style={{ lineHeight: 1.9 }}>
-          把<b>当前库</b>写成一个标准的 <code>&lt;库名&gt;.library</code>：原图、文件夹层级、标签、星级、备注、来源地址都带过去，
-          在 Eagle 里「文件 → 打开资源库」选它就能用。缩略图不复制，由 Eagle 首次打开时自行生成。
-          导出目标必须是空目录（不会覆盖已有资源库）。
+          {'把'}
+          <b>{'当前库'}</b>
+          {'写成一个标准的 '}
+          <code>&lt;{'库名'}&gt;.library</code>
+          {'：原图、文件夹层级、标签、星级、备注、来源地址都带过去，在 Eagle 里「文件 → 打开资源库」选它就能用。缩略图不复制，由 Eagle 首次打开时自行生成。'}
+          {'导出目标必须是空目录（不会覆盖已有资源库）。'}
         </div>
         <div className="hint" style={{ marginTop: 6, display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center' }}>
           <span>
@@ -327,8 +472,8 @@ export default function DataTransferCard({ onLibraryChanged, onToast }: Props) {
               ? `当前库：${eagleSize.images} 张原图 · ${formatSize(eagleSize.bytes)} · ${eagleSize.folders} 个文件夹`
               : '正在统计导出规模…'}
           </span>
-          <button className="btn sm ghost" onClick={loadEagleSize} title="重新统计当前库的素材与体积">
-            刷新
+          <button className="btn sm ghost" onClick={loadEagleSize} title={'重新统计当前库的素材与体积'}>
+            {'刷新'}
           </button>
         </div>
         <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginTop: 8 }}>
@@ -342,12 +487,14 @@ export default function DataTransferCard({ onLibraryChanged, onToast }: Props) {
           </button>
           {eagleRunning && (
             <button className="btn sm ghost" onClick={() => void cancelEagle()}>
-              停止导出
+              {'停止导出'}
             </button>
           )}
           {eagleJob && (
             <span className="hint" style={{ display: 'inline-flex', alignItems: 'center' }}>
-              {eagleJob.total ? `已处理 ${eagleJob.done}/${eagleJob.total}（${Math.round((eagleJob.done / eagleJob.total) * 100)}%）` : '正在准备…'}
+              {eagleJob.total
+                ? `已处理 ${eagleJob.done}/${eagleJob.total}（${Math.round((eagleJob.done / eagleJob.total) * 100)}%）`
+                : '正在准备…'}
             </span>
           )}
         </div>

@@ -21,7 +21,6 @@ import {
   type ReverseNetwork,
 } from '../api';
 import { IconClose } from './Icons';
-import { useLang } from '../lib/i18n';
 
 export type ReverseTarget = {
   /** 单张图搜图 */
@@ -46,9 +45,6 @@ function errText(err: unknown) {
 }
 
 export default function ReverseSearchDialog({ target, onClose, onToast }: Props) {
-  const { lang } = useLang();
-  const L = (zh: string, en: string) => (lang === 'en' && en ? en : zh);
-
   const [engines, setEngines] = useState<ReverseEngine[]>([]);
   const [network, setNetwork] = useState<ReverseNetwork | null>(null);
   const [loading, setLoading] = useState(false);
@@ -74,7 +70,7 @@ export default function ReverseSearchDialog({ target, onClose, onToast }: Props)
       })
       .catch((err) => {
         if (!alive) return;
-        onToast(L('读取搜图引擎失败：', 'Failed to load engines: ') + errText(err), 'error');
+        onToast('读取搜图引擎失败：' + errText(err), 'error');
       })
       .finally(() => {
         if (alive) setLoading(false);
@@ -111,7 +107,7 @@ export default function ReverseSearchDialog({ target, onClose, onToast }: Props)
 
   const run = async (ids: string[]) => {
     if (!target || !ids.length) {
-      onToast(L('至少选一个引擎', 'Pick at least one engine'), 'error');
+      onToast('至少选一个引擎', 'error');
       return;
     }
     setRunning(true);
@@ -129,19 +125,19 @@ export default function ReverseSearchDialog({ target, onClose, onToast }: Props)
             await copyImageToClipboard(`${BASE}/api/images/${r.image.id}/file`);
             copied = true;
           } catch (err) {
-            onToast(L('复制图片到剪贴板失败：', 'Copy to clipboard failed: ') + errText(err), 'error');
+            onToast('复制图片到剪贴板失败：' + errText(err), 'error');
           }
         }
         window.open(one.url, '_blank', 'noopener,noreferrer');
       }
       const bad = r.results.filter((x) => !x.ok);
       if (bad.length) {
-        onToast(L(`搜图完成：${r.results.length - bad.length} 个成功，${bad.length} 个失败`, `Done: ${r.results.length - bad.length} ok, ${bad.length} failed`), 'error');
+        onToast(`搜图完成：${r.results.length - bad.length} 个成功，${bad.length} 个失败`, 'error');
       } else {
-        onToast(L(`已在 ${r.results.length} 个引擎里搜这张图`, `Searching on ${r.results.length} engines`));
+        onToast(`已在 ${r.results.length} 个引擎里搜这张图`);
       }
     } catch (err) {
-      onToast(L('搜图失败：', 'Search failed: ') + errText(err), 'error');
+      onToast('搜图失败：' + errText(err), 'error');
     } finally {
       setRunning(false);
     }
@@ -169,7 +165,7 @@ export default function ReverseSearchDialog({ target, onClose, onToast }: Props)
     >
       <span className="rs-engine-name">{e.name}</span>
       <span className="rs-engine-tag">
-        {e.mode === 'manual' ? L('打开识图页粘贴', 'open page & paste') : e.ready ? L('可直接搜', 'direct') : L('网络不通', 'unreachable')}
+        {e.mode === 'manual' ? '打开识图页粘贴' : e.ready ? '可直接搜' : '网络不通'}
       </span>
       <span className="rs-engine-desc">{e.mode === 'manual' ? e.why : e.desc}</span>
     </button>
@@ -179,11 +175,11 @@ export default function ReverseSearchDialog({ target, onClose, onToast }: Props)
     <div className="modal-backdrop rs-backdrop" onClick={() => !running && onClose()}>
       <div className="modal-card rs-card" onClick={(e) => e.stopPropagation()}>
         <div className="modal-head">
-          <b>{L('全网以图搜图', 'Reverse image search')}</b>
+          <b>{'全网以图搜图'}</b>
           <span className="rs-title" title={target.title}>
             {target.title}
           </span>
-          <button className="icon-btn" onClick={onClose} title={L('关闭（Esc）', 'Close (Esc)')}>
+          <button className="icon-btn" onClick={onClose} title={'关闭（Esc）'}>
             <IconClose />
           </button>
         </div>
@@ -192,26 +188,26 @@ export default function ReverseSearchDialog({ target, onClose, onToast }: Props)
           <div className="rs-target">
             {target.previewUrl && <img src={target.previewUrl} alt="" />}
             <div className="rs-target-text">
-              <b>{target.hint || L('用这张照片去检索', 'Searching with this photo')}</b>
+              <b>{target.hint || '用这张照片去检索'}</b>
               <span>
                 {target.personId
-                  ? L('自动选这个人最清晰、人脸最大的一张：质量分高的优先，其次看人脸在画面里占多大', 'Auto-picked the sharpest, largest-face photo of this person')
-                  : L('会把原图上传给支持直传的引擎；不支持直传的引擎打开页面后粘贴（已自动复制）', 'Uploaded where supported, otherwise the page opens with the photo in your clipboard')}
+                  ? '自动选这个人最清晰、人脸最大的一张：质量分高的优先，其次看人脸在画面里占多大'
+                  : '会把原图上传给支持直传的引擎；不支持直传的引擎打开页面后粘贴（已自动复制）'}
               </span>
             </div>
           </div>
 
-          {loading && <div className="rs-hint">{L('正在检测各引擎可用性…', 'Checking engines…')}</div>}
+          {loading && <div className="rs-hint">{'正在检测各引擎可用性…'}</div>}
 
           <div className="rs-group">
-            <div className="rs-group-title">{L('国内引擎', 'China')}</div>
+            <div className="rs-group-title">{'国内引擎'}</div>
             <div className="rs-engines">{cnEngines.map(engineRow)}</div>
           </div>
 
           <div className="rs-group">
             <div className="rs-group-title">
-              {L('国外引擎', 'Global')}
-              {network && !network.ok && <em className="rs-bad">{L('国际网络本次不通', 'network unreachable')}</em>}
+              {'国外引擎'}
+              {network && !network.ok && <em className="rs-bad">{'国际网络本次不通'}</em>}
             </div>
             <div className="rs-engines">{globalEngines.map(engineRow)}</div>
           </div>
@@ -219,10 +215,7 @@ export default function ReverseSearchDialog({ target, onClose, onToast }: Props)
           {needConfirm && (
             <div className="rs-confirm">
               <div>
-                {L(
-                  `国际网络不通（${selectedGlobalBlocked.map((e) => e.name).join('、')} 连不上），这些引擎大概率搜不出来。要只用国内引擎吗？`,
-                  `Global network is down (${selectedGlobalBlocked.map((e) => e.name).join(', ')}). Use China engines only?`
-                )}
+                {`国际网络不通（${selectedGlobalBlocked.map((e) => e.name).join('、')} 连不上），这些引擎大概率搜不出来。要只用国内引擎吗？`}
               </div>
               <div className="rs-confirm-actions">
                 <button
@@ -233,10 +226,10 @@ export default function ReverseSearchDialog({ target, onClose, onToast }: Props)
                     void run(ids);
                   }}
                 >
-                  {L('只用国内引擎', 'China only')}
+                  {'只用国内引擎'}
                 </button>
                 <button className="btn ghost sm" onClick={() => void run([...picked])}>
-                  {L('仍然全部尝试', 'Try anyway')}
+                  {'仍然全部尝试'}
                 </button>
               </div>
             </div>
@@ -244,17 +237,17 @@ export default function ReverseSearchDialog({ target, onClose, onToast }: Props)
 
           <div className="rs-actions">
             <button className="btn primary" disabled={running || !picked.size} onClick={start}>
-              {running ? L('正在搜…', 'Searching…') : L(`开始搜图（${picked.size} 个引擎）`, `Search (${picked.size})`)}
+              {running ? '正在搜…' : `开始搜图（${picked.size} 个引擎）`}
             </button>
             <button className="btn ghost sm" onClick={() => setPicked(new Set(engines.map((e) => e.id)))}>
-              {L('全选', 'Select all')}
+              {'全选'}
             </button>
             <button className="btn ghost sm" onClick={() => setPicked(new Set())}>
-              {L('清空', 'Clear')}
+              {'清空'}
             </button>
             {network && (
               <span className="rs-hint">
-                {L('引擎按钮可多选；打开多个页面时浏览器可能拦截弹窗', 'Multi-select allowed; browsers may block multiple tabs')}
+                {'引擎按钮可多选；打开多个页面时浏览器可能拦截弹窗'}
               </span>
             )}
           </div>
@@ -265,11 +258,11 @@ export default function ReverseSearchDialog({ target, onClose, onToast }: Props)
                 <div key={r.engine} className={`rs-result${r.ok ? '' : ' bad'}`}>
                   <div className="rs-result-head">
                     <b>{r.name}</b>
-                    <span className={`rs-badge ${r.region}`}>{r.region === 'cn' ? L('国内', 'CN') : L('国外', 'Global')}</span>
+                    <span className={`rs-badge ${r.region}`}>{r.region === 'cn' ? '国内' : '国外'}</span>
                     <span className="rs-result-note">{r.ok ? r.note : r.error}</span>
                     {r.url && (
                       <button className="btn ghost sm" onClick={() => window.open(r.url, '_blank', 'noopener,noreferrer')}>
-                        {L('再打开', 'Open again')}
+                        {'再打开'}
                       </button>
                     )}
                   </div>

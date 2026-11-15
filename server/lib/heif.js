@@ -20,14 +20,6 @@ function loadLib() {
   return libPromise;
 }
 
-/** 文件头是不是 HEIF 家族（ftyp 品牌 heic/heix/hevc/mif1…） */
-export function looksLikeHeif(head) {
-  if (!head || head.length < 12) return false;
-  if (head.toString('latin1', 4, 8) !== 'ftyp') return false;
-  const brand = head.toString('latin1', 8, 12);
-  return /^(heic|heix|hevc|hevx|heim|heis|hevm|hevs|mif1|msf1|hif1)$/i.test(brand);
-}
-
 /**
  * 解码成 RGBA（libheif 只出这个格式）。
  * @returns {Promise<{data: Buffer, width: number, height: number}|null>}

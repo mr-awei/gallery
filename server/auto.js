@@ -436,9 +436,3 @@ export function startScheduler() {
   return timer;
 }
 
-export function stopScheduler() {
-  if (timer) {
-    clearInterval(timer);
-    timer = null;
-  }
-}

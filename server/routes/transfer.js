@@ -7,7 +7,9 @@ import {
   exportMetadataJson,
   importEagleLibrary,
   restoreLibrary,
+  verifyBackup,
 } from '../lib/transfer.js';
+import { autoBackupConfig, runAutoBackup, saveAutoBackupConfig } from '../lib/backup-schedule.js';
 
 export function register(app, ctx) {
   const { asyncRoute } = ctx;
@@ -45,6 +47,29 @@ export function register(app, ctx) {
     res.setHeader('Content-Type', 'text/csv; charset=utf-8');
     res.setHeader('Content-Disposition', `attachment; filename="tuku-images.csv"; filename*=UTF-8''${encodeURIComponent('图库素材清单.csv')}`);
     res.send(csv);
+  });
+
+  /* 自动备份排程：配置读写 + 立即跑一次 */
+  app.get('/api/transfer/auto', (_req, res) => {
+    res.json(autoBackupConfig());
+  });
+
+  app.post('/api/transfer/auto', (req, res) => {
+    res.json(saveAutoBackupConfig(req.body || {}));
+  });
+
+  app.post(
+    '/api/transfer/auto/run',
+    asyncRoute(async (_req, res) => {
+      const r = await runAutoBackup({ force: true });
+      if (!r.ok && !r.skipped) return res.status(500).json({ error: r.error || '备份失败' });
+      res.json(r);
+    })
+  );
+
+  /* 恢复前预检：让用户在点「恢复」之前就知道这份备份缺什么 */
+  app.post('/api/transfer/verify', (req, res) => {
+    res.json(verifyBackup(String(req.body?.sourceDir || '')));
   });
 
   /* 从备份恢复成一个新库（不动当前库） */

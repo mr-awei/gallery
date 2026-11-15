@@ -227,12 +227,6 @@ export async function probeHardware(opts = {}) {
   return cache;
 }
 
-/** 单测/测试用：清掉缓存 */
-export function resetHardwareCache() {
-  cache = null;
-  cacheAt = 0;
-}
-
 /* --------------------------- 最低配置与判定 --------------------------- */
 
 /**
@@ -455,19 +449,6 @@ export async function hardwareReport(opts = {}) {
     hardware: hw,
     features: HARDWARE_FEATURES.map((f) => evaluateFeature(f, hw)),
   };
-}
-
-/**
- * 单个功能的判定（前端在真正开跑前调用）。
- * 未知 id 回 null，调用方据此当作「不用检查」，不要用 500 惩罚调用方。
- * @param {string} id
- * @param {{ refresh?: boolean }} [opts]
- */
-export async function checkFeature(id, opts = {}) {
-  const feature = featureOf(id);
-  if (!feature) return null;
-  const hw = await probeHardware(opts);
-  return evaluateFeature(feature, hw);
 }
 
 export { featureOf };

@@ -40,12 +40,6 @@ export async function refreshHardware(): Promise<HardwareReport | null> {
   return loadHardware(true);
 }
 
-/** 测试/切库后清缓存 */
-export function clearHardwareCache() {
-  cache = null;
-  inflight = null;
-}
-
 /**
  * 模型标识 → 硬件门槛功能 id。
  * - `onnx:` 前缀 = Swin2SR 这类 Transformer 档，走 onnxruntime CPU，吃内存

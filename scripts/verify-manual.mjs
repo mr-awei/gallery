@@ -26,6 +26,7 @@ const REGISTRY = {
   'test-clip-proj.mjs': 'CLIP 投影抽查（需已下载模型）',
   'test-clip-text.mjs': 'CLIP 文本塔抽查（需已下载模型）',
   'test-psd.mjs': 'PSD 解析抽查（需样本文件）',
+  'stitch-preview.mjs': '拼图模板出图预览（需真实素材，只读库、只写 out）',
 };
 
 let bad = 0;

@@ -794,8 +794,3 @@ export function runUpscale({
   });
 }
 
-/** 后台预热：启动时异步自检一次（失败不影响应用） */
-export function warmupCheck() {
-  if (!runtimeInstalled()) return;
-  selfTest().catch(() => {});
-}

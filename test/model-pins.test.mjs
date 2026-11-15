@@ -15,11 +15,21 @@ test('随包可信哈希清单不再是空的，且条目格式合法', () => {
   }
 });
 
-test('下载时传相对 repoPath 也能命中清单（不能被 sidecar 悄悄接管）', () => {
+test('查哈希必须带仓库名：裸相对路径不许借别的仓库的哈希', () => {
   const [key, hex] = Object.entries(pins.models)[0];
   const short = key.split('/').slice(-2).join('/');
   assert.equal(pinnedSha(key), hex.toLowerCase());
-  assert.equal(pinnedSha(short), hex.toLowerCase());
+  // 回归：BiRefNet lite 的 repoPath 正好是 `onnx/model.onnx`，旧的后缀唯一匹配
+  // 会命中 U-2-Net 的哈希 → 224MB 下到 100% 后必然校验失败、文件被删、界面回退「未下载」
+  assert.equal(pinnedSha(short), '');
+  assert.equal(pinnedSha('onnx/model.onnx'), '');
+  // 全路径必须查得到（BiRefNet lite 自己有固化哈希，和 U-2-Net 那份互不干扰）
+  assert.equal(
+    pinnedSha('onnx-community/BiRefNet_lite-ONNX/onnx/model.onnx'),
+    '5600024376f572a557870a5eb0afb1e5961636bef4e1e22132025467d0f03333'
+  );
+  assert.notEqual(pinnedSha('onnx-community/BiRefNet_lite-ONNX/onnx/model.onnx'), pinnedSha('sunseeker001/U-2-Net-Human-Seg/onnx/model.onnx'));
+  assert.equal(isPinned(short), false);
   assert.equal(pinnedSha('onnx/unknown-model.onnx'), '');
 });
 
@@ -40,6 +50,12 @@ test('去背景 / 超分权重都在清单里（运行前必须能强校验）',
   // 旗舰抠图档（BEN2）也必须强校验：它是自动选档里优先级最高的一档，被换掉影响面最大
   const ben2 = Object.keys(pins.models).find((k) => k.startsWith('PramaLLC/BEN2/'));
   assert.ok(ben2, 'BEN2 权重未固化哈希');
+
+  // 精细档（BiRefNet lite）同样要能强校验：它的 repoPath 是 onnx/model.onnx，
+  // 曾经因为裸路径查表串到 U-2-Net 的哈希，下到 100% 后必被删
+  const birefnet = Object.keys(pins.models).find((k) => k.includes('BiRefNet_lite'));
+  assert.ok(birefnet, 'BiRefNet lite 权重未固化哈希');
+  assert.equal(KNOWN_SHA256[birefnet], pins.models[birefnet].toLowerCase());
 
   // 人脸：两个权重缺一个都等于没有强校验（检测模型被换掉同样能伪造结果）
   for (const name of ['det_10g.onnx', 'w600k_r50.onnx']) {
@@ -122,7 +138,33 @@ test('downloadModelFile：前缀 + repoPath 只拼一次（误传完整 URL 不�
       allowPrivate: true,
     });
     assert.equal(r2.size, Buffer.byteLength(body));
-    assert.deepEqual(seen, ['/models/a.onnx', '/models/a.onnx']);
+
+    // 串号回归：裸路径不再借用清单里别的仓库的哈希，能正常落盘且如实标未比对清单
+    const r3 = await downloadModelFile({
+      mirrors: [base],
+      repoPath: 'onnx/model.onnx',
+      dest: path.join(dir, 'c.onnx'),
+      minBytes: 16,
+      allowPrivate: true,
+    });
+    assert.equal(r3.size, Buffer.byteLength(body));
+    assert.equal(r3.verified, false);
+
+    // pinKey 指向清单里真实存在的哈希时，字节对不上必须失败，且不留 .part / 半成品
+    await assert.rejects(
+      downloadModelFile({
+        mirrors: [base],
+        repoPath: 'onnx/model.onnx',
+        pinKey: 'sunseeker001/U-2-Net-Human-Seg/onnx/model.onnx',
+        dest: path.join(dir, 'd.onnx'),
+        minBytes: 16,
+        allowPrivate: true,
+      }),
+      /可信清单不一致/
+    );
+    assert.equal(fs.existsSync(path.join(dir, 'd.onnx')), false, '校验失败不许留下正式文件');
+    assert.equal(fs.existsSync(path.join(dir, 'd.onnx.part')), false, '校验失败要清掉 .part');
+    assert.deepEqual(seen, ['/models/a.onnx', '/models/a.onnx', '/onnx/model.onnx', '/onnx/model.onnx']);
   } finally {
     srv.close();
     await fsp.rm(dir, { recursive: true, force: true });

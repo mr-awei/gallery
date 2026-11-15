@@ -210,10 +210,12 @@ button.act { width:100%; margin-top:16px; padding:13px; border:0; border-radius:
   var readOnly = ${readOnly ? 'true' : 'false'};
 
   var pwa = document.getElementById('pwa');
-  try { if (localStorage.getItem('tuku_pwa_hint') === '1') pwa.hidden = true; } catch (e) {}
+  // 隐私模式 / 存储被禁用时 localStorage 会抛，页面照常用，这里刻意静默
+  try { if (localStorage.getItem('tuku_pwa_hint') === '1') pwa.hidden = true; } catch (e) { /* 忽略存储不可用 */ }
   document.getElementById('pwa-close').addEventListener('click', function () {
     pwa.hidden = true;
-    try { localStorage.setItem('tuku_pwa_hint', '1'); } catch (e) {}
+    // 记住「别再提示安装」纯属体验优化，存不下下次还会提示一次，不影响使用
+    try { localStorage.setItem('tuku_pwa_hint', '1'); } catch (e) { /* 忽略存储不可用 */ }
   });
   var deferred = null;
   window.addEventListener('beforeinstallprompt', function (e) {
@@ -227,7 +229,9 @@ button.act { width:100%; margin-top:16px; padding:13px; border:0; border-radius:
   });
   // 局域网 http://192.168.x.x 不是安全上下文，SW 不会注册；HTTPS 反代下才启用离线外壳
   if ('serviceWorker' in navigator && window.isSecureContext) {
-    navigator.serviceWorker.register('/sw.js').catch(function () {});
+    navigator.serviceWorker.register('/sw.js').catch(function () {
+      /* 离线外壳注册失败不影响在线浏览（局域网 http 场景本来就不注册） */
+    });
   }
 
   var list = document.getElementById('list');
@@ -265,9 +269,10 @@ button.act { width:100%; margin-top:16px; padding:13px; border:0; border-radius:
         target.parentNode.appendChild(hint);
       });
       target.addEventListener('change', function () {
-        try { localStorage.setItem('tuku_lan_folder', target.value); } catch (e) {}
+        // 记住上次目标目录纯属体验优化，存不下不影响本次上传
+        try { localStorage.setItem('tuku_lan_folder', target.value); } catch (e) { /* 忽略存储不可用 */ }
       });
-    } catch (e) {}
+    } catch (e) { /* 投送面板初始化失败：整块隐藏即可，不影响浏览 */ }
   }
 
   var files = document.getElementById('files');

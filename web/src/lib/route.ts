@@ -17,6 +17,7 @@ export const VIEWS = [
   'knowledge',
   'search',
   'smart',
+  'places',
   'enhance',
   'bookmarks',
   'tutorial',
@@ -38,6 +39,7 @@ export const DEFAULT_FILTERS: Filters = {
   hue: '',
   colorHex: '',
   colorTol: 48,
+  bbox: '',
 };
 
 /** 参与 URL 的筛选字段（数组用逗号连接，默认值不写入） */
@@ -56,6 +58,8 @@ const FILTER_KEYS = [
   'colorTol',
   'kind',
   'pending',
+  // 地图框选也进 URL：把「某个地点的照片」发出去，对方打开就是那块地图
+  'bbox',
 ] as const;
 
 type FilterKey = (typeof FILTER_KEYS)[number];
@@ -91,6 +95,7 @@ export function parseRoute(search: string): RouteState {
     hue: p.get('hue') || '',
     colorHex: p.get('colorHex') || '',
     colorTol: Number(p.get('colorTol')) || d.colorTol,
+    bbox: p.get('bbox') || '',
   };
   const kind = p.get('kind');
   if (kind) filters.kind = kind;

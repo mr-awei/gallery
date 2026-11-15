@@ -111,7 +111,8 @@ export const LIVE_HTML = `<!doctype html>
   });
 
   function stopRenderer() {
-    if (renderer) { try { renderer.destroy(); } catch {} renderer = null; }
+    // 切画面时旧渲染器的清理失败不该拦住新画面
+    if (renderer) { try { renderer.destroy(); } catch { /* 清理尽力而为 */ } renderer = null; }
     clearTimeout(timer);
     timer = null;
     layers = [];
@@ -148,7 +149,15 @@ export const LIVE_HTML = `<!doctype html>
 
   async function startSlideshow() {
     let data = { items: [], interval: 15, kenBurns: true };
-    try { data = await (await api('/api/wallpaper/live/playlist')).json(); } catch {}
+    let fetchErr = '';
+    try { data = await (await api('/api/wallpaper/live/playlist')).json(); } catch (e) {
+      // 以前这里静默：服务没起来时也提示「相册里还没有图片」，用户会去翻收藏夹白找
+      fetchErr = (e && e.message) || '请求失败';
+    }
+    if (fetchErr) {
+      say('播放清单读取失败：' + fetchErr + '（检查主服务是否在运行）');
+      return;
+    }
     if (!data.items || !data.items.length) {
       say('相册里还没有图片：请先收藏几张，或在设置里把范围改成「全库」');
       return;
@@ -228,14 +237,21 @@ export const LIVE_HTML = `<!doctype html>
     const gl = canvas.getContext('webgl', { alpha: false, antialias: false, depth: false });
     if (!gl) { say('当前环境不支持 WebGL，无法使用着色器壁纸'); return; }
     let source = String(cfg.shaderSource || '').trim();
+    let listErr = '';
     if (!source) {
       try {
         const list = await (await api('/api/wallpaper/live/shaders')).json();
         const hit = (list.presets || []).find((p) => p.id === (cfg.shaderPreset || 'plasma'));
         source = (hit || (list.presets || [])[0])?.source || '';
-      } catch {}
+      } catch (e) {
+        listErr = (e && e.message) || '请求失败';
+      }
     }
-    if (!source) { say('没有可用的着色器预设'); return; }
+    // 请求失败和「预设列表真的为空」是两件事，混成一句用户不知道该去修什么
+    if (!source) {
+      say(listErr ? '着色器预设读取失败：' + listErr : '没有可用的着色器预设');
+      return;
+    }
     const compile = (type, src) => {
       const sh = gl.createShader(type);
       gl.shaderSource(sh, src);
@@ -490,10 +506,12 @@ export const LIVE_HTML = `<!doctype html>
       destroy() {
         cancelAnimationFrame(raf);
         window.removeEventListener('resize', resize);
-        try { audio?.pause(); } catch {}
-        try { stream?.getTracks().forEach((t) => t.stop()); } catch {}
-        try { sourceNode?.disconnect(); } catch {}
-        try { ac?.close(); } catch {}
+        // 下面全是「退出时尽力而为」的清理：对象可能已经被浏览器回收过一遍，
+        // 这里失败不影响任何人，报错只会污染控制台，所以刻意静默
+        try { audio?.pause(); } catch { /* 音频上下文已关闭，忽略 */ }
+        try { stream?.getTracks().forEach((t) => t.stop()); } catch { /* 轨道已结束，忽略 */ }
+        try { sourceNode?.disconnect(); } catch { /* 节点已断开，忽略 */ }
+        try { ac?.close(); } catch { /* 音频上下文已关闭，忽略 */ }
       },
     };
   }

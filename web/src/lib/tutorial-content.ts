@@ -7,12 +7,13 @@
  */
 
 import type { TutorialCategory, TutorialSection, TutorialShortcut } from './tutorial/types';
-import { EXTRA_TUTORIAL } from './tutorial/extra';
+import { extraTutorial } from './tutorial/extra';
 
 export type { TutorialCategory, TutorialSection, TutorialShortcut };
 
 /** 首批（核心流程）内容；逐控件的小功能在 tutorial/extra-*.ts 里补齐 */
-const BASE_TUTORIAL: TutorialCategory[] = [
+export function baseTutorial(): TutorialCategory[] {
+  return [
   {
     id: 'start',
     title: '入门',
@@ -782,26 +783,36 @@ const BASE_TUTORIAL: TutorialCategory[] = [
       },
     ],
   },
-];
+  ];
+}
+
 
 /**
  * 合并顺序：核心流程在前，逐控件的小功能在后。
  * 同一分类 id 会在合并时合并 sections，方便 extra 文件按主题续写（不占地新建分类）。
  */
-export const TUTORIAL: TutorialCategory[] = (() => {
-  const out: TutorialCategory[] = BASE_TUTORIAL.map((c) => ({ ...c, sections: [...c.sections] }));
-  for (const c of EXTRA_TUTORIAL) {
+/**
+ * 语料只做中文，合并结果是稳定的；保留函数形态是为了让 extra 文件仍能按需拼装，
+ * 调用方按模块级常量理解即可，不必再传语言。
+ */
+export function getTutorial(): TutorialCategory[] {
+  const out: TutorialCategory[] = baseTutorial().map((c) => ({ ...c, sections: [...c.sections] }));
+  for (const c of extraTutorial()) {
     const hit = out.find((x) => x.id === c.id);
     if (hit) hit.sections.push(...c.sections);
     else out.push(c);
   }
   return out;
-})();
+}
 
-export const TUTORIAL_CATEGORIES = TUTORIAL.map((c) => ({ id: c.id, title: c.title, count: c.sections.length }));
+export function getTutorialCategories(tutorial = getTutorial()) {
+  return tutorial.map((c) => ({ id: c.id, title: c.title, count: c.sections.length }));
+}
 
-export const TUTORIAL_TOTAL = TUTORIAL.reduce((n, c) => n + c.sections.length, 0);
+export function getTutorialTotal(tutorial = getTutorial()) {
+  return tutorial.reduce((n, c) => n + c.sections.length, 0);
+}
 
-export const TUTORIAL_SECTIONS = TUTORIAL.flatMap((c) =>
-  c.sections.map((s) => ({ ...s, categoryId: c.id, categoryTitle: c.title }))
-);
+export function getTutorialSections(tutorial = getTutorial()) {
+  return tutorial.flatMap((c) => c.sections.map((s) => ({ ...s, categoryId: c.id, categoryTitle: c.title })));
+}

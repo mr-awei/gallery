@@ -1,7 +1,8 @@
 import type { TutorialCategory } from './types';
 
 /** 整理进阶、采集/书签/清单、检索与智能、增强 */
-export const WORKFLOW_TUTORIAL: TutorialCategory[] = [
+export function workflowTutorial(): TutorialCategory[] {
+  return [
   {
     id: 'tidy',
     title: '整理与查重',
@@ -340,4 +341,5 @@ export const WORKFLOW_TUTORIAL: TutorialCategory[] = [
       },
     ],
   },
-];
+  ];
+}

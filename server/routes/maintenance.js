@@ -16,6 +16,9 @@ import { computePHash } from '../phash.js';
 import { probeMedia } from '../lib/media-probe.js';
 import { thumbRebuildStatus } from '../lib/thumb-rebuild.js';
 import { pruneGhostFolders } from '../folders.js';
+import { cleanOrphans, scanOrphans } from '../lib/integrity.js';
+import { readSidecar } from '../lib/xmp.js';
+import { parseExif } from '../lib/exif.js';
 
 function dbFilePath() {
   try {
@@ -320,6 +323,113 @@ export function register(app, ctx) {
   );
 
   /**
+   * 拍摄地点：地图视图的数据源。
+   * precision 是「合并到小数点后几位」——0.1° 约 11km，足够把同一城市的照片归到一个点；
+   * 太细会让地图满是互相重叠的圆点。coverId 给地图弹出的小缩略图用。
+   */
+  app.get('/api/maintenance/geo-points', (req, res) => {
+    const precision = Math.max(0, Math.min(3, Number(req.query.precision) || 1));
+    const rows = db
+      .prepare(
+        `SELECT ROUND(gps_lat, ?) AS lat, ROUND(gps_lon, ?) AS lon, COUNT(*) AS n, MIN(id) AS coverId
+           FROM images
+          WHERE gps_lat IS NOT NULL AND gps_lon IS NOT NULL
+          GROUP BY lat, lon
+          ORDER BY n DESC
+          LIMIT 800`
+      )
+      .all(precision, precision);
+    const total = Number(
+      db.prepare('SELECT COUNT(*) AS n FROM images WHERE gps_lat IS NOT NULL AND gps_lon IS NOT NULL').get()?.n || 0
+    );
+    res.json({ ok: true, precision, total, points: rows });
+  });
+
+  /**
+   * 补算历史素材的 GPS：老库导入时没有落经纬度列，地图上就一片空白。
+   * 按批处理并标记 gps_checked，避免每点一次就把没 GPS 的图重读一遍。
+   */
+  app.post(
+    '/api/maintenance/gps-backfill',
+    asyncRoute(async (req, res) => {
+      const limit = Math.max(1, Math.min(500, Number(req.body?.limit) || 200));
+      const rows = db
+        .prepare(
+          `SELECT id, abs_path FROM images
+            WHERE gps_checked = 0 AND abs_path <> '' ORDER BY id DESC LIMIT ?`
+        )
+        .all(limit);
+      let found = 0;
+      for (const row of rows) {
+        let lat = null;
+        let lon = null;
+        try {
+          const meta = await sharp(row.abs_path, { failOn: 'none' }).metadata();
+          const exif = parseExif(meta.exif);
+          if (Number.isFinite(Number(exif.lat)) && Number.isFinite(Number(exif.lon))) {
+            lat = Number(exif.lat);
+            lon = Number(exif.lon);
+            found++;
+          }
+        } catch {
+          /* 文件缺失/读不出 EXIF：标记已检查，别反复试 */
+        }
+        db.prepare('UPDATE images SET gps_lat = ?, gps_lon = ?, gps_checked = 1 WHERE id = ?').run(lat, lon, row.id);
+      }
+      const remain = Number(db.prepare('SELECT COUNT(*) AS n FROM images WHERE gps_checked = 0').get()?.n || 0);
+      res.json({ ok: true, scanned: rows.length, found, remain });
+    })
+  );
+
+  /**
+   * 从 XMP sidecar 导入元数据。
+   *
+   * 出去的方向（改标签 → 写 sidecar）在 PATCH 里做完了；这里是回来的方向：
+   * 用 Lightroom / digiKam 改完标签再拷回来时，把 sidecar 里的标签、评分、备注合并进库。
+   * 合并规则保守 —— 标签取并集、评分与备注只在库里为空时补，绝不覆盖用户在库里的修改。
+   */
+  app.post(
+    '/api/maintenance/xmp-import',
+    asyncRoute(async (req, res) => {
+      const limit = Math.max(1, Math.min(2000, Number(req.body?.limit) || 500));
+      const beforeId = Number(req.body?.beforeId) || 0;
+      const rows = db
+        .prepare(
+          `SELECT id, abs_path, tags, rating, note FROM images
+            WHERE id < ? AND abs_path <> '' ORDER BY id DESC LIMIT ?`
+        )
+        .all(beforeId || Number.MAX_SAFE_INTEGER, limit + 1);
+      const page = rows.slice(0, limit);
+      const nextBeforeId = rows.length > limit ? page[page.length - 1].id : 0;
+      let updated = 0;
+      let scanned = 0;
+      for (const row of page) {
+        const meta = readSidecar(row.abs_path);
+        if (!meta) continue;
+        scanned++;
+        const dbTags = String(row.tags || '')
+          .split(',')
+          .map((t) => t.trim())
+          .filter(Boolean);
+        const merged = [...new Set([...dbTags, ...meta.tags])];
+        const tagsChanged = merged.length !== dbTags.length;
+        const rating = Number(row.rating) || 0;
+        const note = String(row.note || '');
+        if (!tagsChanged && rating === meta.rating && note === meta.note) continue;
+        // 直接写库（不走 lib.setTags：那条路会再回写 sidecar，来回互相覆盖）
+        db.prepare('UPDATE images SET tags = ?, rating = ?, note = ? WHERE id = ?').run(
+          merged.join(','),
+          rating || meta.rating,
+          note || meta.note,
+          row.id
+        );
+        updated++;
+      }
+      res.json({ ok: true, scanned, updated, nextBeforeId });
+    })
+  );
+
+  /**
    * 清理幽灵文件夹：磁盘上已不存在、子树一张图都没有的夹。
    * 侧栏冒出「另一个库的文件夹」通常就是这类残留，默认 dryRun 先给清单。
    */
@@ -329,6 +439,28 @@ export function register(app, ctx) {
       const dryRun = req.body?.dryRun !== false;
       const r = pruneGhostFolders({ dryRun });
       res.json({ ok: true, ...r });
+    })
+  );
+
+  /**
+   * 一致性守卫：孤儿行对账。
+   * 库里没有外键，异常退出（进程被杀 / 磁盘满）会留下指向已删图片的关联行 ——
+   * 它们不报错，但会让统计虚高、回收站里出现点开是空白的条目。
+   * GET 只扫描（安全）；POST 才真删，传 dryRun:true 可先看会删多少。
+   */
+  app.get('/api/maintenance/orphans', (_req, res) => {
+    res.json(scanOrphans(db));
+  });
+
+  app.post(
+    '/api/maintenance/orphans/clean',
+    asyncRoute(async (req, res) => {
+      // 默认真删（与旧接口一致）；前端先 GET 扫描拿预览，再决定是否点确认
+      const dryRun = req.body?.dryRun === true;
+      const r = cleanOrphans(db, { dryRun });
+      if (!dryRun && r.total) ctx.sseBroadcast?.('library', { path: '/api/maintenance/orphans' });
+      // after 一定要重新扫一遍（不是写死 0）：真删之后要能证明「确实归零了」
+      res.json({ ok: true, ...r, removed: r.total, after: scanOrphans(db) });
     })
   );
 
@@ -460,26 +592,13 @@ export function register(app, ctx) {
   /* ------------------------------ 库健康 ------------------------------ */
   /* 「唯一索引悄悄没建起来」与「删除留下孤儿关联」都属于用户看不见的坏状态：
      前者让并发导入能插入重复路径，后者让文件夹张数与封面撒谎。这里一次性暴露出来。 */
-  const countOrphans = () => {
-    const one = (sql) => {
-      try {
-        return Number(db.prepare(sql).get()?.c) || 0;
-      } catch {
-        return -1; // 表还不存在（极老的库）：不算问题，也不假装是 0
-      }
-    };
-    return {
-      folders: one('SELECT COUNT(*) AS c FROM image_folders WHERE image_id NOT IN (SELECT id FROM images)'),
-      comments: one('SELECT COUNT(*) AS c FROM image_comments WHERE image_id NOT IN (SELECT id FROM images)'),
-      clipVec: one('SELECT COUNT(*) AS c FROM clip_vec WHERE image_id NOT IN (SELECT id FROM images)'),
-    };
-  };
 
   app.get('/api/maintenance/health', (_req, res) => {
     res.json({
       ok: true,
       pathIndex: getPathIndexState(),
-      orphans: countOrphans(),
+      // 孤儿统计与清理共用同一套规则（lib/integrity.js），避免「健康页说有、清理时漏表」
+      orphans: scanOrphans(db),
       // 结构层「修失败了但还能跑」的问题（如 hue 列迁移不完整），以前完全不可见
       warnings: getSchemaWarnings(),
     });
@@ -488,23 +607,5 @@ export function register(app, ctx) {
   /** 重复路径清干净后补建唯一索引（启动时建不上只会告警，不会阻断） */
   app.post('/api/maintenance/path-index', (_req, res) => {
     res.json({ ok: true, ...retryPathIndex() });
-  });
-
-  app.post('/api/maintenance/orphans/clean', (_req, res) => {
-    const before = countOrphans();
-    let removed = 0;
-    try {
-      for (const n of Object.values(before)) {
-        if (n > 0) removed += n;
-      }
-      db.exec(`
-        DELETE FROM image_folders  WHERE image_id NOT IN (SELECT id FROM images);
-        DELETE FROM image_comments WHERE image_id NOT IN (SELECT id FROM images);
-        DELETE FROM clip_vec       WHERE image_id NOT IN (SELECT id FROM images);
-      `);
-    } catch (err) {
-      return res.status(500).json({ error: `清理失败：${err.message}` });
-    }
-    res.json({ ok: true, removed, after: countOrphans() });
   });
 }

@@ -5,7 +5,8 @@ import path from 'node:path';
 import sharp from 'sharp';
 import * as lib from '../library.js';
 import { buildGalleryHtml, safeFileName, MAX_ITEMS } from '../gallery-export.js';
-import { buildStitch } from '../lib/stitch.js';
+import { buildStitch, suggestCrops } from '../lib/stitch.js';
+import { STITCH_TEMPLATES, FLOW_LAYOUTS } from '../lib/stitch-templates.js';
 import { eagleExportPreview, exportEagleLibrary } from '../lib/eagle-export.js';
 import { startEagleExportJob } from '../eagle-export-job.js';
 import { bumpUsage } from '../lib/usage.js';
@@ -139,8 +140,35 @@ export function register(app, ctx) {
     })
   );
 
-  /* 图片拼接 / 联系表：GET 是为了让桌面端下载（主进程只能带 ?token=）也能用。
-   * 参数：ids=1,2,3 / columns / gap / bg / cell / format / quality */
+  /* 拼图模板清单：构图数据放在服务端一份，前端只负责画缩略图，
+   * 避免「前端一套坐标、后端一套坐标」两边慢慢对不上 */
+  app.get('/api/export/stitch/templates', (_req, res) => {
+    res.setHeader('Cache-Control', 'public, max-age=300');
+    res.json({ templates: STITCH_TEMPLATES, layouts: FLOW_LAYOUTS });
+  });
+
+  /* 自动构图：让显著度检测给每格算出焦点与缩放，返回具体数值。
+   * 前端点「自动构图」后要在这个结果上继续手调，所以不能只回一张图。 */
+  app.get(
+    '/api/export/stitch/crops',
+    asyncRoute(async (req, res) => {
+      const ids = String(req.query.ids || '')
+        .split(',')
+        .map((s) => Number(s.trim()))
+        .filter((n) => Number.isFinite(n) && n > 0);
+      const crops = await suggestCrops(ids, String(req.query.template || ''), req.query.outWidth);
+      res.setHeader('Cache-Control', 'no-store');
+      res.json({ crops });
+    })
+  );
+
+  /* 图片拼接 / 版面生成：GET 是为了让桌面端下载（主进程只能带 ?token=）也能用。
+   * 参数：ids=1,2,3 / template=<模板 id> / crops=fx,fy,z;...（auto = 自动构图）
+   *      layout=auto|grid|justified|mosaic|poster|comic|seamless|stack（模板之外的兜底版式）
+   *      ratio=auto|1:1|4:5|3:4|16:9|9:16|2:3 / outWidth / columns / gap / bg / cell
+   *      radius / shadow / border / backdrop（覆盖模板默认装饰）
+   *      seamless=1（无缝：留白/缝隙/圆角/描边/投影全部归零）
+   *      format / quality / title / subtitle / billing（后三个是海报文字层）/ file（文件名） */
   app.get(
     '/api/export/stitch',
     asyncRoute(async (req, res) => {
@@ -148,17 +176,33 @@ export function register(app, ctx) {
         .split(',')
         .map((s) => Number(s.trim()))
         .filter((n) => Number.isFinite(n) && n > 0);
-      const title = String(req.query.title || '').slice(0, 60) || '拼接图';
+      // 叠字用的标题与文件名分开：没填标题时不能凭空在海报上压一行「拼接图」，
+      // 但没文字的模板（四格、九格…）仍然要能自己取文件名，所以单给一个 file 参数
+      const title = String(req.query.title || '').slice(0, 60);
+      const fileTitle = String(req.query.file || '').slice(0, 60) || title || '拼接图';
       const r = await buildStitch({
         ids,
+        template: req.query.template,
+        crops: req.query.crops,
+        subtitle: req.query.subtitle,
+        billing: req.query.billing,
+        layout: req.query.layout,
+        ratio: req.query.ratio,
+        outWidth: req.query.outWidth,
         columns: req.query.columns,
         gap: req.query.gap,
         bg: req.query.bg,
         cell: req.query.cell,
+        radius: req.query.radius,
+        shadow: req.query.shadow,
+        border: req.query.border,
+        backdrop: req.query.backdrop,
+        seamless: req.query.seamless,
         format: req.query.format,
         quality: req.query.quality,
+        title,
       });
-      const file = `${safeFileName(title)}.${r.ext}`;
+      const file = `${safeFileName(fileTitle)}.${r.ext}`;
       res.setHeader('Content-Type', r.mime);
       res.setHeader(
         'Content-Disposition',

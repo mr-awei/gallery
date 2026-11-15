@@ -265,6 +265,48 @@ try {
       thumbRes.ok && (thumbRes.headers.get('content-type') || '').startsWith('image/'),
       `id=${newId} status=${thumbRes.status} type=${thumbRes.headers.get('content-type')}`
     );
+
+    // ---- 拼图模板 ----
+    // 模板清单要被前端拿去画缩略图，自动构图要被拿去当可编辑初值，
+    // 两者任何一环断掉，界面就只剩「算法版式」，等于特性没上线。
+    const stitchIds = (wide.results || []).map((r) => Number(r.id)).filter(Boolean);
+    const tplRes = await fetch(`${BASE}/api/export/stitch/templates`, { headers });
+    const tplJson = await tplRes.json();
+    const usable = (tplJson.templates || []).filter(
+      (t) => stitchIds.length >= t.min && stitchIds.length <= t.max
+    );
+    check(
+      '拼图模板清单可用，且能按张数筛出候选',
+      tplRes.ok && usable.length > 0,
+      `模板 ${tplJson.templates?.length} 个，${stitchIds.length} 张可用 ${usable.length} 个`
+    );
+
+    const autoRes = await fetch(
+      `${BASE}/api/export/stitch/crops?ids=${stitchIds.join(',')}&template=${usable[0].id}`,
+      { headers }
+    );
+    const autoJson = await autoRes.json();
+    const autoOk =
+      autoRes.ok &&
+      autoJson.crops?.length === stitchIds.length &&
+      autoJson.crops.every((c) => c.fx >= 0 && c.fx <= 1 && c.fy >= 0 && c.fy <= 1 && c.z >= 1 && c.z <= 4);
+    check('自动构图返回每格可编辑的焦点/缩放', autoOk, JSON.stringify(autoJson.crops || autoJson));
+
+    const cropQ = (autoJson.crops || [])
+      .map((c) => `${c.fx.toFixed(3)},${c.fy.toFixed(3)},${c.z.toFixed(2)}`)
+      .join(';');
+    const renderRes = await fetch(
+      `${BASE}/api/export/stitch?ids=${stitchIds.join(',')}&template=${encodeURIComponent(usable[0].id)}` +
+        `&crops=${encodeURIComponent(cropQ)}&outWidth=900&title=${encodeURIComponent('冒烟片名')}`,
+      { headers }
+    );
+    const renderBuf = Buffer.from(await renderRes.arrayBuffer());
+    const renderMeta = renderRes.ok ? await sharp(renderBuf).metadata() : {};
+    check(
+      '按模板 + 逐格构图渲染出海报',
+      renderRes.ok && renderMeta.width === 900 && renderBuf.length > 20000,
+      `status=${renderRes.status} ${renderMeta.width}x${renderMeta.height} ${renderBuf.length}B`
+    );
   }
 
   // 错误响应必须是 JSON：未匹配的 /api 路径若掉进 HTML 兜底，前端 request() 解析失败，
@@ -404,6 +446,9 @@ try {
       healthj?.pathIndex &&
       typeof healthj.pathIndex.ok === 'boolean' &&
       healthj.orphans &&
+      // 孤儿统计必须是完整结构（total + 分表明细），不能只回三个写死的字段
+      typeof healthj.orphans.total === 'number' &&
+      Array.isArray(healthj.orphans.byTable) &&
       Array.isArray(healthj.warnings),
     `${health.status}`
   );
@@ -411,9 +456,84 @@ try {
   const idx = await fetch(`${BASE}/api/maintenance/path-index`, { method: 'POST', ...auth });
   const idxj = idx.ok ? await idx.json() : null;
   check('补建路径索引幂等（已存在时不报错）', idx.status === 200 && idxj?.ok === true);
+  const orphanDry = await fetch(`${BASE}/api/maintenance/orphans/clean`, {
+    method: 'POST',
+    headers: { ...auth.headers, 'Content-Type': 'application/json' },
+    body: JSON.stringify({ dryRun: true }),
+  });
+  const orphanDryj = orphanDry.ok ? await orphanDry.json() : null;
+  check(
+    '清理孤儿关联接口可用（dry-run 只报数不删）',
+    orphanDry.status === 200 && orphanDryj?.ok === true && orphanDryj?.dryRun === true && typeof orphanDryj?.total === 'number',
+    `${orphanDry.status}`
+  );
   const orphan = await fetch(`${BASE}/api/maintenance/orphans/clean`, { method: 'POST', ...auth });
   const orphanj = orphan.ok ? await orphan.json() : null;
-  check('清理孤儿关联接口可用', orphan.status === 200 && orphanj?.ok === true && orphanj.after);
+  check(
+    '清理孤儿关联回报删了几行 + 复查结果',
+    orphan.status === 200 &&
+      orphanj?.ok === true &&
+      typeof orphanj.removed === 'number' &&
+      // after 是清理后重新扫描的结果，不是写死的 0
+      typeof orphanj.after?.total === 'number' &&
+      orphanj.after.total === 0 &&
+      orphanj.after.total <= (healthj?.orphans?.total ?? 0),
+    JSON.stringify({ removed: orphanj?.removed, after: orphanj?.after?.total })
+  );
+
+  // 地点视图：地图数据源 + 历史素材补算 GPS
+  const geo = await fetch(`${BASE}/api/maintenance/geo-points`, auth);
+  const geoj = geo.ok ? await geo.json() : null;
+  check(
+    '地点视图：坐标聚合接口可用（total + 点集）',
+    geo.status === 200 && geoj?.ok === true && typeof geoj.total === 'number' && Array.isArray(geoj.points),
+    `${geo.status}`
+  );
+  const gps = await fetch(`${BASE}/api/maintenance/gps-backfill`, {
+    method: 'POST',
+    headers: { ...auth.headers, 'Content-Type': 'application/json' },
+    body: JSON.stringify({ limit: 3 }),
+  });
+  const gpsj = gps.ok ? await gps.json() : null;
+  check(
+    '补算 GPS 接口可用（会标记已检查，remain 是数字）',
+    gps.status === 200 && gpsj?.ok === true && typeof gpsj.scanned === 'number' && typeof gpsj.remain === 'number',
+    `${gps.status}`
+  );
+
+  // XMP sidecar 导入（出去的方向在 PATCH 里，回来的是这条）
+  const xmp = await fetch(`${BASE}/api/maintenance/xmp-import`, {
+    method: 'POST',
+    headers: { ...auth.headers, 'Content-Type': 'application/json' },
+    body: JSON.stringify({ limit: 5 }),
+  });
+  const xmpj = xmp.ok ? await xmp.json() : null;
+  check(
+    'XMP sidecar 导入接口可用（scanned/updated 都是数字）',
+    xmp.status === 200 && xmpj?.ok === true && typeof xmpj.scanned === 'number' && typeof xmpj.updated === 'number',
+    `${xmp.status}`
+  );
+
+  // 自动备份排程配置（只读，避免冒烟真的往磁盘写备份）
+  const autoBk = await fetch(`${BASE}/api/transfer/auto`, auth);
+  const autoBkj = autoBk.ok ? await autoBk.json() : null;
+  check(
+    '自动备份配置可读（enabled + everyDays + keep）',
+    autoBk.status === 200 &&
+      typeof autoBkj?.enabled === 'boolean' &&
+      typeof autoBkj?.everyDays === 'number' &&
+      typeof autoBkj?.keep === 'number',
+    `${autoBk.status}`
+  );
+
+  // 多步撤销：栈深度要能读出来（undo/redo 各一个计数）
+  const undoSt = await fetch(`${BASE}/api/undo/last`, auth);
+  const undoStj = undoSt.ok ? await undoSt.json() : null;
+  check(
+    '撤销栈深度可读（canUndo / canRedo 都是数字）',
+    undoSt.status === 200 && typeof undoStj?.canUndo === 'number' && typeof undoStj?.canRedo === 'number',
+    `${undoSt.status}`
+  );
 
   const orphanThumbs = await fetch(`${BASE}/api/maintenance/orphan-thumbs`, {
     method: 'POST',

@@ -3,14 +3,18 @@
  * 插件清单与路径校验（纯函数，可单测）。
  *
  * 最小插件契约：plugins/<id>/plugin.json + 一个 ESM 入口。
- * 权限是「能力白名单」而不是 OS 级沙箱：脚本跑在独立子进程里、拿不到 db 句柄，
- * 只能拿到父进程递进去的一个普通对象；要写库必须显式声明 image:write，
- * 由父进程按白名单字段应用 patch。插件进程里的 Node 能力并未被剥夺，
- * 因此只安装自己信任的插件（这一条会写进设置页）。
+ *
+ * 沙箱分两层，都不假装是 OS 级隔离：
+ * 1. 进程层：独立子进程 + 超时 + 输出限额，拿不到 db / settings 句柄；
+ * 2. 能力层：模块解析阶段拒绝 fs / child_process / 网络套接字等危险模块，
+ *    要联网必须声明 `net`，要读插件目录外的文件必须声明 `fs:read`
+ *    （且只能通过受限的 readFile 读插件自己目录下的文件）。
+ * 剩下能逃逸的只有 Node 内部 binding —— 所以仍然只装信任的插件，设置页照实写。
  */
 import path from 'node:path';
 
-export const PLUGIN_PERMISSIONS = Object.freeze(['image:read', 'image:write', 'log']);
+export const PLUGIN_PERMISSIONS = Object.freeze(['image:read', 'image:write', 'log', 'net', 'fs:read']);
+
 export const PLUGIN_PATCH_FIELDS = Object.freeze(['tags', 'note', 'rating', 'favorite']);
 
 const ID_RE = /^[a-z0-9][a-z0-9_-]{1,40}$/;

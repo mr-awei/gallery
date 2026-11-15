@@ -15,7 +15,13 @@ let upscaleChecking = false;
     '/api/enhance/standards',
     (_req, res) => {
       res.json({
-        standards: Object.entries(lib.ENHANCE_STANDARDS).map(([key, v]) => ({ key, label: v.label })),
+        // 带上宽高：前端要按目标像素量提示「超过 4K 会明显更慢」，不能只给个 key
+        standards: Object.entries(lib.ENHANCE_STANDARDS).map(([key, v]) => ({
+          key,
+          label: v.label,
+          width: v.width,
+          height: v.height,
+        })),
         config: getSettings().enhance || {},
       });
     }

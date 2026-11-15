@@ -6,7 +6,7 @@
  * 正文只认 `代码` 与 **粗体** 两种行内标记。
  */
 import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
-import { TUTORIAL, TUTORIAL_CATEGORIES, TUTORIAL_SECTIONS, TUTORIAL_TOTAL } from '../lib/tutorial-content';
+import { getTutorial, getTutorialCategories, getTutorialSections, getTutorialTotal } from '../lib/tutorial-content';
 
 const INLINE = /(\*\*[^*]+\*\*|`[^`]+`)/g;
 
@@ -69,6 +69,11 @@ function snippetOf(body: string, tokens: string[]) {
 }
 
 export default function Tutorial({ initialQuery = '' }: { initialQuery?: string }) {
+  // 语料是纯中文常量集，挂载时取一次即可
+  const TUTORIAL = useMemo(() => getTutorial(), []);
+  const TUTORIAL_CATEGORIES = useMemo(() => getTutorialCategories(TUTORIAL), [TUTORIAL]);
+  const TUTORIAL_TOTAL = getTutorialTotal(TUTORIAL);
+  const TUTORIAL_SECTIONS = useMemo(() => getTutorialSections(TUTORIAL), [TUTORIAL]);
   const [q, setQ] = useState(initialQuery);
   const [cat, setCat] = useState<string | null>(null);
   const [open, setOpen] = useState<Set<string>>(() => new Set([TUTORIAL[0]?.sections[0]?.id].filter(Boolean) as string[]));
@@ -100,11 +105,11 @@ export default function Tutorial({ initialQuery = '' }: { initialQuery?: string 
       .filter((x): x is { s: (typeof TUTORIAL_SECTIONS)[number]; score: number } => !!x)
       .sort((a, b) => b.score - a.score || a.s.title.localeCompare(b.s.title, 'zh-Hans-CN'))
       .filter((x) => !cat || x.s.categoryId === cat);
-  }, [tokens, cat]);
+  }, [tokens, cat, TUTORIAL_SECTIONS]);
 
   const sections = useMemo(
     () => TUTORIAL.filter((c) => !cat || c.id === cat),
-    [cat]
+    [cat, TUTORIAL]
   );
 
   const toggle = (id: string) =>
@@ -119,9 +124,9 @@ export default function Tutorial({ initialQuery = '' }: { initialQuery?: string 
     <div className="tut-page">
       <header className="tut-head">
         <div>
-          <h2>使用教程</h2>
+          <h2>{'使用教程'}</h2>
           <p className="tut-sub">
-            共 {TUTORIAL_TOTAL} 条功能说明，覆盖 {TUTORIAL_CATEGORIES.length} 个分类。输入关键词搜索，或从左侧分类进入。
+            {`共 ${TUTORIAL_TOTAL} 条功能说明，覆盖 ${TUTORIAL_CATEGORIES.length} 个分类。输入关键词搜索，或从左侧分类进入。`}
           </p>
         </div>
         <div className="tut-search">
@@ -136,11 +141,11 @@ export default function Tutorial({ initialQuery = '' }: { initialQuery?: string 
                 else inputRef.current?.blur();
               }
             }}
-            placeholder="搜功能：堆叠、水印、时间点笔记、壁纸…"
-            aria-label="搜索教程"
+            placeholder={'搜功能：堆叠、水印、时间点笔记、壁纸…'}
+            aria-label={'搜索教程'}
           />
           {q && (
-            <button className="tut-clear" onClick={() => setQ('')} title="清空搜索">
+            <button className="tut-clear" onClick={() => setQ('')} title={'清空搜索'}>
               ×
             </button>
           )}
@@ -148,9 +153,9 @@ export default function Tutorial({ initialQuery = '' }: { initialQuery?: string 
       </header>
 
       <div className="tut-layout">
-        <nav className="tut-nav" aria-label="教程分类">
+        <nav className="tut-nav" aria-label={'教程分类'}>
           <button className={`tut-nav-item${cat === null ? ' on' : ''}`} onClick={() => setCat(null)}>
-            全部
+            {'全部'}
             <span>{TUTORIAL_TOTAL}</span>
           </button>
           {TUTORIAL_CATEGORIES.map((c) => (
@@ -169,8 +174,13 @@ export default function Tutorial({ initialQuery = '' }: { initialQuery?: string 
           {results ? (
             <>
               <div className="tut-result-head">
-                找到 <b>{results.length}</b> 条{cat ? `（${TUTORIAL_CATEGORIES.find((c) => c.id === cat)?.title}）` : ''}
-                {results.length === 0 && <span className="tut-empty-hint">换个词试试，比如「堆叠」「导出」「快捷键」</span>}
+                {'找到 '}
+                <b>{results.length}</b>
+                {' 条'}
+                {cat ? ` (${TUTORIAL_CATEGORIES.find((c) => c.id === cat)?.title})` : ''}
+                {results.length === 0 && (
+                  <span className="tut-empty-hint">{'换个词试试，比如「堆叠」「导出」「快捷键」'}</span>
+                )}
               </div>
               {results.map(({ s }) => (
                 <article className="tut-card" key={s.id} id={`tut-${s.id}`}>
@@ -203,7 +213,7 @@ export default function Tutorial({ initialQuery = '' }: { initialQuery?: string 
               <section className="tut-group" key={c.id}>
                 <h3 className="tut-group-title">
                   {c.title}
-                  <span>{c.sections.length} 条</span>
+                  <span>{`${c.sections.length} 条`}</span>
                 </h3>
                 {c.sections.map((s) => {
                   const isOpen = open.has(s.id);

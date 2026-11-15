@@ -1,4 +1,11 @@
-export interface ImageItem {
+import type { ImageDTOShape } from './dto.generated';
+
+/**
+ * 列表 / 详情返回的素材对象。
+ * 字段名由 `scripts/gen-dto-types.mjs` 从 `server/library.js:toDTO` 抽出并守门
+ * （`npm run verify` 会双向比对）；这里只负责收窄类型，不再手抄字段名。
+ */
+export interface ImageItem extends ImageDTOShape {
   id: number;
   title: string;
   source: string;
@@ -282,22 +289,9 @@ export interface Filters {
   kind?: string;
   /** 待整理入口：noFolder 未分类 / noTags 无标签 / noRating 未评分 */
   pending?: '' | 'noFolder' | 'noTags' | 'noRating';
+  /** 地图框选：minLat,minLon,maxLat,maxLon（地点视图点某个地方时写入） */
+  bbox?: string;
 }
-
-/** 素材类型（多格式） */
-export type MediaKind =
-  | 'image'
-  | 'gif'
-  | 'video'
-  | 'audio'
-  | 'font'
-  | 'pdf'
-  | 'office'
-  | 'model'
-  | 'design'
-  | 'raw'
-  | 'bookmark'
-  | 'other';
 
 /** 标签树节点：Eagle 式「分组 + 颜色 + 父子层级」 */
 export interface TagNode {
@@ -879,6 +873,9 @@ export interface EnhanceRemoteService {
 export interface EnhanceStandard {
   key: string;
   label: string;
+  /** 自定义档为 0：实际宽高取设置里的 customWidth/customHeight */
+  width?: number;
+  height?: number;
 }
 
 export interface EnhanceModel {
@@ -1075,25 +1072,6 @@ export const HUE_SAT_DEFAULTS: HueSatParams = {
   colorizeSat: 25,
   colorizeLight: 0,
 };
-
-/** 新建一份可安全改写的默认值（对象层级深，避免多处共享同一引用） */
-export function makeHueSat(): HueSatParams {
-  return {
-    bands: {
-      master: zeroBand(),
-      red: zeroBand(),
-      yellow: zeroBand(),
-      green: zeroBand(),
-      cyan: zeroBand(),
-      blue: zeroBand(),
-      magenta: zeroBand(),
-    },
-    colorize: false,
-    colorizeHue: 210,
-    colorizeSat: 25,
-    colorizeLight: 0,
-  };
-}
 
 /** 色相/饱和度是否全默认（批量/保存按钮判断） */
 export function isHueSatDefault(hs: HueSatParams | undefined): boolean {
@@ -1377,6 +1355,7 @@ export type View =
   | 'knowledge'
   | 'search'
   | 'smart'
+  | 'places'
   | 'enhance'
   | 'tutorial'
   | 'settings';

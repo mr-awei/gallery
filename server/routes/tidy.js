@@ -6,6 +6,7 @@ import * as lib from '../library.js';
 import * as nd from '../lib/nondestructive.js';
 import { bakeOps } from '../lib/edit.js';
 import { db, getSettings } from '../db.js';
+import * as localTags from '../lib/local-tags.js';
 
 export function register(app, ctx) {
   const { asyncRoute, colorFilterIds } = ctx;
@@ -158,6 +159,35 @@ export function register(app, ctx) {
         .prepare('SELECT COUNT(*) AS c FROM images WHERE id NOT IN (SELECT image_id FROM ai_desc)')
         .get().c;
       res.json({ ok: true, done: results.filter((r) => r.ok).length, remain, results });
+    })
+  );
+
+  /**
+   * 本地零样本打标：CLIP 文本塔 × 图像向量，不需要任何 AI 供应商、断网可用。
+   * 默认 dryRun：先给「会打什么标签」，用户确认后再真写库。
+   */
+  app.post(
+    '/api/ai/local-tags',
+    asyncRoute(async (req, res) => {
+      const r = await localTags.tagBatch({
+        limit: req.body?.limit,
+        top: req.body?.top,
+        minCos: req.body?.minCos,
+        dryRun: req.body?.dryRun !== false,
+      });
+      // CLIP 没装好是「环境未就绪」，不是服务出错：用 503 让前端能给出下载入口
+      if (r.ok === false) return res.status(503).json(r);
+      res.json(r);
+    })
+  );
+
+  /** 单张试算：调试阈值/看某张图会被打成什么，不写库 */
+  app.get(
+    '/api/images/:id/local-tags',
+    asyncRoute(async (req, res) => {
+      if (!clip.clipReady()) return res.status(503).json({ ok: false, error: 'CLIP 模型未就绪' });
+      const r = await localTags.guessTags(Number(req.params.id));
+      res.json({ ok: true, ...r });
     })
   );
 

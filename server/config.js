@@ -6,7 +6,6 @@ import { fileURLToPath } from 'node:url';
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
 export const APP_ROOT = path.resolve(__dirname, '..');
-export const WORKSPACE_ROOT = path.resolve(APP_ROOT, '..');
 
 /**
  * 打包后的应用代码位于只读的 app.asar 内，数据库 / 缩略图 / 下载的 AI 运行库

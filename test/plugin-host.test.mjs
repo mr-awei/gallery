@@ -14,9 +14,10 @@ import { spawn } from 'node:child_process';
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const RUNTIME = path.resolve(__dirname, '..', 'server', 'plugin-runtime.js');
 
-function runRuntime(entry, permissions = []) {
+function runRuntime(entry, permissions = [], extra = {}) {
   const payload = JSON.stringify({
     entry,
+    dir: extra.dir || path.dirname(entry),
     action: 'run',
     permissions,
     image: { id: 'x', title: 't', tags: '', note: '', rating: 0, favorite: false, width: 0, height: 0, mediaKind: 'image' },
@@ -73,4 +74,80 @@ test('正常插件（只读 + 返回 patch）仍可运行', async () => {
   assert.deepEqual(msg.value.patch.tags, ['auto-x']);
   assert.deepEqual(msg.value.logs, ['hello']);
   await fsp.rm(dir, { recursive: true, force: true });
+});
+
+/** 起一个只做一件事的插件，返回结果行（没有结果行时返回 null） */
+async function runSnippet(code, permissions, extra) {
+  const dir = await fsp.mkdtemp(path.join(os.tmpdir(), 'tuku-plug-'));
+  const entry = path.join(dir, 'p.mjs');
+  await fsp.writeFile(entry, code);
+  const { stdout } = await runRuntime(entry, permissions, { ...extra, dir });
+  await fsp.rm(dir, { recursive: true, force: true });
+  const line = stdout.split('\n').find((l) => l.startsWith('__TUKU_PLUGIN__'));
+  return line ? JSON.parse(line.slice('__TUKU_PLUGIN__'.length)) : null;
+}
+
+test('未声明 net：连 node:http 也进不来（默认禁网）', async () => {
+  const msg = await runSnippet(
+    `export default async function run() { await import('node:http'); return { patch: {} }; }`,
+    ['image:read']
+  );
+  assert.equal(msg?.type, 'error');
+  assert.match(msg.message, /net|http/);
+});
+
+test('声明 net 后放行 http 模块（白名单不是一律全禁）', async () => {
+  const msg = await runSnippet(
+    `export default async function run() { const m = await import('node:http'); return { result: { hasCreateServer: typeof m.createServer === 'function' } }; }`,
+    ['image:read', 'net']
+  );
+  assert.equal(msg?.type, 'result');
+  assert.equal(msg.value.result.hasCreateServer, true);
+});
+
+test('声明 fs:read 也不直接暴露 node:fs（只给受限 readFile）', async () => {
+  const inside = await runSnippet(`import { readFileSync } from 'node:fs';`, ['fs:read']);
+  assert.equal(inside?.type, 'error');
+  assert.match(inside.message, /不允许访问模块|fs/);
+});
+
+test('readFile 读插件目录外（../）被拒', async () => {
+  const msg = await runSnippet(
+    `export default async function run({ readFile }) {
+       try { readFile('../../secret.txt'); return { result: { escaped: true } }; }
+       catch (e) { return { result: { escaped: false, message: String(e.message) } }; }
+     }`,
+    ['fs:read']
+  );
+  assert.equal(msg?.type, 'result');
+  assert.equal(msg.value.result.escaped, false);
+  assert.match(msg.value.result.message, /只能读插件自己目录/);
+});
+
+test('fs:read 时 readFile 能读自己目录下的文件', async () => {
+  const dir = await fsp.mkdtemp(path.join(os.tmpdir(), 'tuku-plug-'));
+  const entry = path.join(dir, 'p.mjs');
+  await fsp.writeFile(path.join(dir, 'data.txt'), 'hello-sidecar');
+  await fsp.writeFile(
+    entry,
+    `export default async function run({ readFile }) {
+       return { result: { text: readFile('data.txt'), hasHelper: typeof readFile === 'function' } };
+     }`
+  );
+  const { stdout } = await runRuntime(entry, ['fs:read'], { dir });
+  const line = stdout.split('\n').find((l) => l.startsWith('__TUKU_PLUGIN__'));
+  const msg = JSON.parse(line.slice('__TUKU_PLUGIN__'.length));
+  assert.equal(msg.type, 'result');
+  assert.equal(msg.value.result.hasHelper, true);
+  assert.equal(msg.value.result.text, 'hello-sidecar');
+  await fsp.rm(dir, { recursive: true, force: true });
+});
+
+test('没声明 fs:read 时没有 readFile 辅助函数', async () => {
+  const msg = await runSnippet(
+    `export default async function run({ readFile }) { return { result: { has: typeof readFile } }; }`,
+    ['image:read']
+  );
+  assert.equal(msg?.type, 'result');
+  assert.equal(msg.value.result.has, 'undefined');
 });

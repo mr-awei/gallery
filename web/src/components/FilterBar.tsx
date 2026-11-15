@@ -5,7 +5,6 @@ import { BUCKET_LABELS, ORIENTATION_LABELS, SOURCE_LABELS, api, desktop, quiet }
 import { IconColumns, IconFolder, IconGrid, IconSearch } from './Icons';
 import { THUMB_DEFAULT, THUMB_MAX, THUMB_MIN, THUMB_PRESETS, clampThumbWidth, thumbPresetOf } from '../lib/thumb-size';
 import ColorPad from './ColorPad';
-import { useLang } from '../lib/i18n';
 
 interface Props {
   filters: Filters;
@@ -44,20 +43,29 @@ const KINDS: { key: string; label: string }[] = [
 const BUCKETS = ['sd', 'fhd', '2k', '4k'];
 /** 12 个色相区间 + 黑白灰（粗筛快捷键）。
  *  区间 i 对应色相 [i*30, (i+1)*30)：0红 1橙 2黄 3黄绿 4绿 5青绿 6青 7蓝 8靛 9紫 10品红 11玫粉 */
-const HUES = [
-  { v: '0', c: '#ff4d4d', t: '红' },
-  { v: '1', c: '#ff9a4d', t: '橙' },
-  { v: '2', c: '#ffe04d', t: '黄' },
-  { v: '3', c: '#c8ff4d', t: '黄绿' },
-  { v: '4', c: '#4dff6a', t: '绿' },
-  { v: '5', c: '#4dffcf', t: '青绿' },
-  { v: '6', c: '#4defff', t: '青' },
-  { v: '7', c: '#4da6ff', t: '蓝' },
-  { v: '8', c: '#5c4dff', t: '靛' },
-  { v: '9', c: '#a64dff', t: '紫' },
-  { v: '10', c: '#ff4dd2', t: '品红' },
-  { v: '11', c: '#ff4d88', t: '玫粉' },
+const HUES: { v: string; c: string; label: string }[] = [
+  { v: '0', c: '#ff4d4d', label: '红' },
+  { v: '1', c: '#ff9a4d', label: '橙' },
+  { v: '2', c: '#ffe04d', label: '黄' },
+  { v: '3', c: '#c8ff4d', label: '黄绿' },
+  { v: '4', c: '#4dff6a', label: '绿' },
+  { v: '5', c: '#4dffcf', label: '青绿' },
+  { v: '6', c: '#4defff', label: '青' },
+  { v: '7', c: '#4da6ff', label: '蓝' },
+  { v: '8', c: '#5c4dff', label: '靛' },
+  { v: '9', c: '#a64dff', label: '紫' },
+  { v: '10', c: '#ff4dd2', label: '品红' },
+  { v: '11', c: '#ff4d88', label: '玫粉' },
 ];
+
+/** 缩略图档位的中文名（档位数值来自 lib/thumb-size） */
+const PRESET_LABEL: Record<string, string> = {
+  xs: '小',
+  sm: '中小',
+  md: '中',
+  lg: '中大',
+  xl: '大',
+};
 
 /** 下拉筛选（Google Photos / Eagle 的通行做法）：
  *  入口按钮常驻一行、选项收进弹出面板，激活时按钮显示徽标，不再平铺占位。 */
@@ -94,13 +102,18 @@ function Drop(props: {
 const VIEW_MODES: { key: ViewMode; label: string; hint: string; icon: React.ReactNode }[] = [
   { key: 'masonry', label: '瀑布流', hint: '图片展开 · 保留原比例', icon: <IconColumns /> },
   { key: 'grid', label: '网格', hint: '图片展开 · 等高裁切', icon: <IconGrid /> },
-  { key: 'folder', label: '文件夹收纳', hint: '按文件夹分组收纳，可就地展开组内图片', icon: <IconFolder /> },
+  {
+    key: 'folder',
+    label: '文件夹收纳',
+    hint: '按文件夹分组收纳，可就地展开组内图片',
+    icon: <IconFolder />,
+  },
 ];
 
 /** 分段式视图切换：三个入口收在一组里，顶部不再散落一排小方块 */
 function ViewSwitch({ value, onChange }: { value: ViewMode; onChange: (m: ViewMode) => void }) {
   return (
-    <div className="view-switch" role="group" aria-label="展示方式">
+    <div className="view-switch" role="group" aria-label={'展示方式'}>
       {VIEW_MODES.map((m) => (
         <button
           key={m.key}
@@ -131,7 +144,8 @@ export default function FilterBar({
   canManualSort,
   onMarkAllSeen,
 }: Props) {
-  const { t } = useLang();
+  /** 类型下拉的标签在调用点翻译 */
+  const kinds = KINDS.map((k) => ({ key: k.key, label: k.label }));
   /** 当前列宽（收进合法区间，老 localStorage 里的小值也不会让滑块越界） */
   const curW = clampThumbWidth(colWidth ?? THUMB_DEFAULT);
   const toggleIn = (key: 'source' | 'bucket', value: string) => {
@@ -284,14 +298,26 @@ export default function FilterBar({
   /* 已生效筛选 → 可移除 chips（有筛选时才出现，不占常驻空间） */
   const chips: { label: string; swatch?: string; clear: () => void }[] = [];
   if (filters.favorite !== 'all')
-    chips.push({ label: filters.favorite === 'yes' ? '已收藏' : '未收藏', clear: () => onChange({ favorite: 'all' }) });
+    chips.push({
+      label: filters.favorite === 'yes' ? '已收藏' : '未收藏',
+      clear: () => onChange({ favorite: 'all' }),
+    });
   filters.source.forEach((s) =>
-    chips.push({ label: `来源·${SOURCE_LABELS[s] || s}`, clear: () => onChange({ source: filters.source.filter((x) => x !== s) }) })
+    chips.push({
+      label: `来源·${SOURCE_LABELS[s] || s}`,
+      clear: () => onChange({ source: filters.source.filter((x) => x !== s) }),
+    })
   );
   if (filters.orientation !== 'all')
-    chips.push({ label: `画幅·${ORIENTATION_LABELS[filters.orientation]}`, clear: () => onChange({ orientation: 'all' }) });
+    chips.push({
+      label: `画幅·${ORIENTATION_LABELS[filters.orientation]}`,
+      clear: () => onChange({ orientation: 'all' }),
+    });
   if ((filters.seen || 'all') !== 'all')
-    chips.push({ label: filters.seen === 'unseen' ? '未看过' : '已看过', clear: () => onChange({ seen: 'all' }) });
+    chips.push({
+      label: filters.seen === 'unseen' ? '未看过' : '已看过',
+      clear: () => onChange({ seen: 'all' }),
+    });
   if (filters.minRating)
     chips.push({ label: `${'★'.repeat(filters.minRating)}+`, clear: () => onChange({ minRating: 0 }) });
   filters.bucket.forEach((b) =>
@@ -302,15 +328,37 @@ export default function FilterBar({
   if (selectedHues.length) {
     const h = HUES.find((x) => x.v === selectedHues[0]);
     const label =
-      selectedHues.length > 1 ? `色系·${selectedHues.length} 项` : h ? `色系·${h.t}` : '黑白灰';
+      selectedHues.length > 1
+        ? `色系·${selectedHues.length} 项`
+        : h
+          ? `色系·${h.label}`
+          : '黑白灰';
     chips.push({ label, clear: () => onChange({ hue: '' }) });
   }
   if (filters.kind && filters.kind !== 'all') {
-    const k = KINDS.find((x) => x.key === filters.kind);
-    chips.push({ label: `类型·${k?.label || filters.kind}`, clear: () => onChange({ kind: 'all' }) });
+    const k = kinds.find((x) => x.key === filters.kind);
+    chips.push({
+      label: `类型·${k?.label || filters.kind}`,
+      clear: () => onChange({ kind: 'all' }),
+    });
   }
   if (filters.pending) {
-    chips.push({ label: PENDING_LABEL[filters.pending] || '待整理', clear: () => onChange({ pending: '' }) });
+    const pending = PENDING_LABEL[filters.pending];
+    chips.push({
+      label: pending ? pending : '待整理',
+      clear: () => onChange({ pending: '' }),
+    });
+  }
+  // 地点视图框出来的区域：一定要有可移除的 chip，否则用户不知道列表为什么只剩几张
+  if (filters.bbox) {
+    const [minLat, minLon] = filters.bbox.split(',').map(Number);
+    chips.push({
+      label:
+        Number.isFinite(minLat) && Number.isFinite(minLon)
+          ? `地点·${minLat.toFixed(1)}°, ${minLon.toFixed(1)}°`
+          : '地点',
+      clear: () => onChange({ bbox: '' }),
+    });
   }
 
   const resetAll = () =>
@@ -325,6 +373,7 @@ export default function FilterBar({
       colorHex: '',
       kind: 'all',
       pending: '',
+      bbox: '',
     });
 
   return (
@@ -332,7 +381,7 @@ export default function FilterBar({
       <div className={`toolbar toolbar-main${viewMode === 'folder' ? ' folder-mode-bar' : ''}`}>
         {viewMode === 'folder' ? (
           <div className="folder-mode-tip">
-            按文件夹收纳浏览 · 点文件夹进入，点箭头就地展开图片；切到「图片展开」可用搜索与筛选
+            {'按文件夹收纳浏览 · 点文件夹进入，点箭头就地展开图片；切到「图片展开」可用搜索与筛选'}
           </div>
         ) : (
           <>
@@ -342,24 +391,16 @@ export default function FilterBar({
           </span>
           <input
             className="input"
-            placeholder={t('搜索文件名 / 标签…（支持 tag: color: rating: folder:）', 'Search titles / tags… (tag: color: rating: folder:)')}
+            placeholder={'搜索文件名 / 标签…（支持 tag: color: rating: folder:）'}
             title={
-              t('搜索语法（可与关键词混用）：', 'Search syntax (mixable with keywords):') +
+              '搜索语法（可与关键词混用）：' +
               '\n' +
-              t(
-                'tag:风景            按标签（别名也算）\n' +
+              'tag:风景            按标签（别名也算）\n' +
                   'color:红 / color:#ff0000   按色系或精确色号\n' +
                   'rating:>=4          按星级（>= / <= / > / < / =）\n' +
                   'folder:参考         按文件夹（含子夹）\n' +
                   'kind:video          按类型\n' +
-                  'is:favorite / is:unseen    收藏 / 未看过',
-                'tag:landscape             by tag (aliases included)\n' +
-                  'color:red / color:#ff0000   by color family or exact hex\n' +
-                  'rating:>=4           by rating (>= / <= / > / < / =)\n' +
-                  'folder:ref           by folder (including subfolders)\n' +
-                  'kind:video           by media kind\n' +
-                  'is:favorite / is:unseen    favorites / unseen'
-              )
+                  'is:favorite / is:unseen    收藏 / 未看过'
             }
             value={qDraft}
             onChange={(e) => setQDraft(e.target.value)}
@@ -371,26 +412,26 @@ export default function FilterBar({
           value={filters.sort}
           onChange={(e) => onChange({ sort: e.target.value })}
         >
-          <option value="newest">{t('最新采集', 'Newest added')}</option>
-          <option value="name">{t('名称 A → Z', 'Name A → Z')}</option>
-          <option value="nameDesc">{t('名称 Z → A', 'Name Z → A')}</option>
-          <option value="recommend">{t('推荐（个人偏好 + 评分）', 'Recommended (preference + rating)')}</option>
-          <option value="rating">{t('我的星级优先', 'My rating first')}</option>
-          <option value="smart">{t('评分排序（知识库打分优先）', 'Score (knowledge base first)')}</option>
-          <option value="worst">{t('低分优先（待清理）', 'Lowest score first')}</option>
-          <option value="oldest">{t('最早采集', 'Oldest added')}</option>
-          <option value="resolution">{t('分辨率最高', 'Highest resolution')}</option>
-          <option value="largest">{t('文件最大', 'Largest file')}</option>
-          <option value="random">{t('随机', 'Random')}</option>
+          <option value="newest">{'最新采集'}</option>
+          <option value="name">{'名称 A → Z'}</option>
+          <option value="nameDesc">{'名称 Z → A'}</option>
+          <option value="recommend">{'推荐（个人偏好 + 评分）'}</option>
+          <option value="rating">{'我的星级优先'}</option>
+          <option value="smart">{'评分排序（知识库打分优先）'}</option>
+          <option value="worst">{'低分优先（待清理）'}</option>
+          <option value="oldest">{'最早采集'}</option>
+          <option value="resolution">{'分辨率最高'}</option>
+          <option value="largest">{'文件最大'}</option>
+          <option value="random">{'随机'}</option>
           {(canManualSort || filters.sort === 'manual') && (
             <option value="manual" disabled={!canManualSort}>
-              {t('手动排序（拖拽定序）', 'Manual order (drag)')}
+              {'手动排序（拖拽定序）'}
             </option>
           )}
         </select>
 
         <select className="select" value={filters.tag} onChange={(e) => onChange({ tag: e.target.value })}>
-          <option value="">{t('全部标签', 'All tags')}</option>
+          <option value="">{'全部标签'}</option>
           {tags.map((tg) => (
             <option key={tg.tag} value={tg.tag}>
               {tg.tag}（{tg.count}）
@@ -404,7 +445,7 @@ export default function FilterBar({
           {desktop?.captureScreenshot && (
             <button
               className="btn sm"
-              title="截图入库：框选屏幕区域存进图库（全局快捷键 Ctrl+Shift+S）"
+              title={'截图入库：框选屏幕区域存进图库（全局快捷键 Ctrl+Shift+S）'}
               onClick={() => {
                 // 统一入口：桌面端由主进程抓底图，浏览器端给提示
                 if (desktop?.grabScreen) window.dispatchEvent(new Event('tuku:screenshot'));
@@ -417,18 +458,21 @@ export default function FilterBar({
           {/* Eagle 式缩略图尺寸：五档预设 + 无极滑块，只在图片展开的缩略视图下可用 */}
           {onColWidth && viewMode !== 'folder' && (
             <div className="thumb-size-group">
-              <div className="thumb-presets" role="group" aria-label="缩略图预设尺寸">
-                {THUMB_PRESETS.map((p) => (
-                  <button
-                    key={p.key}
-                    type="button"
-                    className={`thumb-preset${thumbPresetOf(curW)?.key === p.key ? ' on' : ''}`}
-                    onClick={() => onColWidth(p.width)}
-                    title={`${p.label}：列宽约 ${p.width}px`}
-                  >
-                    {p.label}
-                  </button>
-                ))}
+              <div className="thumb-presets" role="group" aria-label={'缩略图预设尺寸'}>
+                {THUMB_PRESETS.map((p) => {
+                  const label = PRESET_LABEL[p.key] ?? p.label;
+                  return (
+                    <button
+                      key={p.key}
+                      type="button"
+                      className={`thumb-preset${thumbPresetOf(curW)?.key === p.key ? ' on' : ''}`}
+                      onClick={() => onColWidth(p.width)}
+                      title={`${label}：列宽约 ${p.width}px`}
+                    >
+                      {label}
+                    </button>
+                  );
+                })}
               </div>
               <input
                 className="thumb-size"
@@ -439,7 +483,7 @@ export default function FilterBar({
                 value={curW}
                 onChange={(e) => onColWidth(Number(e.target.value))}
                 title={`缩略图大小：${curW}px（可无极拖动）`}
-                aria-label="缩略图大小"
+                aria-label={'缩略图大小'}
               />
             </div>
           )}
@@ -451,21 +495,21 @@ export default function FilterBar({
         <>
       <div className="toolbar toolbar-filters" ref={rootRef}>
         {!hideFavorite && (
-          <Drop label={t('收藏', 'Favorite')} active={filters.favorite !== 'all'} open={openKey === 'fav'} onToggle={() => toggleDrop('fav')}>
+          <Drop label={'收藏'} active={filters.favorite !== 'all'} open={openKey === 'fav'} onToggle={() => toggleDrop('fav')}>
             {(['all', 'yes', 'no'] as const).map((v) => (
               <button
                 key={v}
                 className={`chip${filters.favorite === v ? ' active' : ''}`}
                 onClick={() => onChange({ favorite: v })}
               >
-                {v === 'all' ? t('全部', 'All') : v === 'yes' ? t('已收藏', 'Favorited') : t('未收藏', 'Not favorited')}
+                {v === 'all' ? '全部' : v === 'yes' ? '已收藏' : '未收藏'}
               </button>
             ))}
           </Drop>
         )}
 
         <Drop
-          label={t('来源', 'Source')}
+          label={'来源'}
           active={!!filters.source.length}
           badge={filters.source.length || undefined}
           open={openKey === 'source'}
@@ -483,7 +527,7 @@ export default function FilterBar({
         </Drop>
 
         <Drop
-          label={t('画幅', 'Shape')}
+          label={'画幅'}
           active={filters.orientation !== 'all'}
           open={openKey === 'orient'}
           onToggle={() => toggleDrop('orient')}
@@ -500,7 +544,7 @@ export default function FilterBar({
         </Drop>
 
         <Drop
-          label={t('浏览', 'Seen')}
+          label={'浏览'}
           active={(filters.seen || 'all') !== 'all'}
           open={openKey === 'seen'}
           onToggle={() => toggleDrop('seen')}
@@ -512,22 +556,22 @@ export default function FilterBar({
               onClick={() => onChange({ seen: v })}
               title={v === 'unseen' ? '还没在大图预览里看过的图片' : undefined}
             >
-              {v === 'all' ? t('全部', 'All') : v === 'unseen' ? t('未看过', 'Unseen') : t('已看过', 'Seen')}
+              {v === 'all' ? '全部' : v === 'unseen' ? '未看过' : '已看过'}
             </button>
           ))}
           {onMarkAllSeen && filters.seen === 'unseen' && (
             <button
               className="chip ghost-chip"
               onClick={onMarkAllSeen}
-              title={t('把当前筛选结果全部标记为已看', 'Mark all filtered results as seen')}
+              title={'把当前筛选结果全部标记为已看'}
             >
-              {t('全部标记为已看', 'Mark all seen')}
+              {'全部标记为已看'}
             </button>
           )}
         </Drop>
 
         <Drop
-          label={t('星级', 'Rating')}
+          label={'星级'}
           active={!!filters.minRating}
           open={openKey === 'rating'}
           onToggle={() => toggleDrop('rating')}
@@ -537,15 +581,15 @@ export default function FilterBar({
               key={n}
               className={`chip${(filters.minRating || 0) === n ? ' active' : ''}`}
               onClick={() => onChange({ minRating: n })}
-              title={n === 0 ? t('不限星级', 'Any rating') : t(`只看 ${n} 星及以上`, `${n} stars and up`)}
+              title={n === 0 ? '不限星级' : `只看 ${n} 星及以上`}
             >
-              {n === 0 ? t('不限', 'Any') : `${'★'.repeat(n)}+`}
+              {n === 0 ? '不限' : `${'★'.repeat(n)}+`}
             </button>
           ))}
         </Drop>
 
         <Drop
-          label={t('分辨率', 'Resolution')}
+          label={'分辨率'}
           active={!!filters.bucket.length}
           badge={filters.bucket.length || undefined}
           open={openKey === 'bucket'}
@@ -563,12 +607,12 @@ export default function FilterBar({
         </Drop>
 
         <Drop
-          label={t('类型', 'Kind')}
+          label={'类型'}
           active={!!filters.kind && filters.kind !== 'all'}
           open={openKey === 'kind'}
           onToggle={() => toggleDrop('kind')}
         >
-          {[{ key: 'all', label: t('全部', 'All') }, ...KINDS].map((k) => (
+          {[{ key: 'all', label: '全部' }, ...kinds].map((k) => (
             <button
               key={k.key}
               className={`chip${(filters.kind || 'all') === k.key ? ' active' : ''}`}
@@ -580,14 +624,14 @@ export default function FilterBar({
         </Drop>
 
         <Drop
-          label={t('颜色', 'Color')}
+          label={'颜色'}
           active={!!filters.colorHex || !!selectedHues.length}
           badge={selectedHues.length || (filters.colorHex ? 1 : undefined)}
           swatch={filters.colorHex || undefined}
           open={openKey === 'color'}
           onToggle={() => toggleDrop('color')}
         >
-          <div className="sec-label">{t('色系快筛 · 可多选（黑白灰单独一项）', 'Color families · multi-select (grayscale is separate)')}</div>
+          <div className="sec-label">{'色系快筛 · 可多选（黑白灰单独一项）'}</div>
           <div className="hue-row">
             {HUES.map((h) => (
               <button
@@ -595,22 +639,22 @@ export default function FilterBar({
                 type="button"
                 className={`hue-chip${selectedHues.includes(h.v) ? ' on' : ''}`}
                 style={{ background: h.c }}
-                title={`只看${h.t}色系`}
-                aria-label={`只看${h.t}色系`}
+                title={`只看${h.label}色系`}
+                aria-label={`只看${h.label}色系`}
                 onClick={() => toggleHue(h.v)}
               />
             ))}
             <button
               type="button"
               className={`chip hue-gray${selectedHues.includes('gray') ? ' active' : ''}`}
-              title="只看黑白灰（无彩度）图片"
+              title={'只看黑白灰（无彩度）图片'}
               onClick={() => toggleHue('gray')}
             >
-              黑白灰
+              {'黑白灰'}
             </button>
           </div>
           <div className="sec-label" style={{ marginTop: 14 }}>
-            精确颜色 · 拖动色盘 / 输入色号 / 吸管取色
+            {'精确颜色 · 拖动色盘 / 输入色号 / 吸管取色'}
           </div>
           <div className="cpad-sm">
             <ColorPad
@@ -654,7 +698,7 @@ export default function FilterBar({
             <button
               className="btn sm"
               disabled={picking || (!desktop && !eyeDropperOk)}
-              title="从屏幕任意位置取色：左键取色 · 右键取消"
+              title={'从屏幕任意位置取色：左键取色 · 右键取消'}
               onClick={startPick}
             >
               {picking ? '截图中…' : '💧 吸管'}
@@ -662,11 +706,15 @@ export default function FilterBar({
           </div>
           {cap && (
             <div className="hint" style={{ marginTop: 6 }}>
-              取色中：<b>左键</b>点击取色 · <b>右键</b>单击或 Esc 取消
+              {'取色中：'}
+              <b>{'左键'}</b>
+              {'点击取色 · '}
+              <b>{'右键'}</b>
+              {'单击或 Esc 取消'}
             </div>
           )}
           <label className="tol" style={{ marginTop: 10 }}>
-            准确度
+            {'准确度'}
             <input
               type="range"
               min={0}
@@ -682,14 +730,14 @@ export default function FilterBar({
           </label>
           {(!!filters.colorHex || !!selectedHues.length) && (
             <button className="chip ghost-chip" style={{ marginTop: 10 }} onClick={() => onChange({ colorHex: '', hue: '' })}>
-              清除颜色筛选
+              {'清除颜色筛选'}
             </button>
           )}
         </Drop>
 
         {chips.length > 0 && (
           <button className="chip ghost-chip" style={{ marginLeft: 'auto' }} onClick={resetAll}>
-            清空全部筛选
+            {'清空全部筛选'}
           </button>
         )}
       </div>
@@ -697,7 +745,7 @@ export default function FilterBar({
       {chips.length > 0 && (
         <div className="active-chips">
           {chips.map((c, i) => (
-            <button key={i} className="chip chip-active" onClick={c.clear} title="点击移除该筛选">
+            <button key={i} className="chip chip-active" onClick={c.clear} title={'点击移除该筛选'}>
               {c.swatch && <span className="chip-swatch" style={{ background: c.swatch }} />}
               {c.label}
               <span className="x">×</span>
@@ -771,11 +819,13 @@ export default function FilterBar({
                 <div className="pick-chip" style={{ left: pickPos.x + 18, top: pickPos.y + 18 + 150 }}>
                   <span className="pick-swatch" style={{ background: liveHex }} />
                   {liveHex.toUpperCase()}
-                  <small>左键取色</small>
+                  <small>{'左键取色'}</small>
                 </div>
               </>
             )}
-            <div className="pick-tip">左键点击取色 · 右键单击取消 · Esc 取消</div>
+            <div className="pick-tip">
+              {'左键点击取色 · 右键单击取消 · Esc 取消'}
+            </div>
           </div>,
           document.body
         )}

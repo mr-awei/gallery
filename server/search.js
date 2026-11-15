@@ -1,4 +1,3 @@
-import sharp from 'sharp';
 import { db } from './db.js';
 import { computePHash, computeDHash, hammingHex, hashPopcount } from './phash.js';
 import * as lib from './library.js';
@@ -256,11 +255,6 @@ export async function searchByImageDataUrl(dataUrl, opts = {}) {
   const m = String(dataUrl || '').match(/^data:image\/[a-zA-Z+]+;base64,(.+)$/);
   if (!m) throw new Error('需要 base64 图片（data:image/...;base64,...）');
   const buffer = Buffer.from(m[1], 'base64');
-  return searchByImageBuffer(buffer, opts);
-}
-
-export async function searchByImagePath(filePath, opts = {}) {
-  const buffer = await sharp(filePath, { failOn: 'none' }).toBuffer();
   return searchByImageBuffer(buffer, opts);
 }
 

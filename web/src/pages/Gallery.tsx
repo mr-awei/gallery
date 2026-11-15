@@ -16,7 +16,6 @@ import StitchDialog from '../components/StitchDialog';
 import CompareView from '../components/CompareView';
 import ActionsPanel from '../components/ActionsPanel';
 import { IconDownload, IconFolder, IconHeart, IconTrash } from '../components/Icons';
-import { useLang } from '../lib/i18n';
 import Select from '../components/Select';
 import ToolbarCustomizer from '../components/ToolbarCustomizer';
 import WatermarkStudio from '../components/WatermarkStudio';
@@ -183,7 +182,6 @@ const KIND_TEXT: Record<string, string> = {
 // 只要传给本页的 props 不变就不该重渲染整页（勾一张图只应重渲染那张卡片）。
 // 前提见 App.tsx：所有回调 props 都必须是 useCallback/useMemo 稳定引用。
 function Gallery(props: Props) {
-  const { t } = useLang();
   const sentinel = useRef<HTMLDivElement | null>(null);
   /**
    * 可见区预览预热：把屏幕上这几张的预览图挪到服务端预取队首。
@@ -710,29 +708,21 @@ function Gallery(props: Props) {
           <div className="big">🖼️</div>
           <h3>
             {props.importing
-              ? t(
-                  `正在扫描素材文件夹… ${Math.min(99, Math.max(0, props.importProgress?.progress ?? 0))}${
+              ? `正在扫描素材文件夹… ${Math.min(99, Math.max(0, props.importProgress?.progress ?? 0))}${
                     props.importProgress?.saved ? `（已入库 ${props.importProgress.saved} 张）` : ''
-                  }`,
-                  `Scanning folders… ${Math.min(99, Math.max(0, props.importProgress?.progress ?? 0))}%${
-                    props.importProgress?.saved ? ` (${props.importProgress.saved} imported)` : ''
                   }`
-                )
-              : t('还没有符合条件的图片', 'No results match these filters')}
+              : '还没有符合条件的图片'}
           </h3>
           {props.importing ? (
-            <p>{t('图片会边扫描边显示，无需等待全部完成。', 'Images appear as they are scanned — no need to wait.')}</p>
+            <p>{'图片会边扫描边显示，无需等待全部完成。'}</p>
           ) : (
             <p>
-              {t(
-                '前往「采集」页面，选择关键词与来源开始自动采集全网高清图，采集结果会自动去重并按分辨率筛选后进入图库。',
-                'Go to Crawl, pick keywords and sources, and captured images will be deduplicated and filtered before entering the library.'
-              )}
+              {'前往「采集」页面，选择关键词与来源开始自动采集全网高清图，采集结果会自动去重并按分辨率筛选后进入图库。'}
             </p>
           )}
           {!props.importing && (
             <button className="btn primary" onClick={props.onStartCrawl}>
-              {t('立即开始采集', 'Start crawling')}
+              {'立即开始采集'}
             </button>
           )}
         </div>

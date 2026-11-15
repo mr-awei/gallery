@@ -84,13 +84,6 @@ export const IconColumns = () => (
   </svg>
 );
 
-/** 列表视图（Eagle 的 List View） */
-export const IconList = () => (
-  <svg {...base}>
-    <path d="M4 6h16M4 12h16M4 18h16" />
-  </svg>
-);
-
 export const IconDashboard = () => (
   <svg {...base}>
     <rect x="3" y="3" width="7" height="9" rx="1.5" />

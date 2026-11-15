@@ -289,15 +289,6 @@ export async function embedTexts(texts = []) {
   return vecs;
 }
 
-/** 多条向量平均后再归一化：一句长查询拆成几个短语时，比单句召回更稳 */
-export async function embedTextMean(texts) {
-  const vecs = await embedTexts(texts);
-  if (vecs.length === 1) return vecs[0];
-  const acc = new Float32Array(vecs[0].length);
-  for (const v of vecs) for (let i = 0; i < v.length; i++) acc[i] += v[i] / vecs.length;
-  return normalizeInPlace(acc);
-}
-
 export function getEmbedding(imageId) {
   const row = db.prepare('SELECT dim, vec FROM clip_vec WHERE image_id = ?').get(imageId);
   if (!row) return null;
@@ -459,17 +450,7 @@ let annVersion = 0;
 let annCache = null;
 let annBuilding = null;
 
-export function annStatus() {
-  const count = embeddingCount();
-  return {
-    enabled: count >= ANN_MIN && count <= ANN_MAX,
-    built: !!annCache && annCache.version === annVersion,
-    size: annCache?.index?.size || 0,
-    count,
-    min: ANN_MIN,
-    max: ANN_MAX,
-  };
-}
+
 
 async function annReady(dim) {
   if (annCache && annCache.dim === dim && annCache.version === annVersion) return annCache.index;

@@ -8,12 +8,6 @@ import { getScreenSize, setWallpaper, listMonitors, setWallpapersCom } from './d
 export const WALLPAPER_DIR = path.join(STORAGE_DIR, 'wallpaper');
 if (!fs.existsSync(WALLPAPER_DIR)) fs.mkdirSync(WALLPAPER_DIR, { recursive: true });
 
-export const FILL_STYLES = {
-  blur: '模糊同图铺底（推荐）',
-  solid: '纯色铺底（取图片主色）',
-  black: '纯黑铺底',
-};
-
 /**
  * 生成桌面壁纸（contain 完整展示，参考 macOS/iOS「适合」+ 大厂做法）：
  *  - 图片按原始比例等比缩放，完整居中放进屏幕，绝不裁切、绝不拉伸变形、绝不只显示一部分；

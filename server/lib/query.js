@@ -405,6 +405,25 @@ export function buildImageFilter(query = {}, { colorTable = '' } = {}) {
     where.push('(stack_id = 0 OR stack_id = id)');
   }
 
+  // 地图框选：bbox=minLat,minLon,maxLat,maxLon（地图上拖出的矩形 / 点某个地点圆点）
+  if (query.bbox) {
+    const parts = String(query.bbox)
+      .split(',')
+      .map((v) => Number(v));
+    if (parts.length === 4 && parts.every((v) => Number.isFinite(v))) {
+      const [minLat, minLon, maxLat, maxLon] = parts;
+      // 跨 180° 的框（maxLon < minLon）要分两段，否则东半球和西半球永远框不到一起
+      const latClause = 'gps_lat BETWEEN ? AND ?';
+      if (maxLon < minLon) {
+        where.push(`${latClause} AND (gps_lon >= ? OR gps_lon <= ?)`);
+        params.push(minLat, maxLat, minLon, maxLon);
+      } else {
+        where.push(`${latClause} AND gps_lon BETWEEN ? AND ?`);
+        params.push(minLat, maxLat, minLon, maxLon);
+      }
+    }
+  }
+
   // 隐私空间：密码锁住且本次会话未解锁的文件夹，其素材从所有列表/搜索里消失（服务端事实，不是前端遮罩）
   const hidden = hiddenImagesClause();
   if (hidden) {
@@ -479,7 +498,9 @@ export function listImageIds(query = {}) {
 
 export function listImages(query = {}) {
   const page = Math.max(1, Number(query.page) || 1);
-  const pageSize = Math.min(120, Math.max(12, Number(query.pageSize) || 48));
+  // 上限放宽到 300：前端大库按 120/页拉取（10 万张从 2000+ 次请求降到 800 内），
+  // 但仍要有硬上限，避免 ?pageSize=100000 把整库塞进一次响应
+  const pageSize = Math.min(300, Math.max(12, Number(query.pageSize) || 48));
   const colorIds = query.colorIds || null;
   const colorTable = colorIds && colorIds.length ? createColorScope(colorIds) : '';
   try {

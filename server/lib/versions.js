@@ -4,7 +4,6 @@
 // 并且「回到旧版」本身也先压一份当前的备份，所以回退同样可以再撤销。
 import fs from 'node:fs';
 import fsp from 'node:fs/promises';
-import path from 'node:path';
 import * as lib from '../library.js';
 import { db } from '../db.js';
 import { pushEditBackup } from './undo.js';
@@ -104,7 +103,4 @@ export async function restoreVersion(imageId, versionId) {
   return { ok: true, id, restored: row.id, item: lib.toDTO(lib.getImage(id)) };
 }
 
-export function versionExt(file) {
-  const e = path.extname(file || '').toLowerCase();
-  return e || '.jpg';
-}
+

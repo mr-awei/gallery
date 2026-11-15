@@ -29,11 +29,6 @@ export function isZipPreviewExt(ext) {
   return ZIP_PREVIEW_EXTS.has(String(ext || '').toLowerCase());
 }
 
-/** 设计文件（PSD/PSB/AI/EPS/Sketch…）：sharp 解不了，同样靠自带预览 */
-export function isDesignPreviewExt(ext) {
-  return isDesignExt(ext);
-}
-
 /** 需要走「抽预览」而不是 sharp 的格式（含 HEIC：sharp 没编 HEVC 解码器） */
 export function isDesignLikePath(absPath) {
   const e = extOf(absPath);

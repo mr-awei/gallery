@@ -14,6 +14,43 @@ type Status = Awaited<ReturnType<typeof api.maintenanceStatus>>;
 const fmtBytes = formatSize;
 
 /**
+ * 关联表孤儿行：库里没有外键，异常退出（进程被杀 / 磁盘满）会留下指向已删图片的
+ * 标签、向量、回收站记录。它们不报错，但统计会虚高、回收站点开是空白。
+ *
+ * 维护按钮与库健康面板共用这一份流程（先扫描预览 → 确认 → 真删 → 复查），
+ * 避免两处各写一套、口径越走越远。返回清理行数，0 表示没孤儿或用户取消。
+ * 文案要跟语言走，所以 t 由调用点传入（模块级不能调 t）。
+ */
+async function cleanRowOrphansFlow(
+  onToast: (msg: string, kind?: 'info' | 'error') => void,
+  ): Promise<number> {
+  const dry = await api.maintenanceOrphans();
+  if (!dry.total) {
+    onToast('没有孤儿数据（关联表都干净）');
+    return 0;
+  }
+  const detail = dry.byTable
+    .filter((x) => x.count)
+    .slice(0, 6)
+    .map((x) => `${x.note}（${x.table}.${x.column}）：${x.count} 行`)
+    .join('\n');
+  const ok = await confirmDialog(`发现 ${dry.total} 行孤儿数据，清理它们？`, {
+    detail: `${detail}\n\n只删「指向已不存在图片」的关联行，不动任何素材与元数据。`,
+  });
+  if (!ok) return 0;
+  const r = await api.maintenanceCleanOrphans(false);
+  // after 是清理后重新扫描的结果，拿它兜底：只报「已清理 N 行」而不复查，等于自说自话
+  const left = r.after?.total ?? 0;
+  onToast(
+    left
+      ? `已清理 ${r.removed} 行，复查仍有 ${left} 行（清理期间可能又新增，可再点一次）`
+      : `已清理 ${r.removed} 行孤儿数据，复查已归零`,
+    left ? 'error' : 'info'
+  );
+  return r.removed;
+}
+
+/**
  * 「维护工具」卡片：
  * 缩略图坏了、库里堆了孤儿文件、DB 涨到几个 G —— 以前只能删库重来，
  * 现在都能在界面上自助处理。
@@ -77,8 +114,13 @@ export default function MaintenanceCard({ onLibraryChanged, onToast }: Props) {
         beforeId = r.nextBeforeId;
       }
       // 失败的不是「已重建」：文件已不在，或根本没内嵌预览（RAW 变体/设计稿）
-      const failedPart = failed ? `，失败 ${failed} 张（文件不在或没有内嵌预览）` : '';
-      onToast(`重建 ${rebuilt} 张（已存在 ${skipped}${failedPart}）`, failed ? 'error' : 'info');
+      const failedPart = failed
+        ? `，失败 ${failed} 张（文件不在或没有内嵌预览）`
+        : '';
+      onToast(
+        `重建 ${rebuilt} 张（已存在 ${skipped}${failedPart}）`,
+        failed ? 'error' : 'info',
+      );
       onLibraryChanged();
     });
 
@@ -103,7 +145,9 @@ export default function MaintenanceCard({ onLibraryChanged, onToast }: Props) {
         if (!r.nextBeforeId) break;
         beforeId = r.nextBeforeId;
       }
-      const failPart = failed ? `，失败 ${failed} 张（文件不在或没有内嵌预览）` : '';
+      const failPart = failed
+        ? `，失败 ${failed} 张（文件不在或没有内嵌预览）`
+        : '';
       onToast(
         rotated
           ? `已修正 ${rotated} 张竖拍照片（改宽高 ${dims} 张${cleared ? `，重出缩略图 ${cleared} 张` : ''}${failPart}）`
@@ -118,13 +162,20 @@ export default function MaintenanceCard({ onLibraryChanged, onToast }: Props) {
       const dry = await api.maintenanceOrphanThumbs(true);
       if (!dry.found) return onToast('没有孤立缩略图');
       const names = dry.sample.map((p) => p.split(/[\\/]/).pop() || p);
-      const more = dry.found > names.length ? `\n…等共 ${dry.found} 个` : '';
+      const more = dry.found > names.length
+        ? `\n…等共 ${dry.found} 个`
+        : '';
       const ok = await confirmDialog(`发现 ${dry.found} 个孤立缩略图文件，删除它们？`, {
         detail: `${names.join('\n')}${more}\n\n只删 thumbs 目录里没有对应记录的图片，不影响原图。`,
       });
       if (!ok) return;
       const r = await api.maintenanceOrphanThumbs(false);
       onToast(`已清理 ${r.removed} 个孤立缩略图`);
+    });
+
+  const cleanRowOrphans = () =>
+    run('rows', async () => {
+      if (await cleanRowOrphansFlow(onToast, )) onLibraryChanged();
     });
 
   /** 幽灵文件夹：磁盘已删 / 历史跨库残留，侧栏会显示成「另一个库的文件夹」且张数 0 */
@@ -161,7 +212,9 @@ export default function MaintenanceCard({ onLibraryChanged, onToast }: Props) {
   const probeMedia = () =>
     run('probe', async () => {
       const r = await api.maintenanceProbeMedia(300);
-      onToast(`已补算 ${r.probed} 个（跳过 ${r.skipped}，剩余 ${r.remain}）`);
+      onToast(
+        `已补算 ${r.probed} 个（跳过 ${r.skipped}，剩余 ${r.remain}）`,
+      );
       onLibraryChanged();
     });
 
@@ -182,6 +235,51 @@ export default function MaintenanceCard({ onLibraryChanged, onToast }: Props) {
       onLibraryChanged();
     });
 
+  /**
+   * 本地零样本打标：用 CLIP 给「还没打标签」的素材打上大类标签。
+   * 先预演看会打成什么，确认后再写库 —— 自动标签最怕的是「悄悄打错还改不了」。
+   */
+  const localTagging = () =>
+    run('localtag', async () => {
+      const dry = await api.localTagPreview({ limit: 40, top: 3 });
+      if (!dry.done) {
+        return onToast(
+          dry.remain === 0
+            ? '没有待打标的素材（都已有标签）'
+            : '没有足够把握的标签，换一批再试',
+        );
+      }
+      const sample = (dry.samples || [])
+        .slice(0, 6)
+        .map((s) => `#${s.id} → ${s.tags.join('、')}`)
+        .join('\n');
+      const ok = await confirmDialog(`给这 ${dry.done} 张未打标素材按本地模型打标签？`, {
+        detail: `${sample}\n\n只从固定的 56 个大类里选，把握不够就不打；全程本机运行、不联网、不调用外部 AI。`,
+      });
+      if (!ok) return;
+      const r = await api.localTagBatch({ limit: 40, top: 3 });
+      onToast(
+        `已给 ${r.added} 张打上本地标签${r.remain ? `（还有 ${r.remain} 张待打，可再点一次）` : ''}`,
+      );
+      if (r.added) onLibraryChanged();
+    });
+
+  /**
+   * 从 XMP sidecar 拉回元数据：在外面用 Lightroom / digiKam 改完标签，
+   * 拷回素材目录后点这里合并进库（标签并集，评分/备注只在库里为空时补）。
+   */
+  const xmpImport = () =>
+    run('xmp', async () => {
+      const r = await api.maintenanceXmpImport(500);
+      onToast(
+        r.updated
+          ? `已从 sidecar 合并 ${r.updated} 张的元数据${r.nextBeforeId ? '（还有更早的，再点一次继续）' : ''}`
+          : '没有发现可合并的 sidecar 元数据',
+        'info'
+      );
+      if (r.updated) onLibraryChanged();
+    });
+
   const purge = async () => {
     const n = missing?.count || 0;
     if (!n) return onToast('没有缺失文件');
@@ -196,90 +294,124 @@ export default function MaintenanceCard({ onLibraryChanged, onToast }: Props) {
     });
   };
 
+  const busyTitle = busy ? '有维护任务正在进行，等它结束再点' : undefined;
+
   return (
-    <Card title="维护工具" desc="库体检、修复失配、重建缩略图、压缩数据库。">
+    <Card
+      title={'维护工具'}
+      desc={'库体检、修复失配、重建缩略图、压缩数据库。'}
+    >
       {status ? (
         <div className="maint-grid">
           <div>
             <b>{status.total}</b>
-            <span>张图片</span>
+            <span>{'张图片'}</span>
           </div>
           <div className={status.missing ? 'warn' : ''}>
             <b>{status.missing}</b>
-            <span>文件缺失</span>
+            <span>{'文件缺失'}</span>
           </div>
           <div>
             <b>{status.withThumb}</b>
-            <span>有缩略图</span>
+            <span>{'有缩略图'}</span>
           </div>
           <div>
             <b>{fmtBytes(status.thumbBytes)}</b>
-            <span>缩略图 {status.thumbFiles} 个</span>
+            <span>{`缩略图 ${status.thumbFiles} 个`}</span>
           </div>
           <div>
             <b>{fmtBytes(status.dbBytes)}</b>
-            <span>数据库</span>
+            <span>{'数据库'}</span>
           </div>
           <div>
             <b>{status.undoCount}</b>
-            <span>可撤销编辑</span>
+            <span>{'可撤销编辑'}</span>
           </div>
         </div>
       ) : (
-        <span style={{ color: 'var(--muted)', fontSize: 13 }}>读取中…</span>
+        <span style={{ color: 'var(--muted)', fontSize: 13 }}>{'读取中…'}</span>
       )}
 
       <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginTop: 12 }}>
         <button className="btn sm" disabled={!!busy}
-          title={busy ? '有维护任务正在进行，等它结束再点' : undefined} onClick={rebuildThumbs}>
+          title={busyTitle} onClick={rebuildThumbs}>
           {busy === 'thumb' ? '重建中…' : '重建缺失缩略图'}
         </button>
         <button className="btn sm" disabled={!!busy}
           title={
             busy
-              ? '有维护任务正在进行，等它结束再点'
+              ? busyTitle
               : '相机竖拍的照片会带 EXIF 方向标记：修好宽高与缩略图，避免卡片把竖图当横图裁掉、RAW 躺倒 90°'
           }
           onClick={fixOrientation}>
           {busy === 'orient' ? '修正中…' : '修正竖拍方向'}
         </button>
         <button className="btn sm" disabled={!!busy}
-          title={busy ? '有维护任务正在进行，等它结束再点' : undefined} onClick={cleanOrphans}>
+          title={
+            busy
+              ? busyTitle
+              : '用本机 CLIP 模型给还没打标签的素材打上大类标签：断网可用，先预演再写库'
+          }
+          onClick={() => void localTagging()}>
+          {busy === 'localtag' ? '打标中…' : '本地智能标签'}
+        </button>
+        <button className="btn sm" disabled={!!busy}
+          title={
+            busy
+              ? busyTitle
+              : '把 Lightroom / digiKam 写在同名 .xmp 里的标签、评分、备注合并回库：标签取并集，评分与备注只补空值'
+          }
+          onClick={() => void xmpImport()}>
+          {busy === 'xmp' ? '合并中…' : '导入 XMP 元数据'}
+        </button>
+        <button className="btn sm" disabled={!!busy}
+          title={busyTitle} onClick={cleanOrphans}>
           {busy === 'orphan' ? '清理中…' : '清理孤立缩略图'}
         </button>
         <button className="btn sm" disabled={!!busy}
-          title={busy ? '有维护任务正在进行，等它结束再点' : undefined} onClick={vacuum}>
+          title={busyTitle} onClick={vacuum}>
           {busy === 'vacuum' ? '压缩中…' : '压缩数据库'}
         </button>
         <button className="btn sm" disabled={!!busy}
-          title={busy ? '有维护任务正在进行，等它结束再点' : undefined} onClick={rescan}>
+          title={busyTitle} onClick={rescan}>
           {busy === 'rescan' ? '扫描中…' : '重新扫描目录'}
         </button>
         <button className="btn sm" disabled={!!busy}
-          title={busy ? '有维护任务正在进行，等它结束再点' : undefined} onClick={probeMedia}>
+          title={busyTitle} onClick={probeMedia}>
           {busy === 'probe' ? '探测中…' : '补算音视频时长'}
         </button>
         <button className="btn sm" disabled={!!busy}
-          title="侧栏里张数为 0、磁盘上已不存在的文件夹（切换资源库后残留的那种）" onClick={cleanGhostFolders}>
+          title={'侧栏里张数为 0、磁盘上已不存在的文件夹（切换资源库后残留的那种）'} onClick={cleanGhostFolders}>
           {busy === 'ghost' ? '清理中…' : '清理幽灵文件夹'}
+        </button>
+        <button className="btn sm" disabled={!!busy}
+          title={'异常退出后指向已删图片的标签/向量/回收站等关联行（库没有外键，只能定期对账）'}
+          onClick={cleanRowOrphans}>
+          {busy === 'rows' ? '对账中…' : '清理孤儿数据'}
         </button>
       </div>
 
       <div className="maint-missing">
         <div style={{ fontSize: 12.5, color: 'var(--muted)', lineHeight: 1.9 }}>
-          <b style={{ color: 'var(--text)' }}>库-盘失配</b>：在应用外改名/移动过的文件会显示为缺失。
-          先「尝试找回」（按文件名在保存目录里重新定位），确认实在找不回来再「移除记录」。
+          <b style={{ color: 'var(--text)' }}>{'库-盘失配'}</b>
+          {'：在应用外改名/移动过的文件会显示为缺失。先「尝试找回」（按文件名在保存目录里重新定位），确认实在找不回来再「移除记录」。'}
         </div>
         <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginTop: 8 }}>
           <button
             className="btn sm"
             disabled={!!busy || !missing?.count}
             title={
-              busy ? '有维护任务正在进行' : !missing?.count ? '当前没有失配文件，无需找回' : undefined
+              busy
+                ? '有维护任务正在进行'
+                : !missing?.count
+                  ? '当前没有失配文件，无需找回'
+                  : undefined
             }
             onClick={relocate}
           >
-            {busy === 'relocate' ? '找回中…' : `尝试找回${missing?.count ? `（${missing.count}）` : ''}`}
+            {busy === 'relocate'
+              ? '找回中…'
+              : `尝试找回${missing?.count ? `（${missing.count}）` : ''}`}
           </button>
           <button
             className="btn sm danger"
@@ -293,7 +425,7 @@ export default function MaintenanceCard({ onLibraryChanged, onToast }: Props) {
             }
             onClick={purge}
           >
-            移除失配记录
+            {'移除失配记录'}
           </button>
         </div>
         {!!status?.sampleMissing?.length && (
@@ -309,7 +441,8 @@ export default function MaintenanceCard({ onLibraryChanged, onToast }: Props) {
 
       <div className="maint-missing">
         <div style={{ fontSize: 12.5, color: 'var(--muted)', lineHeight: 1.9 }}>
-          <b style={{ color: 'var(--text)' }}>CLIP 视觉特征</b>：相似度/智能归类的前提。
+          <b style={{ color: 'var(--text)' }}>{'CLIP 视觉特征'}</b>
+          {'：相似度/智能归类的前提。'}
           {clip?.loadError
             ? `模型不可用：${clip.loadError}（离线环境需先联网下载一次）`
             : clip
@@ -338,8 +471,8 @@ export default function MaintenanceCard({ onLibraryChanged, onToast }: Props) {
 
       <div className="maint-missing" style={{ marginTop: 12 }}>
         <div style={{ fontSize: 12.5, color: 'var(--muted)', lineHeight: 1.9 }}>
-          <b style={{ color: 'var(--text)' }}>崩溃与日志</b>：崩溃转储只留在本机，启动时自动清理 7 天前的文件。
-          遇到闪退、白屏，可以把这两个目录里的文件发给开发者定位。
+          <b style={{ color: 'var(--text)' }}>{'崩溃与日志'}</b>
+          {'：崩溃转储只留在本机，启动时自动清理 7 天前的文件。遇到闪退、白屏，直接导出诊断包发给开发者 —— 里面有最近几份日志、版本与系统信息，不含素材和密钥。'}
         </div>
         <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginTop: 8 }}>
           <button
@@ -355,7 +488,7 @@ export default function MaintenanceCard({ onLibraryChanged, onToast }: Props) {
               }
             }}
           >
-            打开崩溃转储目录
+            {'打开崩溃转储目录'}
           </button>
           <button
             className="btn sm"
@@ -370,7 +503,24 @@ export default function MaintenanceCard({ onLibraryChanged, onToast }: Props) {
               }
             }}
           >
-            打开运行日志目录
+            {'打开运行日志目录'}
+          </button>
+          <button
+            className="btn sm primary"
+            disabled={!desktop?.exportDiagnostics}
+            title={desktop?.exportDiagnostics ? '导出诊断包（日志 + 环境 + 崩溃清单，密钥已打码）' : '仅桌面端可用'}
+            onClick={async () => {
+              try {
+                const r = await desktop?.exportDiagnostics?.();
+                if (r?.canceled) return;
+                if (!r?.ok) return onToast(`导出失败：${r?.error || '未知原因'}`, 'error');
+                onToast(`诊断包已保存：${r.path}`);
+              } catch (e) {
+                onToast(`导出失败：${(e as Error).message}`, 'error');
+              }
+            }}
+          >
+            {'导出诊断包'}
           </button>
         </div>
       </div>
@@ -425,7 +575,7 @@ function ImportJobPanel({ onToast }: { onToast: (msg: string, kind?: 'info' | 'e
       <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
         <b style={{ fontSize: 13 }}>{label[j.status] || '导入记录'}</b>
         <span className="hint" style={{ flex: 1, minWidth: 200 }}>
-          已保存 {j.saved ?? 0} 张 · 跳过重复 {j.duplicate ?? 0} · 失败 {j.errors ?? 0}
+          {`已保存 ${j.saved ?? 0} 张 · 跳过重复 ${j.duplicate ?? 0} · 失败 ${j.errors ?? 0}`}
           {j.syncConflicts ? ` · 同步冲突副本 ${j.syncConflicts}` : ''}
           {j.startedAt ? ` · ${new Date(j.startedAt).toLocaleString()}` : ''}
         </span>
@@ -459,7 +609,11 @@ function HealthPanel({ onToast }: { onToast: (msg: string, kind?: 'info' | 'erro
     setBusy('index');
     try {
       const r = await api.rebuildPathIndex();
-      onToast(r.ok ? '路径唯一索引已建立' : `仍有 ${r.duplicates} 组重复路径，先去「整理 → 重复」清理`);
+      onToast(
+        r.ok
+          ? '路径唯一索引已建立'
+          : `仍有 ${r.duplicates} 组重复路径，先去「整理 → 重复」清理`,
+      );
       load();
     } catch (e) {
       onToast(`重建失败：${(e as Error).message}`, 'error');
@@ -471,8 +625,7 @@ function HealthPanel({ onToast }: { onToast: (msg: string, kind?: 'info' | 'erro
   const clean = async () => {
     setBusy('orphans');
     try {
-      const r = await api.cleanOrphans();
-      onToast(r.removed ? `已清理 ${r.removed} 条孤儿关联` : '没有需要清理的孤儿关联');
+      await cleanRowOrphansFlow(onToast, );
       load();
     } catch (e) {
       onToast(`清理失败：${(e as Error).message}`, 'error');
@@ -483,12 +636,14 @@ function HealthPanel({ onToast }: { onToast: (msg: string, kind?: 'info' | 'erro
 
   if (!h) return null;
   const orphans = h.orphans;
-  const orphanTotal = [orphans.folders, orphans.comments, orphans.clipVec].reduce((s, n) => s + Math.max(0, n), 0);
+  const orphanTotal = orphans.total;
+  // 明细按规则表来（与后端 lib/integrity.js 同一份），只列真的有孤儿行的项
+  const orphanDetail = orphans.byTable.filter((x) => x.count > 0).sort((a, b) => b.count - a.count);
 
   return (
     <div style={{ marginTop: 18, borderTop: '1px solid var(--line)', paddingTop: 14 }}>
       <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 8, flexWrap: 'wrap' }}>
-        <b style={{ fontSize: 13 }}>库健康</b>
+        <b style={{ fontSize: 13 }}>{'库健康'}</b>
         <span className="hint" style={{ flex: 1 }}>
           {h.pathIndex.ok
             ? '素材路径唯一索引：已建立'
@@ -501,9 +656,19 @@ function HealthPanel({ onToast }: { onToast: (msg: string, kind?: 'info' | 'erro
         )}
       </div>
       <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
-        <span className="hint" style={{ flex: 1 }}>
-          孤儿关联：文件夹 {orphans.folders} · 评论 {orphans.comments} · 向量 {orphans.clipVec}
-          {orphanTotal === 0 ? '（正常）' : '（会让人物 / 文件夹计数虚高，建议清理）'}
+        <span
+          className="hint"
+          style={{ flex: 1 }}
+          title={orphanDetail.map((x) => `${x.note}（${x.table}.${x.column}）：${x.count} 行`).join('\n')}
+        >
+          {'孤儿关联：'}
+          {`${orphanTotal} 行`}
+          {orphanTotal === 0
+            ? '（正常）'
+            : `（${orphanDetail
+                  .slice(0, 4)
+                  .map((x) => `${x.note} ${x.count}`)
+                  .join(' · ')}${orphanDetail.length > 4 ? ` 等 ${orphanDetail.length} 项` : ''}；会让计数虚高，建议清理）`}
         </span>
         {orphanTotal > 0 && (
           <button className="btn sm" disabled={!!busy} onClick={() => void clean()}>
@@ -543,10 +708,10 @@ function ThumbQueuePanel({ onToast }: { onToast: (msg: string, kind?: 'info' | '
   useEffect(() => {
     load();
     // 队列是后台在推进的，5 秒刷一次即可；页面不可见时不刷
-    const t = setInterval(() => {
+    const timer = setInterval(() => {
       if (document.visibilityState === 'visible') load();
     }, 5000);
-    return () => clearInterval(t);
+    return () => clearInterval(timer);
   }, [load]);
 
   const retry = async () => {
@@ -567,7 +732,11 @@ function ThumbQueuePanel({ onToast }: { onToast: (msg: string, kind?: 'info' | '
     setBusy(`one-${id}`);
     try {
       const r = await api.retryThumbs(id);
-      onToast(r.queued ? `已重新排队 #${id}` : `#${id} 已在队列里，稍候会自动生成`);
+      onToast(
+        r.queued
+          ? `已重新排队 #${id}`
+          : `#${id} 已在队列里，稍候会自动生成`,
+      );
       load();
     } catch (e) {
       onToast(`重试失败：${(e as Error).message}`, 'error');
@@ -595,9 +764,9 @@ function ThumbQueuePanel({ onToast }: { onToast: (msg: string, kind?: 'info' | '
   return (
     <div style={{ marginTop: 18, borderTop: '1px solid var(--line)', paddingTop: 14 }}>
       <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 8 }}>
-        <b style={{ fontSize: 13 }}>缩略图队列</b>
+        <b style={{ fontSize: 13 }}>{'缩略图队列'}</b>
         <span className="hint" style={{ flex: 1 }}>
-          待生成 {st.pending} · 生成中 {st.running} · 累计失败 {st.failed} · 库里缺图 {st.missing}
+          {`待生成 ${st.pending} · 生成中 ${st.running} · 累计失败 ${st.failed} · 库里缺图 ${st.missing}`}
         </span>
         <button className="btn sm" disabled={!!busy || !st.failures.length} onClick={() => void retry()}>
           {busy === 'retry' ? '排队中…' : '重试失败项'}
@@ -606,13 +775,13 @@ function ThumbQueuePanel({ onToast }: { onToast: (msg: string, kind?: 'info' | '
           className="btn sm ghost"
           disabled={!!busy || !st.failures.length}
           onClick={() => void clearFailures()}
-          title="清空失败明细（重试仍失败的条目）"
+          title={'清空失败明细（重试仍失败的条目）'}
         >
           {busy === 'clear' ? '清空中…' : '清空明细'}
         </button>
       </div>
       {st.failures.length === 0 ? (
-        <div className="hint">没有失败记录。缺图 {st.missing} 张会在后台按顺序补，不需要手动干预。</div>
+        <div className="hint">{`没有失败记录。缺图 ${st.missing} 张会在后台按顺序补，不需要手动干预。`}</div>
       ) : (
         <div style={{ maxHeight: 180, overflow: 'auto', fontSize: 12.2 }}>
           {st.failures.slice(0, 20).map((f) => (
@@ -622,14 +791,14 @@ function ThumbQueuePanel({ onToast }: { onToast: (msg: string, kind?: 'info' | '
               <button
                 className="btn sm ghost"
                 disabled={!!busy}
-                title="只重试这一张"
+                title={'只重试这一张'}
                 onClick={() => void retryOne(f.id)}
               >
                 {busy === `one-${f.id}` ? '排队中…' : '重试'}
               </button>
             </div>
           ))}
-          {st.failures.length > 20 && <div className="hint">还有 {st.failures.length - 20} 条…</div>}
+          {st.failures.length > 20 && <div className="hint">{`还有 ${st.failures.length - 20} 条…`}</div>}
         </div>
       )}
     </div>

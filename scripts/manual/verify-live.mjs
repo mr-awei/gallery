@@ -23,7 +23,9 @@ function detectApiPort() {
       const log = fs.readFileSync(f, 'utf8');
       const m = log.match(/\/\/(?:localhost|127\.0\.0\.1):(\d+)/);
       if (m) return m[1];
-    } catch {}
+    } catch {
+      /* 日志文件不存在是常态（还没跑过桌面端），继续试下一个 */
+    }
   }
   return '3001';
 }

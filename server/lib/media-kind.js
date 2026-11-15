@@ -107,12 +107,6 @@ export function isHeifExt(ext) {
   return HEIF_SET.has(String(ext || '').toLowerCase());
 }
 
-/** 需要走「抽内嵌预览」而不是 sharp 直接解码的格式 */
-export function isPreviewOnlyExt(ext) {
-  const e = String(ext || '').toLowerCase();
-  return RAW_SET.has(e) || DESIGN_SET.has(e) || HEIF_SET.has(e);
-}
-
 const MIME_BY_EXT = {
   mp4: 'video/mp4', webm: 'video/webm', mov: 'video/quicktime', m4v: 'video/x-m4v',
   mkv: 'video/x-matroska', avi: 'video/x-msvideo', flv: 'video/x-flv', wmv: 'video/x-ms-wmv',

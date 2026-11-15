@@ -14,7 +14,6 @@ import type { ImageItem } from '../types';
 import { IconCopy, IconDownload, IconExpand, IconFolder, IconImages, IconSearch, IconTrash, IconUsers } from '../components/Icons';
 import ReverseSearchDialog, { type ReverseTarget } from '../components/ReverseSearchDialog';
 import Select from '../components/Select';
-import { useLang } from '../lib/i18n';
 import { ensureHardware } from '../lib/hardware';
 
 type Props = {
@@ -34,15 +33,12 @@ const PEOPLE_COL_KEY = 'tuku:people-col';
 /** 同人阈值预设：值越低越容易合并，也越容易把路人并给同一个人 */
 /** 选项文字要能完整塞进下拉框：收起态被裁掉的数字最容易被误读成「显示不全」 */
 const COS_PRESETS = [
-  { v: 0.5, zh: '严格（0.50）· 宁可分开', en: 'Strict (0.50) · keep apart' },
-  { v: 0.42, zh: '标准（0.42）', en: 'Standard (0.42)' },
-  { v: 0.35, zh: '宽松（0.35）· 更易合并', en: 'Loose (0.35) · easier to merge' },
+  { v: 0.5, label: '严格（0.50）· 宁可分开' },
+  { v: 0.42, label: '标准（0.42）' },
+  { v: 0.35, label: '宽松（0.35）· 更易合并' },
 ];
 
 export default function People({ onToast, onOpen, focusPersonId, focusNonce }: Props) {
-  const { lang } = useLang();
-  /** 双语取词：英文缺失时回退中文，不显示空串 */
-  const L = (zh: string, en: string) => (lang === 'en' && en ? en : zh);
   /** 服务端按原因统计（模糊 / 人脸过小 / …），拼成一行「模糊 12 / 人脸过小 3」 */
   const whyText = (m?: Record<string, number>) =>
     Object.entries(m || {})
@@ -313,7 +309,7 @@ export default function People({ onToast, onOpen, focusPersonId, focusNonce }: P
       });
       setPersons((prev) => prev.map((p) => (p.id === active ? patch(p) : p)));
       setActivePerson((prev) => (prev && prev.id === active ? patch(prev) : prev));
-      toastRef.current(L('已设为封面（之后的扫描不会自动换掉）', 'Cover set — future scans will not replace it'));
+      toastRef.current('已设为封面（之后的扫描不会自动换掉）');
     });
 
   const current = persons.find((p) => p.id === active) || activePerson;
@@ -335,7 +331,7 @@ export default function People({ onToast, onOpen, focusPersonId, focusNonce }: P
         setItems(null);
       }
       await refresh();
-      toastRef.current(L('已删除该人物', 'Person deleted'));
+      toastRef.current('已删除该人物');
     });
 
   /** 用这个人「最清晰最完整」的一张去全网搜图（挑图在服务端做，这里只给预览） */
@@ -343,8 +339,8 @@ export default function People({ onToast, onOpen, focusPersonId, focusNonce }: P
     setRsTarget({
       personId: p.id,
       previewUrl: coverUrl(p),
-      title: p.name || L(`人物 #${p.id}`, `Person #${p.id}`),
-      hint: L('用这个人最清晰、人脸最大的一张照片去检索', 'Searching this person’s sharpest, largest-face photo'),
+      title: p.name || `人物 #${p.id}`,
+      hint: '用这个人最清晰、人脸最大的一张照片去检索',
     });
 
   const searchImage = (it: ImageItem) =>
@@ -359,7 +355,7 @@ export default function People({ onToast, onOpen, focusPersonId, focusNonce }: P
   const copyText = (text: string) =>
     guard(async () => {
       await navigator.clipboard.writeText(text);
-      toastRef.current(L('已复制路径', 'Path copied'));
+      toastRef.current('已复制路径');
     });
 
   /* 右键菜单与搜图面板：三个分支（未下载/单人/网格）都要能弹出来 */
@@ -380,7 +376,7 @@ export default function People({ onToast, onOpen, focusPersonId, focusNonce }: P
                 void openPerson(p);
               }}
             >
-              <IconUsers /> {L('查看这个人的照片', 'Open this person')}
+              <IconUsers /> {'查看这个人的照片'}
             </button>
             <button
               onClick={() => {
@@ -389,7 +385,7 @@ export default function People({ onToast, onOpen, focusPersonId, focusNonce }: P
                 searchPerson(p);
               }}
             >
-              <IconSearch /> {L('全网搜图…', 'Reverse image search…')}
+              <IconSearch /> {'全网搜图…'}
             </button>
             <button
               onClick={() => {
@@ -399,7 +395,7 @@ export default function People({ onToast, onOpen, focusPersonId, focusNonce }: P
                 if (active !== p.id) void openPerson(p);
               }}
             >
-              {L('改名…', 'Rename…')}
+              {'改名…'}
             </button>
             <button
               onClick={() => {
@@ -408,7 +404,7 @@ export default function People({ onToast, onOpen, focusPersonId, focusNonce }: P
                 void removePersonById(p.id);
               }}
             >
-              <IconTrash /> {L('删除该人物', 'Delete person')}
+              <IconTrash /> {'删除该人物'}
             </button>
           </div>,
           document.body
@@ -429,7 +425,7 @@ export default function People({ onToast, onOpen, focusPersonId, focusNonce }: P
                 onOpen(it, items || []);
               }}
             >
-              <IconExpand /> {L('大图预览', 'Open preview')}
+              <IconExpand /> {'大图预览'}
             </button>
             <button
               onClick={() => {
@@ -451,7 +447,7 @@ export default function People({ onToast, onOpen, focusPersonId, focusNonce }: P
                 })();
               }}
             >
-              <IconImages /> {L('在图库中定位', 'Locate in library')}
+              <IconImages /> {'在图库中定位'}
             </button>
             <button
               onClick={() => {
@@ -460,29 +456,29 @@ export default function People({ onToast, onOpen, focusPersonId, focusNonce }: P
                 searchImage(it);
               }}
             >
-              <IconSearch /> {L('全网搜图…', 'Reverse image search…')}
+              <IconSearch /> {'全网搜图…'}
             </button>
             <button
               onClick={() => {
                 const it = photoCtx.item;
                 setPhotoCtx(null);
                 void revealFile(it.path).catch((err: Error) =>
-                  toastRef.current(L('打开所在文件夹失败：', 'Cannot open folder: ') + err.message, 'error')
+                  toastRef.current('打开所在文件夹失败：' + err.message, 'error')
                 );
               }}
             >
-              <IconFolder /> {L('打开所在文件夹', 'Show in folder')}
+              <IconFolder /> {'打开所在文件夹'}
             </button>
             <button
               onClick={() => {
                 const it = photoCtx.item;
                 setPhotoCtx(null);
                 void copyImageToClipboard(`${BASE}${it.thumbUrl}`)
-                  .then(() => toastRef.current(L('已复制图片', 'Image copied')))
+                  .then(() => toastRef.current('已复制图片'))
                   .catch((err: Error) => toastRef.current(err.message, 'error'));
               }}
             >
-              <IconCopy /> {L('复制图片', 'Copy image')}
+              <IconCopy /> {'复制图片'}
             </button>
             <button
               onClick={() => {
@@ -491,7 +487,7 @@ export default function People({ onToast, onOpen, focusPersonId, focusNonce }: P
                 void copyText(it.path);
               }}
             >
-              <IconCopy /> {L('复制路径', 'Copy path')}
+              <IconCopy /> {'复制路径'}
             </button>
             {current?.coverImageId !== photoCtx.item.id && (
               <button
@@ -501,7 +497,7 @@ export default function People({ onToast, onOpen, focusPersonId, focusNonce }: P
                   void setCover(it.id);
                 }}
               >
-                {L('设为封面', 'Set as cover')}
+                {'设为封面'}
               </button>
             )}
           </div>,
@@ -516,9 +512,9 @@ export default function People({ onToast, onOpen, focusPersonId, focusNonce }: P
   const head = (
     <div className="page-head">
       <div>
-        <h1 className="page-title">{L('人物', 'People')}</h1>
+        <h1 className="page-title">{'人物'}</h1>
         <div className="page-sub">
-          {L('本地识别照片里的人脸并按人分组 · 全流程离线，模型跑在本机', 'Group faces by person, fully offline — the model runs on your machine')}
+          {'本地识别照片里的人脸并按人分组 · 全流程离线，模型跑在本机'}
         </div>
       </div>
       <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
@@ -526,21 +522,18 @@ export default function People({ onToast, onOpen, focusPersonId, focusNonce }: P
           // 以前只有一个裸 select，含义全藏在 hover 提示里；加可见标签与稳定宽度，
           // 免得窄窗口/系统缩放下选中项文字被裁掉，看起来像「显示不全」
           <label style={{ display: 'inline-flex', alignItems: 'center', gap: 6, fontSize: 12, color: 'var(--muted)' }}>
-            {L('同人阈值', 'Grouping')}
+            {'同人阈值'}
             <select
               className="input"
               value={cos}
               onChange={(e) => setCos(Number(e.target.value))}
-              title={L(
-                '同一个人判定的严格程度，改完需要「清空并重扫」才会对已有结果生效',
-                'How strict "same person" is. Re-cluster (clear & rescan) for existing results to follow.'
-              )}
+              title={'同一个人判定的严格程度，改完需要「清空并重扫」才会对已有结果生效'}
               // .input 自带 9px 上下内边距，再钉 height 就把 13px 的字挤成一条 —— 收掉内边距
               style={{ height: 32, minWidth: 176, padding: '0 26px 0 10px' }}
             >
               {COS_PRESETS.map((o) => (
                 <option key={o.v} value={o.v}>
-                  {L(o.zh, o.en)}
+                  {o.label}
                 </option>
               ))}
             </select>
@@ -550,42 +543,33 @@ export default function People({ onToast, onOpen, focusPersonId, focusNonce }: P
           <button
             className={`btn sm${showAllPersons ? ' primary' : ''}`}
             onClick={() => setShowAllPersons((v) => !v)}
-            title={L(
-              '封面脸不够清晰的人物（多半只有一两张糊脸、甚至是误检）默认折叠，免得糊脸占满人物页',
-              'People whose best face is still soft are folded away by default'
-            )}
+            title={'封面脸不够清晰的人物（多半只有一两张糊脸、甚至是误检）默认折叠，免得糊脸占满人物页'}
           >
             {showAllPersons
-              ? L('只看清晰封面', 'Sharp covers only')
-              : L(
-                  `显示全部人物（另有 ${st.weakCoverPersons} 人封面不清晰）`,
-                  `Show all (+${st.weakCoverPersons} soft covers)`
-                )}
+              ? '只看清晰封面'
+              : `显示全部人物（另有 ${st.weakCoverPersons} 人封面不清晰）`}
           </button>
         )}
         {st?.downloaded && !st.scanning && (
           st.cleaning ? (
             <button className="btn sm" onClick={() => void cancelCleanup()}>
-              {L('取消清理', 'Cancel cleanup')}
+              {'取消清理'}
               {st.cleanTotal ? ` ${st.cleanDone ?? 0}/${st.cleanTotal}` : ''}
             </button>
           ) : (
             <button
               className="btn sm"
               onClick={() => void cleanup()}
-              title={L(
-                '按质量门槛重新检查已检出的人脸，自动排除模糊/过小/后脑勺，并按清晰度与尺寸重选每个人的封面',
-                'Re-check every detected face, auto-exclude blurry/tiny/back-of-head crops, and re-pick each cover by sharpness and size'
-              )}
+              title={'按质量门槛重新检查已检出的人脸，自动排除模糊/过小/后脑勺，并按清晰度与尺寸重选每个人的封面'}
             >
-              {L('清理模糊人脸', 'Clean blurry faces')}
+              {'清理模糊人脸'}
             </button>
           )
         )}
         {!!st?.downloaded && (
           st.rebuilding ? (
             <button className="btn sm" onClick={() => void cancelRebuild()}>
-              {L('取消重建', 'Cancel rebuild')}
+              {'取消重建'}
               {st.rebuildTotal ? ` ${st.rebuildDone ?? 0}/${st.rebuildTotal}` : ''}
             </button>
           ) : (
@@ -593,18 +577,15 @@ export default function People({ onToast, onOpen, focusPersonId, focusNonce }: P
               className="btn sm"
               disabled={!!st.cleaning || !!st.scanning}
               onClick={() => void rebuild()}
-              title={L(
-                '按现有特征重新聚类，解散「一堆后脑勺凑成一个人」这类不可信的簇，并按清晰度与尺寸重选封面（不解码图片，通常十几秒）',
-                'Re-cluster from stored embeddings, dissolve untrustworthy clusters (e.g. a "person" made of back-of-heads), and re-pick covers'
-              )}
+              title={'按现有特征重新聚类，解散「一堆后脑勺凑成一个人」这类不可信的簇，并按清晰度与尺寸重选封面（不解码图片，通常十几秒）'}
             >
-              {L('重建分组', 'Rebuild groups')}
+              {'重建分组'}
             </button>
           )
         )}
         {st?.scanning ? (
           <button className="btn sm" onClick={() => void stop()}>
-            {L('停止扫描', 'Stop')}
+            {'停止扫描'}
           </button>
         ) : (
           <>
@@ -612,18 +593,18 @@ export default function People({ onToast, onOpen, focusPersonId, focusNonce }: P
               className="btn sm primary"
               disabled={!st?.downloaded || !!st?.downloading}
               onClick={() => void scan(false)}
-              title={st?.downloaded ? '' : L('需要先下载模型', 'Download the model first')}
+              title={st?.downloaded ? '' : '需要先下载模型'}
             >
-              {st && st.persons > 0 ? L('扫描新增素材', 'Scan new') : L('扫描全库', 'Scan library')}
+              {st && st.persons > 0 ? '扫描新增素材' : '扫描全库'}
             </button>
             {!!st?.persons && (
               <>
                 <button
                   className="btn sm"
                   onClick={() => void scan(true)}
-                  title={L('清空人脸数据后按当前阈值重新聚类', 'Clear face data and re-cluster with the current threshold')}
+                  title={'清空人脸数据后按当前阈值重新聚类'}
                 >
-                  {L('清空并重扫', 'Re-cluster')}
+                  {'清空并重扫'}
                 </button>
                 <button
                   className="btn sm"
@@ -634,12 +615,12 @@ export default function People({ onToast, onOpen, focusPersonId, focusNonce }: P
                       setActive(null);
                       setItems(null);
                       await refresh();
-                      toastRef.current(L('已清空人脸数据', 'Face data cleared'));
+                      toastRef.current('已清空人脸数据');
                     })
                   }
-                  title={L('只清空人脸记录，不重新扫描', 'Remove face records without rescanning')}
+                  title={'只清空人脸记录，不重新扫描'}
                 >
-                  {L('清空数据', 'Clear data')}
+                  {'清空数据'}
                 </button>
               </>
             )}
@@ -656,18 +637,15 @@ export default function People({ onToast, onOpen, focusPersonId, focusNonce }: P
         {head}
         <div className="card" style={{ maxWidth: 640 }}>
           <h4 className="section-title">
-            <IconUsers /> {L('需要先下载人脸模型', 'Face model required')}
+            <IconUsers /> {'需要先下载人脸模型'}
           </h4>
           <p style={{ color: 'var(--muted)', lineHeight: 1.7, fontSize: 13 }}>
-            ├─ {L('检测：SCRFD det_10g（约 17MB）', 'Detection: SCRFD det_10g (~17MB)')}
+            ├─ {'检测：SCRFD det_10g（约 17MB）'}
             <br />
-            ├─ {L('特征：ArcFace w600k_r50（约 174MB，512 维）', 'Embedding: ArcFace w600k_r50 (~174MB, 512-d)')}
+            ├─ {'特征：ArcFace w600k_r50（约 174MB，512 维）'}
             <br />
             └─{' '}
-            {L(
-              '全部本地推理，照片不会上传；权重会按随包的可信哈希清单逐字节校验',
-              'All inference is local; photos never leave this machine. Weights are verified byte-for-byte against the bundled hash list.'
-            )}
+            {'全部本地推理，照片不会上传；权重会按随包的可信哈希清单逐字节校验'}
           </p>
           {st.downloading ? (
             <div style={{ marginTop: 12 }}>
@@ -675,20 +653,20 @@ export default function People({ onToast, onOpen, focusPersonId, focusNonce }: P
                 <div className="progress-fill" style={{ width: `${st.progress}%` }} />
               </div>
               <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 6, fontSize: 12, color: 'var(--muted)' }}>
-                <span>{st.message || L('下载中…', 'Downloading…')}</span>
+                <span>{st.message || '下载中…'}</span>
                 <button className="btn sm" onClick={() => void guard(async () => { await api.faceInstallCancel(); })}>
-                  {L('取消', 'Cancel')}
+                  {'取消'}
                 </button>
               </div>
             </div>
           ) : (
             <button className="btn sm primary" style={{ marginTop: 12 }} onClick={() => void install()}>
-              <IconDownload /> {L('下载模型（约 191MB）', 'Download model (~191MB)')}
+              <IconDownload /> {'下载模型（约 191MB）'}
             </button>
           )}
           {st.error && (
             <div style={{ color: '#ff9a9a', fontSize: 12, marginTop: 8 }}>
-              {L('上次失败：', 'Last attempt failed: ')}
+              {'上次失败：'}
               {st.error}
             </div>
           )}
@@ -704,7 +682,7 @@ export default function People({ onToast, onOpen, focusPersonId, focusNonce }: P
         {head}
         <div style={{ display: 'flex', gap: 10, alignItems: 'center', margin: '0 0 14px', flexWrap: 'wrap' }}>
           <button className="btn sm" onClick={() => { setActive(null); setActivePerson(null); setItems(null); }}>
-            ← {L('全部人物', 'All people')}
+            ← {'全部人物'}
           </button>
           {renaming?.id === active ? (
             <>
@@ -713,7 +691,7 @@ export default function People({ onToast, onOpen, focusPersonId, focusNonce }: P
                 autoFocus
                 value={renaming.value}
                 style={{ width: 220, height: 32 }}
-                placeholder={L('给他/她起个名字', 'Give this person a name')}
+                placeholder={'给他/她起个名字'}
                 onChange={(e) => setRenaming({ id: active, value: e.target.value })}
                 onKeyDown={(e) => {
                   if (e.key === 'Enter') void submitRename();
@@ -721,32 +699,26 @@ export default function People({ onToast, onOpen, focusPersonId, focusNonce }: P
                 }}
               />
               <button className="btn sm primary" onClick={() => void submitRename()}>
-                {L('保存', 'Save')}
+                {'保存'}
               </button>
             </>
           ) : (
             <h3 style={{ margin: 0 }}>
-              {current?.name || L('未命名人物', 'Unnamed person')}
+              {current?.name || '未命名人物'}
               <button
                 className="mini"
                 style={{ marginLeft: 8 }}
                 onClick={() => setRenaming({ id: active, value: current?.name || '' })}
               >
-                {L('改名', 'Rename')}
+                {'改名'}
               </button>
             </h3>
           )}
           <span
             className="tag-pill"
-            title={L(
-              '人脸数和照片数是两回事：一张合影里同一个人出现两次算两张脸、但只算一张照片',
-              'Faces and photos are different: the same person twice in one shot counts as 2 faces, 1 photo'
-            )}
+            title={'人脸数和照片数是两回事：一张合影里同一个人出现两次算两张脸、但只算一张照片'}
           >
-            {L(
-              `${current?.count ?? 0} 张人脸 · ${itemsTotal || current?.photoCount || 0} 张照片`,
-              `${current?.count ?? 0} faces · ${itemsTotal || current?.photoCount || 0} photos`
-            )}
+            {`${current?.count ?? 0} 张人脸 · ${itemsTotal || current?.photoCount || 0} 张照片`}
           </span>
           <span style={{ flex: 1 }} />
           {persons.length > 1 && (
@@ -759,29 +731,26 @@ export default function People({ onToast, onOpen, focusPersonId, focusNonce }: P
               <Select
                 value={mergeTo === '' ? '' : String(mergeTo)}
                 onChange={(v) => setMergeTo(v === '' ? '' : Number(v))}
-                title={L('选择要合并进去的人物', 'Pick the person to merge into')}
+                title={'选择要合并进去的人物'}
                 style={{ height: 32, padding: '0 10px', minWidth: 168, maxWidth: 300 }}
               >
-                <option value="">{L('合并到…', 'Merge into…')}</option>
+                <option value="">{'合并到…'}</option>
                 {persons
                   .filter((p) => p.id !== active)
                   .map((p) => (
                     <option key={p.id} value={p.id}>
-                      {p.name || L(`人物 #${p.id}`, `Person #${p.id}`)}（{p.photoCount ?? p.count} 张）
+                      {p.name || `人物 #${p.id}`}（{p.photoCount ?? p.count} 张）
                     </option>
                   ))}
               </Select>
               <button className="btn sm" disabled={mergeTo === ''} onClick={() => void merge()}>
-                {L('合并', 'Merge')}
+                {'合并'}
               </button>
             </>
           )}
           <label
             className="people-size"
-            title={L(
-              '照片墙格子大小（和图片列表页一样能调，拖动即生效并记住）',
-              'Thumbnail size — drag to resize, remembered locally'
-            )}
+            title={'照片墙格子大小（和图片列表页一样能调，拖动即生效并记住）'}
           >
             <IconImages />
             <input
@@ -791,22 +760,22 @@ export default function People({ onToast, onOpen, focusPersonId, focusNonce }: P
               step={10}
               value={colW}
               onChange={(e) => setColW(Number(e.target.value))}
-              aria-label={L('照片墙格子大小', 'Thumbnail size')}
+              aria-label={'照片墙格子大小'}
             />
           </label>
           <button
             className="btn sm"
             onClick={() => void removePerson()}
-            title={L('这个人物分错了：清掉他的全部人脸记录', 'Wrong grouping: remove every face record of this person')}
+            title={'这个人物分错了：清掉他的全部人脸记录'}
           >
-            {L('删除该人物', 'Delete person')}
+            {'删除该人物'}
           </button>
         </div>
 
-        {loadingItems && <div style={{ padding: 30, color: 'var(--muted)' }}>{L('正在读取…', 'Loading…')}</div>}
+        {loadingItems && <div style={{ padding: 30, color: 'var(--muted)' }}>{'正在读取…'}</div>}
         {!loadingItems && items && !items.length && (
           <div style={{ padding: 30, color: 'var(--muted)' }}>
-            {L('这个人目前没有可显示的图片（可能原图已被移出图库）。', 'No images to show — the originals may have been moved out of the library.')}
+            {'这个人目前没有可显示的图片（可能原图已被移出图库）。'}
           </div>
         )}
         <div
@@ -835,20 +804,17 @@ export default function People({ onToast, onOpen, focusPersonId, focusNonce }: P
               {current?.coverImageId === it.id ? (
                 <span
                   className="people-tile-badge"
-                  title={L('这张正在当封面', 'This photo is the cover')}
+                  title={'这张正在当封面'}
                 >
-                  {L('当前封面', 'Cover')}
+                  {'当前封面'}
                 </span>
               ) : (
                 <button
                   className="people-tile-act"
                   onClick={() => void setCover(it.id)}
-                  title={L(
-                    '用这张照片当这个人的封面（设完锁定，扫描不会自动换）',
-                    'Use this photo as the cover (locked, scans will not replace it)'
-                  )}
+                  title={'用这张照片当这个人的封面（设完锁定，扫描不会自动换）'}
                 >
-                  {L('设为封面', 'Set cover')}
+                  {'设为封面'}
                 </button>
               )}
             </div>
@@ -856,10 +822,10 @@ export default function People({ onToast, onOpen, focusPersonId, focusNonce }: P
         </div>
         {!!items && itemsTotal > items.length && (
           <div className="hint" style={{ marginTop: 10 }}>
-            {L(`只显示了 ${items.length} / ${itemsTotal} 张图片`, `Showing ${items.length} of ${itemsTotal} images`)}
+            {`只显示了 ${items.length} / ${itemsTotal} 张图片`}
             {itemsLimit < 2000 && (
               <button className="btn sm" style={{ marginLeft: 8 }} onClick={() => void loadMoreItems()}>
-                {L('显示更多', 'Show more')}
+                {'显示更多'}
               </button>
             )}
           </div>
@@ -887,9 +853,9 @@ export default function People({ onToast, onOpen, focusPersonId, focusNonce }: P
         <div className="card" style={{ marginBottom: 14 }}>
           <div style={{ display: 'flex', gap: 10, alignItems: 'center', fontSize: 12.5 }}>
             <IconUsers />
-            <span>{L(`正在扫描：还剩 ${st.pending} 张未扫`, `Scanning: ${st.pending} left`)}</span>
+            <span>{`正在扫描：还剩 ${st.pending} 张未扫`}</span>
             <span style={{ color: 'var(--muted)' }}>
-              {L(`已识别 ${st.faces} 张人脸 / ${st.persons} 个人物`, `${st.faces} faces · ${st.persons} people`)}
+              {`已识别 ${st.faces} 张人脸 / ${st.persons} 个人物`}
             </span>
           </div>
         </div>
@@ -898,8 +864,8 @@ export default function People({ onToast, onOpen, focusPersonId, focusNonce }: P
       {!st && (
         <div className="card" style={{ padding: 36, textAlign: 'center', color: 'var(--muted)' }}>
           {loadError
-            ? L(`读取人脸状态失败：${loadError}（请刷新页面重试）`, `Failed to load face status: ${loadError}. Refresh to retry.`)
-            : L('正在读取人脸状态…', 'Loading face status…')}
+            ? `读取人脸状态失败：${loadError}（请刷新页面重试）`
+            : '正在读取人脸状态…'}
         </div>
       )}
 
@@ -912,7 +878,7 @@ export default function People({ onToast, onOpen, focusPersonId, focusNonce }: P
             />
           </div>
           <div style={{ fontSize: 12, color: 'var(--muted)', marginTop: 6 }}>
-            {st.cleanMessage || L('正在重算人脸质量…', 'Re-checking face quality…')}
+            {st.cleanMessage || '正在重算人脸质量…'}
           </div>
           {!!whyText(st.cleanReasons) && (
             <div style={{ fontSize: 11.5, color: 'var(--muted)', marginTop: 2 }}>{whyText(st.cleanReasons)}</div>
@@ -929,24 +895,17 @@ export default function People({ onToast, onOpen, focusPersonId, focusNonce }: P
             />
           </div>
           <div style={{ fontSize: 12, color: 'var(--muted)', marginTop: 6 }}>
-            {st.rebuildMessage || L('正在重建人物分组…', 'Rebuilding people…')}
+            {st.rebuildMessage || '正在重建人物分组…'}
           </div>
         </div>
       )}
 
       {!!st && !st.cleaning && !st.rebuilding && (!!st.hiddenFaces || !!st.unassessedFaces) && (
         <div className="hint" style={{ margin: '0 0 12px' }}>
-          {L(
-            `已自动排除 ${st.hiddenFaces ?? 0} 张不可用的人脸（模糊 / 过小 / 没纹理 / 后脑勺），不显示、不参与聚类；` +
-              '其余只是不够清晰的脸照常显示，但不会当选封面。点开人物后，照片上悬停可以手动「设为封面」',
-            `${st.hiddenFaces ?? 0} unusable faces excluded (blurry / tiny / flat / back-of-head) — hidden and not clustered; ` +
-              'soft-but-usable faces still show, they just never become the cover. Open a person and hover a photo to pick the cover manually'
-          )}
+          {`已自动排除 ${st.hiddenFaces ?? 0} 张不可用的人脸（模糊 / 过小 / 没纹理 / 后脑勺），不显示、不参与聚类；` +
+              '其余只是不够清晰的脸照常显示，但不会当选封面。点开人物后，照片上悬停可以手动「设为封面」'}
           {!!st.unassessedFaces &&
-            L(
-              `；另有 ${st.unassessedFaces} 张老数据还没有质量分，点「清理模糊人脸」回填`,
-              `; ${st.unassessedFaces} older faces have no quality score yet — hit "Clean blurry faces" to backfill`
-            )}
+            `；另有 ${st.unassessedFaces} 张老数据还没有质量分，点「清理模糊人脸」回填`}
         </div>
       )}
 
@@ -955,19 +914,13 @@ export default function People({ onToast, onOpen, focusPersonId, focusNonce }: P
           <IconUsers />
           <div style={{ marginTop: 10, fontSize: 13.5 }}>
             {st.pending
-              ? L(
-                  `还有 ${st.pending} 张素材未扫描 — 点右上角「扫描全库」开始`,
-                  `${st.pending} items not scanned yet — hit "Scan library" at the top right`
-                )
+              ? `还有 ${st.pending} 张素材未扫描 — 点右上角「扫描全库」开始`
               : st.weakCoverPersons
-                ? L(
-                    `已识别 ${st.weakCoverPersons} 个人物，但他们的封面脸都不够清晰 —— 点上方「显示全部人物」查看`,
-                    `${st.weakCoverPersons} people found, but none has a sharp enough cover — hit "Show all" above`
-                  )
-                : L('还没有识别到人脸', 'No faces found yet')}
+                ? `已识别 ${st.weakCoverPersons} 个人物，但他们的封面脸都不够清晰 —— 点上方「显示全部人物」查看`
+                : '还没有识别到人脸'}
           </div>
           <div style={{ marginTop: 6, fontSize: 12 }}>
-            {L('扫过的照片会被记住，下次只处理新增素材', 'Scanned photos are remembered, so later runs only touch new items')}
+            {'扫过的照片会被记住，下次只处理新增素材'}
           </div>
         </div>
       )}
@@ -997,10 +950,7 @@ export default function People({ onToast, onOpen, focusPersonId, focusNonce }: P
                 cursor: 'pointer',
                 textAlign: 'left',
               }}
-              title={`${p.name || L(`人物 #${p.id}`, `Person #${p.id}`)} · ${L(
-                `${p.photoCount ?? p.count} 张照片 · ${p.count} 张人脸`,
-                `${p.photoCount ?? p.count} photos · ${p.count} faces`
-              )}`}
+              title={`${p.name || `人物 #${p.id}`} · ${`${p.photoCount ?? p.count} 张照片 · ${p.count} 张人脸`}`}
             >
               <div style={{ aspectRatio: '1 / 1', background: '#111' }}>
                 {p.coverFaceId ? (
@@ -1018,10 +968,10 @@ export default function People({ onToast, onOpen, focusPersonId, focusNonce }: P
               </div>
               <div style={{ padding: '7px 9px' }}>
                 <div style={{ fontSize: 12.5, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                  {p.name || L(`人物 #${p.id}`, `Person #${p.id}`)}
+                  {p.name || `人物 #${p.id}`}
                 </div>
                 <div style={{ fontSize: 11.5, color: 'var(--muted)' }}>
-                  {L(`${p.photoCount ?? p.count} 张照片`, `${p.photoCount ?? p.count} photos`)}
+                  {`${p.photoCount ?? p.count} 张照片`}
                 </div>
               </div>
             </button>
@@ -1030,10 +980,10 @@ export default function People({ onToast, onOpen, focusPersonId, focusNonce }: P
       )}
       {personsTotal > persons.length && (
         <div className="hint" style={{ marginTop: 12 }}>
-          {L(`只显示了 ${persons.length} / ${personsTotal} 个人物`, `Showing ${persons.length} of ${personsTotal} people`)}
+          {`只显示了 ${persons.length} / ${personsTotal} 个人物`}
           {personsLimit < 2000 && (
             <button className="btn sm" style={{ marginLeft: 8 }} onClick={() => setPersonsLimit((n) => Math.min(2000, n + 500))}>
-              {L('显示更多', 'Show more')}
+              {'显示更多'}
             </button>
           )}
         </div>

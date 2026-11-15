@@ -11,7 +11,6 @@ import LibrarySwitcher from '../components/LibrarySwitcher';
 import SavedFilterList from '../components/SavedFilterList';
 import TagPanel from '../components/TagPanel';
 import { MORE_NAV, PENDING_ITEMS, PRIMARY_NAV, navLabel } from './nav';
-import { useLang } from '../lib/i18n';
 import { SideSection, useSideSections } from './SideSection';
 
 interface Props {
@@ -139,21 +138,19 @@ export default function Sidebar({
   onToast,
 }: Props) {
   const { open: sections, toggle: toggleSection, setAll: setAllSections, allOpen } = useSideSections();
-  // 订阅语言：切中英文时整条侧栏按新语言重渲染（导航项走 navLabel，其余走 t）
-  const { t } = useLang();
   const pendingTotal = pendingCounts ? PENDING_ITEMS.filter((p) => pendingCounts[p.key] > 0).length : 0;
 
   return (
     <aside className="sidebar" data-tour="sidebar" style={{ '--sidebar-w': `${width}px` } as CSSProperties}>
       <div className="side-head">
-        <span className="side-head-title">{t('资源库', 'Libraries')}</span>
+        <span className="side-head-title">{'资源库'}</span>
         <button
           type="button"
           className="side-head-all"
           onClick={() => setAllSections(!allOpen)}
-          title={allOpen ? t('收起全部侧栏分区', 'Collapse all sections') : t('展开全部侧栏分区', 'Expand all sections')}
+          title={allOpen ? '收起全部侧栏分区' : '展开全部侧栏分区'}
         >
-          {allOpen ? t('收起全部', 'Collapse all') : t('展开全部', 'Expand all')}
+          {allOpen ? '收起全部' : '展开全部'}
         </button>
       </div>
 
@@ -185,7 +182,7 @@ export default function Sidebar({
       </div>
 
       {/* 四个低频入口常驻：图标 + 文字都要，默认就能看见，也不会被「收起全部」藏起来 */}
-      <div className="nav-grid side-more-nav" aria-label={t('更多导航', 'More')}>
+      <div className="nav-grid side-more-nav" aria-label={'更多导航'}>
         {MORE_NAV.map((n) => (
           <button
             key={n.key}
@@ -202,10 +199,10 @@ export default function Sidebar({
       </div>
 
       <SideSection
-        title={t('待整理', 'To sort')}
+        title={'待整理'}
         open={sections.pending}
         onToggle={() => toggleSection('pending')}
-        summary={pendingTotal ? t(`${pendingTotal} 项待处理`, `${pendingTotal} pending`) : t('未分类 / 无标签 / 未评分', 'No folder / tags / rating')}
+        summary={pendingTotal ? `${pendingTotal} 项待处理` : '未分类 / 无标签 / 未评分'}
       >
         {PENDING_ITEMS.map((p) => (
           <button
@@ -222,12 +219,12 @@ export default function Sidebar({
       </SideSection>
 
       <SideSection
-        title={t('保存的筛选', 'Saved filters')}
+        title={'保存的筛选'}
         open={sections.saved}
         onToggle={() => toggleSection('saved')}
-        summary={t(`${savedFilters.length} 条`, `${savedFilters.length}`)}
+        summary={`${savedFilters.length} 条`}
         actions={
-          <button className="folder-add-btn" title={t('把当前筛选条件保存下来', 'Save current filter')} onClick={onSaveCurrentFilter}>
+          <button className="folder-add-btn" title={'把当前筛选条件保存下来'} onClick={onSaveCurrentFilter}>
             ＋
           </button>
         }
@@ -245,13 +242,13 @@ export default function Sidebar({
       </SideSection>
 
       <SideSection
-        title={t('标签', 'Tags')}
+        title={'标签'}
         open={sections.tags}
         onToggle={() => toggleSection('tags')}
-        summary={tags.length ? t(`${tags.length} 个`, `${tags.length}`) : t('按标签筛选', 'Filter by tag')}
+        summary={tags.length ? `${tags.length} 个` : '按标签筛选'}
         actions={
           onBatchCreateTag && (
-            <button className="folder-add-btn" title={t('批量新建标签', 'Create tags in batch')} onClick={onBatchCreateTag}>
+            <button className="folder-add-btn" title={'批量新建标签'} onClick={onBatchCreateTag}>
               ＋
             </button>
           )
@@ -294,7 +291,7 @@ export default function Sidebar({
       </div>
       <div
         className="sidebar-resizer"
-        title={t('拖动调整侧栏宽度 · 双击恢复默认', 'Drag to resize · double-click to reset')}
+        title={'拖动调整侧栏宽度 · 双击恢复默认'}
         onPointerDown={onResizeDown}
         onPointerMove={onResizeMove}
         onPointerUp={onResizeUp}

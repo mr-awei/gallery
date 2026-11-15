@@ -10,6 +10,9 @@ import Histogram from './Histogram';
 import { IconClose } from './Icons';
 import { api } from '../api';
 
+/** 中文文案：快捷键表、历史步骤名等在模块常量里只存两份文案，翻译留给调用点 */
+type Bi = string;
+
 /** 调色台底部的缩略图条（批量调色：一套参数、可切换预览对象） */
 export interface FilmstripItem {
   id: number;
@@ -51,7 +54,7 @@ const hexOf = (c: { r: number; g: number; b: number }) => `#${[c.r, c.g, c.b].ma
  * 快捷键表（?）。照抄像素蛋糕习惯：单键切工具、Tab 跳滑杆、↑↓ 微调、Ctrl+数字直达。
  * 和下面的 keydown 处理器是同一份口径 —— 改键必须两处一起改。
  */
-const KEY_GROUPS: { title: string; items: [string, string][] }[] = [
+const KEY_GROUPS: { title: Bi; items: [string, Bi][] }[] = [
   {
     title: '工具',
     items: [
@@ -143,8 +146,8 @@ export default function ColorRoom({
 
   interface HistEntry {
     params: AdjustParams;
-    /** 这一步改了什么，历史列表里直接显示 */
-    label: string;
+    /** 这一步改了什么，历史列表里直接显示（存两份文案，切语言时跟着变） */
+    label: Bi;
   }
   /** entries[0] 永远是打开这张图时的参数；index 指向当前生效的那一步 */
   const histRef = useRef<{ entries: HistEntry[]; index: number; at: number }>({
@@ -184,8 +187,8 @@ export default function ColorRoom({
   const sameParams = (a: AdjustParams, b: AdjustParams) => JSON.stringify(a) === JSON.stringify(b);
 
   /** 参数里改了什么，翻译成历史列表里的步骤名 */
-  const labelOf = (prev: AdjustParams, next: AdjustParams): string => {
-    const NAME: Record<string, string> = {
+  const labelOf = (prev: AdjustParams, next: AdjustParams): Bi => {
+    const NAME: Record<string, Bi> = {
       temperature: '色温',
       tint: '色调',
       exposure: '曝光',
@@ -218,7 +221,7 @@ export default function ColorRoom({
    * 700ms 内的连续修改并成一步：拖一次滑块只产生一个记录点，
    * 而不是拖 200px 要按 40 次 Ctrl+Z 才回到原位。
    */
-  const handleChange = (next: AdjustParams, explicitLabel?: string) => {
+  const handleChange = (next: AdjustParams, explicitLabel?: Bi) => {
     const prev = valueRef.current;
     if (sameParams(prev, next)) return;
     const h = histRef.current;
@@ -426,10 +429,10 @@ export default function ColorRoom({
     if (!buildBase()) return;
     const base = baseRef.current;
     if (!base) return;
-    const t = autoToneFromPixels(base.data, 4);
+    const auto = autoToneFromPixels(base.data, 4);
     // 从默认值出发：自动的语义是「重新给一版最优」，不是把结果叠在当前手工调整上，
     // 否则点两次会越来越亮、曲线/分级也会带着上一次的痕迹
-    handleChange({ ...ADJUST_DEFAULTS, ...t }, '全自动');
+    handleChange({ ...ADJUST_DEFAULTS, ...auto }, '全自动');
     onSampleChange(null);
     setPoint(null);
     setPicking(false);
@@ -551,11 +554,11 @@ export default function ColorRoom({
    */
   useEffect(() => {
     const isTextTarget = (el: EventTarget | null) => {
-      const t = el as HTMLElement | null;
-      if (!t) return false;
-      if (t.isContentEditable) return true;
-      if (t.tagName === 'TEXTAREA') return true;
-      return t.tagName === 'INPUT' && (t as HTMLInputElement).type !== 'range';
+      const node = el as HTMLElement | null;
+      if (!node) return false;
+      if (node.isContentEditable) return true;
+      if (node.tagName === 'TEXTAREA') return true;
+      return node.tagName === 'INPUT' && (node as HTMLInputElement).type !== 'range';
     };
 
     const onKey = (e: KeyboardEvent) => {
@@ -744,7 +747,7 @@ export default function ColorRoom({
       className="color-room"
       role="dialog"
       aria-modal="true"
-      aria-label="调色台"
+      aria-label={'调色台'}
       onClick={(e) => e.stopPropagation()}
       onPointerDown={(e) => e.stopPropagation()}
     >
@@ -755,29 +758,29 @@ export default function ColorRoom({
           {badge && <span className="cr-badge">{badge}</span>}
         </div>
         <div className="cr-tools">
-          <button className="btn xs" onClick={() => zoomBy(1 / 1.25)} title="缩小">
+          <button className="btn xs" onClick={() => zoomBy(1 / 1.25)} title={'缩小'}>
             －
           </button>
-          <button className="btn xs" onClick={resetView} title="适应窗口（双击图片同样效果）">
+          <button className="btn xs" onClick={resetView} title={'适应窗口（双击图片同样效果）'}>
             {Math.round(zoom * 100)}%
           </button>
-          <button className="btn xs" onClick={() => zoomBy(1.25)} title="放大">
+          <button className="btn xs" onClick={() => zoomBy(1.25)} title={'放大'}>
             ＋
           </button>
           <button
             className="btn xs"
-            title="按住查看原图（松开恢复调色预览）"
+            title={'按住查看原图（松开恢复调色预览）'}
             onPointerDown={() => setShowRaw(true)}
             onPointerUp={() => setShowRaw(false)}
             onPointerLeave={() => setShowRaw(false)}
           >
             {showRaw ? '原图' : '对比'}
           </button>
-          <button className="btn xs" title="快捷键表（?）" onClick={() => setKeysOpen((v) => !v)}>
-            快捷键
+          <button className="btn xs" title={'快捷键表（?）'} onClick={() => setKeysOpen((v) => !v)}>
+            {'快捷键'}
           </button>
         </div>
-        <button className="btn sm ghost cr-close" onClick={onClose} title="关闭调色台（Esc）">
+        <button className="btn sm ghost cr-close" onClick={onClose} title={'关闭调色台（Esc）'}>
           <IconClose />
         </button>
       </header>
@@ -841,7 +844,11 @@ export default function ColorRoom({
         </div>
 
         {filmstrip && filmstrip.length > 1 && (
-          <div className="cr-strip" role="tablist" aria-label="批量图片：点击切换预览，调色参数对整批一致">
+          <div
+            className="cr-strip"
+            role="tablist"
+            aria-label={'批量图片：点击切换预览，调色参数对整批一致'}
+          >
             {filmstrip.map((f) => (
               <button
                 key={f.id}
@@ -870,7 +877,7 @@ export default function ColorRoom({
               <span style={{ color: '#ff6b6b' }}>R</span>
               <span style={{ color: '#4ade80' }}>G</span>
               <span style={{ color: '#60a5fa' }}>B</span>
-              <span className="cr-hist-luma">亮度</span>
+              <span className="cr-hist-luma">{'亮度'}</span>
             </div>
           </div>
 
@@ -881,18 +888,18 @@ export default function ColorRoom({
               className={`cr-log-head${histOpen ? ' open' : ''}`}
               onClick={() => setHistOpen((v) => !v)}
               aria-expanded={histOpen}
-              title="调色历史（Shift+V）"
+              title={'调色历史（Shift+V）'}
             >
               <span className="cr-log-caret" aria-hidden="true">
                 {histOpen ? '▾' : '▸'}
               </span>
-              <span>历史记录</span>
+              <span>{'历史记录'}</span>
               <span className="cr-log-count">
                 {hist.index + 1} / {hist.entries.length}
               </span>
             </button>
             {histOpen && (
-              <div className="cr-log-list" role="listbox" aria-label="调色历史">
+              <div className="cr-log-list" role="listbox" aria-label={'调色历史'}>
                 {hist.entries.map((entry, i) => (
                   <button
                     key={`${i}-${entry.label}`}
@@ -908,7 +915,7 @@ export default function ColorRoom({
                   </button>
                 ))}
                 <div className="cr-log-foot">
-                  最多保留 {histLimit} 步 · 设置里可改 · Ctrl+Z 逐步撤销
+                  {`最多保留 ${histLimit} 步 · 设置里可改 · Ctrl+Z 逐步撤销`}
                 </div>
               </div>
             )}
@@ -940,7 +947,8 @@ export default function ColorRoom({
             <p className="cr-note">
               {picking
                 ? '移动鼠标看放大镜取色，点一下中性灰/白色位置即锁定白平衡'
-                : note || 'Ctrl+Z 撤销 / Ctrl+Y 重做；滑块可双击归零；按 ? 看全部快捷键'}
+                : note ||
+                  'Ctrl+Z 撤销 / Ctrl+Y 重做；滑块可双击归零；按 ? 看全部快捷键'}
             </p>
           </div>
 
@@ -950,14 +958,20 @@ export default function ColorRoom({
 
       {/* 快捷键表：点遮罩 / Esc / ? 都能关 */}
       {keysOpen && (
-        <div className="cr-keys" role="dialog" aria-modal="true" aria-label="快捷键" onClick={() => setKeysOpen(false)}>
+        <div
+          className="cr-keys"
+          role="dialog"
+          aria-modal="true"
+          aria-label={'快捷键'}
+          onClick={() => setKeysOpen(false)}
+        >
           <div className="cr-keys-box" onClick={(e) => e.stopPropagation()}>
             <header className="cr-keys-head">
               <div>
-                <b>调色台快捷键</b>
-                <span>照像素蛋糕的手感配的，? 随时叫出来</span>
+                <b>{'调色台快捷键'}</b>
+                <span>{'照像素蛋糕的手感配的，? 随时叫出来'}</span>
               </div>
-              <button className="btn sm ghost" onClick={() => setKeysOpen(false)} title="关闭（Esc）">
+              <button className="btn sm ghost" onClick={() => setKeysOpen(false)} title={'关闭（Esc）'}>
                 <IconClose />
               </button>
             </header>
@@ -975,7 +989,7 @@ export default function ColorRoom({
               ))}
             </div>
             <p className="cr-keys-note">
-              鼠标在输入框里打字时不会抢键；组合键只在本窗口生效，不会影响其他软件。
+              {'鼠标在输入框里打字时不会抢键；组合键只在本窗口生效，不会影响其他软件。'}
             </p>
           </div>
         </div>

@@ -125,7 +125,11 @@ export function collectProbes() {
       path: files?.dir || '',
       ...(mt.downloading && mt.installing === p.id
         ? { state: 'downloading', progress: clampProgress(mt.progress), message: mt.message || '', error: mt.error || '' }
-        : {}),
+        : // 下载结束后 downloading 归 false，若只在下载中透出 error，失败会退化成
+          // 「未下载」且没有原因。失败档位要把原因一直挂着，直到用户重试或删除。
+          mt.failed === p.id && mt.error
+          ? { error: mt.error }
+          : {}),
     };
   }
 
@@ -308,8 +312,5 @@ export async function verifyModel(id) {
     message: p.verified ? '已与随包可信哈希比对一致' : '文件体积正常（该项没有随包哈希，无法做内容比对）',
   };
 }
-
-/** 供 app.js 的 SSE 快照使用（保留导出名与调用方一致） */
-export const MODEL_GROUPS_LIST = MODEL_GROUPS;
 
 export { MODEL_CATALOG };

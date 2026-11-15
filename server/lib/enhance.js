@@ -17,20 +17,43 @@ import { getImage, indexPhash, removeFileRetry, toDTO, translateError, writeFile
 
 
 /** 内置增强模型：全部基于 sharp 的插值 + 锐化，离线可用、无外部依赖。
- *  放大倍数按「目标标准」动态计算，保证增强后达到标准以上；
- *  模型只决定插值核与锐化风格，maxScale 为安全上限（防极端小图爆内存）。
+ *  放大倍数完全由用户设定的目标分辨率决定，不再有档位上限；
+ *  模型只决定插值核与锐化风格。
  *
  *  必须标明这是**插值放大**：像素变多但不会合成新细节，和 AI 超分是两件事。
  *  以前四档都叫「标准增强 / 细节强化」，用户以为是 AI 模型，放大后觉得「糊还是糊」。 */
 export const ENHANCE_MODELS = [
-  { id: 'sharp-standard', label: '标准增强', desc: '通用清晰放大，保留细节，适合大多数照片', engine: 'resample', engineLabel: '插值放大（非 AI 超分）', kernel: 'lanczos3', sharpen: 0.6, blur: 0, maxScale: 16 },
-  { id: 'sharp-anime', label: '二次元增强', desc: '保边去糊，线条更利落，适合插画/写真', engine: 'resample', engineLabel: '插值放大（非 AI 超分）', kernel: 'lanczos3', sharpen: 1.0, blur: 0, maxScale: 16 },
-  { id: 'sharp-soft', label: '柔和增强', desc: '照片风，抑制噪点与锯齿，过渡更平滑', engine: 'resample', engineLabel: '插值放大（非 AI 超分）', kernel: 'cubic', sharpen: 0.2, blur: 0.5, maxScale: 16 },
-  { id: 'sharp-detail', label: '细节强化', desc: '锐度更强，观感更锐利（可能略显生硬）', engine: 'resample', engineLabel: '插值放大（非 AI 超分）', kernel: 'lanczos3', sharpen: 1.4, blur: 0, maxScale: 16 },
+  { id: 'sharp-standard', label: '标准增强', desc: '通用清晰放大，保留细节，适合大多数照片', engine: 'resample', engineLabel: '插值放大（非 AI 超分）', kernel: 'lanczos3', sharpen: 0.6, blur: 0 },
+  { id: 'sharp-anime', label: '二次元增强', desc: '保边去糊，线条更利落，适合插画/写真', engine: 'resample', engineLabel: '插值放大（非 AI 超分）', kernel: 'lanczos3', sharpen: 1.0, blur: 0 },
+  { id: 'sharp-soft', label: '柔和增强', desc: '照片风，抑制噪点与锯齿，过渡更平滑', engine: 'resample', engineLabel: '插值放大（非 AI 超分）', kernel: 'cubic', sharpen: 0.2, blur: 0.5 },
+  { id: 'sharp-detail', label: '细节强化', desc: '锐度更强，观感更锐利（可能略显生硬）', engine: 'resample', engineLabel: '插值放大（非 AI 超分）', kernel: 'lanczos3', sharpen: 1.4, blur: 0 },
 ];
 
-/** 增强后输出的像素上限，避免极端小图放大到几十亿像素导致内存爆掉 */
-const MAX_OUTPUT_PIXELS = 50_000_000;
+/**
+ * 单张处理的内存保护上限（不是画质上限）。
+ * 用户想放大到多大都行（8K / 自定义 12000px 都可以），但一张图解码 + 编码各占一份
+ * 内存，超过约 1.8 亿像素时单张就要几个 GB，进程必崩。超限时**明确报错并给出数字**，
+ * 而不是像以前那样悄悄把目标砍到 5000 万像素——那会让用户以为「我设的 8K 生效了」。
+ */
+const MEMORY_GUARD_PIXELS = 180_000_000;
+
+/** 单张图最多连跑几轮 AI 超分（4×4×4 = 64 倍）；再多只是拿算力换噪点 */
+const MAX_AI_ROUNDS = 3;
+
+function exceedsGuard(w, h) {
+  return Math.max(0, w) * Math.max(0, h) > MEMORY_GUARD_PIXELS;
+}
+
+/** 目标尺寸可行性检查：超内存保护线就带着具体数字报错 */
+function assertTargetFeasible(w, h) {
+  const px = Math.max(0, w) * Math.max(0, h);
+  if (px > MEMORY_GUARD_PIXELS) {
+    throw new Error(
+      `目标 ${w}×${h}（约 ${(px / 1e6).toFixed(1)} 百万像素）超出单张处理上限 ` +
+        `（约 ${(MEMORY_GUARD_PIXELS / 1e6).toFixed(0)} 百万像素，这是内存保护，不是画质限制），请调低目标分辨率`
+    );
+  }
+}
 
 /**
  * 「已达标、未做任何改动」的统一返回：带上 noop 标记。
@@ -49,15 +72,19 @@ export const ENHANCE_STANDARDS = {
   '1080p': { width: 1920, height: 1080, label: '1080P（1920×1080）' },
   '2k': { width: 2560, height: 1440, label: '2K（2560×1440）' },
   '4k': { width: 3840, height: 2160, label: '4K（3840×2160）' },
+  '5k': { width: 5120, height: 2880, label: '5K（5120×2880）' },
+  '8k': { width: 7680, height: 4320, label: '8K（7680×4320）' },
   custom: { width: 0, height: 0, label: '自定义' },
 };
 
 export function getStandardResolution(standardKey, enhanceCfg = {}) {
   const key = ENHANCE_STANDARDS[standardKey] ? standardKey : '1080p';
   if (key === 'custom') {
+    // 自定义不再有上限（用户想 8K、10K 都行），只兜住非法值：
+    // 0/NaN/负数会把 resize 算成 1px 或 NaN，直接毁原图
     return {
-      width: Number(enhanceCfg.customWidth) || 1920,
-      height: Number(enhanceCfg.customHeight) || 1080,
+      width: Math.max(64, Math.round(Number(enhanceCfg.customWidth) || 1920)),
+      height: Math.max(64, Math.round(Number(enhanceCfg.customHeight) || 1080)),
     };
   }
   return { width: ENHANCE_STANDARDS[key].width, height: ENHANCE_STANDARDS[key].height };
@@ -149,14 +176,14 @@ async function enhanceImageInner(id, modelId, opts = {}) {
   const curH = meta.height || row.height;
 
   const model = ENHANCE_MODELS.find((m) => m.id === modelId) || ENHANCE_MODELS[0];
-  // 放大到「刚好达到标准」所需的倍数，并受输出像素上限与模型上限约束
+  // 放大到「刚好达到目标分辨率」所需的倍数。倍率完全由用户设定，不再被
+  // 倍率上限或像素上限截断——只守内存保护线（超了带数字报错）
   const needed = Math.max(target.width / (curW || 1), target.height / (curH || 1));
-  const maxByPixels = Math.sqrt(MAX_OUTPUT_PIXELS / Math.max(1, curW * curH));
-  const scale = Math.min(needed, maxByPixels, model.maxScale || 8);
-  if (scale <= 1.001) return unchangedResult(row); // 已达标，无需增强（noop 让前端如实提示）
+  if (needed <= 1.001) return unchangedResult(row); // 已达标，无需增强（noop 让前端如实提示）
 
-  const newW = Math.round(curW * scale);
-  const newH = Math.round(curH * scale);
+  const newW = Math.round(curW * needed);
+  const newH = Math.round(curH * needed);
+  assertTargetFeasible(newW, newH);
   const kernel = /** @type {keyof import('sharp').KernelEnum} */ (String(model.kernel || 'lanczos3'));
   let pipeline = sharp(row.abs_path, { failOn: 'none' }).resize(newW, newH, { kernel });
   if (model.sharpen) pipeline = pipeline.sharpen({ sigma: model.sharpen, m1: 0.5, m2: 0.2 });
@@ -183,6 +210,10 @@ async function enhanceImageTransformer(id, row, target, modelId, onProgress) {
 
   const needed = Math.max(target.width / (curW || 1), target.height / (curH || 1));
   if (needed <= 1.001) return unchangedResult(row);
+  assertTargetFeasible(
+    Math.round(curW * needed),
+    Math.round(curH * needed)
+  );
 
   const tmpOut = `${row.abs_path}.sr-out.png`;
   try {
@@ -234,8 +265,9 @@ function isNoisyImage(row, curW, curH) {
  * 单次超分：返回 { outPath, isTemp }。denoise / conservative 只有 Real-CUGAN 引擎才用。
  * @param {{engine?:string, name?:string, scale?:number, denoise?:number, conservative?:boolean}} spec
  */
-async function runOneStage({ engine, name, scale, denoise, conservative }, inputPath, curW, curH, onProgress) {
-  const tmpOut = `${inputPath}.stage-${engine}.png`;
+async function runOneStage({ engine, name, scale, denoise, conservative }, inputPath, curW, curH, onProgress, tag = '') {
+  // tag 区分「第几轮」：多轮超分时若同名，后一轮会覆盖正在读的上一轮产物
+  const tmpOut = `${inputPath}.stage-${engine}${tag}.png`;
   const tile = curW * curH > 1_500_000 ? 256 : 0;
   await runUpscale({ inputPath, outputPath: tmpOut, modelName: name, scale, tile, onProgress, engine, denoise, conservative });
   return tmpOut;
@@ -257,6 +289,7 @@ async function enhanceImageAi(id, row, target, modelId, onProgress) {
 
   const needed = Math.max(target.width / (curW || 1), target.height / (curH || 1));
   if (needed <= 1.001) return unchangedResult(row);
+  assertTargetFeasible(Math.round(curW * needed), Math.round(curH * needed));
 
   // 两级：先降噪再放大（Real-CUGAN 可用 + 判定为噪点重的图）
   const cuganModels = cuganInstalled() ? listCuganModels() : [];
@@ -285,33 +318,30 @@ async function enhanceImageAi(id, row, target, modelId, onProgress) {
       stageH = dm.height || stageH * 2;
     }
 
-    // 主模型：放大到「刚好达到标准」所需的倍数
-    const rest = Math.max(target.width / (stageW || 1), target.height / (stageH || 1));
-    if (rest > 1.001) {
+    // 主模型：单次推理只吃整数 2/3/4 倍。目标是 8K（往往 4 倍以上）时**连跑多轮**，
+    // 而不是跑完 4 倍就把剩下的交给 sharp 拉伸——那等于「AI 只做了一半」，
+    // 用户把目标从 4K 调到 8K 时看到的提升会明显不成比例。
+    let rest = Math.max(target.width / (stageW || 1), target.height / (stageH || 1));
+    let round = 0;
+    while (rest > 1.02 && round < MAX_AI_ROUNDS) {
       const aiScale = spec.scalable ? Math.max(2, Math.min(4, Math.ceil(rest))) : Math.min(spec.maxScale, 4);
-      const outPixels = stageW * stageH * aiScale * aiScale;
-      if (outPixels > MAX_OUTPUT_PIXELS) {
-        const k = Math.sqrt(MAX_OUTPUT_PIXELS / outPixels);
-        const preTmp = `${inputPath}.ai-src.png`;
-        await sharp(inputPath, { failOn: 'none' })
-          .resize(Math.max(64, Math.round(stageW * k)), Math.max(64, Math.round(stageH * k)), { kernel: 'lanczos3' })
-          .png()
-          .toFile(preTmp);
-        tmps.push(preTmp);
-        inputPath = preTmp;
-      }
+      // 中间产物超内存保护线就收手，剩下交给最终的 sharp 精确贴合（结果尺寸仍然准确）
+      if (exceedsGuard(stageW * aiScale, stageH * aiScale)) break;
       const upscaled = await runOneStage(
         { engine: spec.engine, name: spec.name, scale: aiScale },
         inputPath,
         stageW,
         stageH,
-        onProgress
+        onProgress,
+        round ? `-r${round}` : ''
       );
       tmps.push(upscaled);
       const upMeta = await sharp(upscaled, { failOn: 'none' }).metadata();
       inputPath = upscaled;
       stageW = upMeta.width || stageW * aiScale;
       stageH = upMeta.height || stageH * aiScale;
+      rest = Math.max(target.width / (stageW || 1), target.height / (stageH || 1));
+      round += 1;
     }
 
     // 精确贴合到标准

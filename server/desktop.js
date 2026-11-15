@@ -395,17 +395,6 @@ export async function detachLiveWindow(hwndHex) {
   return String(out).trim().toLowerCase() === 'true';
 }
 
-/** 查询窗口当前父句柄（0 表示没有父窗口，即未挂到桌面层） */
-export async function liveWindowParent(hwndHex) {
-  if (platform !== 'win32') return 0;
-  const dll = await ensureLiveCom();
-  const out = await runPowerShellCapture(
-    `if (-not ('TukuLive' -as [type])) {\nAdd-Type -Path '${dll.replace(/'/g, "''")}'\n}\n` +
-      `[TukuLive]::ParentOf([IntPtr]::new([long]::Parse('${String(hwndHex).trim()}')))\n`
-  );
-  return Number(String(out).trim()) || 0;
-}
-
 /** 前台是否有全屏应用（游戏/播放器），动态壁纸据此暂停 */
 export async function isFullscreenAppRunning() {
   if (platform !== 'win32') return false;

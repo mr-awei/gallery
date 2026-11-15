@@ -67,6 +67,9 @@ export default function LibraryLockScreen({
         </button>
         <div className="lock-note">
           密码在服务端校验，本机只存 scrypt 哈希。解锁只在本次运行有效，重启或切到别的库后要重新输入。
+          <br />
+          <b>这不是磁盘加密</b>：库文件夹里的 gallery.db 与缩略图仍是明文，用别的软件或直接拷走都能读。
+          要防「整个文件夹被拷走」，请配合系统级磁盘加密（如 BitLocker / FileVault）。
         </div>
       </div>
     </div>

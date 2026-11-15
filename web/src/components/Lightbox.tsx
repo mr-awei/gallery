@@ -27,7 +27,6 @@ import WatermarkStudio from './WatermarkStudio';
 import ToolbarCustomizer from './ToolbarCustomizer';
 import Select from './Select';
 import { usePinnedActions } from '../lib/pinned';
-import { useLang } from '../lib/i18n';
 
 /** 顶栏默认放的「更多」项：标注、OCR、下载最常用，其余留在菜单里 */
 const LB_PINNED_DEFAULT = ['anno', 'ocr', 'download'];
@@ -154,7 +153,6 @@ export default function Lightbox({
   onOpenFolder,
   onGotoPerson,
 }: Props) {
-  const { t } = useLang();
   const item = items[index];
   const [tagInput, setTagInput] = useState('');
   /* 该图归属的文件夹：补上「能加不能移」的缺口（Eagle 里详情区可直接移出） */
@@ -1168,10 +1166,10 @@ export default function Lightbox({
     >
       <div className="lightbox-top" onClick={(e) => e.stopPropagation()}>
         <div className="lb-top-left">
-          <button className="btn ghost sm" onClick={onClose} title={t('关闭（ESC）', 'Close (ESC)')}>
+          <button className="btn ghost sm" onClick={onClose} title={'关闭（ESC）'}>
             <IconClose />
-            <span className="lb-txt">{t('关闭', 'Close')}</span>
-            <span className="lb-txt-short">{t('关闭', 'Close')}</span>
+            <span className="lb-txt">{'关闭'}</span>
+            <span className="lb-txt-short">{'关闭'}</span>
           </button>
           <span className="lb-counter">
             {index + 1} / {items.length}
@@ -1195,91 +1193,88 @@ export default function Lightbox({
           <button
             className={`btn sm${item.favorite ? ' primary' : ''}`}
             onClick={() => onToggleFavorite(item)}
-            title={item.favorite ? t('取消收藏', 'Remove from favorites') : t('加入收藏', 'Add to favorites')}
+            title={item.favorite ? '取消收藏' : '加入收藏'}
           >
             <IconHeart filled={item.favorite} />
-            <span className="lb-txt">{item.favorite ? t('已收藏', 'Favorited') : t('收藏', 'Favorite')}</span>
-            <span className="lb-txt-short">{item.favorite ? t('已收藏', 'Favorited') : t('收藏', 'Favorite')}</span>
+            <span className="lb-txt">{item.favorite ? '已收藏' : '收藏'}</span>
+            <span className="lb-txt-short">{item.favorite ? '已收藏' : '收藏'}</span>
           </button>
           <span className="lb-divider" />
           {/* 高频编辑只留三个：裁切 / 调色 / 旋转（左转右转合成一个下拉） */}
           <button
             className={`btn sm${editor === 'crop' ? ' primary' : ''}`}
-            title={t('裁切：预设比例或自由框选，可覆盖原图或另存副本', 'Crop: presets or freehand, overwrite or save a copy')}
+            title={'裁切：预设比例或自由框选，可覆盖原图或另存副本'}
             disabled={!isImage || !!rotating || !!enhancing}
             onClick={() => (editor === 'crop' ? closeEditor() : openEditor('crop'))}
           >
             <IconExpand />
-            <span className="lb-txt">{t('裁切', 'Crop')}</span>
-            <span className="lb-txt-short">{t('裁切', 'Crop')}</span>
+            <span className="lb-txt">{'裁切'}</span>
+            <span className="lb-txt-short">{'裁切'}</span>
           </button>
           <button
             className={`btn sm${colorRoom ? ' primary' : ''}`}
-            title={t(
-              '打开独立调色台：白平衡吸管 + 直方图 + 影调/色彩/细节 + RGB 曲线，可覆盖原图或另存副本',
-              'Color room: white balance picker, histogram, tone/color/detail and RGB curves'
-            )}
+            title={'打开独立调色台：白平衡吸管 + 直方图 + 影调/色彩/细节 + RGB 曲线，可覆盖原图或另存副本'}
             disabled={!isImage || !!rotating || !!enhancing}
             onClick={() => (colorRoom ? setColorRoom(false) : openEditor('color'))}
           >
             <IconSun />
-            <span className="lb-txt">{t('调色', 'Color')}</span>
-            <span className="lb-txt-short">{t('调色', 'Color')}</span>
+            <span className="lb-txt">{'调色'}</span>
+            <span className="lb-txt-short">{'调色'}</span>
           </button>
           <div className="lb-more-wrap">
             <button
               className={`btn sm${rotOpen ? ' primary' : ''}`}
-              title={t('旋转 90° 并保存（左转 / 右转）', 'Rotate 90° and save (left / right)')}
+              title={'旋转 90° 并保存（左转 / 右转）'}
               disabled={!isImage || !!rotating}
               onClick={() => setRotOpen((v) => !v)}
             >
               <IconRotateCw />
-              <span className="lb-txt">{rotating ? t('保存中…', 'Saving…') : t('旋转', 'Rotate')}</span>
-              <span className="lb-txt-short">{rotating ? t('保存中…', 'Saving…') : t('旋转', 'Rotate')}</span>
+              <span className="lb-txt">{rotating ? '保存中…' : '旋转'}</span>
+              <span className="lb-txt-short">{rotating ? '保存中…' : '旋转'}</span>
               <span className="lb-icon-only">↻</span>
             </button>
             {rotOpen && (
               <div className="lb-more-menu" onMouseDown={(e) => e.stopPropagation()}>
                 <button
                   className="btn sm ghost"
-                  title={t('逆时针旋转 90° 并保存', 'Rotate 90° counter-clockwise and save')}
+                  title={'逆时针旋转 90° 并保存'}
                   onClick={() => {
                     setRotOpen(false);
                     rotate('ccw');
                   }}
                 >
-                  <IconRotateCcw /> {t('向左转 90°', 'Rotate left 90°')}
+                  <IconRotateCcw /> {'向左转 90°'}
                 </button>
                 <button
                   className="btn sm ghost"
-                  title={t('顺时针旋转 90° 并保存', 'Rotate 90° clockwise and save')}
+                  title={'顺时针旋转 90° 并保存'}
                   onClick={() => {
                     setRotOpen(false);
                     rotate('cw');
                   }}
                 >
-                  <IconRotateCw /> {t('向右转 90°', 'Rotate right 90°')}
+                  <IconRotateCw /> {'向右转 90°'}
                 </button>
               </div>
             )}
           </div>
           <button
             className={`btn sm${commentsOpen ? ' primary' : ''}`}
-            title={t('评论：记录用途、修改意见（Ctrl+Enter 发送）', 'Comments: usage notes and feedback (Ctrl+Enter to send)')}
+            title={'评论：记录用途、修改意见（Ctrl+Enter 发送）'}
             onClick={() => setCommentsOpen((v) => !v)}
           >
             <span className="lb-icon-only">💬</span>
-            <span className="lb-txt">{t('评论', 'Comments')}{cmtCount > 0 ? ` ${cmtCount}` : ''}</span>
-            <span className="lb-txt-short">{t('评论', 'Comments')}{cmtCount > 0 ? ` ${cmtCount}` : ''}</span>
+            <span className="lb-txt">{'评论'}{cmtCount > 0 ? ` ${cmtCount}` : ''}</span>
+            <span className="lb-txt-short">{'评论'}{cmtCount > 0 ? ` ${cmtCount}` : ''}</span>
           </button>
           <button
             className={`btn sm${infoOpen ? ' lb-on' : ''}`}
-            title={t('显示 / 隐藏详情信息（I）', 'Show / hide details (I)')}
+            title={'显示 / 隐藏详情信息（I）'}
             onClick={() => setInfoOpen((v) => !v)}
           >
             <span className="lb-icon-only">ⓘ</span>
-            <span className="lb-txt">{t('信息', 'Info')}</span>
-            <span className="lb-txt-short">{t('信息', 'Info')}</span>
+            <span className="lb-txt">{'信息'}</span>
+            <span className="lb-txt-short">{'信息'}</span>
           </button>
           <span className="lb-divider" />
           {/* 用户自己挪到顶栏的常用项：由「更多 → 自定义工具栏」控制 */}
@@ -1295,11 +1290,11 @@ export default function Lightbox({
             <button
               className={`btn sm${moreOpen ? ' primary' : ''}`}
               onClick={() => setMoreOpen((v) => !v)}
-              title={t('更多操作（可在菜单底部自定义顶栏显示哪些）', 'More actions (customize the top bar at the bottom of this menu)')}
+              title={'更多操作（可在菜单底部自定义顶栏显示哪些）'}
             >
               <span className="lb-icon-only">⋯</span>
-              <span className="lb-txt">{t('更多', 'More')}</span>
-              <span className="lb-txt-short">{t('更多', 'More')}</span>
+              <span className="lb-txt">{'更多'}</span>
+              <span className="lb-txt-short">{'更多'}</span>
             </button>
             {moreOpen && (
               <div className="lb-more-menu" onMouseDown={(e) => e.stopPropagation()}>
@@ -1351,10 +1346,10 @@ export default function Lightbox({
               </div>
             )}
           </div>
-          <button className="btn sm danger" onClick={() => onDelete(item)} title={t('删除（可撤销）', 'Delete (undoable)')}>
+          <button className="btn sm danger" onClick={() => onDelete(item)} title={'删除（可撤销）'}>
             <IconTrash />
-            <span className="lb-txt">{t('删除', 'Delete')}</span>
-            <span className="lb-txt-short">{t('删除', 'Delete')}</span>
+            <span className="lb-txt">{'删除'}</span>
+            <span className="lb-txt-short">{'删除'}</span>
           </button>
         </div>
       </div>

@@ -5,7 +5,9 @@ import { PORT, WEB_DIST } from './config.js';
 import { db, getSettings } from './db.js';
 import { logOp } from './oplog.js';
 import * as lib from './library.js';
-import { undoLastEdit, lastEdit, hasUndo } from './lib/undo.js';
+import { undoLastEdit, redoLastEdit, lastEdit, hasUndo, undoStatus } from './lib/undo.js';
+import { writeSidecar } from './lib/xmp.js';
+import { startBackupSchedule } from './lib/backup-schedule.js';
 import { getActiveLibrary, setImportPending, isImportPending } from './libraries.js';
 import { getJobStatus } from './crawler.js';
 import { editJobStatus } from './edit-job.js';
@@ -608,10 +610,12 @@ export function buildApp({ desktop = false } = {}) {
   );
 
   // 最近一次可撤销的编辑（前端显示「撤销」入口）
+  // 多步撤销：连同 undo/redo 栈深度一起返回，前端才画得出「还能撤几步」
   app.get(
     '/api/undo/last',
-    asyncRoute(async (_req, res) => {
-      res.json({ last: lastEdit() });
+    asyncRoute(async (req, res) => {
+      const id = Number(req.query?.imageId) || 0;
+      res.json({ last: lastEdit(id), ...undoStatus(id) });
     })
   );
 
@@ -623,14 +627,27 @@ export function buildApp({ desktop = false } = {}) {
       const r = await undoLastEdit(id);
       if (!r.ok) return res.status(409).json({ error: r.reason || '没有可撤销的编辑' });
       const item = lib.getImage(r.id);
-      res.json({ item: item ? lib.toDTO(item) : null, kind: r.kind });
+      res.json({ item: item ? lib.toDTO(item) : null, kind: r.kind, canUndo: r.canUndo, canRedo: r.canRedo });
+    })
+  );
+
+  // 重做刚撤销的一步（撤销是可逆的，不是单向消失）
+  app.post(
+    '/api/undo/redo',
+    asyncRoute(async (req, res) => {
+      const id = Number(req.body?.imageId) || 0;
+      const r = await redoLastEdit(id);
+      if (!r.ok) return res.status(409).json({ error: r.reason || '没有可重做的编辑' });
+      const item = lib.getImage(r.id);
+      res.json({ item: item ? lib.toDTO(item) : null, kind: r.kind, canUndo: r.canUndo, canRedo: r.canRedo });
     })
   );
 
   app.get(
     '/api/images/:id/undo',
     asyncRoute(async (req, res) => {
-      res.json({ canUndo: hasUndo(Number(req.params.id)) });
+      const id = Number(req.params.id);
+      res.json({ canUndo: hasUndo(id), ...undoStatus(id) });
     })
   );
 
@@ -688,8 +705,29 @@ export function buildApp({ desktop = false } = {}) {
       if (req.body.tags !== undefined) {
         logOp({ op: 'tags', summary: `修改标签：${before.title || `图片 ${id}`}`, payload: { items: [{ id, before: before.tags || '' }] } });
       }
+      const freshRow = lib.getImage(id);
+      // 元数据同步到 XMP sidecar：把照片拿去 Lightroom / digiKam 时标签与评分还在。
+      // 写失败只记日志（只读目录、被杀软锁住），不能让「改个标签」因此失败。
+      if (
+        freshRow &&
+        (req.body.tags !== undefined ||
+          req.body.rating !== undefined ||
+          req.body.title !== undefined ||
+          req.body.note !== undefined)
+      ) {
+        const r = writeSidecar(freshRow.abs_path, {
+          title: freshRow.title,
+          tags: String(freshRow.tags || '')
+            .split(',')
+            .map((t) => t.trim())
+            .filter(Boolean),
+          rating: freshRow.rating,
+          note: freshRow.note,
+        });
+        if (!r.ok && r.error) console.warn('[xmp] 写 sidecar 失败：', r.error);
+      }
       // 带上堆叠信息：前端用 PATCH 回包就地替换列表项，缺 stackCount 会让角标/详情里的堆叠行消失
-      const fresh = lib.toDTO(lib.getImage(id));
+      const fresh = lib.toDTO(freshRow);
       res.json(attachStackInfo([fresh])[0] || fresh);
     })
   );
@@ -910,6 +948,8 @@ export function startServer(port = PORT, options = {}) {
       if (!addr) return;
       bootstrap();
       auto.startScheduler();
+      // 自动备份排程：手动备份按钮在设置页，但「记得点」不该是备份的前提
+      startBackupSchedule();
       resolve({ server, port: addr.port });
     });
     server.on('error', (err) => {

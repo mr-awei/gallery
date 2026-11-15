@@ -943,19 +943,25 @@ export async function ingest(params, settings = getSettings()) {
   // 入库时间绝不参与；两者都取不到就留空（时间线页会显示「N 张待校正」）。
   // 解析失败不阻断入库——一张照片进不了时间线，总好过导入时报错。
   let takenAt;
+  /** @type {Record<string, any>} */
+  let exif = {};
   try {
-    takenAt = resolveTakenAt({ exifTakenAt: parseExif(meta.exif).takenAt, fsMtime, fsBirthtime });
+    exif = parseExif(meta.exif) || {};
+    takenAt = resolveTakenAt({ exifTakenAt: exif.takenAt, fsMtime, fsBirthtime });
   } catch {
     takenAt = resolveTakenAt({ fsMtime, fsBirthtime });
   }
+  // 拍摄地点落列：地图视图按经纬度分组，不入库就得每次重读文件
+  const gpsLat = Number.isFinite(Number(exif.lat)) ? Number(exif.lat) : null;
+  const gpsLon = Number.isFinite(Number(exif.lon)) ? Number(exif.lon) : null;
 
   // OR IGNORE：abs_path 上有唯一索引，watch 与 rescan 并发时后到的那条直接放弃，
   // 不会因为约束冲突把整批导入打成「本批失败」
   const info = db
     .prepare(
       `INSERT OR IGNORE INTO images (title, abs_path, thumb, source, keyword, source_url, width, height,
-        size_bytes, mime, phash, favorite, tags, created_at, taken_at, fs_mtime, md5, media_kind)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, ?, ?, ?, ?, ?, ?)`
+        size_bytes, mime, phash, favorite, tags, created_at, taken_at, fs_mtime, md5, media_kind, gps_lat, gps_lon, gps_checked)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, ?, ?, ?, ?, ?, ?, ?, ?, 1)`
     )
     .run(
       title || path.basename(finalPath),
@@ -975,7 +981,9 @@ export async function ingest(params, settings = getSettings()) {
       takenAt,
       fsMtime,
       md5,
-      'image'
+      'image',
+      gpsLat,
+      gpsLon
     );
   const id = Number(info.lastInsertRowid);
   if (!info.changes) {

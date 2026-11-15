@@ -61,15 +61,21 @@ export const KNOWN_ZIP_SHA256 = Object.freeze({ ...PINS.zips });
 
 /**
  * 查清单里的哈希：先按完整键，再按「路径后缀唯一」匹配。
- * 调用方有时只传相对路径（如 matting 的 `onnx/model.onnx`），而清单键是完整
- * `仓库/路径`；后缀唯一时必须命中，否则清单形同虚设、又退回 sidecar 自记录。
+ *
+ * 后缀兜底是为了让「只传仓库内相对路径」的老调用方还能命中清单，但它必须
+ * **至少两段路径 + 仓库名**（即 `仓库/.../文件`）：`onnx/model.onnx` 这种
+ * 裸相对路径在多个仓库间会串号——BiRefNet lite 就正好是 `onnx/model.onnx`，
+ * 于是被拿去和 U-2-Net 的哈希比对，224MB 下到 100% 后必然校验失败、文件被删，
+ * 界面回退成「未下载」。宁可这条路径不算 pinned（只自洽），也不能比错。
  */
-function pinOf(repoPath) {
+export function pinOf(repoPath) {
   const key = String(repoPath || '');
   const exact = String(KNOWN_SHA256[key] || '');
   if (/^[0-9a-f]{64}$/i.test(exact)) return exact.toLowerCase();
   if (!key) return '';
-  const suffix = `/${key.replace(/^\/+/, '')}`;
+  const bare = key.replace(/^\/+/, '');
+  if (bare.split('/').filter(Boolean).length < 3) return '';
+  const suffix = `/${bare}`;
   const hits = Object.entries(KNOWN_SHA256).filter(([k, v]) => k.endsWith(suffix) && /^[0-9a-f]{64}$/i.test(String(v)));
   return hits.length === 1 ? String(hits[0][1]).toLowerCase() : '';
 }
@@ -98,6 +104,26 @@ function sha256File(p) {
   });
 }
 
+/**
+ * 落盘改名。Windows 上刚写完的 200MB+ 文件常被杀软/索引服务短暂持有句柄，
+ * 直接 rename 会 EPERM/EBUSY，整包重下几百 MB 只因为一次改名失败不值得。
+ */
+async function renameWithRetry(from, to, attempts = 6) {
+  let lastErr = null;
+  for (let i = 0; i < attempts; i += 1) {
+    try {
+      await fsp.rename(from, to);
+      return;
+    } catch (err) {
+      lastErr = err;
+      const code = String(err?.code || '');
+      if (!['EPERM', 'EBUSY', 'EACCES', 'ENOTEMPTY'].includes(code) || i === attempts - 1) throw err;
+      await new Promise((r) => setTimeout(r, 120 * (i + 1)));
+    }
+  }
+  throw lastErr;
+}
+
 async function readSidecar(dest) {
   try {
     const hex = (await fsp.readFile(`${dest}.sha256`, 'utf8')).trim();
@@ -112,6 +138,9 @@ async function readSidecar(dest) {
  * @param {object} opts
  * @param {string[]} opts.mirrors   完整 URL 前缀列表（含 repo 路径，逐个尝试）
  * @param {string}   opts.repoPath  镜像内相对路径（拼在 mirror 后）
+ * @param {string}  [opts.pinKey]   查哈希清单用的键（默认同 repoPath）。
+ *   仓库里文件重名很常见（三个仓库都有 `onnx/model.onnx`），URL 用相对路径、
+ *   查哈希必须用 `仓库/路径`，否则会跨仓库串号。
  * @param {string}   opts.dest      目标文件
  * @param {number}  [opts.minBytes] 最小合法体积（默认 16）
  * @param {number}  [opts.maxBytes] 最大合法体积（0 = 不限，防超大响应写爆磁盘）
@@ -123,6 +152,7 @@ async function readSidecar(dest) {
 export async function downloadModelFile({
   mirrors,
   repoPath,
+  pinKey = '',
   dest,
   minBytes = 16,
   maxBytes = 0,
@@ -169,7 +199,7 @@ export async function downloadModelFile({
 
       const digest = hash.digest('hex');
       // 清单优先：sidecar 可能被和模型一起替换掉，不能让它覆盖随包可信哈希
-      const pinned = pinnedSha(repoPath);
+      const pinned = pinnedSha(pinKey || repoPath);
       const expect = pinned || sha256 || (await readSidecar(dest));
       if (expect && digest !== expect) {
         throw new Error(
@@ -177,7 +207,7 @@ export async function downloadModelFile({
         );
       }
 
-      await fsp.rename(part, dest);
+      await renameWithRetry(part, dest);
       // 失败不能静默吞：这个 sidecar 是 isPinned 校验的本地凭据，写不掉会让「是否已校验」
       // 永远退化成「只自洽」，用户却以为模型已通过可信校验。
       await fsp
@@ -232,8 +262,4 @@ export async function verifyModelFileDetailed(dest, { minBytes = 16, sha256 = ''
   }
 }
 
-/** 兼容旧调用：只关心是否可用 */
-export async function verifyModelFile(dest, opts = {}) {
-  const r = await verifyModelFileDetailed(dest, opts);
-  return r.ok;
-}
+

@@ -1,7 +1,8 @@
 import type { TutorialCategory } from './types';
 
 /** 大图里的进阶操作 + 批量条逐项 */
-export const LIGHTBOX_TUTORIAL: TutorialCategory[] = [
+export function lightboxTutorial(): TutorialCategory[] {
+  return [
   {
     id: 'lightbox',
     title: '大图进阶',
@@ -292,4 +293,5 @@ export const LIGHTBOX_TUTORIAL: TutorialCategory[] = [
       },
     ],
   },
-];
+  ];
+}

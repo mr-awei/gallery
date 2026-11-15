@@ -150,6 +150,8 @@ export async function runPlugin({ id, action = 'run', imageId = null, args = {} 
   try {
     payload = JSON.stringify({
       entry: plugin.entry,
+      // 插件目录：fs:read 只能读这里面的文件（路径白名单的根）
+      dir: plugin.dir,
       action: String(action),
       permissions: plugin.permissions,
       image: imageSnapshot(imageId ? lib.getImage(imageId) : null, plugin.permissions.includes('image:read')),

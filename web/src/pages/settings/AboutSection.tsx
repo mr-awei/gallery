@@ -114,7 +114,10 @@ export default function AboutSection({ settings, patch, onToast, onOpenTutorial 
         return;
       }
       if (r.url) setWebUrl(r.url);
-      if (r.hasUpdate) setMsg(`发现新版本 v${r.latest}（当前 v${r.current}），点下面的按钮到发布页下载`);
+      if (r.hasUpdate)
+        setMsg(
+          `发现新版本 v${r.latest}（当前 v${r.current}），点下面的按钮到发布页下载`,
+        );
       else setMsg(`已是最新版本 v${r.current}`);
     } finally {
       setBusy(false);
@@ -169,18 +172,18 @@ export default function AboutSection({ settings, patch, onToast, onOpenTutorial 
   return (
     <>
       <Card
-        title="版本"
-        desc="检查更新、看上一个大版本改了什么。安装版每次启动都会在后台静默查询，这期间可以照常使用；只有更新包下载完、能立刻安装时才会提示重启。"
+        title={'版本'}
+        desc={'检查更新、看上一个大版本改了什么。安装版每次启动都会在后台静默查询，这期间可以照常使用；只有更新包下载完、能立刻安装时才会提示重启。'}
       >
         <div className="about-hero">
-          <div className="about-hero-mark">图库</div>
+          <div className="about-hero-mark">{'图库'}</div>
           <div className="about-hero-text">
             <div className="about-hero-name">
               {APP_NAME}
               <span className="about-hero-ver">{version ? `v${version}` : '浏览器预览'}</span>
             </div>
             <div className="hint" style={{ margin: 0 }}>
-              本地优先的个人图库：采集、整理、检索、编辑、导出全在本机完成，不上传素材
+              {'本地优先的个人图库：采集、整理、检索、编辑、导出全在本机完成，不上传素材'}
             </div>
           </div>
         </div>
@@ -191,51 +194,52 @@ export default function AboutSection({ settings, patch, onToast, onOpenTutorial 
           </button>
           {canSelfUpdate && up.status === 'available' && (
             <button className="btn" disabled={busy} onClick={download}>
-              下载 v{up.version}
+              {`下载 v${up.version}`}
             </button>
           )}
           {canSelfUpdate && up.status === 'downloaded' && (
             <button className="btn primary" onClick={install}>
-              重启并安装 v{up.version}
+              {`重启并安装 v${up.version}`}
             </button>
           )}
           {!canSelfUpdate && webUrl && (
             <button className="btn" onClick={() => window.open(webUrl, '_blank', 'noopener')}>
-              打开发布页下载
+              {'打开发布页下载'}
             </button>
           )}
           <button className="btn" onClick={() => window.open(releasesUrl, '_blank', 'noopener')}>
-            更新日志
+            {'更新日志'}
           </button>
         </div>
 
         {canSelfUpdate && up.status === 'downloading' && (
           <div style={{ marginTop: 10 }}>
             <div className="hint" style={{ margin: '0 0 4px' }}>
-              正在下载 v{up.version}：{up.percent}%（可继续使用，不影响当前操作）
+              {`正在下载 v${up.version}：${up.percent}%（可继续使用，不影响当前操作）`}
             </div>
             <progress value={up.percent} max={100} style={{ width: '100%', height: 8 }} />
           </div>
         )}
         {canSelfUpdate && up.status === 'downloaded' && (
           <div className="hint" style={{ marginTop: 8 }}>
-            更新包已就绪：点「重启并安装」会关闭应用并自动完成升级，库数据与设置都会保留。
+            {'更新包已就绪：点「重启并安装」会关闭应用并自动完成升级，库数据与设置都会保留。'}
           </div>
         )}
         {canSelfUpdate && up.status === 'error' && up.error && (
           <div className="hint" style={{ marginTop: 8, color: 'var(--warn)' }}>
-            更新失败：{up.error}
+            {'更新失败：'}
+            {up.error}
           </div>
         )}
         {!canSelfUpdate && (
           <div className="hint" style={{ marginTop: 8 }}>
-            当前不是安装版（开发模式或绿色版），只能检查版本并到发布页手动下载；装好的安装版会在应用内直接升级。
+            {'当前不是安装版（开发模式或绿色版），只能检查版本并到发布页手动下载；装好的安装版会在应用内直接升级。'}
           </div>
         )}
         {msg && <div className="hint" style={{ marginTop: 8 }}>{msg}</div>}
         {typeof up.installFailures === 'number' && up.installFailures > 0 && (
           <div className="hint" style={{ marginTop: 8, lineHeight: 1.9, color: 'var(--warn)' }}>
-            已连续 {up.installFailures} 次安装失败：强制更新已自动降级为「可继续使用」，避免每次启动都被装不上的更新挡住。
+            {`已连续 ${up.installFailures} 次安装失败：强制更新已自动降级为「可继续使用」，避免每次启动都被装不上的更新挡住。`}
             <button
               className="btn sm"
               style={{ marginLeft: 8 }}
@@ -249,16 +253,16 @@ export default function AboutSection({ settings, patch, onToast, onOpenTutorial 
                 }
               }}
             >
-              清零计数
+              {'清零计数'}
             </button>
           </div>
         )}
 
-        <div className="settings-subhead">启动</div>
+        <div className="settings-subhead">{'启动'}</div>
         <div className="switch-row">
           <span>
-            开机自动启动
-            <span className="hint">　开机后直接进图库，不用再翻开始菜单</span>
+            {'开机自动启动'}
+            <span className="hint">　{'开机后直接进图库，不用再翻开始菜单'}</span>
           </span>
           <input
             type="checkbox"
@@ -282,8 +286,10 @@ export default function AboutSection({ settings, patch, onToast, onOpenTutorial 
         </div>
         <div className="switch-row">
           <span>
-            启动时自动检查更新
-            <span className="hint">　关掉后只在点「检查更新」时才联网（改完点右上角保存）</span>
+            {'启动时自动检查更新'}
+            <span className="hint">
+              　{'关掉后只在点「检查更新」时才联网（改完点右上角保存）'}
+            </span>
           </span>
           <input
             type="checkbox"
@@ -293,92 +299,103 @@ export default function AboutSection({ settings, patch, onToast, onOpenTutorial 
         </div>
       </Card>
 
-      <Card title="运行环境" desc="反馈问题时把这几行一起发过来，能省掉大半来回确认。">
+      <Card
+        title={'运行环境'}
+        desc={'反馈问题时把这几行一起发过来，能省掉大半来回确认。'}
+      >
         <div className="about-grid">
-          <Row label="应用版本" value={version ? `v${version}` : '—'} />
+          <Row label={'应用版本'} value={version ? `v${version}` : '—'} />
           <Row
-            label="安装形态"
+            label={'安装形态'}
             value={info ? (info.packaged ? '安装版（支持应用内更新）' : '开发 / 绿色版') : '—'}
           />
           <Row
-            label="系统"
+            label={'系统'}
             value={`${PLATFORM_LABEL[info?.platform || ''] || info?.platform || '—'}${info?.arch ? ` · ${info.arch}` : ''}`}
           />
           <Row label="Electron" value={info?.versions?.electron || '—'} mono />
           <Row label="Chromium" value={info?.versions?.chromium || '—'} mono />
           <Row label="Node.js" value={info?.versions?.node || '—'} mono />
           <Row label="V8" value={info?.versions?.v8 || '—'} mono />
-          <Row label="更新通道" value={info?.updateChannel === 'release' ? '正式版（GitHub Releases）' : info?.updateChannel || '—'} />
+          <Row
+            label={'更新通道'}
+            value={info?.updateChannel === 'release' ? '正式版（GitHub Releases）' : info?.updateChannel || '—'}
+          />
         </div>
         {!info && (
           <div className="hint" style={{ marginTop: 8 }}>
-            浏览器预览模式下读不到运行环境（这些数字来自桌面端主进程）。
+            {'浏览器预览模式下读不到运行环境（这些数字来自桌面端主进程）。'}
           </div>
         )}
       </Card>
 
       <Card
-        title="目录与诊断"
-        desc="程序自己的数据、运行日志与崩溃转储都放在这里；素材本身在你设置的图片保存文件夹里，不在这里。"
+        title={'目录与诊断'}
+        desc={'程序自己的数据、运行日志与崩溃转储都放在这里；素材本身在你设置的图片保存文件夹里，不在这里。'}
       >
         <div className="about-paths">
           <div className="about-path">
-            <div className="about-path-label">程序数据</div>
+            <div className="about-path-label">{'程序数据'}</div>
             <code>{info?.paths?.userData || '—'}</code>
             <button className="btn sm" disabled={!desktop} onClick={() => openDir('userData')}>
-              打开
+              {'打开'}
             </button>
           </div>
           <div className="about-path">
-            <div className="about-path-label">运行日志</div>
+            <div className="about-path-label">{'运行日志'}</div>
             <code>{info?.paths?.logs || '—'}</code>
             <button className="btn sm" disabled={!desktop} onClick={() => openDir('logs')}>
-              打开
+              {'打开'}
             </button>
           </div>
           <div className="about-path">
-            <div className="about-path-label">崩溃转储</div>
+            <div className="about-path-label">{'崩溃转储'}</div>
             <code>{info?.paths?.crashDumps || '—'}</code>
             <button className="btn sm" disabled={!desktop} onClick={() => openDir('crashDumps')}>
-              打开
+              {'打开'}
             </button>
           </div>
         </div>
         <div className="about-actions">
           <button className="btn" onClick={copyDiagnostics}>
-            复制诊断信息
+            {'复制诊断信息'}
           </button>
         </div>
         <div className="hint" style={{ marginTop: 8 }}>
-          崩溃不会自动上报：出问题时在崩溃转储目录里取 dump 文件，连同诊断信息一起发出来即可。
-        </div>
-      </Card>
-
-      <Card title="帮助与反馈" desc="遇到问题先查教程；确认是缺陷就到仓库提 issue，附上诊断信息会快很多。">
-        <div className="about-actions">
-          <button className="btn" onClick={onOpenTutorial}>
-            使用教程（F1）
-          </button>
-          <button className="btn" onClick={() => window.open(`${releasesUrl}/latest`, '_blank', 'noopener')}>
-            最新版本说明
-          </button>
-          <button className="btn" onClick={() => window.open(`https://github.com/${repo}/issues/new`, '_blank', 'noopener')}>
-            报告问题
-          </button>
-          <button className="btn" onClick={() => window.open(`https://github.com/${repo}`, '_blank', 'noopener')}>
-            源代码
-          </button>
-        </div>
-        <div className="hint" style={{ marginTop: 8, lineHeight: 1.9 }}>
-          · 界面卡住 / 白屏：先看「运行日志」，最近的报错在最末几行
-          <br />· 缩略图转圈、图看不了：多为文件被移动或改名，「数据与维护 → 图库维护」里可清理失效记录后重新扫描
-          <br />· 更新装不上：连续失败会自动降级为可继续使用，也可以到发布页手动下载安装包覆盖安装
+          {'崩溃不会自动上报：出问题时在崩溃转储目录里取 dump 文件，连同诊断信息一起发出来即可。'}
         </div>
       </Card>
 
       <Card
-        title="开源组件"
-        desc="这个软件站在这些项目上。许可证以各自仓库为准，这里只列对功能有直接影响的主要组件。"
+        title={'帮助与反馈'}
+        desc={'遇到问题先查教程；确认是缺陷就到仓库提 issue，附上诊断信息会快很多。'}
+      >
+        <div className="about-actions">
+          <button className="btn" onClick={onOpenTutorial}>
+            {'使用教程（F1）'}
+          </button>
+          <button className="btn" onClick={() => window.open(`${releasesUrl}/latest`, '_blank', 'noopener')}>
+            {'最新版本说明'}
+          </button>
+          <button className="btn" onClick={() => window.open(`https://github.com/${repo}/issues/new`, '_blank', 'noopener')}>
+            {'报告问题'}
+          </button>
+          <button className="btn" onClick={() => window.open(`https://github.com/${repo}`, '_blank', 'noopener')}>
+            {'源代码'}
+          </button>
+        </div>
+        <div className="hint" style={{ marginTop: 8, lineHeight: 1.9 }}>
+          {'· 界面卡住 / 白屏：先看「运行日志」，最近的报错在最末几行'}
+          <br />
+          {'· 缩略图转圈、图看不了：多为文件被移动或改名，「数据与维护 → 图库维护」里可清理失效记录后重新扫描'}
+          <br />
+          {'· 更新装不上：连续失败会自动降级为可继续使用，也可以到发布页手动下载安装包覆盖安装'}
+        </div>
+      </Card>
+
+      <Card
+        title={'开源组件'}
+        desc={'这个软件站在这些项目上。许可证以各自仓库为准，这里只列对功能有直接影响的主要组件。'}
       >
         <div className="about-components">
           {COMPONENTS.map((c) => (
@@ -390,7 +407,7 @@ export default function AboutSection({ settings, patch, onToast, onOpenTutorial 
           ))}
         </div>
         <div className="hint" style={{ marginTop: 10 }}>
-          模型权重（中文 CLIP、人脸检测）来自各自上游项目，随插件包按需下载，不随安装包分发。
+          {'模型权重（中文 CLIP、人脸检测）来自各自上游项目，随插件包按需下载，不随安装包分发。'}
         </div>
       </Card>
     </>

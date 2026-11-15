@@ -1,7 +1,8 @@
 import type { TutorialCategory } from './types';
 
 /** 界面控件、卡片右键、格式预览：容易被当成「本来就会」而漏讲的小功能 */
-export const UI_TUTORIAL: TutorialCategory[] = [
+export function uiTutorial(): TutorialCategory[] {
+  return [
   {
     id: 'ui',
     title: '界面与交互',
@@ -386,4 +387,5 @@ export const UI_TUTORIAL: TutorialCategory[] = [
       },
     ],
   },
-];
+  ];
+}

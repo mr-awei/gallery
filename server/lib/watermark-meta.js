@@ -207,8 +207,6 @@ export function block(c, rows, o = {}) {
   return { svg: parts.join(''), height: cursor - y };
 }
 
-export const joinedText = (c, sep = ' · ') => c.lines.map((l) => l.text).join(sep);
-
 export const DEFS = `
 <defs>
   <!-- 两层投影：紧贴的一圈保证字在白衬衫/天空上也能看清，外圈只负责柔和不脏 -->

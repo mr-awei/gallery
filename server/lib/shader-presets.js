@@ -112,6 +112,4 @@ export function shaderPresetList() {
   return SHADER_PRESETS.map(({ id, name, source }) => ({ id, name, source }));
 }
 
-export function shaderPresetSource(id) {
-  return SHADER_PRESETS.find((p) => p.id === id)?.source || SHADER_PRESETS[0].source;
-}
+

@@ -9,22 +9,23 @@ interface Props {
   onToast: (msg: string, kind?: 'info' | 'error') => void;
 }
 
-const KIND_LABEL: Record<string, string> = {
+/** 状态文案 map：模块级不能调 t，改成按调用点传 t 的取词函数 */
+const KIND_LABEL = (): Record<string, string> => ({
   crawl: '采集',
   edit: '批量编辑',
   enhance: '画质增强',
   'model-install': '模型下载',
   'eagle-export': '导出 Eagle 库',
-};
+});
 
-const STATUS_LABEL: Record<string, string> = {
+const STATUS_LABEL = (): Record<string, string> => ({
   queued: '排队中',
   running: '进行中',
   done: '已完成',
   failed: '失败',
   canceled: '已取消',
   interrupted: '中断（进程退出）',
-};
+});
 
 function statusColor(status: string) {
   if (status === 'done') return 'var(--ok)';
@@ -49,6 +50,8 @@ function fmtTime(iso: string) {
  * 撤销同理，只有编辑类能回滚，打标/移动/删除/导入都只能人肉复原。
  */
 export default function JobsSection({ onToast }: Props) {
+  const kindLabel = KIND_LABEL();
+  const statusLabel = STATUS_LABEL();
   const [jobs, setJobs] = useState<JobItem[]>([]);
   const [ops, setOps] = useState<OpLogItem[]>([]);
   const [busy, setBusy] = useState(false);
@@ -110,7 +113,9 @@ export default function JobsSection({ onToast }: Props) {
       const detail = Object.entries(info)
         .map(([k, v]) => `${k}=${v}`)
         .join(' ');
-      onToast(`已撤销：${op.summary}${detail ? `（${detail}）` : ''}`);
+      onToast(
+        `已撤销：${op.summary}${detail ? `（${detail}）` : ''}`,
+      );
       refresh();
     } catch (err) {
       onToast((err as Error).message, 'error');
@@ -121,8 +126,11 @@ export default function JobsSection({ onToast }: Props) {
 
   return (
     <>
-      <Card title="任务历史" desc="采集、批量编辑、画质增强、模型下载都会留档，中断或失败的任务可以直接重试。">
-        {jobs.length === 0 && <div className="hint">暂无任务记录</div>}
+      <Card
+        title={'任务历史'}
+        desc={'采集、批量编辑、画质增强、模型下载都会留档，中断或失败的任务可以直接重试。'}
+      >
+        {jobs.length === 0 && <div className="hint">{'暂无任务记录'}</div>}
         {jobs.map((j) => {
           const live = j.status === 'running' || j.status === 'queued';
           return (
@@ -138,7 +146,7 @@ export default function JobsSection({ onToast }: Props) {
             >
               <span style={{ fontSize: 11.5, color: 'var(--muted)', minWidth: 72 }}>{fmtTime(j.createdAt)}</span>
               <span style={{ fontSize: 11.5, color: 'var(--muted)', minWidth: 56 }}>
-                {KIND_LABEL[j.kind] || j.kind}
+                {kindLabel[j.kind] || j.kind}
               </span>
               <span style={{ flex: 1, minWidth: 0, fontSize: 12.5, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                 {j.title || j.message || j.kind}
@@ -150,16 +158,16 @@ export default function JobsSection({ onToast }: Props) {
                 )}
               </span>
               <span style={{ fontSize: 11.5, color: statusColor(j.status), minWidth: 76 }} title={j.error || ''}>
-                {STATUS_LABEL[j.status] || j.status}
+                {statusLabel[j.status] || j.status}
               </span>
               {live && (
                 <button className="btn sm" disabled={busy} onClick={() => void cancel(j)}>
-                  停止
+                  {'停止'}
                 </button>
               )}
               {!live && j.kind !== 'model-install' && (j.status === 'failed' || j.status === 'interrupted' || j.status === 'canceled') && (
                 <button className="btn sm" disabled={busy} onClick={() => void retry(j)}>
-                  重试
+                  {'重试'}
                 </button>
               )}
             </div>
@@ -168,10 +176,10 @@ export default function JobsSection({ onToast }: Props) {
       </Card>
 
       <Card
-        title="最近操作"
-        desc="打标、收藏、移动文件夹、删除、回收站恢复、批量导入、批量重命名、重复清理都能撤销一步（撤销删除走回收站，不会真删文件）。"
+        title={'最近操作'}
+        desc={'打标、收藏、移动文件夹、删除、回收站恢复、批量导入、批量重命名、重复清理都能撤销一步（撤销删除走回收站，不会真删文件）。'}
       >
-        {ops.length === 0 && <div className="hint">暂无操作记录</div>}
+        {ops.length === 0 && <div className="hint">{'暂无操作记录'}</div>}
         {ops.map((o) => (
           <div
             key={o.id}
@@ -182,13 +190,13 @@ export default function JobsSection({ onToast }: Props) {
               {o.summary}
             </span>
             {o.undone ? (
-              <span style={{ fontSize: 11.5, color: 'var(--muted)' }}>已撤销</span>
+              <span style={{ fontSize: 11.5, color: 'var(--muted)' }}>{'已撤销'}</span>
             ) : o.undoable ? (
               <button className="btn sm" disabled={busy} onClick={() => void undo(o)}>
-                撤销
+                {'撤销'}
               </button>
             ) : (
-              <span style={{ fontSize: 11.5, color: 'var(--muted)' }}>不可撤销</span>
+              <span style={{ fontSize: 11.5, color: 'var(--muted)' }}>{'不可撤销'}</span>
             )}
           </div>
         ))}

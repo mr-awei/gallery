@@ -1,0 +1,65 @@
+name: nightly-scale
+
+# 百万级规模回归。
+#
+# 为什么单独一个 workflow：PR 上的 `verify` 只跑 2 万行（几十秒），
+# 百万行的灌库 + 采样要十几分钟并且吃内存，放进每次提交会拖垮反馈速度；
+# 但它恰恰是「大库会不会卡死」这类问题的唯一守门 —— 所以每晚跑一次，
+# 回归在第二天早上就能看到，而不是等用户报「十万张就卡」。
+on:
+  schedule:
+    # UTC 18:00 = 北京时间 02:00，机位空、不占白天
+    - cron: '0 18 * * *'
+  workflow_dispatch:
+    inputs:
+      rows:
+        description: '灌库行数（默认 100 万；排障可先跑 30 万）'
+        required: false
+        default: '1000000'
+      samples:
+        description: '每项采样次数'
+        required: false
+        default: '5'
+
+concurrency:
+  group: nightly-scale
+  cancel-in-progress: true
+
+jobs:
+  million:
+    runs-on: windows-latest
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: 安装依赖
+        run: npm ci
+
+      # 基准会真起 server 并打前端调色模块，需要 web 侧产物存在（与 verify 一致）
+      - name: 构建前端
+        run: npm run build
+
+      - name: 百万行基准
+        shell: pwsh
+        run: |
+          $rows = "${{ github.event.inputs.rows }}"
+          if (-not $rows) { $rows = "1000000" }
+          $samples = "${{ github.event.inputs.samples }}"
+          if (-not $samples) { $samples = "5" }
+          node --import ./test/support/ts-ext.mjs scripts/bench.mjs --rows $rows --samples $samples 2>&1 |
+            Tee-Object -FilePath bench-million.txt
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+      # 失败也要把采样留档：只有「哪一项慢」能定位问题
+      - name: 上传基准输出
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: bench-million
+          path: bench-million.txt
+          retention-days: 30

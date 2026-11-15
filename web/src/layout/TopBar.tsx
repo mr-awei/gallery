@@ -1,5 +1,4 @@
 /**
-  useLang(); // 订阅语言：切中英文时重渲染
  * 顶栏：品牌 + 工具箱下拉 + 设置 + 明暗切换。
  * 纯展示组件（状态由 App 管），从 App.tsx 拆出以缩小主组件体积。
  */
@@ -7,7 +6,6 @@ import type { Ref } from 'react';
 import type { View } from '../types';
 import { IconBook, IconDownload, IconGear, IconGlobe, IconLink, IconMoon, IconSun, IconWand } from '../components/Icons';
 import { TOOLS, navLabel } from './nav';
-import { useLang } from '../lib/i18n';
 
 interface Props {
   activeLibName: string;

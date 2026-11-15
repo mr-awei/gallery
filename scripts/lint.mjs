@@ -74,6 +74,47 @@ for (const f of files) {
   }
 }
 
+/* ----------------------------- 空 catch（吞错） ----------------------------- */
+/**
+ * 失败被静默吞掉是最难查的一类问题：用户看到「点了没反应」，日志里也没有锚点。
+ * 规则只拦**真的空白**的 catch 块：块里有语句、或写明「为什么不报」的注释都算合格。
+ * 目的不是逼人写注释，而是别让失败无声消失；新代码忘了处理就会在这里被拦下。
+ */
+const CATCH_SCOPES = [...SCOPES, 'web/src'];
+const CODE_EXT = /\.(ts|tsx|js|mjs)$/;
+function collectCode(dir, out = []) {
+  for (const name of fs.readdirSync(dir)) {
+    const p = path.join(dir, name);
+    const st = fs.statSync(p);
+    if (st.isDirectory()) {
+      if (!SKIP.test(p)) collectCode(p, out);
+    } else if (CODE_EXT.test(name)) {
+      out.push(p);
+    }
+  }
+  return out;
+}
+const emptyCatch = [];
+for (const scope of CATCH_SCOPES) {
+  const dir = path.join(ROOT, scope);
+  if (!fs.existsSync(dir)) continue;
+  for (const f of collectCode(dir)) {
+    const src = fs.readFileSync(f, 'utf8');
+    // 只取「同一个花括号内」的块内容，块内有嵌套对象字面量时宁可不查（漏检 > 误报）
+    const re = /catch\s*(?:\([^)]*\))?\s*\{([^{}]*)\}/g;
+    let m;
+    while ((m = re.exec(src))) {
+      if (m[1].trim()) continue;
+      emptyCatch.push(`${path.relative(ROOT, f)}:${src.slice(0, m.index).split('\n').length}`);
+    }
+  }
+}
+if (emptyCatch.length) {
+  failed += emptyCatch.length;
+  console.error(`[lint] ${emptyCatch.length} 处空 catch：失败会被静默吞掉`);
+  for (const loc of emptyCatch.slice(0, 20)) console.error(`  - ${loc}  （补日志锚点，或写注释说明为什么可以静默）`);
+}
+
 console.log(`[lint] 检查 ${files.length} 个文件：${failed} 个错误（语法 / 类型闸），${warned} 个告警`);
 if (failed > 0) process.exit(1);
 // 只有全绿才登记：文档里的「N 个文件 0 错误」不能来自一次失败的检查

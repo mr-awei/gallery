@@ -107,6 +107,9 @@ const sessions = new Map();
 let installAbort = null;
 /** 正在下载的档位 id：进度条要能说清「在下哪一个」，不能只说「下载中」 */
 let installingProfile = '';
+/** 最近一次失败的档位：失败后 state.downloading 会归 false，没有这个字段
+ *  下载中心就再也取不到错误原因，只能看到一个「未下载」——等于静默失败 */
+let failedProfile = '';
 const state = { downloading: false, progress: 0, message: '', error: '', cancelled: false };
 
 export function mattingStatus() {
@@ -143,6 +146,7 @@ export function mattingStatus() {
     verified: !!cur?.verified,
     profile: active,
     installing: installingProfile,
+    failed: failedProfile,
     profiles,
   };
 }
@@ -188,6 +192,7 @@ export async function installMatting(profileId = 'u2net') {
   state.cancelled = false;
   state.message = '准备下载…';
   installingProfile = p.id;
+  failedProfile = '';
   installAbort = new AbortController();
   const signal = installAbort.signal;
   const jobId = createJob({
@@ -216,6 +221,9 @@ export async function installMatting(profileId = 'u2net') {
     await downloadModelFile({
       mirrors: mirrorBases,
       repoPath: p.file,
+      // 查哈希必须用 `仓库/路径`：p.file 是 `onnx/model.onnx`，三个抠图仓库里有两个同名，
+      // 用裸路径会拿别人的哈希来比对（BiRefNet lite 曾因此下完 224MB 后必失败）
+      pinKey: modelKey,
       dest: modelFile,
       minBytes: 1024 * 1024,
       // 上限按档位给足：以前写死 64MB，换成 224MB 的模型会直接被拦下来
@@ -243,6 +251,8 @@ export async function installMatting(profileId = 'u2net') {
     const cancelled = /已取消/.test(String(err?.message || ''));
     state.cancelled = cancelled;
     state.error = cancelled ? '' : String(err?.message || err).slice(0, 200);
+    // 失败原因必须留在状态里，否则下载中心只能看到「未下载」，无法自查
+    failedProfile = cancelled ? '' : p.id;
     state.message = cancelled ? '已取消下载' : state.message;
     // 清掉坏文件，避免「已下载」假状态卡住 UI
     await fsp.rm(modelFile, { force: true }).catch(() => {});
@@ -272,7 +282,18 @@ export async function removeMatting(profileId) {
       /* 老版本 runtime 没有 release，删不掉时由下面的报错如实反馈 */
     }
   }
-  await fsp.rm(p.dir, { recursive: true, force: true });
+  // U-2-Net 的老档位直接落在 data/ai/matting 根下，这里若是 rm 整个 dir，
+  // 会把同级的 birefnet-lite/、ben2/ 连同正在写的 .part 一起删掉——用户点一次
+  // 「删除轻量档」就丢了已经下好的 400MB 大模型。共享目录只删本档位的文件。
+  if (p.dir === DIR) {
+    const { modelFile, configFile } = configOf(p);
+    for (const f of [modelFile, configFile, `${modelFile}.sha256`, `${modelFile}.part`, `${configFile}.part`]) {
+      await fsp.rm(f, { force: true });
+    }
+  } else {
+    await fsp.rm(p.dir, { recursive: true, force: true });
+  }
+  if (failedProfile === profileId) failedProfile = '';
   return mattingStatus();
 }
 

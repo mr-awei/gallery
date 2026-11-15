@@ -8,6 +8,10 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { assertWritableDir } from './safe-path.js';
+import { verifyBackup, writeManifest } from './backup-manifest.js';
+
+// 清单校验是纯文件逻辑，放在 backup-manifest.js 里（便于单测，不必打开真实库）
+export { verifyBackup };
 import * as lib from '../library.js';
 import { DatabaseSync } from 'node:sqlite';
 import { db, getSettings, globalDb } from '../db.js';
@@ -125,6 +129,7 @@ export function backupLibrary({ targetDir, includeThumbs = true } = {}) {
       '内容说明：',
       '  gallery.db    图库数据库（文件夹/标签/注释/评分/OCR/动作等全部元数据）',
       '  library.json  可读的元数据清单（图片绝对路径、标签、文件夹归属）',
+      '  manifest.json 完整性清单（关键文件校验和，恢复前会自动核对，别删）',
       '  thumbs/       缩略图（可删，软件会按需重建）',
       '',
       '恢复方式：设置 → 数据与维护 → 从备份恢复，选择这个文件夹。',
@@ -141,6 +146,9 @@ export function backupLibrary({ targetDir, includeThumbs = true } = {}) {
     fs.cpSync(active.thumb_dir, dest, { recursive: true });
     thumbs = dirSize(dest);
   }
+
+  // 所有文件写完再落清单：恢复前靠它判断这份备份能不能用
+  writeManifest(outDir, payload.counts);
 
   const size = dirSize(outDir);
   return {
@@ -258,6 +266,15 @@ export function restoreLibrary({ sourceDir, name, rootPath } = {}) {
   const dbFile = path.join(src, 'gallery.db');
   const metaFile = path.join(src, 'library.json');
   if (!fs.existsSync(dbFile)) throw new Error('这个文件夹里没有 gallery.db，不像是图库备份');
+
+  // 先按清单预检：半途失败的备份会在这里被挡住，并说清缺了什么，
+  // 而不是拷到一半才发现（那时已经建了库、改过注册表）
+  const pre = verifyBackup(src);
+  if (!pre.ok) {
+    const head = pre.problems.slice(0, 3).join('；');
+    const more = pre.problems.length > 3 ? ` 等 ${pre.problems.length} 项` : '';
+    throw new Error(`备份不完整，已中止恢复：${head}${more}`);
+  }
 
   let meta = {};
   if (fs.existsSync(metaFile)) {

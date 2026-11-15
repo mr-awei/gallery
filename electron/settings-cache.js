@@ -21,8 +21,4 @@ export function getSettingsSnapshot() {
   return cache;
 }
 
-/** 局部更新（例如只有 storageDir 变了） */
-export function mergeSettingsCache(patch) {
-  if (patch && typeof patch === 'object') cache = { ...cache, ...patch };
-  return cache;
-}
+
