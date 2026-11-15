@@ -14,6 +14,7 @@ import type {
   ImageItem,
 } from '../types';
 import { IconRefresh, IconWand } from '../components/Icons';
+import { IconWarning } from '../components/Icons';
 
 interface Props {
   onToast: (msg: string, kind?: 'info' | 'error') => void;
@@ -270,7 +271,7 @@ export default function Enhance({ onToast, onLibraryChanged }: Props) {
       {isAi && !models.aiInstalled && (
         <div className="missing-banner" style={{ marginBottom: 14 }}>
           <div className="missing-banner-text">
-            <b>⚠ AI 超分运行库尚未安装</b>
+            <b><IconWarning size={13} /> AI 超分运行库尚未安装</b>
             <p>AI 模型需要先下载 Real-ESRGAN 运行库（约 43MB，免 Python / 免 CUDA），下载后即可离线使用。</p>
           </div>
           <div className="missing-banner-actions">
@@ -382,7 +383,7 @@ export default function Enhance({ onToast, onLibraryChanged }: Props) {
 
       {!candidates.items.length && (
         <div className="empty">
-          <div className="big">✨</div>
+          <div className="big"><IconWand size={42} /></div>
           <h3>没有低于标准的图片</h3>
           <p>当前标准下所有图片都已达标。可在「设置 → 画质增强」提高目标标准试试。</p>
         </div>

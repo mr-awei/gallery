@@ -59,7 +59,7 @@ export const EXT_BY_KIND = {
   // 只收真正的文档素材。txt/md/csv 这类笔记、清单、导出表不再当成素材：
   // 素材目录里随手丢一个「说明.txt」「导出.csv」就会多出一条空壳记录，
   // 缩略图是空白、点了也打不开，比不入库更难受。
-  office: ['doc', 'docx', 'xls', 'xlsx', 'ppt', 'pptx', 'key', 'numbers', 'pages'],
+  office: ['doc', 'docx', 'xls', 'xlsx', 'ppt', 'pptx', 'key', 'numbers', 'pages', 'epub'],
   model: ['obj', 'fbx', 'glb', 'gltf', 'stl', 'blend', '3ds', 'dae', 'ply'],
   design: DESIGN_EXTS,
   raw: RAW_EXTS,
@@ -124,6 +124,7 @@ const MIME_BY_EXT = {
   key: 'application/x-iwork-keynote-sffkey',
   numbers: 'application/x-iwork-numbers-sffnumbers',
   pages: 'application/x-iwork-pages-sffpages',
+  epub: 'application/epub+zip',
   txt: 'text/plain', md: 'text/markdown', csv: 'text/csv',
   obj: 'model/obj', fbx: 'model/fbx', glb: 'model/gltf-binary', gltf: 'model/gltf+json',
   stl: 'model/stl', blend: 'model/blend', '3ds': 'model/3ds', dae: 'model/vnd.collada+xml', ply: 'model/ply',

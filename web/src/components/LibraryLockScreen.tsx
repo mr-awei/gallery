@@ -1,3 +1,4 @@
+import { IconLock } from './Icons';
 import { useState } from 'react';
 import { api } from '../api';
 
@@ -42,7 +43,7 @@ export default function LibraryLockScreen({
     <div className="lock-screen">
       <div className="lock-card">
         <div className="lock-badge" aria-hidden="true">
-          🔒
+          <IconLock size={26} />
         </div>
         <h2 className="lock-title">{library.name || '资源库'}</h2>
         <div className="lock-hint">这个资源库已加锁，输入密码才能查看里面的照片</div>

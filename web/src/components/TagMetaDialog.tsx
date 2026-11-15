@@ -74,7 +74,7 @@ export default function TagMetaDialog({ tag, tags, onClose, onSaved, onToast }: 
           <b>
             <span className="tag-dot" style={color ? { background: color } : undefined} /> 标签设置 · {tag.tag}
           </b>
-          <button className="btn ghost sm" onClick={onClose}>
+          <button className="btn ghost sm" onClick={onClose} aria-label={'关闭'}>
             <IconClose />
           </button>
         </div>

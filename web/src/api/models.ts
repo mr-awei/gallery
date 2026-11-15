@@ -186,9 +186,19 @@ export interface StitchTemplate {
   sprocket?: boolean;
 }
 
-/** 一格的构图：焦点（0~1 归一化）+ 缩放（1~4，1 = 刚好铺满） */
+/** 一格的构图：焦点（0~1 归一化）+ 缩放（1 = 刚好铺满；可小到 zMin = 整图刚好塞进格子） */
 export interface StitchCrop {
   fx: number;
   fy: number;
   z: number;
+}
+
+/** 版面坐标（/api/export/stitch/plan）：构图台要知道每格在哪、最小能缩到多少 */
+export interface StitchPlan {
+  /** 画布宽 / 高 */
+  ratio: number;
+  /** 按 idx 排序的归一化矩形 */
+  boxes: { x: number; y: number; w: number; h: number; idx: number }[];
+  /** 每格的缩放下限，与 boxes 同序 */
+  zMin: number[];
 }

@@ -1,3 +1,4 @@
+import { IconStar, IconPencil, IconWand, IconClose, IconSearch, IconStack } from '../Icons';
 /**
  * 大图详情面板：一行摘要 + 可折叠的分组详情（基本信息 / 归类整理 / 颜色与智能）。
  *
@@ -115,7 +116,7 @@ export default function InfoPanel({
             className="enhanced-tag"
             title="该图由「画质增强」放大过，磁盘文件已是当前尺寸"
           >
-            ✨ 已增强 {item.enhanceScale}×（原 {item.originalWidth}×{item.originalHeight}）
+            <IconWand size={12} /> 已增强 {item.enhanceScale}×（原 {item.originalWidth}×{item.originalHeight}）
           </span>
         )}
         <span className="lb-sum-dim">{formatSize(item.sizeBytes)}</span>
@@ -130,7 +131,7 @@ export default function InfoPanel({
             title={`这是 ${item.stackCount} 张同素材版本堆叠中的一张，点击查看全部`}
             onClick={onOpenStack}
           >
-            ⧉ {item.stackCount}
+            <IconStack size={13} /> {item.stackCount}
           </span>
         )}
         <span className="lb-sum-sep" />
@@ -140,15 +141,17 @@ export default function InfoPanel({
               key={n}
               className={`star${(item.rating || 0) >= n ? ' on' : ''}`}
               title={`${n} 星`}
+              aria-pressed={(item.rating || 0) === n}
+              aria-label={`设为 ${n} 星`}
               onClick={() => onPatch?.(item, { rating: item.rating === n ? 0 : n })}
             >
-              ★
+              <IconStar size={13} />
             </button>
           ))}
         </span>
         {!!item.note && (
           <span className="lb-sum-note" title={item.note}>
-            📝 {item.note}
+            <IconPencil size={12} /> {item.note}
           </span>
         )}
         {!!item.tags.length && (
@@ -364,7 +367,7 @@ export default function InfoPanel({
                     title={`${n} 星`}
                     onClick={() => onPatch?.(item, { rating: item.rating === n ? 0 : n })}
                   >
-                    ★
+                    <IconStar size={13} />
                   </button>
                 ))}
                 {!!item.rating && (
@@ -461,7 +464,7 @@ export default function InfoPanel({
                   onClick={onToggleSim}
                   title="用 CLIP 深度特征找出与这张最像的其他图（相似度可调）"
                 >
-                  {simOpen ? '✕ 收起面板' : '🔍 找相似'}
+                  {simOpen ? (<><IconClose size={12} /> 收起面板</>) : (<><IconSearch size={12} /> 找相似</>)}
                 </button>
               </span>
             </div>
@@ -474,7 +477,7 @@ export default function InfoPanel({
                     onClick={onOpenSource}
                     title="用 SauceNAO / Google Lens / TinEye 等外部引擎以图找图（需联网）"
                   >
-                    🔎 以图找图
+                    <IconSearch size={12} /> 以图找图
                   </button>
                 </span>
               </div>

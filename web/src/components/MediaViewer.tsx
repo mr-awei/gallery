@@ -1,10 +1,19 @@
-import { useEffect, useRef, useState, type MouseEvent as ReactMouseEvent } from 'react';
+import { IconFilm, IconMusic, IconCamera, IconPalette, IconBox } from './Icons';
+import { Suspense, lazy, useEffect, useRef, useState, type MouseEvent as ReactMouseEvent } from 'react';
 import { api, formatSize, revealFile } from '../api';
 import { fontFrameDataUrl, imageFrameDataUrl } from '../lib/coverFrame';
-import OfficeViewer from './OfficeViewer';
 import ModelViewer from './ModelViewer';
 import VideoTrimExport from './VideoTrimExport';
 import type { ImageItem } from '../types';
+
+/**
+ * Office 预览要带上 SheetJS / mammoth / JSZip（压缩后仍近 600KB），
+ * 而打开一张普通照片根本用不到。静态导入会把它们全塞进灯箱 chunk，
+ * 让「第一次点开大图」多等一截；改成按需加载，只有真的打开 docx/xlsx 才下载。
+ */
+const OfficeViewer = lazy(() => import('./OfficeViewer'));
+/** EPUB 同理：解析在服务端，这里只是阅读界面，别拖累首包 */
+const EpubViewer = lazy(() => import('./EpubViewer'));
 
 /**
  * 大图预览里的多格式素材播放/预览（Eagle 式）：
@@ -255,7 +264,7 @@ export default function MediaViewer({ item, onReplaceItem, onToast }: Props) {
       return (
         <div className="mv-wrap" onClick={(e) => e.stopPropagation()}>
           <div className="mv-fallback">
-            <div className="mv-fallback-icon">🎬</div>
+            <div className="mv-fallback-icon"><IconFilm size={48} /></div>
             <b>{item.title}</b>
             <p>
               这个视频的编码无法内联解码（常见于 mkv / avi / flv / wmv）
@@ -405,16 +414,31 @@ export default function MediaViewer({ item, onReplaceItem, onToast }: Props) {
     return (
       <div className="mv-wrap" onClick={(e) => e.stopPropagation()}>
         <div className="mv-audio">
-          <div className="mv-audio-icon">🎵</div>
+          <div className="mv-audio-icon"><IconMusic size={44} /></div>
           <div className="mv-audio-title">{item.title}</div>
           <div
             className="mv-wave"
             role="slider"
             tabIndex={0}
             aria-label="音频波形，点击跳转"
+            aria-valuemin={0}
+            aria-valuemax={100}
             aria-valuenow={Math.round(progress * 100)}
             title="点击波形任意位置跳转播放"
             onClick={seekByClick}
+            // 键盘可达：左右 5 秒，Home/End 首尾（滑块类控件的常规约定）
+            onKeyDown={(e) => {
+              const a = audioRef.current;
+              if (!a || !Number.isFinite(a.duration) || a.duration <= 0) return;
+              const step = 5;
+              if (e.key === 'ArrowRight') a.currentTime = Math.min(a.duration, a.currentTime + step);
+              else if (e.key === 'ArrowLeft') a.currentTime = Math.max(0, a.currentTime - step);
+              else if (e.key === 'Home') a.currentTime = 0;
+              else if (e.key === 'End') a.currentTime = a.duration;
+              else return;
+              e.preventDefault();
+              e.stopPropagation();
+            }}
           >
             {bars.map((h, i) => (
               <i
@@ -502,11 +526,24 @@ export default function MediaViewer({ item, onReplaceItem, onToast }: Props) {
   /* PDF：保留浏览器原生阅读器，另加页码导航（#page=N 是 Chrome/Electron 原生支持的锚点） */
   if (kind === 'pdf') return <PdfViewer item={item} onToast={onToast} />;
 
+  /* EPUB：电子书走阅读器（目录 + 正文 + 插图），别塞进 Office 解析器 */
+  if (kind === 'office' && /\.epub$/i.test(item.path || '')) {
+    return (
+      <div className="mv-wrap mv-epub" onClick={(e) => e.stopPropagation()}>
+        <Suspense fallback={<div className="mv-fallback">{'正在打开电子书…'}</div>}>
+          <EpubViewer item={item} onToast={onToast} />
+        </Suspense>
+      </div>
+    );
+  }
+
   /* Office：docx 渲染正文、xlsx 转表格、pptx 给大纲，全部离线解析（见 OfficeViewer） */
   if (kind === 'office') {
     return (
       <div className="mv-wrap" onClick={(e) => e.stopPropagation()}>
-        <OfficeViewer item={item} onToast={onToast} />
+        <Suspense fallback={<div className="mv-fallback">{'正在解析文档…'}</div>}>
+          <OfficeViewer item={item} onToast={onToast} />
+        </Suspense>
         <div className="mv-bar">
           <span>{item.title}</span>
           <button className="btn sm ghost" onClick={() => revealFile(item.path)}>
@@ -526,7 +563,7 @@ export default function MediaViewer({ item, onReplaceItem, onToast }: Props) {
       <div className="mv-wrap" onClick={(e) => e.stopPropagation()}>
         {thumbFailed ? (
           <div className="mv-fallback">
-            <div className="mv-fallback-icon">{kind === 'raw' ? '📷' : '🎨'}</div>
+            <div className="mv-fallback-icon">{kind === 'raw' ? <IconCamera size={48} /> : <IconPalette size={48} />}</div>
             <b>{item.title}</b>
             <p>
               这个 {kindLabel} 文件里没有可显示的内嵌预览图
@@ -580,7 +617,7 @@ export default function MediaViewer({ item, onReplaceItem, onToast }: Props) {
   return (
     <div className="mv-wrap" onClick={(e) => e.stopPropagation()}>
       <div className="mv-fallback">
-        <div className="mv-fallback-icon">📦</div>
+        <div className="mv-fallback-icon"><IconBox size={48} /></div>
         <b>{item.title}</b>
         <p>
           文件：{formatSize(item.sizeBytes)}

@@ -225,6 +225,10 @@ test('分享链接产品化：范围校验、越权拦截、过期与单条撤�
   const now = new Date().toISOString();
   const ins = db.prepare('INSERT OR IGNORE INTO images (id, title, abs_path, created_at) VALUES (?, ?, ?, ?)');
   for (const id of [91001, 91002, 91003]) ins.run(id, `分享测试 ${id}`, path.join(tmp, `share-${id}.jpg`), now);
+  // 外键已开：image_folders.folder_id 必须真的存在，否则插入当场报 FOREIGN KEY constraint failed
+  db.prepare(
+    "INSERT OR IGNORE INTO folders (id, name, parent_id, path, created_at, updated_at) VALUES (?, ?, NULL, ?, ?, ?)"
+  ).run(77001, '分享测试夹', '/77001/', now, now);
   db.prepare('INSERT OR IGNORE INTO image_folders(image_id, folder_id) VALUES (?, ?)').run(91001, 77001);
 
   assert.throws(() => normalizeShareScope({ scope: 'selection' }), '空选区不能悄悄退化成整库');
@@ -259,6 +263,7 @@ test('分享链接产品化：范围校验、越权拦截、过期与单条撤�
   revokeShareTokens();
 
   db.prepare('DELETE FROM image_folders WHERE folder_id = 77001').run();
+  db.prepare('DELETE FROM folders WHERE id = 77001').run();
   db.prepare('DELETE FROM images WHERE id IN (91001, 91002, 91003)').run();
 });
 

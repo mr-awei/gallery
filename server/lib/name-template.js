@@ -106,6 +106,51 @@ export function uniqueTargetName(dir, name) {
 }
 
 /**
+ * 重名去重的「内存版」：调用方自己维护「已占用名字」的 Set。
+ *
+ * 批量导入上万张时必须用这个而不是 uniqueTargetName —— 后者每张图都要
+ * existsSync 试 name / name-1 / name-2…，模板里不带 {index} 时第 n 张就要
+ * 试 n 次，一万张累计上千万次系统调用，导入会直接卡住不动。
+ * 目录里已有的名字由调用方 readdir 一次攒进 Set，之后纯内存查重。
+ *
+ * 游标按 stem 缓存：同名文件成千上万时，每次都从 -1 重新扫一样是 O(n²)
+ * （5000 张同名的实测 ~1 秒，10 万张就是几分钟），所以记住上次结束的位置接着试。
+ *
+ * @param {Set<string>} set 已占用的文件名（调用后会把结果写回）
+ * @param {string} name
+ * @returns {string} 只返回文件名，不含目录
+ */
+const CURSORS = new WeakMap();
+
+export function uniqueInSet(set, name) {
+  const ext = path.extname(name);
+  const stem = name.slice(0, name.length - ext.length) || '素材';
+  let cursors = CURSORS.get(set);
+  if (!cursors) {
+    cursors = new Map();
+    CURSORS.set(set, cursors);
+  }
+  let candidate = set.has(name) ? null : name;
+  let next = cursors.get(stem) || 1;
+  while (candidate === null) {
+    const probe = `${stem}-${next}${ext}`;
+    next += 1;
+    if (!set.has(probe)) {
+      candidate = probe;
+      break;
+    }
+    if (next > 100000) {
+      // 极端情况（同名十万张）：给个随机尾巴，保证一定能落盘
+      candidate = `${stem}-${crypto.randomBytes(3).toString('hex')}${ext}`;
+      break;
+    }
+  }
+  cursors.set(stem, next);
+  set.add(candidate);
+  return candidate;
+}
+
+/**
  * 预览：给设置页用「库里最近 20 张」渲染目标名，并演示重名加后缀。
  * @param {string} tpl
  * @param {Array<{ title?: string, abs_path?: string, keyword?: string, source?: string,
@@ -125,13 +170,6 @@ export function previewNameTemplate(tpl, rows) {
       index: i + 1,
       date: row.created_at ? new Date(row.created_at) : new Date(),
     });
-    let final = name;
-    for (let n = 1; seen.has(final); n += 1) {
-      const ext = path.extname(name);
-      const stem = name.slice(0, name.length - ext.length);
-      final = `${stem}-${n}${ext}`;
-    }
-    seen.add(final);
-    return final;
+    return uniqueInSet(seen, name);
   });
 }

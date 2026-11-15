@@ -66,7 +66,10 @@ if (process.env.PORTABLE_EXECUTABLE_DIR) {
 
 // 必须与 electron-builder 的 appId / 安装快捷方式 AUMID 完全一致，否则 Windows 上
 // Notification / 托盘气泡（Win10+ 走 toast）会被系统静默丢弃 —— 表现就是「点了没反馈」
-app.setAppUserModelId('com.tuku.gallery');
+//
+// 但开发模式要单独一个 id：dev 跑的是 electron.exe，若与安装版共用 AUMID，任务栏会把
+// 两者并进同一个按钮组，图标沿用已安装 exe 的那枚（旧图标），窗口自己的 icon 怎么设都不显示。
+app.setAppUserModelId(app.isPackaged ? 'com.tuku.gallery' : 'com.tuku.gallery.dev');
 
 /* ------------------------- 崩溃捕获与日志落盘（最先初始化） ------------------------- */
 initCrashReporting();

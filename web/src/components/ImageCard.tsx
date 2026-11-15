@@ -1,3 +1,4 @@
+import { IconPlay } from './Icons';
 import React, { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import type { ImageItem } from '../types';
@@ -6,7 +7,34 @@ import { confirmDialog, promptDialog } from './Dialogs';
 import { fontFrameDataUrl, imageFrameDataUrl, videoElementDataUrl, videoFrameDataUrl } from '../lib/coverFrame';
 import { captureVideoSprite, frameIndexAt, type SpriteResult } from '../lib/video-frames';
 import { IMAGE_MIME, TAG_MIME } from '../lib/dnd';
-import { IconDownload, IconExpand, IconHeart } from './Icons';
+import {
+  IconBox,
+  IconCamera,
+  IconCheck,
+  IconCopy,
+  IconCube,
+  IconDownload,
+  IconExpand,
+  IconFile,
+  IconFilm,
+  IconFolderOpen,
+  IconHeart,
+  IconImages,
+  IconLink,
+  IconMusic,
+  IconPalette,
+  IconPencil,
+  IconRotateCcw,
+  IconRotateCw,
+  IconSearch,
+  IconSheet,
+  IconStack,
+  IconTag,
+  IconTrash,
+  IconWallpaper,
+  IconWarning,
+  IconWand,
+} from './Icons';
 
 interface Props {
   item: ImageItem;
@@ -63,17 +91,17 @@ const KIND_LABEL: Record<string, string> = {
   other: '文件',
 };
 
-const KIND_GLYPH: Record<string, string> = {
-  video: '🎬',
-  audio: '🎵',
-  font: 'Aa',
-  pdf: '📕',
-  office: '📊',
-  model: '🧊',
-  design: '🎨',
-  raw: '📷',
-  bookmark: '🔗',
-  other: '📦',
+/** 媒体类型占位图标：和界面其余图标同一套描边，不再用 emoji（emoji 会跟着系统字体变形变色） */
+const KIND_ICON: Record<string, (p: { size?: number }) => React.ReactElement> = {
+  video: IconFilm,
+  audio: IconMusic,
+  pdf: IconFile,
+  office: IconSheet,
+  model: IconCube,
+  design: IconPalette,
+  raw: IconCamera,
+  bookmark: IconLink,
+  other: IconBox,
 };
 
 /** 秒 → 0:00 / 0:00:00 */
@@ -159,7 +187,7 @@ function VideoThumb({
         onError={() => setFailed(true)}
       />
       <span className="media-play" aria-hidden>
-        ▶
+        <IconPlay size={14} />
       </span>
     </div>
   );
@@ -232,9 +260,12 @@ function MediaGlyph({
   label: string;
   duration?: number;
 }) {
+  const Glyph = KIND_ICON[kind] || KIND_ICON.other;
   return (
     <div className={`media-glyph ${kind}`}>
-      <div className="media-glyph-icon">{KIND_GLYPH[kind] || KIND_GLYPH.other}</div>
+      <div className="media-glyph-icon">
+        <Glyph size={36} />
+      </div>
       <div className="media-glyph-kind">{label || KIND_LABEL[kind] || '文件'}</div>
       {title && <div className="media-glyph-title">{title}</div>}
       <div className="media-glyph-meta">
@@ -420,7 +451,7 @@ const ImageCard = React.memo(function ImageCard({
               : `${item.title}（缩略图加载失败，可点「刷新」重试；文件确实丢失时到设置 → 数据维护清理）`
           }
         >
-          <span>{noPreview ? KIND_GLYPH[kind] || '⚠' : '⚠'}</span>
+          <span className="card-broken-icon">{noPreview && KIND_ICON[kind] ? (() => { const G = KIND_ICON[kind]; return <G size={22} />; })() : <IconWarning size={22} />}</span>
           {noPreview ? '暂无预览' : '文件缺失'}
           <small>{noPreview ? `${ext}${item.width ? ` · ${item.width}×${item.height}` : ''}` : `${item.width}×${item.height}`}</small>
         </div>
@@ -775,7 +806,7 @@ const ImageCard = React.memo(function ImageCard({
       {!item.viewed && <span className="unseen-dot" title="还没在大图预览里看过" />}
       {stackHint && (
         <span className="stack-drop-tip">
-          ⧉ {item.stackPrimary && (item.stackCount || 0) > 1 ? '并入这堆' : '叠成一堆'}
+          <IconStack size={12} /> {item.stackPrimary && (item.stackCount || 0) > 1 ? '并入这堆' : '叠成一堆'}
         </span>
       )}
       {item.stackPrimary && (item.stackCount || 0) > 1 && (
@@ -787,7 +818,7 @@ const ImageCard = React.memo(function ImageCard({
             onOpenStack?.(item.stackId || item.id);
           }}
         >
-          ⧉ {item.stackCount}
+          <IconStack size={11} /> {item.stackCount}
         </button>
       )}
       {kind === 'video' && durationText && (
@@ -802,7 +833,7 @@ const ImageCard = React.memo(function ImageCard({
       )}
       {!!annotationCount && annotationCount > 0 && (
         <span className="card-badge annot" title={`${annotationCount} 处标注`}>
-          ✏ {annotationCount}
+          <IconPencil size={11} /> {annotationCount}
         </span>
       )}
       <div
@@ -812,7 +843,7 @@ const ImageCard = React.memo(function ImageCard({
           onToggleSelect(item.id);
         }}
       >
-        {selected ? '✓' : ''}
+        {selected ? <IconCheck size={12} /> : ''}
       </div>
       <div className="card-overlay">
         <div className="card-meta" style={{ alignSelf: 'flex-end' }}>
@@ -848,12 +879,13 @@ const ImageCard = React.memo(function ImageCard({
           )}
           {item.enhanced && (
             <span className="tag-pill enhanced" title={`已放大 ${item.enhanceScale} 倍（原 ${item.originalWidth}×${item.originalHeight}）`}>
-              ✨{item.enhanceScale}×
+              <IconWand size={11} />
+              {item.enhanceScale}×
             </span>
           )}
           {item.score < 60 && (
             <span className="tag-pill score-warn" title={item.scoreReason}>
-              ⚠ {item.score}
+              <IconWarning size={12} /> {item.score}
             </span>
           )}
         </div>
@@ -909,7 +941,7 @@ const ImageCard = React.memo(function ImageCard({
             }}
             title="按名字搜索所有命令（Ctrl+K 也能打开）"
           >
-            🔍 搜索命令…
+            <IconSearch /> 搜索命令…
           </button>
           <div className="card-ctx-sep" />
           <button onClick={() => { setMenu(null); onOpen(item); }}>
@@ -917,36 +949,52 @@ const ImageCard = React.memo(function ImageCard({
           </button>
           {(item.stackCount || 0) > 1 && onOpenStack && (
             <button onClick={() => { setMenu(null); onOpenStack(item.stackId || item.id); }}>
-              ⧉ 查看堆叠（{item.stackCount} 张）
+              <IconStack /> 查看堆叠（{item.stackCount} 张）
             </button>
           )}
           {!!item.stackId && onUngroupStack && (
             <button onClick={() => { setMenu(null); onUngroupStack(item.stackId || item.id); }}>
-              ⧉ 解散这个堆叠
+              <IconStack /> 解散这个堆叠
             </button>
           )}
           <button onClick={() => { setMenu(null); onToggleFavorite(item); }}>
             <IconHeart filled={item.favorite} /> {item.favorite ? '取消收藏' : '收藏'}
           </button>
-          <button onClick={() => { setMenu(null); setWall(); }}>🖥 设为壁纸</button>
+          <button onClick={() => { setMenu(null); setWall(); }}>
+            <IconWallpaper /> 设为壁纸
+          </button>
           {canSetCover && (
             <button disabled={coverBusy} onClick={() => { setMenu(null); setCoverFromCard(); }}>
-              🖼 {coverBusy ? '生成封面中…' : kind === 'video' ? '用当前帧做封面' : kind === 'font' ? '用文字预览做封面' : '用首帧做封面'}
+              <IconImages /> {coverBusy ? '生成封面中…' : kind === 'video' ? '用当前帧做封面' : kind === 'font' ? '用文字预览做封面' : '用首帧做封面'}
             </button>
           )}
           {item.coverTs > 0 && (
             <button disabled={coverBusy} onClick={() => { setMenu(null); resetCover(); }}>
-              ↩ 恢复默认缩略图
+              <IconRotateCcw /> 恢复默认缩略图
             </button>
           )}
           <div className="card-ctx-sep" />
-          <button onClick={() => { setMenu(null); rotate('cw'); }}>↻ 顺时针旋转</button>
-          <button onClick={() => { setMenu(null); rotate('ccw'); }}>↺ 逆时针旋转</button>
-          <button onClick={() => { setMenu(null); editTags(); }}>🏷 编辑标签…</button>
+          <button onClick={() => { setMenu(null); rotate('cw'); }}>
+            <IconRotateCw /> 顺时针旋转
+          </button>
+          <button onClick={() => { setMenu(null); rotate('ccw'); }}>
+            <IconRotateCcw /> 逆时针旋转
+          </button>
+          <button onClick={() => { setMenu(null); editTags(); }}>
+            <IconTag /> 编辑标签…
+          </button>
           <div className="card-ctx-sep" />
-          <button onClick={() => { setMenu(null); void copyImage(); }}>📋 复制图片</button>
-          <button onClick={() => { setMenu(null); copyLink(); }}>🔗 复制图片链接</button>
-          {item.path && <button onClick={() => { setMenu(null); copyPath(); }}>📄 复制文件路径</button>}
+          <button onClick={() => { setMenu(null); void copyImage(); }}>
+            <IconCopy /> 复制图片
+          </button>
+          <button onClick={() => { setMenu(null); copyLink(); }}>
+            <IconLink /> 复制图片链接
+          </button>
+          {item.path && (
+            <button onClick={() => { setMenu(null); copyPath(); }}>
+              <IconFile /> 复制文件路径
+            </button>
+          )}
           <button
             onClick={() => {
               setMenu(null);
@@ -958,9 +1006,13 @@ const ImageCard = React.memo(function ImageCard({
               );
             }}
           >
-            🔎 全网搜图…
+            <IconSearch /> 全网搜图…
           </button>
-          {item.path && <button onClick={() => { setMenu(null); reveal(); }}>📂 打开所在文件夹</button>}
+          {item.path && (
+            <button onClick={() => { setMenu(null); reveal(); }}>
+              <IconFolderOpen /> 打开所在文件夹
+            </button>
+          )}
           <button onClick={() => { setMenu(null); onDownload(item); }}>
             <IconDownload /> 下载
           </button>
@@ -968,7 +1020,7 @@ const ImageCard = React.memo(function ImageCard({
             <>
               <div className="card-ctx-sep" />
               <button className="danger" onClick={() => { setMenu(null); moveToTrash(); }}>
-                🗑 移入回收站
+                <IconTrash /> 移入回收站
               </button>
             </>
           )}

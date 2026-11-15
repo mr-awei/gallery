@@ -84,7 +84,7 @@ export default function DeleteReasonDialog({ item, onCancel, onConfirm, onToast 
           <b>
             <IconTrash /> 删除这张图
           </b>
-          <button className="btn ghost sm" onClick={onCancel}>
+          <button className="btn ghost sm" onClick={onCancel} aria-label={'关闭'}>
             <IconClose />
           </button>
         </div>

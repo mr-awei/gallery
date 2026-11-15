@@ -24,7 +24,7 @@ const FORMATS = [
   { key: 'webp', label: 'WebP', note: '同画质更小' },
   { key: 'avif', label: 'AVIF', note: '压缩率最高' },
 ];
-const QUALITIES = [95, 90, 82, 70];
+const QUALITIES = [100, 95, 90, 82];
 const SIDES = [
   { v: 0, l: '原始尺寸' },
   { v: 4096, l: '最长边 4096' },

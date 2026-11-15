@@ -302,20 +302,20 @@
   font-weight: 600;
 }
 
-.tl-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(148px, 1fr));
-  gap: 8px;
+/* 虚拟滚动版：格子位置由 VirtualGrid 绝对定位，这里只负责「撑满格子」 */
+.tl-grid-v {
+  width: 100%;
 }
 
 .tl-cell {
   position: relative;
   display: block;
+  width: 100%;
+  height: 100%;
   padding: 0;
   border: 0;
   border-radius: 8px;
   overflow: hidden;
-  aspect-ratio: 1 / 1;
   background: var(--surface-3, rgba(127, 127, 127, 0.12));
   cursor: zoom-in;
 }

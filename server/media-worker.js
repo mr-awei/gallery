@@ -18,6 +18,18 @@ const THUMB_WIDTH = Number(process.env.TUKU_THUMB_WIDTH || 640);
 const THUMB_QUALITY = Number(process.env.TUKU_THUMB_QUALITY || 82);
 
 /**
+ * libvips 线程数与缓存：每个 worker 自己就是一个并发单元。
+ *
+ * libvips 默认按「机器核数」开线程 —— 8 个 worker × 24 核 = 192 条线程抢 24 个核，
+ * 导入时大量时间耗在线程调度和内存带宽争抢上（高核机器上越明显）。
+ * 这里压到每 worker 单线程，并行度交给 worker 池控制。
+ * 缓存同理：每张图只解码一次、之后不再访问，缓存纯属占内存（8 × 50MB）。
+ * 环境变量保留手动覆盖的口子，方便单机排查。
+ */
+sharp.concurrency(Number(process.env.TUKU_SHARP_CONCURRENCY || 1));
+sharp.cache(process.env.TUKU_SHARP_CACHE === '1');
+
+/**
  * 唯一一次整图解码（直接解出「缩略图尺寸」的原始像素）。
  *
  * sharp 解不了的 HEIC 走 WASM 版 libheif：iPhone 照片在目录扫描里也是「普通图片」，

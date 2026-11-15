@@ -1,3 +1,4 @@
+import { IconCube } from './Icons';
 import { useEffect, useRef, useState } from 'react';
 import type { ImageItem } from '../types';
 
@@ -220,7 +221,7 @@ export default function ModelViewer({ item, onToast }: Props) {
       {loading && <div className="mv-3d-tip">正在加载 3D 模型…</div>}
       {error && (
         <div className="mv-fallback mv-3d-error">
-          <div className="mv-fallback-icon">🧊</div>
+          <div className="mv-fallback-icon"><IconCube size={48} /></div>
           <b>{item.title}</b>
           <p>{error}</p>
         </div>

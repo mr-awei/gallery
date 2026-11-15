@@ -1,3 +1,4 @@
+import { IconClose, IconArrowUp, IconArrowDown } from './Icons';
 import { useEffect, useState } from 'react';
 import { createPortal } from 'react-dom';
 
@@ -70,7 +71,7 @@ export default function ToolbarCustomizer({
         <header className="tcz-head">
           <h4>{title}</h4>
           <button className="icon-btn" title="关闭" onClick={onClose}>
-            ✕
+            <IconClose size={13} />
           </button>
         </header>
         <p className="tcz-hint">
@@ -88,13 +89,14 @@ export default function ToolbarCustomizer({
                   <span className="tcz-name">{labelOf(k)}</span>
                   <span className="tcz-ops">
                     <button title="上移" disabled={i === 0} onClick={() => move(i, -1)}>
-                      ↑
+                      <IconArrowUp size={13} />
                     </button>
                     <button title="下移" disabled={i === inBar.length - 1} onClick={() => move(i, 1)}>
-                      ↓
+                      <IconArrowDown size={13} />
                     </button>
                     <button
                       title="收进「更多」"
+                      aria-label={`把「${labelOf(k)}」收进更多`}
                       onClick={() =>
                         setDraft((cur) => {
                           const n = cur.filter((x) => x !== k);
@@ -102,7 +104,7 @@ export default function ToolbarCustomizer({
                         })
                       }
                     >
-                      ✕
+                      <IconClose size={13} />
                     </button>
                   </span>
                 </div>

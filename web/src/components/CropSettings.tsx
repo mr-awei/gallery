@@ -1,3 +1,4 @@
+import { IconLink, IconLock } from './Icons';
 import React, { useEffect } from 'react';
 
 /**
@@ -213,7 +214,7 @@ export default function CropSettings({
             disabled={disabled || free}
             type="button"
           >
-            {s.linkWH ? '🔗' : '⛓'}
+            {s.linkWH ? <IconLink size={13} /> : <IconLock size={13} />}
           </button>
           <label>
             <span>高</span>

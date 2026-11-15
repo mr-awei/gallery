@@ -149,6 +149,7 @@ export default function Sidebar({
           className="side-head-all"
           onClick={() => setAllSections(!allOpen)}
           title={allOpen ? '收起全部侧栏分区' : '展开全部侧栏分区'}
+          aria-expanded={allOpen}
         >
           {allOpen ? '收起全部' : '展开全部'}
         </button>
@@ -165,13 +166,14 @@ export default function Sidebar({
       />
 
       {/* 仪表盘 / 图库是天天要点的常用功能，常驻顶部，不参与任何折叠收纳 */}
-      <div className="side-primary-nav">
+      <nav className="side-primary-nav" aria-label={'常用导航'}>
         {PRIMARY_NAV.map((n) => (
           <button
             key={n.key}
             className={`nav-item${view === n.key ? ' active' : ''}`}
             onClick={() => onNav(n.key)}
             title={navLabel(n)}
+            aria-current={view === n.key ? 'page' : undefined}
             data-tour={`nav:${n.key}`}
           >
             {n.icon}
@@ -179,16 +181,17 @@ export default function Sidebar({
             {n.key === 'gallery' && stats?.total ? <span className="badge">{stats.total}</span> : null}
           </button>
         ))}
-      </div>
+      </nav>
 
       {/* 四个低频入口常驻：图标 + 文字都要，默认就能看见，也不会被「收起全部」藏起来 */}
-      <div className="nav-grid side-more-nav" aria-label={'更多导航'}>
+      <nav className="nav-grid side-more-nav" aria-label={'更多导航'}>
         {MORE_NAV.map((n) => (
           <button
             key={n.key}
             className={`nav-item${view === n.key ? ' active' : ''}`}
             onClick={() => onNav(n.key)}
             title={navLabel(n)}
+            aria-current={view === n.key ? 'page' : undefined}
             data-tour={`nav:${n.key}`}
           >
             {n.icon}
@@ -196,7 +199,7 @@ export default function Sidebar({
             {n.key === 'favorites' && stats?.favorite ? <span className="badge">{stats.favorite}</span> : null}
           </button>
         ))}
-      </div>
+      </nav>
 
       <SideSection
         title={'待整理'}

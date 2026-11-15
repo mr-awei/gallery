@@ -47,6 +47,7 @@ import { register as registerExtension } from './routes/extension.js';
 import { register as registerOcr } from './routes/ocr.js';
 import { register as registerSource } from './routes/source.js';
 import { register as registerInspect } from './routes/inspect.js';
+import { register as registerEpub } from './routes/epub.js';
 import { register as registerActions } from './routes/actions.js';
 import { register as registerTransfer } from './routes/transfer.js';
 import { register as registerV1 } from './routes/v1.js';
@@ -58,6 +59,7 @@ import { register as registerFace } from './routes/face.js';
 import { register as registerTimeline } from './routes/timeline.js';
 import { register as registerModels } from './routes/models.js';
 import { register as registerReverse } from './routes/reverse.js';
+import { register as registerDocs } from './routes/docs.js';
 import { modelsSnapshot } from './lib/model-registry.js';
 import { capabilitiesFor, platformSummary } from './lib/platform.js';
 import { markInterruptedJobs, pruneJobs } from './jobs.js';
@@ -146,12 +148,27 @@ function startLocalImport(message = '扫描本地图片…') {
   const pendingLibId = getActiveLibrary()?.id;
   setImportPending(true, pendingLibId);
   let lastPush = 0;
+  const startedAt = Date.now();
+  let etaSec = null;
   return importLocalImages({
     onProgress: (progress, file, result) => {
+      // 速度与剩余时间：首次导入动辄几分钟，只给百分比用户没法判断「还要不要等」。
+      // ETA 用百分比速率反推，并且做指数平滑，否则每 500ms 抖一次反而更闹心。
+      const elapsed = (Date.now() - startedAt) / 1000;
+      const speed = elapsed > 1 ? result.saved / elapsed : 0;
+      if (progress >= 100) {
+        etaSec = 0;
+      } else if (progress > 3) {
+        const raw = (elapsed * (100 - progress)) / progress;
+        etaSec = etaSec == null ? raw : etaSec * 0.7 + raw * 0.3;
+      }
       importState = {
         running: true,
         progress,
         message: `导入 ${path.basename(file)}（已保存 ${result.saved}）`,
+        // 千张以上的库按整秒给就够用；前端负责格式化成「约剩 2 分 05 秒」
+        speed: Math.round(speed * 10) / 10,
+        etaSec: etaSec == null ? null : Math.max(0, Math.round(etaSec)),
         result,
       };
       // 边导边推（1s 节流）：前端收到 library 就能增量加载，用户不必等全部
@@ -470,6 +487,7 @@ export function buildApp({ desktop = false } = {}) {
   registerOcr(app, ctx);
   registerSource(app, ctx);
   registerInspect(app, ctx);
+  registerEpub(app, ctx);
   registerActions(app, ctx);
   registerTransfer(app, ctx);
   registerV1(app, ctx);
@@ -481,6 +499,8 @@ export function buildApp({ desktop = false } = {}) {
   registerTimeline(app, ctx);
   registerModels(app, ctx);
   registerReverse(app, ctx);
+  // 放在最后注册：/api/docs 要自省整个路由表，晚注册才不会漏掉别人的接口
+  registerDocs(app, ctx);
 
   /* -------------------------------- 系统能力 ------------------------------- */
   app.get('/api/platform', (_req, res) => {

@@ -4,7 +4,17 @@
  */
 import type { Ref } from 'react';
 import type { View } from '../types';
-import { IconBook, IconDownload, IconGear, IconGlobe, IconLink, IconMoon, IconSun, IconWand } from '../components/Icons';
+import {
+  IconBook,
+  IconChevronDown,
+  IconDownload,
+  IconGear,
+  IconGlobe,
+  IconLink,
+  IconMoon,
+  IconSun,
+  IconWand,
+} from '../components/Icons';
 import { TOOLS, navLabel } from './nav';
 
 interface Props {
@@ -42,7 +52,15 @@ export default function TopBar({
   return (
     <header className="topbar" data-tour="topbar">
       <div className="topbar-brand">
-        <div className="logo-mark">图</div>
+        {/* 与安装包/任务栏同一枚标：白色相片压在品牌渐变上。以前这里是一个「图」字，
+            字重和圆角跟图标完全不一样，截图里一眼就看得出「不是一套」 */}
+        <div className="logo-mark" aria-hidden="true">
+          <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="#fff" strokeWidth={1.8} strokeLinecap="round" strokeLinejoin="round">
+            <rect x="4" y="5" width="16" height="14" rx="2.4" />
+            <circle cx="9" cy="10" r="1.4" />
+            <path d="m4.4 16.6 4.3-4.3 3 3 2.7-2.7 5.2 5.2" />
+          </svg>
+        </div>
         <div className="topbar-title">
           <b>图库</b>
           <span>{activeLibName}</span>
@@ -57,7 +75,9 @@ export default function TopBar({
           >
             <IconWand />
             <span>工具箱</span>
-            <span className="tools-chev">▾</span>
+            <span className="tools-chev">
+              <IconChevronDown size={13} />
+            </span>
           </button>
           {toolsOpen && (
             <div className="tools-menu">

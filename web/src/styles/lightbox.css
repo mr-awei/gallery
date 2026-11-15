@@ -124,7 +124,9 @@
     display: none;
   }
   .lb-icon-only {
-    display: inline;
+    /* 图标替掉 ⋯ 字符后要自己居中，别再靠字形基线 */
+    display: inline-flex;
+    align-items: center;
   }
   .lightbox-top .btn {
     padding: 6px 9px;
@@ -256,6 +258,9 @@
   letter-spacing: 0.2px;
 }
 .lb-sum-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
   padding: 1px 7px;
   border-radius: 6px;
   background: rgba(255, 255, 255, 0.09);

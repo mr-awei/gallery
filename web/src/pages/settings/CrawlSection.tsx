@@ -99,7 +99,7 @@ export default function CrawlSection({
               <div className="kw-row" key={k.id}>
                 <input type="checkbox" checked={!!k.enabled} onChange={() => toggleKeyword(k)} />
                 <span style={{ opacity: k.enabled ? 1 : 0.45 }}>{k.text}</span>
-                <button className="del" onClick={() => removeKeyword(k.id)}>
+                <button className="del" onClick={() => removeKeyword(k.id)} aria-label={`删除关键词「${k.text}」`}>
                   <IconTrash />
                 </button>
               </div>

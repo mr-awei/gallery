@@ -106,7 +106,7 @@ export default function RenameBatchDialog({ ids, items, onClose, onToast, onDone
       <div className="modal-card" style={{ maxWidth: 560 }} onClick={(e) => e.stopPropagation()}>
         <div className="modal-head">
           <b>批量重命名 · 已选 {ids.length} 张</b>
-          <button className="btn ghost sm" onClick={onClose} disabled={busy}>
+          <button className="btn ghost sm" onClick={onClose} disabled={busy} aria-label={'关闭'}>
             <IconClose />
           </button>
         </div>

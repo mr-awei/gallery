@@ -1,3 +1,4 @@
+import { IconClose } from './Icons';
 import { useEffect, useState } from 'react';
 import { api, formatDate } from '../api';
 import type { ImageComment } from '../types';
@@ -65,7 +66,7 @@ export default function CommentsPanel({ imageId, onCount, onClose, onToast }: Pr
       <div className="cmt-head">
         <b>评论 · {list.length}</b>
         <button className="btn sm ghost" onClick={onClose} title="收起评论面板">
-          ✕
+          <IconClose size={14} />
         </button>
       </div>
 

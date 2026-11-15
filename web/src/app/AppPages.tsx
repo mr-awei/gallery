@@ -6,11 +6,11 @@ import type { Filters, FolderNode, ImageItem, Stats, TagNode, View, ViewMode } f
 import ErrorBoundary from '../components/ErrorBoundary';
 import Dashboard from '../pages/Dashboard';
 import GalleryPage from '../pages/Gallery';
-import { Timeline } from '../pages/Timeline';
 import type { ImportProgress } from './useImportWatch';
 import type { Toast } from './types';
 
 const Crawl = lazy(() => import('../pages/Crawl'));
+const TimelinePage = lazy(() => import('../pages/Timeline').then((m) => ({ default: m.Timeline })));
 // 低频且体积大的页面按需加载：设置页（含各分区面板）与教程（150 条文案）
 // 不该拖进首包。仪表盘与图库保持静态导入，避免首屏闪骨架。
 const SettingsPage = lazy(() => import('../pages/Settings'));
@@ -133,7 +133,9 @@ export default function AppPages(props: Props) {
           />
         )}
 
-        {view === 'timeline' && <Timeline onToast={showToast} onOpen={(item, pool) => openItem(item, pool)} />}
+        {view === 'timeline' && (
+          <TimelinePage onToast={showToast} onOpen={(item, pool) => openItem(item, pool)} />
+        )}
 
         {(view === 'gallery' || view === 'favorites') && (
           <GalleryPage

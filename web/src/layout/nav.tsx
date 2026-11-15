@@ -16,6 +16,7 @@ import {
   IconImages,
   IconLayers,
   IconLink,
+  IconPin,
   IconSearch,
   IconSpider,
   IconUsers,
@@ -53,7 +54,7 @@ export const TOOLS: NavItem[] = [
   { key: 'tidy', label: '整理', icon: <IconLayers /> },
   { key: 'search', label: '智能检索', icon: <IconSearch /> },
   { key: 'smart', label: '标签·智能夹', icon: <IconGrid /> },
-  { key: 'places', label: '地点', icon: <IconCalendar /> },
+  { key: 'places', label: '地点', icon: <IconPin /> },
   { key: 'enhance', label: '画质增强', icon: <IconWand /> },
   { key: 'knowledge', label: 'AI 知识库', icon: <IconBrain /> },
 ];

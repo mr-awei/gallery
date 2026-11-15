@@ -1,3 +1,4 @@
+import { IconClose } from './Icons';
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { api, type GeoProvince, type WatermarkOptions, type WatermarkParams } from '../api';
@@ -600,7 +601,7 @@ export default function WatermarkStudio({ open, ids, onClose, onToast, onDone }:
             {ids.length > 1 ? `批量处理 ${ids.length} 张（按同一套参数）` : '单张精修'}
           </span>
           <button className="btn sm ghost wm-close" disabled={applying} onClick={onClose} title="关闭">
-            ✕
+            <IconClose size={14} />
           </button>
         </div>
 
@@ -768,7 +769,7 @@ export default function WatermarkStudio({ open, ids, onClose, onToast, onDone }:
                         className="wm-sel"
                         value={modelValue}
                         onChange={pickModel}
-                        options={[...modelOptions, { value: CUSTOM_MODEL, label: '✎ 自定义型号…' }]}
+                        options={[...modelOptions, { value: CUSTOM_MODEL, label: '自定义型号…' }]}
                         placeholder={available('camera') ? '留空则读 EXIF 型号' : '选一个型号'}
                         title="选定品牌后只列这个品牌的常见型号；清单里没有就选「自定义型号」自己写"
                         searchThreshold={20}

@@ -15,6 +15,7 @@ import {
   resizeBox,
   type Ann,
 } from '../lib/annotationDraw';
+import { IconSquare, IconArrowUpRight, IconHighlight, IconType, IconGrid, IconBrush } from './Icons';
 
 /**
  * 图上标注（对标 Eagle 4 Annotations）：
@@ -33,13 +34,13 @@ interface Props {
   onToast?: (msg: string, kind?: 'info' | 'error') => void;
 }
 
-const TOOLS: { key: Tool; label: string; icon: string }[] = [
-  { key: 'rect', label: '矩形框（Shift 锁正方形）', icon: '▭' },
-  { key: 'arrow', label: '箭头（Shift 锁 15°）', icon: '↗' },
-  { key: 'highlight', label: '高亮', icon: '▤' },
-  { key: 'text', label: '文字（图上直接输入）', icon: 'T' },
-  { key: 'mosaic', label: '马赛克', icon: '▦' },
-  { key: 'brush', label: '画笔', icon: '✎' },
+const TOOLS: { key: Tool; label: string; icon: React.ReactNode }[] = [
+  { key: 'rect', label: '矩形框（Shift 锁正方形）', icon: <IconSquare size={15} /> },
+  { key: 'arrow', label: '箭头（Shift 锁 15°）', icon: <IconArrowUpRight size={15} /> },
+  { key: 'highlight', label: '高亮', icon: <IconHighlight size={15} /> },
+  { key: 'text', label: '文字（图上直接输入）', icon: <IconType size={15} /> },
+  { key: 'mosaic', label: '马赛克', icon: <IconGrid size={15} /> },
+  { key: 'brush', label: '画笔', icon: <IconBrush size={15} /> },
 ];
 
 const COLORS = ['#ff3b30', '#ffcc00', '#34c759', '#0a84ff', '#ffffff', '#000000'];

@@ -8,6 +8,7 @@ import {
   NAME_TEMPLATE_TOKENS,
   previewNameTemplate,
   renderNameTemplate,
+  uniqueInSet,
   uniqueTargetName,
 } from '../server/lib/name-template.js';
 
@@ -63,6 +64,19 @@ test('重名自动加 -1 / -2，不覆盖已有文件', () => {
       /* Windows 句柄释放有延迟，交给系统清理 */
     }
   }
+});
+
+test('内存版去重：接着目录里已有的名字往后排，且同名几千条不重样又不慢', () => {
+  const set = new Set(['壁纸.jpg', '壁纸-1.jpg']);
+  assert.equal(uniqueInSet(set, '壁纸.jpg'), '壁纸-2.jpg', '不能从 -1 重新开始，否则会覆盖已有文件');
+  assert.equal(uniqueInSet(set, '壁纸.jpg'), '壁纸-3.jpg');
+  assert.equal(uniqueInSet(set, '别的.jpg'), '别的.jpg');
+
+  // 批量导入的真实场景：模板不带 {index} 时全部同名，必须线性完成且个个不同
+  const bulk = new Set();
+  const names = Array.from({ length: 5000 }, () => uniqueInSet(bulk, '壁纸.jpg'));
+  assert.equal(new Set(names).size, 5000);
+  assert.equal(names[4999], '壁纸-4999.jpg');
 });
 
 test('预览：20 个目标名逐条递增，同名自动加后缀', () => {

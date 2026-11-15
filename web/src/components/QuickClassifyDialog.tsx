@@ -9,6 +9,7 @@ import { api } from '../api';
 import { useEscClose } from '../lib/useEscClose';
 import type { FolderNode } from '../types';
 import { IconClose } from './Icons';
+import { IconZap } from './Icons';
 
 interface Props {
   ids: number[];
@@ -83,7 +84,7 @@ export default function QuickClassifyDialog({ ids, folders, currentFolderId, onC
     <div className="modal-backdrop" onClick={onClose}>
       <div className="modal-card" style={{ maxWidth: 560 }} onClick={(e) => e.stopPropagation()}>
         <div className="modal-head">
-          <b>⚡ 快速分类 · {ids.length} 张</b>
+          <b><IconZap size={14} /> 快速分类 · {ids.length} 张</b>
           <button className="btn ghost sm" onClick={onClose} title="关闭（Esc）">
             <IconClose />
           </button>

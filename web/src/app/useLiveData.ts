@@ -129,6 +129,8 @@ export function useLiveData({
           total: Number(s.result?.total) || 0,
           unchanged: Number(s.result?.unchanged) || 0,
           message: s.message || '',
+          speed: Number(s.speed) || 0,
+          etaSec: s.etaSec == null ? null : Number(s.etaSec),
         });
         if (s.message) showToast(s.message);
         followImport();

@@ -1,3 +1,4 @@
+import { IconFolder } from './Icons';
 /**
  * 文件夹收纳视图（Eagle 式「按文件夹分组」）。
  *
@@ -147,7 +148,7 @@ function FolderGroup({
           {folder.cover?.thumbUrl ? (
             <img src={folder.cover.thumbUrl} alt="" loading="lazy" decoding="async" />
           ) : (
-            <span>{folder.icon || '📁'}</span>
+            <span>{folder.icon || <IconFolder size={18} />}</span>
           )}
         </button>
         <button type="button" className="fg-title" onClick={() => onOpenFolder(folder.id)} title={`进入「${folder.name}」`}>
@@ -444,7 +445,7 @@ export default function FolderGroupView({
 
       {onShowUnfiled && !folderId && unfiledCount > 0 && (
         <div className="fg-unfiled">
-          <span className="fg-unfiled-icon">🗂️</span>
+          <span className="fg-unfiled-icon"><IconFolder size={22} /></span>
           <span className="fg-unfiled-text">
             还有 <b>{unfiledCount.toLocaleString('zh-CN')}</b> 张素材没放进任何文件夹
           </span>

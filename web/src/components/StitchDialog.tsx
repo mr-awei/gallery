@@ -1,7 +1,9 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { api, downloadFile, formatSize } from '../api';
+import type { StitchCrop, StitchPlan, StitchTemplate } from '../api';
 import type { ImageItem } from '../types';
 import { IconClose, IconDownload } from './Icons';
+import StitchCropEditor from './StitchCropEditor';
 
 interface Props {
   items: ImageItem[];
@@ -9,49 +11,274 @@ interface Props {
   onToast?: (m: string, kind?: 'info' | 'error') => void;
 }
 
+const flowFallback = () => [
+  { id: 'auto', name: '智能铺满', hint: '按张数自动在满版 / 整齐行之间选' },
+  { id: 'mosaic', name: '满版拼贴', hint: '递归切分铺满整张，没有白缝' },
+  { id: 'justified', name: '整齐行', hint: '行高一致、宽度吃满，按原图比例' },
+  { id: 'grid', name: '联系表', hint: '等大格子、图片完整显示，适合核对素材' },
+];
+
+const RATIO_OPTIONS = ['auto', '1:1', '4:5', '3:4', '16:9', '9:16'];
+
+/** 标题常用色：白 / 黑 / 米金 / 红，外加取色器自选 */
+const TEXT_COLORS = ['#ffffff', '#000000', '#f0d9a8', '#e0362c'];
+
+const centerCrop = (z = 1): StitchCrop => ({ fx: 0.5, fy: 0.5, z });
+
 /**
- * 图片拼接 / 联系表：按顺序排成网格，可调列数、间距、底色、单元格大小与输出格式。
- * 预览与下载走同一个后端接口，看到的尺寸就是导出的尺寸。
+ * 把服务端返回的格子按 idx 归位成前端数组。
+ * plan.boxes 的顺序是几何算法切出来的（满版拼贴是递归二分），
+ * 直接按数组下标用会把第 3 张图画到第 5 格上。
+ */
+function alignPlan(plan: StitchPlan | null, n: number) {
+  if (!plan || plan.boxes.length !== n) return null;
+  const boxes: number[][] = Array.from({ length: n }, () => [0, 0, 1, 1]);
+  const zMin: number[] = Array.from({ length: n }, () => 1);
+  for (let i = 0; i < plan.boxes.length; i++) {
+    const b = plan.boxes[i];
+    if (!(b.idx >= 0 && b.idx < n)) return null;
+    boxes[b.idx] = [b.x, b.y, b.w, b.h];
+    zMin[b.idx] = plan.zMin[i] ?? 1;
+  }
+  return { boxes, zMin, ratio: plan.ratio > 0 ? plan.ratio : 1 };
+}
+
+/**
+ * 拼图 / 版面。
+ *
+ * 两条路线：
+ *  1) 模板（服务端 lib/stitch-templates.js）：构图是人先定好的——主视觉占多少、
+ *     留白在哪、片名压哪一条。用户只要挑一个，再逐格调「这张图露哪块」。
+ *  2) 算法版式：张数对不上任何模板时兜底（满版 / 整齐行 / 联系表），同样逐格可调。
+ *
+ * 两种路线的格子都从 /api/export/stitch/plan 取（服务端算几何），左侧大图就是构图台：
+ * 静止时铺服务端成品（文字、底色都在上面），一上手就切回实时画面。
+ * 预览与下载走同一个接口，看到的就是导出的。
  */
 export default function StitchDialog({ items, onClose, onToast }: Props) {
+  const [tplList, setTplList] = useState<StitchTemplate[] | null>(null);
+  const [flowList, setFlowList] = useState(() => flowFallback());
+  const [tplErr, setTplErr] = useState('');
+  const [tplTry, setTplTry] = useState(0);
+  const [tplId, setTplId] = useState('');
+  const [crops, setCrops] = useState<StitchCrop[]>(() => items.map(() => centerCrop()));
+  const [autoBusy, setAutoBusy] = useState(false);
+
+  const [layout, setLayout] = useState('auto');
+  const [ratio, setRatio] = useState('auto');
+  const [outWidth, setOutWidth] = useState(2400);
   const [columns, setColumns] = useState(Math.min(3, Math.max(1, items.length)));
-  const [gap, setGap] = useState(12);
-  const [bg, setBg] = useState('#ffffff');
-  const [cell, setCell] = useState(0); // 0 = 按原图自适应
+  const [gap, setGap] = useState(0); // 0 = 自动（模板按画布短边、算法版式 12px）
+  const [cell, setCell] = useState(0);
   const [format, setFormat] = useState('jpeg');
-  const [quality, setQuality] = useState(90);
-  const [title, setTitle] = useState('拼接图');
+  // 成品默认最高画质：拼图是发出去的东西，为省几百 KB 让它发虚不值
+  const [quality, setQuality] = useState(100);
+
+  const [title, setTitle] = useState('');
+  const [subtitle, setSubtitle] = useState('');
+  const [billing, setBilling] = useState('');
+  const [fileName, setFileName] = useState('');
+  // 海报文字样式：本机字体 key（sys:家族名）/ 标题字号倍率 / 标题颜色
+  const [font, setFont] = useState('');
+  const [titleScale, setTitleScale] = useState(1);
+  const [titleColor, setTitleColor] = useState('');
+  const [fonts, setFonts] = useState<{ key: string; name: string; group: string }[]>([]);
+  const [fontErr, setFontErr] = useState('');
+
+  // 版面坐标（每格归一化位置 + 缩放下限），模板与算法版式都走它
+  const [plan, setPlan] = useState<StitchPlan | null>(null);
+  const [planErr, setPlanErr] = useState('');
+  // 上一次重排构图用的「模板|版式|张数」，一样就不再动用户调好的每格
+  const resetKey = useRef('');
+
+  // 装饰项留空 = 跟模板默认值；用户动过才覆盖，切模板时清回去
+  const [radiusOv, setRadiusOv] = useState<number | null>(null);
+  const [shadowOv, setShadowOv] = useState<number | null>(null);
+  const [borderOv, setBorderOv] = useState<boolean | null>(null);
+  const [backdropOv, setBackdropOv] = useState<boolean | null>(null);
+  const [bgOv, setBgOv] = useState('');
+  const [seamlessOv, setSeamlessOv] = useState<boolean | null>(null);
+
   const [size, setSize] = useState('');
   const [loading, setLoading] = useState(true);
   const [err, setErr] = useState('');
+  const [previewUrl, setPreviewUrl] = useState('');
   const imgRef = useRef<HTMLImageElement | null>(null);
 
   const ids = useMemo(() => items.map((i) => i.id), [items]);
+  const tpl = useMemo(() => tplList?.find((t) => t.id === tplId) || null, [tplList, tplId]);
+  const availTemplates = useMemo(
+    () => (tplList || []).filter((t) => items.length >= t.min && items.length <= t.max),
+    [tplList, items.length]
+  );
+
+  const radius = radiusOv ?? tpl?.radius ?? 0;
+  const shadow = shadowOv ?? tpl?.shadow ?? 0;
+  const border = borderOv ?? Boolean(tpl?.border);
+  const backdrop = backdropOv ?? Boolean(tpl?.backdrop);
+  const bg = bgOv || tpl?.bg || (tpl?.band ? '#000000' : '#ffffff');
+  // 无缝是可选项：开了就压掉一切装饰，模板自带无缝的（长图/三联画）默认开
+  const seamless = seamlessOv ?? (tpl ? Boolean(tpl.seamless) : layout === 'seamless' || layout === 'stack');
+  const gapParam = seamless ? 0 : gap > 0 ? gap : undefined;
+
+  const cropsParam = useMemo(
+    () => crops.map((c) => `${c.fx.toFixed(3)},${c.fy.toFixed(3)},${c.z.toFixed(2)}`).join(';'),
+    [crops]
+  );
+
+  // 版面坐标：格子在哪、最小能缩到多少，全由服务端算（这里只算几何不读图，很轻）。
+  // 参数一变就重取，拖间距/列数也不会卡
+  useEffect(() => {
+    let alive = true;
+    const t = setTimeout(() => {
+      api
+        .stitchPlan(ids, {
+          template: tplId || undefined,
+          layout: tplId ? undefined : layout,
+          ratio: tplId ? undefined : ratio,
+          outWidth,
+          columns: !tplId && layout === 'grid' ? columns : undefined,
+          cell: !tplId && layout === 'grid' ? cell || undefined : undefined,
+          gap: gapParam,
+          seamless: seamless || undefined,
+        })
+        .then((r) => {
+          if (!alive) return;
+          setPlan(r);
+          setPlanErr('');
+          // 换模板 / 换版式才重排构图；只改间距、列数不动用户已经调好的每格
+          const rk = `${tplId}|${layout}|${items.length}`;
+          const aligned = alignPlan(r, items.length);
+          if (aligned && resetKey.current !== rk) {
+            resetKey.current = rk;
+            // 联系表的格子是等大的，z=1 会把图裁掉一截；默认给「整图刚好装进格子」（zMin），
+            // 想铺满往里推就是了
+            const contain = !tplId && layout === 'grid';
+            setCrops(aligned.boxes.map((_, i) => centerCrop(contain ? aligned.zMin[i] : 1)));
+          }
+        })
+        .catch((e: any) => {
+          if (!alive) return;
+          // 拿不到坐标就退回整图预览（不挡住出图），但要说明白为什么不能逐格调
+          setPlan(null);
+          setPlanErr(e?.message || '读不到版面坐标');
+        });
+    }, 120);
+    return () => {
+      alive = false;
+      clearTimeout(t);
+    };
+  }, [ids, tplId, layout, ratio, outWidth, columns, cell, gapParam, seamless, items.length]);
+
+  /** 构图台的格子：按 idx 归位后的坐标 + 缩放下限（缺一格就不画，免得框和图错位） */
+  const cells = useMemo(() => alignPlan(plan, items.length), [plan, items.length]);
+
+  // 本机字体清单：走水印那套扫描（服务端有 60 秒缓存），失败就只保留默认字体
+  useEffect(() => {
+    let alive = true;
+    api
+      .stitchFonts()
+      .then((r) => {
+        if (alive) setFonts(r.fonts || []);
+      })
+      .catch((e: any) => {
+        if (alive) setFontErr(e?.message || '读不到本机字体，可先用默认字体');
+      });
+    return () => {
+      alive = false;
+    };
+  }, []);
+
   const url = useMemo(
     () =>
       api.stitchUrl(ids, {
-        columns,
-        gap,
+        template: tplId || undefined,
+        // 两种版式都带上 crops：算法版式也要能逐格调（不带就是服务端的默认铺法）
+        crops: cropsParam,
+        layout: tplId ? undefined : layout,
+        ratio: tplId ? undefined : ratio,
+        outWidth,
+        columns: !tplId && layout === 'grid' ? columns : undefined,
+        gap: gapParam,
         bg,
-        cell: cell || undefined,
+        cell: !tplId && layout === 'grid' ? cell || undefined : undefined,
+        radius: tplId ? radius : undefined,
+        shadow: tplId ? shadow : undefined,
+        border: tplId ? border : undefined,
+        backdrop: tplId ? backdrop : undefined,
+        seamless: seamless || undefined,
         format,
         quality: format === 'png' ? undefined : quality,
-        title,
+        title: title.trim() || undefined,
+        subtitle: subtitle.trim() || undefined,
+        billing: billing.trim() || undefined,
+        font: font || undefined,
+        titleScale,
+        titleColor: titleColor || undefined,
+        file: fileName.trim() || undefined,
       }),
-    [ids, columns, gap, bg, cell, format, quality, title]
+    [
+      ids, tplId, cropsParam, layout, ratio, outWidth, columns, gapParam, bg, cell,
+      radius, shadow, border, backdrop, seamless, format, quality, title, subtitle, billing,
+      font, titleScale, titleColor, fileName,
+    ]
   );
+
+  useEffect(() => {
+    let alive = true;
+    setTplErr('');
+    api
+      .stitchTemplates()
+      .then((r) => {
+        if (!alive) return;
+        setTplList(r.templates);
+        if (r.layouts?.length) setFlowList(r.layouts);
+      })
+      .catch((e: any) => {
+        if (!alive) return;
+        const msg = e?.message || '模板列表读取失败';
+        // 服务端是新进程才有这个接口；旧进程/旧版本会 404，给一句能自己解决的话
+        setTplErr(/404|不存在|Not Found/i.test(msg) ? '服务端还没有模板接口（多半是没重启）' : msg);
+      });
+    return () => {
+      alive = false;
+    };
+  }, [tplTry]);
+
+  // 张数定了就替用户挑一个模板：大多数人不该先读一遍模板名
+  useEffect(() => {
+    if (!tplList) return;
+    const ok = tplList.filter((t) => items.length >= t.min && items.length <= t.max);
+    setTplId((cur) => (ok.some((t) => t.id === cur) ? cur : ok[0]?.id || ''));
+  }, [tplList, items.length]);
+
+  useEffect(() => {
+    setCrops((prev) => (prev.length === items.length ? prev : items.map(() => centerCrop())));
+  }, [items.length]);
+
+  // 预览防抖：拖动构图时每一帧都请求会让服务端一直忙，停手 180ms 再出图
+  const firstRun = useRef(true);
+  useEffect(() => {
+    if (firstRun.current) {
+      firstRun.current = false;
+      setPreviewUrl(url);
+      return;
+    }
+    const t = setTimeout(() => setPreviewUrl(url), 180);
+    return () => clearTimeout(t);
+  }, [url]);
 
   useEffect(() => {
     setLoading(true);
     setErr('');
-    // 图被缓存（同一 URL 重新挂载）时不会再触发 onLoad，必须自己查一次：
+    // 图被缓存（同一 URL 重新挂载）时不会再触发 onLoad，必须自己查一次，
     // 否则预览永远停在 35% 透明 + 转圈，看起来像没生成
     const el = imgRef.current;
     if (el && el.complete && el.naturalWidth) {
       setSize(`${el.naturalWidth}×${el.naturalHeight}`);
       setLoading(false);
     }
-  }, [url]);
+  }, [previewUrl]);
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -61,28 +288,64 @@ export default function StitchDialog({ items, onClose, onToast }: Props) {
     return () => window.removeEventListener('keydown', onKey);
   }, [onClose]);
 
-  const totalBytes = items.reduce((n, i) => n + (i.sizeBytes || 0), 0);
+  /* 成品图回调：普通预览图与构图台的隐藏探针共用 */
+  const onImgLoad = (el: HTMLImageElement) => {
+    setSize(`${el.naturalWidth}×${el.naturalHeight}`);
+    setLoading(false);
+  };
+  const onImgError = () => {
+    setErr('生成失败：可能包含损坏或非图片素材');
+    setLoading(false);
+  };
 
-  // 列数用分段按钮而不是滑杆：可选值本来就只有几个，拖动时数字一直跳很难对准
+  const pickTemplate = useCallback(
+    (id: string) => {
+      if (id !== tplId) {
+        setRadiusOv(null);
+        setShadowOv(null);
+        setBorderOv(null);
+        setBackdropOv(null);
+        setBgOv('');
+        setSeamlessOv(null);
+      }
+      setTplId(id);
+    },
+    [tplId]
+  );
+
+  const runAuto = async () => {
+    if (!tpl) return;
+    setAutoBusy(true);
+    try {
+      const r = await api.stitchAutoCrops(ids, tpl.id);
+      setCrops(items.map((_, i) => r.crops[i] || centerCrop()));
+      onToast?.('已按主体位置自动构图，可继续手调');
+    } catch (e: any) {
+      onToast?.(e?.message || '自动构图失败', 'error');
+    } finally {
+      setAutoBusy(false);
+    }
+  };
+
+  const totalBytes = items.reduce((n, i) => n + (i.sizeBytes || 0), 0);
+  const hasText = Boolean(tpl && (tpl.title || tpl.masthead || tpl.sub || tpl.billing));
+  const flowHint = flowList.find((l) => l.id === layout)?.hint || '';
+  const swatches = ['#ffffff', '#000000', '#f2f2f7', '#1c1c22'];
   const colOptions = useMemo(() => {
     const max = Math.max(1, Math.min(12, items.length));
-    const out: number[] = [];
-    for (let n = 1; n <= max; n++) out.push(n);
-    return out;
+    return Array.from({ length: max }, (_, i) => i + 1);
   }, [items.length]);
-
-  const swatches = ['#ffffff', '#000000', '#f2f2f7', '#1c1c22'];
 
   return (
     <div className="modal-backdrop tk-backdrop" onClick={onClose}>
       <div className="modal-card st-card" onClick={(e) => e.stopPropagation()}>
         <div className="modal-head">
-          <b>拼接图 / 联系表</b>
+          <b>{'拼图 / 版面'}</b>
           <span className="tk-title">
-            {items.length} 张 · 原图合计 {formatSize(totalBytes)}
+            {`${items.length} 张 · 原图合计 ${formatSize(totalBytes)}`}
             {size ? ` · 成品 ${size}` : ''}
           </span>
-          <button className="icon-btn" onClick={onClose} title="关闭（Esc）">
+          <button className="icon-btn" onClick={onClose} title={'关闭（Esc）'}>
             <IconClose />
           </button>
         </div>
@@ -90,37 +353,58 @@ export default function StitchDialog({ items, onClose, onToast }: Props) {
         <div className="modal-body st-modal-body">
           <div className="st-body">
             <div className="st-stage">
-              <div className="st-preview">
+              <div className={`st-preview${cells ? ' st-preview-edit' : ''}`}>
                 {err ? (
                   <div className="tk-warn">{err}</div>
+                ) : cells ? (
+                  /* 左侧大图就是构图台（模板与算法版式通用）：拖/滚/双击直接改每格构图，
+                     静止时盖着服务端成品，文字、底色、描边都在上面 */
+                  <StitchCropEditor
+                    large
+                    boxes={cells.boxes}
+                    ratio={cells.ratio}
+                    items={items}
+                    crops={crops}
+                    onChange={setCrops}
+                    zMin={cells.zMin}
+                    defaultZ={!tplId && layout === 'grid' ? cells.zMin : undefined}
+                    resultUrl={previewUrl || undefined}
+                  />
                 ) : (
                   <img
                     ref={imgRef}
                     className="st-img"
-                    src={url}
-                    alt="拼接预览"
+                    src={previewUrl || url}
+                    alt={'拼图预览'}
                     style={{ opacity: loading ? 0.35 : 1 }}
-                    onLoad={(e) => {
-                      const el = e.currentTarget;
-                      setSize(`${el.naturalWidth}×${el.naturalHeight}`);
-                      setLoading(false);
-                    }}
-                    onError={() => {
-                      setErr('生成失败：可能包含损坏或非图片素材');
-                      setLoading(false);
-                    }}
+                    onLoad={(e) => onImgLoad(e.currentTarget)}
+                    onError={onImgError}
                   />
                 )}
-                {loading && !err && <span className="spinner st-spin" />}
+                {/* 构图台的成品图被盖在格子里，尺寸还得是真实值：藏一张探针图专门读宽高 */}
+                {cells && !err && (
+                  <img
+                    ref={imgRef}
+                    className="st-size-probe"
+                    src={previewUrl || url}
+                    alt=""
+                    onLoad={(e) => onImgLoad(e.currentTarget)}
+                    onError={onImgError}
+                  />
+                )}
+                {!cells && loading && !err && <span className="spinner st-spin" />}
               </div>
               <div className="st-meta">
-                <span>{items.length} 张</span>
-                <span>原图 {formatSize(totalBytes)}</span>
-                {size && <span className="st-meta-out">成品 {size}</span>}
-                <span className="st-meta-tip">预览即导出结果</span>
+                <span>{`${items.length} 张`}</span>
+                <span>{`原图 ${formatSize(totalBytes)}`}</span>
+                {size && <span className="st-meta-out">{`成品 ${size}`}</span>}
+                <span className="st-meta-tip">{cells ? '左图可直接拖动构图' : '预览即导出结果'}</span>
               </div>
+              {planErr && (
+                <div className="st-warnline">{`读不到版面坐标（${planErr}），暂时只能按整图预览；刷新页面再试逐格构图。`}</div>
+              )}
               <div className="st-order">
-                <span className="st-order-label">顺序</span>
+                <span className="st-order-label">{'顺序'}</span>
                 <div className="st-picked">
                   {items.slice(0, 24).map((it, i) => (
                     <span className="st-pick" key={it.id} title={it.title}>
@@ -128,88 +412,389 @@ export default function StitchDialog({ items, onClose, onToast }: Props) {
                       <i>{i + 1}</i>
                     </span>
                   ))}
-                  {items.length > 24 && <span className="tk-hint">还有 {items.length - 24} 张…</span>}
+                  {items.length > 24 && <span className="tk-hint">{`还有 ${items.length - 24} 张…`}</span>}
                 </div>
               </div>
             </div>
 
             <div className="st-side">
               <div className="st-group">
-                <h5>文件</h5>
-                <label className="st-field">
-                  <span>文件名</span>
-                  <input className="input" value={title} maxLength={60} onChange={(e) => setTitle(e.target.value)} />
-                </label>
-              </div>
-
-              <div className="st-group">
-                <h5>版面</h5>
-                <div className="st-row">
-                  <span className="st-row-label">列数</span>
-                  <div className="st-seg">
-                    {colOptions.map((n) => (
+                <h5>
+                  {'版面模板'}
+                  <em>{tpl ? `${tpl.ratio} · 逐格可调` : '算法版式 · 逐格可调'}</em>
+                </h5>
+                {tplErr ? (
+                  <div className="st-hintline st-errline">
+                    <span>{tplErr}</span>
+                    <button
+                      type="button"
+                      className="btn"
+                      onClick={() => {
+                        setTplList(null);
+                        setTplTry((n) => n + 1);
+                      }}
+                    >
+                      {'重试'}
+                    </button>
+                  </div>
+                ) : null}
+                {!tplList && !tplErr ? <div className="st-hintline">{'正在读取版面模板…'}</div> : null}
+                {availTemplates.length > 0 && (
+                  <div className="st-tpl-grid">
+                    {availTemplates.map((t) => (
                       <button
-                        key={n}
+                        key={t.id}
                         type="button"
-                        className={n === columns ? 'on' : ''}
-                        onClick={() => setColumns(n)}
+                        className={`st-tpl${t.id === tplId ? ' on' : ''}`}
+                        title={t.hint}
+                        onClick={() => pickTemplate(t.id)}
                       >
-                        {n}
+                        <span className="st-tpl-canvas" style={{ aspectRatio: t.ratio.replace(':', ' / ') }}>
+                          {t.slots.map((s, i) => (
+                            <span
+                              key={i}
+                              className="st-tpl-box"
+                              style={{
+                                left: `${s[0] * 100}%`,
+                                top: `${s[1] * 100}%`,
+                                width: `${s[2] * 100}%`,
+                                height: `${s[3] * 100}%`,
+                              }}
+                            >
+                              {items[i] ? (
+                                <img src={items[i].thumbUrl} alt="" loading="lazy" decoding="async" />
+                              ) : null}
+                            </span>
+                          ))}
+                        </span>
+                        <span className="st-tpl-name">{t.name}</span>
+                      </button>
+                    ))}
+                  </div>
+                )}
+                {tplList && availTemplates.length === 0 && (
+                  <div className="st-hintline">
+                    {`当前 ${items.length} 张没有对应的海报模板（模板是给固定张数排的版），下面挑一种算法版式。`}
+                  </div>
+                )}
+                {tpl && <div className="st-hintline">{tpl.hint}</div>}
+                <div className="st-row">
+                  <span className="st-row-label">{'算法版式'}</span>
+                  <div className="st-seg">
+                    {flowList.map((l) => (
+                      <button
+                        key={l.id}
+                        type="button"
+                        className={!tplId && layout === l.id ? 'on' : ''}
+                        title={l.hint}
+                        onClick={() => {
+                          // 切到算法版式：模板专属的参数不再生效，先摘掉模板
+                          setTplId('');
+                          setSeamlessOv(null);
+                          setLayout(l.id);
+                        }}
+                      >
+                        {l.name}
                       </button>
                     ))}
                   </div>
                 </div>
+                {!tplId && flowHint && <div className="st-hintline">{flowHint}</div>}
+              </div>
+
+              {hasText && (
+                <div className="st-group">
+                  <h5>
+                    {'海报文字'}
+                    <em>{'留空不显示'}</em>
+                  </h5>
+                  {(tpl?.title || tpl?.masthead) && (
+                    <input
+                      className="input"
+                      value={title}
+                      maxLength={40}
+                      placeholder={tpl?.masthead ? '刊名 / 片名' : '片名'}
+                      onChange={(e) => setTitle(e.target.value)}
+                    />
+                  )}
+                  {tpl?.sub && (
+                    <input
+                      className="input"
+                      value={subtitle}
+                      maxLength={60}
+                      placeholder={'副标题（如：十月十七日 全球上映）'}
+                      onChange={(e) => setSubtitle(e.target.value)}
+                    />
+                  )}
+                  {tpl?.billing && (
+                    <input
+                      className="input"
+                      value={billing}
+                      maxLength={120}
+                      placeholder={'演职员条，用 | 分行'}
+                      onChange={(e) => setBilling(e.target.value)}
+                    />
+                  )}
+                  <div className="st-row">
+                    <span className="st-row-label">{'字体'}</span>
+                    <select
+                      className="input"
+                      value={font}
+                      onChange={(e) => setFont(e.target.value)}
+                      title={fontErr || '本机已安装的字体'}
+                    >
+                      <option value="">{'默认（模板字体）'}</option>
+                      {fonts.map((f) => (
+                        <option key={f.key} value={f.key}>
+                          {f.name}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                  <label className="st-field">
+                    <span>
+                      {'标题字号'}
+                      <b>{` ${Math.round(titleScale * 100)}%`}</b>
+                    </span>
+                    <input
+                      className="st-range"
+                      type="range"
+                      min={0.5}
+                      max={2}
+                      step={0.05}
+                      value={titleScale}
+                      onChange={(e) => setTitleScale(Number(e.target.value))}
+                    />
+                  </label>
+                  <div className="st-row">
+                    <span className="st-row-label">{'标题颜色'}</span>
+                    <div className="st-swatches">
+                      {TEXT_COLORS.map((c) => (
+                        <button
+                          key={c}
+                          type="button"
+                          className={`st-swatch${titleColor === c ? ' on' : ''}`}
+                          style={{ background: c }}
+                          title={c}
+                          aria-label={c}
+                          onClick={() => setTitleColor(titleColor === c ? '' : c)}
+                        />
+                      ))}
+                      <label className="st-swatch st-swatch-custom" title={'自定义颜色'}>
+                        <input
+                          type="color"
+                          value={titleColor || '#ffffff'}
+                          onChange={(e) => setTitleColor(e.target.value)}
+                        />
+                      </label>
+                      {titleColor ? (
+                        <button type="button" className="st-swatch-reset" onClick={() => setTitleColor('')}>
+                          {'跟随模板'}
+                        </button>
+                      ) : null}
+                    </div>
+                  </div>
+                  <div className="st-hintline">
+                    {fontErr
+                      ? fontErr
+                      : '位置由模板定（片名压渐变带、刊名在页眉），字太长会自动缩字号；用 | 拆成多行小字。字体/字号/颜色只管标题，副标题与演职员条跟模板。'}
+                  </div>
+                </div>
+              )}
+
+              {cells && (
+                <div className="st-group">
+                  <h5>
+                    {'逐格构图'}
+                    <em>{'在左侧大图上操作'}</em>
+                  </h5>
+                  <div className="st-hintline">
+                    {'拖动画面挪位置、滚轮缩放、双击复位；每格右上角是当前放大倍数。缩到整图（角标变橙）就到底了，再缩只会更小更糊。'}
+                  </div>
+                  <div className="st-row">
+                    {/* 自动构图要靠模板槽位算主体落点，算法版式没有槽位就不给这个按钮 */}
+                    {tpl && (
+                      <button type="button" className="btn" onClick={runAuto} disabled={autoBusy}>
+                        {autoBusy ? '检测主体…' : '自动构图'}
+                      </button>
+                    )}
+                    <button
+                      type="button"
+                      className="btn"
+                      onClick={() =>
+                        // 联系表复位回「整图」，其余版式回到「铺满」
+                        setCrops(items.map((_, i) => centerCrop(!tplId && layout === 'grid' ? cells.zMin[i] : 1)))
+                      }
+                    >
+                      {'全部居中'}
+                    </button>
+                  </div>
+                </div>
+              )}
+
+              <div className="st-group">
+                <h5>
+                  {'外观'}
+                  {seamless ? <em>{'无缝'}</em> : null}
+                </h5>
+                <label className="st-check">
+                  <input
+                    type="checkbox"
+                    checked={seamless}
+                    onChange={(e) => setSeamlessOv(e.target.checked)}
+                  />
+                  <span>{'无缝拼接（贴边零缝隙，自动关掉留白与装饰）'}</span>
+                </label>
+                {tpl && !seamless && (
+                  <>
+                    <label className="st-field">
+                      <span>
+                        {'圆角'} <b>{(radius * 100).toFixed(1)}%</b>
+                      </span>
+                      <input
+                        className="st-range"
+                        type="range"
+                        min={0}
+                        max={8}
+                        step={0.2}
+                        value={Number((radius * 100).toFixed(1))}
+                        onChange={(e) => setRadiusOv(Number(e.target.value) / 100)}
+                      />
+                    </label>
+                    <label className="st-field">
+                      <span>
+                        {'投影'} <b>{Math.round(shadow * 100)}%</b>
+                      </span>
+                      <input
+                        className="st-range"
+                        type="range"
+                        min={0}
+                        max={100}
+                        step={5}
+                        value={Math.round(shadow * 100)}
+                        onChange={(e) => setShadowOv(Number(e.target.value) / 100)}
+                      />
+                    </label>
+                    <label className="st-check">
+                      <input type="checkbox" checked={border} onChange={(e) => setBorderOv(e.target.checked)} />
+                      <span>{'每格描白边'}</span>
+                    </label>
+                    <label className="st-check">
+                      <input type="checkbox" checked={backdrop} onChange={(e) => setBackdropOv(e.target.checked)} />
+                      <span>{'主图模糊铺底（留白不再是死白）'}</span>
+                    </label>
+                    <div className="st-row">
+                      <span className="st-row-label">{'底色'}</span>
+                      <div className="st-swatches">
+                        {swatches.map((c) => (
+                          <button
+                            key={c}
+                            type="button"
+                            className={`st-swatch${c.toLowerCase() === bg.toLowerCase() ? ' on' : ''}`}
+                            style={{ background: c }}
+                            title={c}
+                            onClick={() => setBgOv(c)}
+                          />
+                        ))}
+                        <label className="st-swatch st-swatch-custom" title={'自定义颜色'}>
+                          <input type="color" value={bg} onChange={(e) => setBgOv(e.target.value)} />
+                        </label>
+                      </div>
+                    </div>
+                  </>
+                )}
+              </div>
+
+              <div className="st-group">
+                <h5>{'输出'}</h5>
+                <input
+                  className="input"
+                  value={fileName}
+                  maxLength={60}
+                  placeholder={`文件名（默认：${title.trim() || '拼接图'}）`}
+                  onChange={(e) => setFileName(e.target.value)}
+                />
+                <div className="st-row">
+                  <span className="st-row-label">{'宽度'}</span>
+                  <div className="st-seg">
+                    {[1600, 2400, 3200, 4000].map((w) => (
+                      <button
+                        key={w}
+                        type="button"
+                        className={outWidth === w ? 'on' : ''}
+                        onClick={() => setOutWidth(w)}
+                      >
+                        {w}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+                {tpl ? (
+                  <div className="st-row">
+                    <span className="st-row-label">{'画布比例'}</span>
+                    <span className="st-ro">{`${tpl.ratio}（随模板）`}</span>
+                  </div>
+                ) : (
+                  <div className="st-row">
+                    <span className="st-row-label">{'比例'}</span>
+                    <div className="st-seg">
+                      {RATIO_OPTIONS.map((v) => (
+                        <button key={v} type="button" className={ratio === v ? 'on' : ''} onClick={() => setRatio(v)}>
+                          {v === 'auto' ? '自动' : v}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                )}
+                {!tplId && layout === 'grid' && (
+                  <>
+                    <div className="st-row">
+                      <span className="st-row-label">{'列数'}</span>
+                      <div className="st-seg">
+                        {colOptions.map((n) => (
+                          <button
+                            key={n}
+                            type="button"
+                            className={n === columns ? 'on' : ''}
+                            onClick={() => setColumns(n)}
+                          >
+                            {n}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                    <label className="st-field">
+                      <span>
+                        {'每格最长边'} <b>{cell ? `${cell}px` : '自适应原图'}</b>
+                      </span>
+                      <input
+                        className="st-range"
+                        type="range"
+                        min={0}
+                        max={1200}
+                        step={40}
+                        value={cell}
+                        onChange={(e) => setCell(Number(e.target.value))}
+                      />
+                    </label>
+                  </>
+                )}
                 <label className="st-field">
                   <span>
-                    间距 <b>{gap}px</b>
+                    {'间距'} <b>{seamless ? '无缝' : gap ? `${gap}px` : '自动'}</b>
                   </span>
                   <input
                     className="st-range"
                     type="range"
                     min={0}
                     max={64}
-                    value={gap}
+                    value={seamless ? 0 : gap}
+                    disabled={seamless}
                     onChange={(e) => setGap(Number(e.target.value))}
                   />
                 </label>
-                <label className="st-field">
-                  <span>
-                    每格最长边 <b>{cell ? `${cell}px` : '自适应原图'}</b>
-                  </span>
-                  <input
-                    className="st-range"
-                    type="range"
-                    min={0}
-                    max={1200}
-                    step={40}
-                    value={cell}
-                    onChange={(e) => setCell(Number(e.target.value))}
-                  />
-                </label>
-              </div>
-
-              <div className="st-group">
-                <h5>外观</h5>
                 <div className="st-row">
-                  <span className="st-row-label">底色</span>
-                  <div className="st-swatches">
-                    {swatches.map((c) => (
-                      <button
-                        key={c}
-                        type="button"
-                        className={`st-swatch${c.toLowerCase() === bg.toLowerCase() ? ' on' : ''}`}
-                        style={{ background: c }}
-                        title={c}
-                        onClick={() => setBg(c)}
-                      />
-                    ))}
-                    <label className="st-swatch st-swatch-custom" title="自定义颜色">
-                      <input type="color" value={bg} onChange={(e) => setBg(e.target.value)} />
-                    </label>
-                  </div>
-                </div>
-                <div className="st-row">
-                  <span className="st-row-label">格式</span>
+                  <span className="st-row-label">{'格式'}</span>
                   <div className="st-seg">
                     {(
                       [
@@ -226,9 +811,9 @@ export default function StitchDialog({ items, onClose, onToast }: Props) {
                 </div>
                 {format !== 'png' && (
                   <div className="st-row">
-                    <span className="st-row-label">质量</span>
+                    <span className="st-row-label">{'质量'}</span>
                     <div className="st-seg">
-                      {[95, 90, 82, 70].map((q) => (
+                      {[100, 95, 90, 82].map((q) => (
                         <button
                           key={q}
                           type="button"
@@ -242,13 +827,14 @@ export default function StitchDialog({ items, onClose, onToast }: Props) {
                   </div>
                 )}
               </div>
-
             </div>
           </div>
         </div>
 
         <div className="st-foot">
-          <span className="tk-hint">最多 60 张；成品超过 20000px 会自动等比缩小。拼接只导出，不改原图。</span>
+          <span className="tk-hint">
+            {'模板是按张数定死的构图，张数不对自动回落到算法版式；勾「无缝拼接」就贴边排、不要留白和装饰。成品超过 20000px 会等比缩小；拼图只导出，不改原图。'}
+          </span>
           <button
             className="btn primary"
             disabled={!ids.length}
@@ -257,7 +843,7 @@ export default function StitchDialog({ items, onClose, onToast }: Props) {
               onToast?.('已开始下载拼接图');
             }}
           >
-            <IconDownload /> 下载拼接图
+            <IconDownload /> {'下载拼图'}
           </button>
         </div>
       </div>

@@ -1,3 +1,4 @@
+import { IconPalette } from './Icons';
 /**
  * 文件夹外观：emoji / 图标字符 + 主题色。
  *
@@ -51,7 +52,7 @@ export default function FolderAppearanceDialog({ folder, onClose, onSaved, onToa
     <div className="modal-backdrop" onClick={onClose}>
       <div className="modal-card" style={{ maxWidth: 520 }} onClick={(e) => e.stopPropagation()}>
         <div className="modal-head">
-          <b>🎨 文件夹外观 · {folder.name}</b>
+          <b><IconPalette size={14} /> 文件夹外观 · {folder.name}</b>
           <button className="btn ghost sm" onClick={onClose} title="关闭">
             <IconClose />
           </button>
@@ -102,7 +103,7 @@ export default function FolderAppearanceDialog({ folder, onClose, onSaved, onToa
                 onClick={() => setColor('')}
                 title="跟随主题（清除颜色）"
               >
-                ✕
+                <IconClose size={14} />
               </button>
               {COLORS.map((c) => (
                 <button

@@ -1,3 +1,4 @@
+import { IconClose, IconStar } from './Icons';
 import React, { useEffect, useRef, useState } from 'react';
 import { formatSize } from '../api';
 import type { ImageItem, SimilarGroup } from '../types';
@@ -150,7 +151,7 @@ export default function DuelView({ group, onEliminate, onFinished, onClose }: Pr
             重置视图
           </button>
           <button className="btn sm danger" onClick={onClose} title="退出对比（快捷键 Esc），剩余部分保持原样">
-            ✕ 退出 (Esc)
+            <IconClose size={13} /> 退出 (Esc)
           </button>
         </div>
       </div>
@@ -163,7 +164,7 @@ export default function DuelView({ group, onEliminate, onFinished, onClose }: Pr
         ) : (
           <div className="cmp-side" style={{ justifyContent: 'center' }}>
             <div style={{ textAlign: 'center' }}>
-              <div style={{ fontSize: 40 }}>🏆</div>
+              <div style={{ fontSize: 40 }}><IconStar size={40} /></div>
               <b>整组处理完成：保留 {kept.title}</b>
             </div>
           </div>

@@ -177,14 +177,14 @@
   <h1>图库 TuKu：<span class="g">本地素材管理器</span>的真实水平</h1>
   <p class="lede">
     这不是功能宣传页，而是一次把 13 万行代码逐层翻过之后的计分：17 个维度、8 个竞品、
-    每条结论都能落到文件与函数上。结论先说——<b>只做本地管理器，它是这一档的第一（8.92）</b>；
+    每条结论都能落到文件与函数上。结论先说——<b>只做本地管理器，它是这一档的第一（9.00）</b>；
     云与多端、协作社区、多语言、跨平台这四项<b>不是不做，而是排在后面的远期目标</b>，
-    按目标值计分可到 <b>8.59</b>（第 1），按今天的进度只有 <b>7.00</b>（第 4）。三个数都对，区别只在"算哪一天"。
+    按目标值计分可到 <b>8.65</b>（第 1），按今天的进度只有 <b>7.06</b>（第 4）。三个数都对，区别只在"算哪一天"。
   </p>
   <div class="chips">
     <span class="chip">审计日期 <b>2026-11-16</b></span>
-    <span class="chip">代码版本 <b>1.2.15</b></span>
-    <span class="chip">规模 <b>544 文件 / 129,891 行</b></span>
+    <span class="chip">代码版本 <b>1.2.16</b></span>
+    <span class="chip">规模 <b>553 文件 / 134,484 行</b></span>
     <span class="chip">方法 <b>代码审计 + 实跑基准 + 8 竞品对标</b></span>
     <span class="chip">配套文档 <b><a href="./产品介绍.html">功能资料（面向普通用户）</a></b></span>
   </div>
@@ -196,13 +196,13 @@
         <span class="rankbadge">8 竞品中第 1</span>
       </div>
       <div class="donut-wrap">
-        <div class="donut" style="--v:89.2"><span>8.92</span></div>
+        <div class="donut" style="--v:90"><span>9.00</span></div>
         <div class="score-note">
           高于 Eagle <b>8.21</b>、Immich <b>7.29</b>、PhotoPrism <b>6.82</b>。<br>
           领先来自三处结构性优势：<b>自动化与开放接口</b>、<b>桌面集成深度</b>、<b>数据安全与可带走</b>。
         </div>
       </div>
-      <div class="split">同一套代码把四项远期目标按目标值计入：<b>8.59</b>（第 1）· 按今天的进度：<b>7.00</b>（第 4）</div>
+      <div class="split">同一套代码把四项远期目标按目标值计入：<b>8.65</b>（第 1）· 按今天的进度：<b>7.06</b>（第 4）</div>
     </div>
 
     <div class="score-card alt">
@@ -211,13 +211,13 @@
         <span class="rankbadge">达成后排第 1</span>
       </div>
       <div class="donut-wrap">
-        <div class="donut" style="--v:85.9"><span>8.59</span></div>
+        <div class="donut" style="--v:86.5"><span>8.65</span></div>
         <div class="score-note">
           目标值：云与多端 <b>8.0</b>、协作社区 <b>6.0</b>、多语言 <b>9.0</b>、跨平台 <b>8.5</b>；<br>
           当前值：<b>1.5 / 2.0 / 0.5 / 2.0</b>——四项合计可从 0.40 提到 1.99（+1.59）。
         </div>
       </div>
-      <div class="split">中期目标（多端只读 + mac 真机）：<b>7.51</b>（第 2）· 距 8.59 的三步见第 09 节</div>
+      <div class="split">中期目标（多端只读 + mac 真机）：<b>7.58</b>（第 2）· 距 8.65 的三步见第 09 节</div>
     </div>
   </div>
 </header>
@@ -229,7 +229,7 @@
     <div class="panel">
       <h3 style="margin:0 0 10px;font-size:15.5px;color:var(--emerald)">凭什么单机第一</h3>
       <ul class="plain">
-        <li><b>数据模型是"素材库"而不是"相册"</b>：34 张表、19 个触发器、FTS5 trigram 全文索引，设计稿 11 种、RAW 40+ 种、三维 9 种都能进库并出缩略图。</li>
+        <li><b>数据模型是"素材库"而不是"相册"</b>：40 张表、真外键约束、FTS5 trigram 全文索引，设计稿 11 种、RAW 40+ 种、三维 9 种、EPUB 电子书都能进库并出缩略图。</li>
         <li><b>自动化是原生的</b>：10 个采集源、11 个 MCP 工具、插件沙箱、REST 带 token 与 scope、172 条内置教程——同行普遍只有"导入 + 拖拽"。</li>
         <li><b>桌面集成到系统层</b>：托盘、可改全局热键、Windows 动态壁纸（WorkerW）、拖出到资源管理器、右键采集、局域网只读分享。</li>
       </ul>
@@ -241,7 +241,7 @@
         <li><b>协作与社区 2.0 → 6.0</b>（权重 8）：评论、分享、最小权限闭环；插件市场不作承诺；兑现 <b>+0.320</b>。</li>
         <li><b>多语言 0.5 → 9.0</b>（权重 5）：先把界面文案抽成词条，再上翻译层；兑现 <b>+0.425</b>。</li>
         <li><b>跨平台 2.0 → 8.5</b>（权重 4）：mac 真机冒烟 + 安装包，Linux 顺延；兑现 <b>+0.260</b>。</li>
-        <li>四项合计 <b>+1.59</b>：7.00 → <b>8.59</b>，从第 4 升到第 1。顺序与前置条件见第 09 节。</li>
+        <li>四项合计 <b>+1.59</b>：7.06 → <b>8.65</b>，从第 4 升到第 1。顺序与前置条件见第 09 节。</li>
       </ul>
     </div>
     <div class="panel">
@@ -260,22 +260,23 @@
 
   <div class="callout" style="margin-top:18px">
     <b>三档口径，都是同一份代码：</b>
-    ① <b>8.92</b> = 单机基准（13 维 100 分，只算已实现能力）；
-    ② <b>7.51</b> = 中期目标（四维按"多端只读 + mac 真机 + 权限雏形"计）；
-    ③ <b>8.59</b> = 远期目标（四维按 8.0 / 6.0 / 9.0 / 8.5 的目标值计）。
-    另外，"按今天的进度打完 17 维"是 <b>7.00</b>（第 4）——它不是第四档，而是 ③ 的零进度版本。
+    ① <b>9.00</b> = 单机基准（13 维 100 分，只算已实现能力）；
+    ② <b>7.58</b> = 中期目标（四维按"多端只读 + mac 真机 + 权限雏形"计）；
+    ③ <b>8.65</b> = 远期目标（四维按 8.0 / 6.0 / 9.0 / 8.5 的目标值计）。
+    另外，"按今天的进度打完 17 维"是 <b>7.06</b>（第 4）——它不是第四档，而是 ③ 的零进度版本。
   </div>
   <div class="callout" style="margin-top:12px">
     <b>读数约定：</b>9.0 以上 = 接近同类商用上限；8.0–9.0 = 成熟可交付，只剩打磨；
     7.0–8.0 = 能用但明显弱于头部；6.0 以下 = 结构性缺口，不是补丁能解决的。
-    上一版 13 维给出的 8.95 与本版 8.92 的差异来自权重重排与去掉重复计分子项，属口径修正而非能力变化。
+    上一版 8.92 与本版 9.00 的差异来自 v1.2.16 的五处实质补强：外键落地、虚拟滚动落三页、
+    API 参考自动生成、弹窗无障碍统一、EPUB 阅读器；口径本身没有改。
   </div>
 </section>
 <section id="s2">
   <div class="sec-head"><span class="sec-no">02</span><h2>评分方法：13 维算现在，4 维算远期</h2></div>
   <p class="sec-sub">
     先把"怎么算"摊开，分数才有讨论价值。全部维度按 10 分制打分再按权重加权：前 13 维构成单机基准（100 分，只算已实现能力）；
-    后 4 维是长期平台能力，按"当下的值"与"目标值"各算一次，就得到 7.00 与 8.59。
+    后 4 维是长期平台能力，按"当下的值"与"目标值"各算一次，就得到 7.06 与 8.65。
   </p>
 
   <div class="tbl-wrap">
@@ -288,7 +289,7 @@
         <tr class="hi"><td>2</td><td>组织与元数据</td><td class="num">10</td><td class="num">7</td><td>文件夹树、标签、评分、集合、人物、地点、时间线、自定义字段、XMP</td></tr>
         <tr class="hi"><td>3</td><td>浏览与检索</td><td class="num">12</td><td class="num">8</td><td>关键词/语义/颜色/相似图、组合筛选、排序分组、滚动体验</td></tr>
         <tr><td>4</td><td>编辑与产出</td><td class="num">8</td><td class="num">6</td><td>非破坏编辑、裁切旋转调色、擦除、超分、水印相框、批处理</td></tr>
-        <tr><td>5</td><td>格式与媒体</td><td class="num">7</td><td class="num">5</td><td>RAW/设计稿/三维/音频/视频/PDF/Office/字体的入库与预览深度</td></tr>
+        <tr><td>5</td><td>格式与媒体</td><td class="num">7</td><td class="num">5</td><td>RAW/设计稿/三维/音频/视频/PDF/Office/字体/EPUB 的入库与预览深度</td></tr>
         <tr><td>6</td><td>AI 能力</td><td class="num">8</td><td class="num">6</td><td>CLIP 语义、人脸聚类、相似图、自动标签、抠图；是否本机推理</td></tr>
         <tr class="hi"><td>7</td><td>自动化与开放</td><td class="num">8</td><td class="num">6</td><td>REST + token/scope、MCP 工具、插件沙箱、脚本能力、扩展</td></tr>
         <tr><td>8</td><td>桌面集成</td><td class="num">7</td><td class="num">5</td><td>托盘、全局热键、开机自启、拖出、动态壁纸、系统菜单、单实例</td></tr>
@@ -311,7 +312,7 @@
       <h3 style="margin:0 0 8px;font-size:15px">为什么这样配权重</h3>
       <ul class="plain">
         <li><b>单机基准</b> 假设用户只有一台机器、一个库、自己一个人用。那么决定日常体验的就是"能不能快速找回来"——组织 10 分 + 检索 12 分是全场最高权重，性能 9 分紧随其后。</li>
-        <li><b>远期 17 维</b> 假设有一天要拿去和 Immich 这类"能装下一整个团队"的产品比。这时同步与协作合计 17 分、多语言与跨平台 9 分，前 13 维被稀释到 74 分——四维按今天的进度计是 7.00，按目标值计是 8.59。</li>
+        <li><b>远期 17 维</b> 假设有一天要拿去和 Immich 这类"能装下一整个团队"的产品比。这时同步与协作合计 17 分、多语言与跨平台 9 分，前 13 维被稀释到 74 分——四维按今天的进度计是 7.06，按目标值计是 8.65。</li>
         <li>两个口径都<b>不奖励 PPT 功能</b>：AI 维度要求本机可跑、有失败回退；性能维度要求有基准脚本可复现。</li>
       </ul>
     </div>
@@ -338,7 +339,7 @@
       <h3 style="margin:0 0 4px;font-size:15px">单机基准 · 13 维（已实现）</h3>
       <p class="tiny muted" style="margin:0 0 14px">今天安装就能复核的分数</p>
       <div class="ranklist">
-        <div class="rankrow me"><span class="rk-name">图库 TuKu</span><div class="track"><div class="fill" style="width:89.2%"></div></div><span class="rk-val">8.92</span></div>
+        <div class="rankrow me"><span class="rk-name">图库 TuKu</span><div class="track"><div class="fill" style="width:90%"></div></div><span class="rk-val">9.00</span></div>
         <div class="rankrow"><span class="rk-name">Eagle</span><div class="track"><div class="fill alt" style="width:82.1%"></div></div><span class="rk-val">8.21</span></div>
         <div class="rankrow"><span class="rk-name">Immich</span><div class="track"><div class="fill alt" style="width:72.9%"></div></div><span class="rk-val">7.29</span></div>
         <div class="rankrow"><span class="rk-name">Billfish</span><div class="track"><div class="fill alt" style="width:69.6%"></div></div><span class="rk-val">6.96</span></div>
@@ -353,7 +354,7 @@
       <h3 style="margin:0 0 4px;font-size:15px">远期目标 · 17 维（按目标值）</h3>
       <p class="tiny muted" style="margin:0 0 14px">云 8.0 / 协作 6.0 / 双语 9.0 / 跨平台 8.5</p>
       <div class="ranklist">
-        <div class="rankrow me"><span class="rk-name">图库 TuKu</span><div class="track"><div class="fill" style="width:85.9%"></div></div><span class="rk-val">8.59</span></div>
+        <div class="rankrow me"><span class="rk-name">图库 TuKu</span><div class="track"><div class="fill" style="width:86.5%"></div></div><span class="rk-val">8.65</span></div>
         <div class="rankrow"><span class="rk-name">Immich</span><div class="track"><div class="fill alt" style="width:78.2%"></div></div><span class="rk-val">7.82</span></div>
         <div class="rankrow"><span class="rk-name">Eagle</span><div class="track"><div class="fill alt" style="width:71.8%"></div></div><span class="rk-val">7.18</span></div>
         <div class="rankrow"><span class="rk-name">PhotoPrism</span><div class="track"><div class="fill alt" style="width:70.5%"></div></div><span class="rk-val">7.05</span></div>
@@ -379,15 +380,15 @@
     <div class="panel">
       <h3 style="margin:0 0 8px;font-size:14.6px">三条最该记住的对比</h3>
       <p style="margin:0 0 10px;color:var(--muted);font-size:13.5px">
-        <b style="color:var(--emerald)">现在（8.92）：领先 Eagle 0.71 分。</b>差距不在界面，而在三处 Eagle 没做的事——
+        <b style="color:var(--emerald)">现在（9.00）：领先 Eagle 0.79 分。</b>差距不在界面，而在三处 Eagle 没做的事——
         网络采集与脚本接口、本机 AI（CLIP + 人脸聚类 + HNSW）、数据出口（XMP / 备份校验 / 双栈撤销）。
       </p>
       <p style="margin:0 0 10px;color:var(--muted);font-size:13.5px">
-        <b style="color:var(--amber)">今天的 17 维（7.00）：落后 Immich 0.82 分。</b>中期目标 7.51 能追到第 2，
+        <b style="color:var(--amber)">今天的 17 维（7.06）：落后 Immich 0.76 分。</b>中期目标 7.58 能追到第 2，
         但仍差 0.31；差的正是账号、变更合并、移动端与翻译层。
       </p>
       <p style="margin:0;color:var(--muted);font-size:13.5px">
-        <b style="color:var(--cyan)">远期目标（8.59）：反超 Immich 0.77 分。</b>这是"目标值"，不是现状——
+        <b style="color:var(--cyan)">远期目标（8.65）：反超 Immich 0.83 分。</b>这是"目标值"，不是现状——
         四个目标值（8.0 / 6.0 / 9.0 / 8.5）都能逐项验收，达标才算数。
       </p>
       <div class="tiny" style="margin-top:12px;padding-top:10px;border-top:1px dashed var(--line);color:var(--dim)">
@@ -416,11 +417,11 @@
       <span>分差来自哪里</span>
     </div>
     <div class="dimrow"><span class="dname">导入与采集</span>
-      <div class="dimcell"><small class="s9">9.2</small><div class="mini"><i style="width:92%;background:#34d399"></i></div></div>
+      <div class="dimcell"><small class="s9">9.3</small><div class="mini"><i style="width:93%;background:#34d399"></i></div></div>
       <div class="dimcell"><small class="s8">8.5</small><div class="mini"><i style="width:85%;background:#60a5fa"></i></div></div>
       <div class="dimcell"><small class="s7">7.5</small><div class="mini"><i style="width:75%;background:#fbbf24"></i></div></div>
       <div class="dimcell"><small class="s7">7.0</small><div class="mini"><i style="width:70%;background:#fbbf24"></i></div></div>
-      <span class="cmt">10 个采集源 + 扩展 + 剪贴板；相册类只能手机或网页上传</span></div>
+      <span class="cmt">10 个采集源 + 扩展 + 剪贴板；进度带速度与剩余时间，万张重名去重走内存索引</span></div>
     <div class="dimrow"><span class="dname">组织与元数据</span>
       <div class="dimcell"><small class="s9">9.4</small><div class="mini"><i style="width:94%;background:#34d399"></i></div></div>
       <div class="dimcell"><small class="s9">9.4</small><div class="mini"><i style="width:94%;background:#34d399"></i></div></div>
@@ -434,17 +435,17 @@
       <div class="dimcell"><small class="s8">8.6</small><div class="mini"><i style="width:86%;background:#60a5fa"></i></div></div>
       <span class="cmt">关键词 + 语义 + 颜色 + 相似图四路并行，筛选可叠加</span></div>
     <div class="dimrow"><span class="dname">编辑与产出</span>
-      <div class="dimcell"><small class="s8">8.9</small><div class="mini"><i style="width:89%;background:#60a5fa"></i></div></div>
+      <div class="dimcell"><small class="s9">9.0</small><div class="mini"><i style="width:90%;background:#34d399"></i></div></div>
       <div class="dimcell"><small class="s7">7.5</small><div class="mini"><i style="width:75%;background:#fbbf24"></i></div></div>
       <div class="dimcell"><small class="s6">6.0</small><div class="mini"><i style="width:60%;background:#fb7185"></i></div></div>
       <div class="dimcell"><small class="s6">5.5</small><div class="mini"><i style="width:55%;background:#fb7185"></i></div></div>
-      <span class="cmt">非破坏 edit_ops + 撤销栈 + 擦除/超分/水印；相册类只有裁剪旋转</span></div>
+      <span class="cmt">非破坏 edit_ops + 撤销栈；拼图所有版式可逐格构图，海报文字可调字体字号颜色，取原图、质量到 100</span></div>
     <div class="dimrow"><span class="dname">格式与媒体</span>
-      <div class="dimcell"><small class="s8">8.4</small><div class="mini"><i style="width:84%;background:#60a5fa"></i></div></div>
+      <div class="dimcell"><small class="s8">8.6</small><div class="mini"><i style="width:86%;background:#60a5fa"></i></div></div>
       <div class="dimcell"><small class="s9">9.2</small><div class="mini"><i style="width:92%;background:#34d399"></i></div></div>
       <div class="dimcell"><small class="s6">6.5</small><div class="mini"><i style="width:65%;background:#fb7185"></i></div></div>
       <div class="dimcell"><small class="s6">6.0</small><div class="mini"><i style="width:60%;background:#fb7185"></i></div></div>
-      <span class="cmt">覆盖最广（RAW 40+ / 设计稿 11 / 三维 9），但字体、3D、Office 预览浅于 Eagle</span></div>
+      <span class="cmt">覆盖最广（RAW 40+ / 设计稿 11 / 三维 9 / EPUB 真阅读器），字体、3D、Office 预览仍浅于 Eagle</span></div>
     <div class="dimrow"><span class="dname">AI 能力</span>
       <div class="dimcell"><small class="s8">8.9</small><div class="mini"><i style="width:89%;background:#60a5fa"></i></div></div>
       <div class="dimcell"><small class="s6">6.5</small><div class="mini"><i style="width:65%;background:#fb7185"></i></div></div>
@@ -464,35 +465,35 @@
       <div class="dimcell"><small class="s6">2.0</small><div class="mini"><i style="width:20%;background:#fb7185"></i></div></div>
       <span class="cmt">托盘/可改热键/动态壁纸/拖出到资源管理器；自托管相册没有桌面壳</span></div>
     <div class="dimrow"><span class="dname">性能与规模</span>
-      <div class="dimcell"><small class="s8">8.3</small><div class="mini"><i style="width:83%;background:#60a5fa"></i></div></div>
+      <div class="dimcell"><small class="s8">8.5</small><div class="mini"><i style="width:85%;background:#60a5fa"></i></div></div>
       <div class="dimcell"><small class="s8">8.8</small><div class="mini"><i style="width:88%;background:#60a5fa"></i></div></div>
       <div class="dimcell"><small class="s8">8.5</small><div class="mini"><i style="width:85%;background:#60a5fa"></i></div></div>
       <div class="dimcell"><small class="s7">7.5</small><div class="mini"><i style="width:75%;background:#fbbf24"></i></div></div>
-      <span class="cmt">API p95 个位数毫秒，但缺真虚拟滚动、百万级尚未验收</span></div>
+      <span class="cmt">API p95 个位数毫秒；时间线/清单/人物已真虚拟滚动，图库主网格仍是追加渲染</span></div>
     <div class="dimrow"><span class="dname">数据安全</span>
-      <div class="dimcell"><small class="s8">8.8</small><div class="mini"><i style="width:88%;background:#60a5fa"></i></div></div>
+      <div class="dimcell"><small class="s9">9.0</small><div class="mini"><i style="width:90%;background:#34d399"></i></div></div>
       <div class="dimcell"><small class="s8">8.0</small><div class="mini"><i style="width:80%;background:#60a5fa"></i></div></div>
       <div class="dimcell"><small class="s8">8.5</small><div class="mini"><i style="width:85%;background:#60a5fa"></i></div></div>
       <div class="dimcell"><small class="s8">8.0</small><div class="mini"><i style="width:80%;background:#60a5fa"></i></div></div>
-      <span class="cmt">备份校验 + 双栈撤销 + 回收站 + 库锁；外键未开启是唯一硬伤</span></div>
+      <span class="cmt">外键已开（迁移带旧库备份）+ 孤儿检测/清理接口 + 备份校验 + 双栈撤销 + 回收站 + 库锁</span></div>
     <div class="dimrow"><span class="dname">工程质量</span>
       <div class="dimcell"><small class="s8">8.9</small><div class="mini"><i style="width:89%;background:#60a5fa"></i></div></div>
       <div class="dimcell"><small class="s8">8.2</small><div class="mini"><i style="width:82%;background:#60a5fa"></i></div></div>
       <div class="dimcell"><small class="s8">8.5</small><div class="mini"><i style="width:85%;background:#60a5fa"></i></div></div>
       <div class="dimcell"><small class="s8">8.0</small><div class="mini"><i style="width:80%;background:#60a5fa"></i></div></div>
-      <span class="cmt">契约 45/52 一致、469 单测、142 冒烟、15 基准，一条 verify 跑完</span></div>
+      <span class="cmt">契约 45/52 一致、492 单测、142 冒烟、15 基准，一条 verify 跑完</span></div>
     <div class="dimrow"><span class="dname">易用与可访问</span>
-      <div class="dimcell"><small class="s8">8.3</small><div class="mini"><i style="width:83%;background:#60a5fa"></i></div></div>
+      <div class="dimcell"><small class="s8">8.5</small><div class="mini"><i style="width:85%;background:#60a5fa"></i></div></div>
       <div class="dimcell"><small class="s9">9.2</small><div class="mini"><i style="width:92%;background:#34d399"></i></div></div>
       <div class="dimcell"><small class="s7">7.5</small><div class="mini"><i style="width:75%;background:#fbbf24"></i></div></div>
       <div class="dimcell"><small class="s7">7.0</small><div class="mini"><i style="width:70%;background:#fbbf24"></i></div></div>
-      <span class="cmt">引导与 172 条教程做得好；网格键盘导航与 aria 覆盖仍弱于 Eagle</span></div>
+      <span class="cmt">引导与 172 条教程做得好；25 个弹窗统一焦点陷阱/Esc/焦点归还 + 图标 aria；网格 roving tabindex 仍缺</span></div>
     <div class="dimrow"><span class="dname">文档与交付</span>
-      <div class="dimcell"><small class="s8">8.3</small><div class="mini"><i style="width:83%;background:#60a5fa"></i></div></div>
+      <div class="dimcell"><small class="s8">8.5</small><div class="mini"><i style="width:85%;background:#60a5fa"></i></div></div>
       <div class="dimcell"><small class="s8">8.5</small><div class="mini"><i style="width:85%;background:#60a5fa"></i></div></div>
       <div class="dimcell"><small class="s7">7.5</small><div class="mini"><i style="width:75%;background:#fbbf24"></i></div></div>
       <div class="dimcell"><small class="s7">7.0</small><div class="mini"><i style="width:70%;background:#fbbf24"></i></div></div>
-      <span class="cmt">内置教程厚，但缺 API 参考、安装包未代码签名</span></div>
+      <span class="cmt">内置教程厚 + API 参考自动生成（/api/docs 与 Markdown 导出），安装包仍未代码签名</span></div>
     <div class="dimrow"><span class="dname">云与多端</span>
       <div class="dimcell"><small class="s6">1.5</small><div class="mini"><i style="width:15%;background:#fb7185"></i></div></div>
       <div class="dimcell"><small class="s6">2.0</small><div class="mini"><i style="width:20%;background:#fb7185"></i></div></div>
@@ -519,7 +520,7 @@
       <span class="cmt">现在 2.0 · 远期目标 8.5：mac 真机冒烟 + 安装包，Linux 顺延</span></div>
     <div class="dimrow" style="border-top:1px solid var(--line);margin-top:4px;padding-top:12px">
       <span class="dname" style="font-weight:700">加权总分</span>
-      <div class="dimcell"><small class="s8" style="font-size:13px">8.92 / 7.00</small><div class="mini"><i style="width:89.2%;background:linear-gradient(90deg,#6366f1,#22d3ee)"></i></div></div>
+      <div class="dimcell"><small class="s9" style="font-size:13px">9.00 / 7.06</small><div class="mini"><i style="width:90%;background:linear-gradient(90deg,#6366f1,#22d3ee)"></i></div></div>
       <div class="dimcell"><small class="s8" style="font-size:13px">8.21 / 7.18</small><div class="mini"><i style="width:82.1%;background:#64748b"></i></div></div>
       <div class="dimcell"><small class="s8" style="font-size:13px">7.29 / 7.82</small><div class="mini"><i style="width:78.2%;background:#64748b"></i></div></div>
       <div class="dimcell"><small class="s8" style="font-size:13px">6.82 / 7.05</small><div class="mini"><i style="width:70.5%;background:#64748b"></i></div></div>
@@ -540,7 +541,7 @@
     <div class="card">
       <h3><span class="n">02</span>组织模型是"库"不是"相册"</h3>
       <p>文件夹树、标签树、集合、书签、播放列表、人物、地点、时间线八套视图共用一套索引，素材可以同时属于多个维度而不复制文件。</p>
-      <div class="ev">证据：<code>server/db.js</code> 34 张表 / 19 个触发器 / 38 个索引</div>
+      <div class="ev">证据：<code>server/db.js</code> 40 张表 / 15 个触发器 / 37 个索引（外键接管了原来的级联触发器）</div>
     </div>
     <div class="card">
       <h3><span class="n">03</span>检索是四路并行，不是四个按钮</h3>
@@ -574,7 +575,7 @@
     </div>
     <div class="card">
       <h3><span class="n">09</span>有真正的质量闸门</h3>
-      <p>DTO 契约 45/52 一致、单测 <span data-stat="unit">469 / 469</span>、冒烟 <span data-stat="smoke">142 / 142</span>、基准 <span data-stat="bench">15 / 15</span>，外加四道 typecheck 与一套 lint；<code>npm run verify</code> 一条命令跑完。</p>
+      <p>DTO 契约 45/52 一致、单测 <span data-stat="unit">492 / 492</span>、冒烟 <span data-stat="smoke">142 / 142</span>、基准 <span data-stat="bench">15 / 15</span>，外加四道 typecheck 与一套 lint；<code>npm run verify</code> 一条命令跑完。</p>
       <div class="ev">证据：<code>package.json</code> scripts · <code>scripts/verify*</code> · CI 与发版流程同源</div>
     </div>
     <div class="card">
@@ -599,16 +600,9 @@
       <tbody>
         <tr>
           <td><span class="sev p1">P1</span></td>
-          <td><b>外键没开</b></td>
-          <td>连接只设了 <span class="mono">busy_timeout / journal_mode / synchronous</span>，没有 <span class="mono">PRAGMA foreign_keys=ON</span>；级联清理靠 19 个触发器和 integrity 对账兜底</td>
-          <td>任何新增写入路径漏掉一句 DELETE，就会留孤儿行。表现为"统计数比列表多""导出里出现空记录"，而且很难查</td>
-          <td>中<br><span class="tiny muted">要迁移 + 全库校验</span></td>
-        </tr>
-        <tr>
-          <td><span class="sev p1">P1</span></td>
-          <td><b>没有真虚拟滚动</b></td>
-          <td><span class="mono">Gallery.tsx</span>（约 1,274 行）用 IntersectionObserver 追加渲染，没有 windowing / <span class="mono">content-visibility</span></td>
-          <td>2 万张时滚动已能感觉出掉帧，DOM 节点随滚动线性增长；百万级会先撞内存上限。这是"规模目标"和"实现"之间唯一的硬缺口</td>
+          <td><b>图库主网格仍无虚拟滚动</b></td>
+          <td>时间线 / 清单 / 人物已换 <span class="mono">VirtualGrid</span>（固定窗口 + 占位高度）；但 <span class="mono">Gallery.tsx</span> 仍是 IntersectionObserver 追加渲染，没有 windowing / <span class="mono">content-visibility</span></td>
+          <td>2 万张时滚动已能感觉出掉帧，DOM 节点随滚动线性增长；百万级会先撞内存上限。这是"规模目标"和"实现"之间剩下的最后一处硬缺口</td>
           <td>中<br><span class="tiny muted">要保住框选/拖拽语义</span></td>
         </tr>
         <tr>
@@ -628,21 +622,21 @@
         <tr>
           <td><span class="sev p2">P2</span></td>
           <td><b>预览深度不如 Eagle</b></td>
-          <td>字体、三维、Office 只有缩略图或静态预览；EPUB 未支持</td>
-          <td>设计师选型时会拿"能不能直接看"做决策。格式覆盖赢了，深度输了，抵消大半</td>
+          <td>EPUB 已是真阅读器（目录 / 正文 / 插图 / 记住读到第几章）；字体、三维、Office 仍只有静态预览，没有排版还原与批注</td>
+          <td>设计师选型时会拿"能不能直接看"做决策。格式覆盖赢了，深度还差三块，抵消一部分</td>
           <td>中</td>
         </tr>
         <tr>
           <td><span class="sev p2">P2</span></td>
-          <td><b>冷启动与包体偏重</b></td>
-          <td><span class="mono">asarUnpack</span> 里含 sharp / onnxruntime / transformers / three；未压缩 chunk：Lightbox 753KB、three 736KB、index 451KB、CSS 163KB</td>
-          <td>机械盘或老机器首屏偏慢；安装体积大，下载更新也慢</td>
+          <td><b>首屏与包体仍偏重</b></td>
+          <td>已把 <span class="mono">mammoth / three / xlsx</span> 移出运行时依赖，<span class="mono">afterPack</span> 裁掉 onnxruntime 的非 Windows 二进制；未压缩 chunk：three 753KB、Office 预览 650KB、主包 index 410KB、CSS 168KB（27 个浮层已拆出首包，空闲时预取）</td>
+          <td>机械盘或老机器首屏仍偏慢；three 与 onnxruntime 的体积是结构性的，只能靠按需加载继续压</td>
           <td>中</td>
         </tr>
         <tr>
           <td><span class="sev p2">P2</span></td>
-          <td><b>无障碍只做了一半</b></td>
-          <td>全仓 <span class="mono">aria-*</span> 约 64 处、<span class="mono">role=</span> 约 23 处；网格没有 roving tabindex，也没有 <span class="mono">aria-live</span> 结果播报</td>
+          <td><b>无障碍仍缺网格键盘</b></td>
+          <td>25 个弹窗已统一焦点陷阱 / Esc / 焦点归还，补了 skip-link 与图标 <span class="mono">aria</span>；但网格没有 roving tabindex，也没有 <span class="mono">aria-live</span> 结果播报</td>
           <td>键盘用户能进网格但走不出去；读屏用户不知道筛选后剩多少张。影响面小但属于"专业度"问题</td>
           <td>中</td>
         </tr>
@@ -655,9 +649,9 @@
         </tr>
         <tr>
           <td><span class="sev p2">P2</span></td>
-          <td><b>没有 API 参考</b></td>
-          <td>只有内置的 172 条中文教程与 README，没有按端点自动生成的接口文档</td>
-          <td>明明有 MCP 与 REST 这两张王牌，第三方却得读源码才能接——优势没有被交付出去</td>
+          <td><b>接口文档没有示例代码</b></td>
+          <td><span class="mono">/api/docs</span> 已按路由表自动生成 405 个端点（分组 / 参数 / 鉴权），可导出 Markdown；但没有各语言的请求示例</td>
+          <td>第三方接得上了，但第一个 curl 仍要自己拼；补示例是纯文书活，成本低</td>
           <td>低</td>
         </tr>
         <tr>
@@ -679,9 +673,10 @@
   </div>
 
   <div class="callout" style="margin-top:18px">
-    <b>先修哪三个：</b>① 打开外键并补一次全库 integrity 校验（防孤儿行，成本最低风险最高）；
-    ② 网格换真虚拟滚动（唯一挡在百万级前面的墙）；
-    ③ 买证书签名（决定"能不能发给别人用"）。剩下的都是打磨，可以慢慢来。
+    <b>先修哪三个：</b>① 图库主网格换真虚拟滚动（唯一挡在百万级前面的墙，时间线等三页已换完，做法可直接复用）；
+    ② 买证书签名（决定"能不能发给别人用"）；
+    ③ mac / Linux 真机验收（不验收就别宣称支持）。剩下的都是打磨，可以慢慢来。
+    v1.2.16 已把上一版的「外键没开」与「没有 API 参考」两条清掉。
   </div>
 </section>
 <section id="s7">
@@ -691,14 +686,14 @@
   </p>
 
   <div class="grid4">
-    <div class="tile"><div class="v">130,309</div><div class="k">行代码 / 545 个文件</div><div class="s">web 64,376 · server 46,804 · test 8,320</div></div>
-    <div class="tile"><div class="v">99</div><div class="k">HTTP 端点 / 31 个路由模块</div><div class="s">统一错误信封 + 输入白名单</div></div>
-    <div class="tile"><div class="v">34</div><div class="k">数据表 / 19 触发器 / 38 索引</div><div class="s">FTS5 trigram 全文索引</div></div>
-    <div class="tile"><div class="v" data-stat="summary" style="font-size:17px">239 · 469 · 142 · 15</div><div class="k">lint 文件 · 单测 · 冒烟 · 基准（verify 实跑回写）</div><div class="s"><span data-stat="testFiles">73</span> 个 .test.mjs 文件 · 一条命令跑完</div></div>
-    <div class="tile"><div class="v">15 + 25</div><div class="k">页面 + 设置分区</div><div class="s">71 组件 · 18 对话框 · 172 条教程</div></div>
-    <div class="tile"><div class="v">11</div><div class="k">设计稿格式 / RAW 40+ / 三维 9</div><div class="s">视频 8 · 音频 8 · PDF · Office · 字体</div></div>
+    <div class="tile"><div class="v">134,484</div><div class="k">行代码 / 553 个文件</div><div class="s">web 66,923 · server 47,862 · test 8,795</div></div>
+    <div class="tile"><div class="v">405</div><div class="k">HTTP 端点 / 33 个路由模块</div><div class="s">统一错误信封 + 输入白名单（数字取自 <span class="mono">/api/docs</span> 自省）</div></div>
+    <div class="tile"><div class="v">40</div><div class="k">数据表 / 15 触发器 / 37 索引</div><div class="s">外键已开，FTS5 trigram 全文索引</div></div>
+    <div class="tile"><div class="v" data-stat="summary" style="font-size:17px">245 · 492 · 142 · 15</div><div class="k">lint 文件 · 单测 · 冒烟 · 基准（verify 实跑回写）</div><div class="s"><span data-stat="testFiles">76</span> 个 .test.mjs 文件 · 一条命令跑完</div></div>
+    <div class="tile"><div class="v">15 + 25</div><div class="k">页面 + 设置分区</div><div class="s">72 组件 · 25 弹窗 · 172 条教程</div></div>
+    <div class="tile"><div class="v">11</div><div class="k">设计稿格式 / RAW 40+ / 三维 9</div><div class="s">视频 8 · 音频 8 · PDF · Office · 字体 · EPUB</div></div>
     <div class="tile"><div class="v">10 + 11</div><div class="k">采集源 + MCP 工具</div><div class="s">插件 5 类权限位、node:vm 沙箱</div></div>
-    <div class="tile"><div class="v">26</div><div class="k">运行时依赖</div><div class="s">Node ≥ 22.5，Electron + Express 5</div></div>
+    <div class="tile"><div class="v">23</div><div class="k">运行时依赖</div><div class="s">Node ≥ 22.5，Electron + Express 5（three / xlsx / mammoth 已划出运行时）</div></div>
   </div>
 
   <div class="grid2" style="margin-top:18px">
@@ -708,12 +703,12 @@
         <table style="min-width:0">
           <thead><tr><th>目录</th><th>文件</th><th>行数</th><th>占比</th></tr></thead>
           <tbody>
-            <tr><td>web/src（前端）</td><td class="num">217</td><td class="num">64,376</td><td class="num">49.4%</td></tr>
-            <tr><td>server（后端）</td><td class="num">189</td><td class="num">46,804</td><td class="num">35.9%</td></tr>
-            <tr><td>test（测试）</td><td class="num">75</td><td class="num">8,320</td><td class="num">6.4%</td></tr>
-            <tr><td>electron（桌面）</td><td class="num">29</td><td class="num">5,107</td><td class="num">3.9%</td></tr>
-            <tr><td>scripts（工具）</td><td class="num">25</td><td class="num">4,384</td><td class="num">3.4%</td></tr>
-            <tr><td>extension（扩展）</td><td class="num">10</td><td class="num">1,318</td><td class="num">1.0%</td></tr>
+            <tr><td>web/src（前端）</td><td class="num">220</td><td class="num">66,923</td><td class="num">49.7%</td></tr>
+            <tr><td>server（后端）</td><td class="num">194</td><td class="num">47,862</td><td class="num">35.6%</td></tr>
+            <tr><td>test（测试）</td><td class="num">78</td><td class="num">8,795</td><td class="num">6.5%</td></tr>
+            <tr><td>electron（桌面）</td><td class="num">29</td><td class="num">5,112</td><td class="num">3.8%</td></tr>
+            <tr><td>scripts（工具）</td><td class="num">26</td><td class="num">4,510</td><td class="num">3.3%</td></tr>
+            <tr><td>extension（扩展）</td><td class="num">6</td><td class="num">1,282</td><td class="num">1.0%</td></tr>
           </tbody>
         </table>
       </div>
@@ -737,14 +732,15 @@
           </tbody>
         </table>
       </div>
-      <p class="tiny muted" style="margin:10px 0 0">未压缩 chunk：Lightbox 753KB、three 736KB、index 451KB、CSS 163KB——这是 P2「包体偏重」的来源。</p>
+      <p class="tiny muted" style="margin:10px 0 0">未压缩 chunk：three 753KB、Office 预览 650KB、主包 index 410KB、react 144KB、CSS 168KB（31 个 JS 分包合计 2.7MB）。27 个浮层已拆出首包并在空闲时预取，onnxruntime 的非 Windows 二进制在打包后被裁掉——这是 P2「包体偏重」改善后的状态。</p>
     </div>
   </div>
 </section>
 <section id="s8">
-  <div class="sec-head"><span class="sec-no">08</span><h2>提分方案：单机 9.21，远期 8.59</h2></div>
+  <div class="sec-head"><span class="sec-no">08</span><h2>提分方案：单机 9.12，远期 8.65</h2></div>
   <p class="sec-sub">
-    这一节只列<b>单机基准</b>能吃到分的 8 项打磨：做完 8.92 → <b>9.21</b>，成本 8–10 周。
+    上一版这里列 8 项，v1.2.16 已经做完 4 项（外键、EPUB 阅读、弹窗无障碍、API 参考），
+    它们的分数已经计入当前的 9.00。剩下这 <b>4 项</b>是单机基准还能吃到的分：做完 9.00 → <b>9.12</b>，成本 7–10 周。
     四项远期目标是另一个量级的工程（含持续支出），单独放在第 09 节。
     "分数增量"= 维度提升值 × 该维度权重，可直接相加核对。
   </p>
@@ -755,18 +751,14 @@
         <tr><th style="width:40px">#</th><th style="width:190px">做什么</th><th>动到的维度</th><th style="width:88px">分数增量</th><th style="width:80px">工作量</th><th>验收标准（可判定）</th></tr>
       </thead>
       <tbody>
-        <tr><td>1</td><td><b>打开外键 + 全库对账</b></td><td>数据安全 +0.3 · 工程质量 +0.2</td><td class="num s9">+0.038</td><td class="num">3–5 天</td><td>迁移后孤儿行为 0；verify 里新增一条 integrity 校验并纳入 CI</td></tr>
-        <tr><td>2</td><td><b>网格真虚拟滚动</b></td><td>浏览检索 +0.4 · 性能 +0.3</td><td class="num s9">+0.075</td><td class="num">1–2 周</td><td>10 万张时 DOM 节点数恒定；滚动稳定 60fps；框选、拖拽、快捷键不回退</td></tr>
-        <tr><td>3</td><td><b>预览补深（字体/3D/Office/EPUB）</b></td><td>格式与媒体 +0.9</td><td class="num s9">+0.063</td><td class="num">2–3 周</td><td>每类各 2 个样本可内置渲染；反复开关 50 次无内存泄漏</td></tr>
-        <tr><td>4</td><td><b>代码签名 + 包体瘦身</b></td><td>易用 +0.4 · 性能 +0.2</td><td class="num s8">+0.038</td><td class="num">1 周</td><td>新机器安装无 SmartScreen 警告；安装体积下降 20% 以上</td></tr>
-        <tr><td>5</td><td><b>无障碍补齐</b></td><td>易用与可访问 +0.3</td><td class="num s8">+0.015</td><td class="num">1–2 周</td><td>纯键盘可走完网格全流程；筛选结果变化有 aria-live 播报</td></tr>
-        <tr><td>6</td><td><b>API 参考自动生成</b></td><td>文档与交付 +0.8</td><td class="num s8">+0.024</td><td class="num">3–5 天</td><td>端点、参数、示例从代码生成，随代码提交自动更新</td></tr>
-        <tr><td>7</td><td><b>mac / Linux 真机验收</b></td><td>工程质量 +0.3</td><td class="num s8">+0.021</td><td class="num">4–6 周</td><td>两平台各跑通 142 项冒烟，并留下 CI 记录；README 才敢写"支持"</td></tr>
-        <tr><td>8</td><td><b>AI 夜间批处理队列</b></td><td>AI 能力 +0.2</td><td class="num s8">+0.016</td><td class="num">1 周</td><td>大批量导入时语义与人脸排队到空闲时段，白天不抢 CPU</td></tr>
+        <tr><td>1</td><td><b>图库网格真虚拟滚动</b></td><td>浏览检索 +0.4 · 性能 +0.3</td><td class="num s9">+0.075</td><td class="num">1–2 周</td><td>10 万张时 DOM 节点数恒定；滚动稳定 60fps；框选、拖拽、快捷键不回退</td></tr>
+        <tr><td>2</td><td><b>代码签名</b>（包体瘦身已完成）</td><td>易用与可访问 +0.2</td><td class="num s8">+0.010</td><td class="num">1 周</td><td>新机器安装无 SmartScreen 警告；升级链不断</td></tr>
+        <tr><td>3</td><td><b>mac / Linux 真机验收</b></td><td>工程质量 +0.3</td><td class="num s8">+0.021</td><td class="num">4–6 周</td><td>两平台各跑通 142 项冒烟，并留下 CI 记录；README 才敢写"支持"</td></tr>
+        <tr><td>4</td><td><b>AI 夜间批处理队列</b></td><td>AI 能力 +0.2</td><td class="num s8">+0.016</td><td class="num">1 周</td><td>大批量导入时语义与人脸排队到空闲时段，白天不抢 CPU</td></tr>
         <tr style="background:rgba(79,70,229,.07)">
-          <td></td><td><b>合计</b></td><td>8 项，全部为打磨或补强</td><td class="num"><b>+0.29</b></td>
-          <td class="num"><b>≈ 8–10 周</b></td>
-          <td><b>单机基准：9.21</b>（8.92 + 0.29）· <b>17 维当前分：7.22</b>（7.00 + 0.216）</td>
+          <td></td><td><b>合计</b></td><td>4 项，全部为打磨或补强</td><td class="num"><b>+0.122</b></td>
+          <td class="num"><b>≈ 7–10 周</b></td>
+          <td><b>单机基准：9.12</b>（9.00 + 0.122）· <b>17 维当前分：7.14</b>（7.06 + 0.078）</td>
         </tr>
       </tbody>
     </table>
@@ -776,27 +768,24 @@
     <div class="panel">
       <h3 style="margin:0 0 14px;font-size:15px">路线图（按"先止血、再长肉"）</h3>
       <div class="phase">
-        <h4>0–30 天：止血与体面 <span class="tiny muted">8.92 → 约 9.05</span></h4>
+        <h4>0–30 天：补完最后两道关 <span class="tiny muted">9.00 → 约 9.09</span></h4>
         <ul>
-          <li>外键 + 对账（第 1 项）：唯一有数据风险的事，先做</li>
-          <li>代码签名（第 4 项）：决定"能不能放心发给别人"</li>
-          <li>API 参考（第 6 项）：把已有的开放能力变成可被发现的优势</li>
-          <li>键盘与 aria（第 5 项）：小改动，专业度提升明显</li>
+          <li>图库网格真虚拟滚动（第 1 项）：唯一挡在百万级前面的墙</li>
+          <li>代码签名（第 2 项）：决定"能不能放心发给别人"</li>
+          <li>顺带把预览补齐最后三块（字体 / 3D / Office）：EPUB 已在 v1.2.16 补上</li>
         </ul>
       </div>
       <div class="phase">
-        <h4>30–90 天：拆掉规模天花板 <span class="tiny muted">约 9.05 → 9.18</span></h4>
+        <h4>30–90 天：把余量留给更大的库 <span class="tiny muted">约 9.09 → 9.11</span></h4>
         <ul>
-          <li>真虚拟滚动（第 2 项）：唯一挡在百万级前面的墙</li>
-          <li>预览补深（第 3 项）：把"格式最多"从数量优势变成体验优势</li>
-          <li>包体瘦身：首屏与更新体积一起降</li>
+          <li>AI 夜间队列（第 4 项）：批量导入时语义与人脸排到空闲时段</li>
+          <li>网格滚动性能回归基准：10 万张、百万级各留一条可复跑的记录</li>
         </ul>
       </div>
       <div class="phase" style="margin-bottom:0">
-        <h4>90–180 天：可选，不追分 <span class="tiny muted">约 9.18 → 9.21</span></h4>
+        <h4>90–180 天：可选，不追分 <span class="tiny muted">约 9.11 → 9.12</span></h4>
         <ul>
-          <li>mac / Linux 真机验收（第 7 项）：它是远期目标里"跨平台"的前置件，做完才算真的迈出第一步</li>
-          <li>AI 夜间队列（第 8 项）：为更大的库留出余量</li>
+          <li>mac / Linux 真机验收（第 3 项）：它是远期目标里"跨平台"的前置件，做完才算真的迈出第一步</li>
           <li>再往后就是第 09 节的四项远期目标：先一次性的（跨平台、多语言），后持续支出的（云与协作）</li>
         </ul>
       </div>
@@ -805,30 +794,30 @@
     <div class="panel">
       <h3 style="margin:0 0 10px;font-size:15px">做完之后，分数会变成什么样</h3>
       <p class="muted" style="margin:0 0 14px;font-size:13.5px">
-        单机基准 8.92 → <b class="s9">9.21</b>，仍然第一，且与 Eagle 的差距从 0.71 拉到 1.00；
-        17 维当前分 7.00 → <b class="s8">7.22</b>，名次不变（第 4）。
-        若再把这四项远期目标做到目标值，17 维可到 <b class="s9">8.80</b>（8.59 + 0.216）。
+        单机基准 9.00 → <b class="s9">9.12</b>，仍然第一，与 Eagle 的差距从 0.79 拉到 0.91；
+        17 维当前分 7.06 → <b class="s8">7.14</b>，名次不变（第 4）。
+        若再把这四项远期目标做到目标值，17 维可到 <b class="s9">8.73</b>（8.65 + 0.078）。
       </p>
       <div class="ranklist">
-        <div class="rankrow me"><span class="rk-name">单机 · 现在</span><div class="track"><div class="fill" style="width:89.2%"></div></div><span class="rk-val">8.92</span></div>
-        <div class="rankrow me"><span class="rk-name">单机 · 提分后</span><div class="track"><div class="fill" style="width:92.1%"></div></div><span class="rk-val">9.21</span></div>
-        <div class="rankrow" style="margin-top:6px"><span class="rk-name">17 维 · 现在</span><div class="track"><div class="fill alt" style="width:70%"></div></div><span class="rk-val">7.00</span></div>
-        <div class="rankrow"><span class="rk-name">17 维 · 提分后</span><div class="track"><div class="fill alt" style="width:72.2%"></div></div><span class="rk-val">7.22</span></div>
-        <div class="rankrow me"><span class="rk-name">17 维 · 远期</span><div class="track"><div class="fill" style="width:85.9%"></div></div><span class="rk-val">8.59</span></div>
+        <div class="rankrow me"><span class="rk-name">单机 · 现在</span><div class="track"><div class="fill" style="width:90%"></div></div><span class="rk-val">9.00</span></div>
+        <div class="rankrow me"><span class="rk-name">单机 · 提分后</span><div class="track"><div class="fill" style="width:91.2%"></div></div><span class="rk-val">9.12</span></div>
+        <div class="rankrow" style="margin-top:6px"><span class="rk-name">17 维 · 现在</span><div class="track"><div class="fill alt" style="width:70.6%"></div></div><span class="rk-val">7.06</span></div>
+        <div class="rankrow"><span class="rk-name">17 维 · 提分后</span><div class="track"><div class="fill alt" style="width:71.4%"></div></div><span class="rk-val">7.14</span></div>
+        <div class="rankrow me"><span class="rk-name">17 维 · 远期</span><div class="track"><div class="fill" style="width:86.5%"></div></div><span class="rk-val">8.65</span></div>
       </div>
       <div class="tiny" style="margin-top:14px;padding-top:12px;border-top:1px dashed var(--line);color:var(--dim)">
-        <b style="color:var(--text)">注意这个不对称：</b>同样 8–10 周，单机涨 0.29、17 维当前分只涨 0.22，名次一动没动。
-        真正把 17 维从 7.00 推到 8.59 的是那四项远期目标（+1.59）——两者不冲突，但投入量级差一个数量级。
+        <b style="color:var(--text)">注意这个不对称：</b>同样 7–10 周，单机涨 0.12、17 维当前分只涨 0.08，名次一动没动。
+        真正把 17 维从 7.06 推到 8.65 的是那四项远期目标（+1.59）——两者不冲突，但投入量级差一个数量级。
       </div>
     </div>
   </div>
 </section>
 <section id="s9">
-  <div class="sec-head"><span class="sec-no">09</span><h2>四项远期目标：现在 7.00，兑现后 8.59</h2></div>
+  <div class="sec-head"><span class="sec-no">09</span><h2>四项远期目标：现在 7.06，兑现后 8.65</h2></div>
   <p class="sec-sub">
     先把容易被误读的地方讲清楚：这四项<b>不是"明确不做"</b>，而是排在单机能力之后的远期目标。
-    8.92 / 7.00 / 8.59 也不是三把尺子，而是同一份代码在三个时点上的分：前 13 维固定值 <b>6.60</b>，
-    四项平台维度按"今天 0.40 / 中期 0.92 / 目标值 1.99"分别相加，就得到 7.00 / 7.51 / 8.59。
+    9.00 / 7.06 / 8.65 也不是三把尺子，而是同一份代码在三个时点上的分：前 13 维固定值 <b>6.66</b>，
+    四项平台维度按"今天 0.40 / 中期 0.92 / 目标值 1.99"分别相加，就得到 7.06 / 7.58 / 8.65。
   </p>
 
   <div class="tbl-wrap" style="margin-bottom:18px">
@@ -841,7 +830,7 @@
         <tr><td><b>协作与社区</b></td><td class="num">8</td><td class="num s6">2.0</td><td class="num s6">3.0</td><td class="num s9">6.0</td><td class="num s9">+0.320</td><td>依赖账号与权限模型；先评论/分享，审批流与市场后置</td></tr>
         <tr><td><b>多语言</b></td><td class="num">5</td><td class="num s6">0.5</td><td class="num s6">0.5</td><td class="num s9">9.0</td><td class="num s9">+0.425</td><td>唯一不依赖云的项：先把界面文案抽成词条并冻结</td></tr>
         <tr><td><b>跨平台</b></td><td class="num">4</td><td class="num s6">2.0</td><td class="num s7">5.0</td><td class="num s9">8.5</td><td class="num s9">+0.260</td><td>mac 真机 CI + 安装包公证；Linux 顺延</td></tr>
-        <tr style="background:rgba(79,70,229,.07)"><td><b>合计</b></td><td class="num"><b>26</b></td><td class="num"><b>0.40</b></td><td class="num"><b>0.92</b></td><td class="num"><b>1.99</b></td><td class="num"><b>+1.59</b></td><td class="tiny muted">加上前 13 维的 6.60：7.00 → 7.51 → 8.59</td></tr>
+        <tr style="background:rgba(79,70,229,.07)"><td><b>合计</b></td><td class="num"><b>26</b></td><td class="num"><b>0.40</b></td><td class="num"><b>0.92</b></td><td class="num"><b>1.99</b></td><td class="num"><b>+1.59</b></td><td class="tiny muted">加上前 13 维的 6.66：7.06 → 7.58 → 8.65</td></tr>
       </tbody>
     </table>
   </div>
@@ -850,10 +839,10 @@
     <table>
       <thead><tr><th style="width:130px">阶段</th><th style="width:150px">四项取值</th><th style="width:110px">17 维总分</th><th style="width:90px">名次</th><th>需要什么</th></tr></thead>
       <tbody>
-        <tr><td>现在</td><td class="num">1.5 / 2.0 / 0.5 / 2.0</td><td class="num s6">7.00</td><td class="num">第 4</td><td>已交付：单机库 + 局域网只读分享 + 中文界面 + Windows</td></tr>
-        <tr><td>中期目标</td><td class="num">5.0 / 3.0 / 0.5 / 5.0</td><td class="num s7">7.51</td><td class="num">第 2</td><td>只读多端 + 分享批注 + mac 真机验收（仍不做账号体系与写入同步）</td></tr>
-        <tr><td>远期目标</td><td class="num">8.0 / 6.0 / 9.0 / 8.5</td><td class="num s9">8.59</td><td class="num">第 1</td><td>账号与增量同步 + 权限与审批 + 翻译层 + 三平台安装包</td></tr>
-        <tr><td>远期 + 8 项打磨</td><td class="num">同上</td><td class="num s9">8.80</td><td class="num">第 1</td><td>在第 08 节的 8–10 周改造之后（+0.216）</td></tr>
+        <tr><td>现在</td><td class="num">1.5 / 2.0 / 0.5 / 2.0</td><td class="num s7">7.06</td><td class="num">第 4</td><td>已交付：单机库 + 局域网只读分享 + 中文界面 + Windows</td></tr>
+        <tr><td>中期目标</td><td class="num">5.0 / 3.0 / 0.5 / 5.0</td><td class="num s7">7.58</td><td class="num">第 2</td><td>只读多端 + 分享批注 + mac 真机验收（仍不做账号体系与写入同步）</td></tr>
+        <tr><td>远期目标</td><td class="num">8.0 / 6.0 / 9.0 / 8.5</td><td class="num s9">8.65</td><td class="num">第 1</td><td>账号与增量同步 + 权限与审批 + 翻译层 + 三平台安装包</td></tr>
+        <tr><td>远期 + 4 项打磨</td><td class="num">同上</td><td class="num s9">8.73</td><td class="num">第 1</td><td>在第 08 节的 7–10 周改造之后（+0.078）</td></tr>
       </tbody>
     </table>
   </div>
@@ -959,15 +948,15 @@
 
   <div class="callout" style="margin-top:18px">
     <b>最后一句：</b>在一个所有人都在做云、做社区、做多端的赛道里，先把"一个人一台机器"这一档做到第一，是一种克制。
-    克制换来现在的 8.92 与 7.00，也换来四个可验收的远期目标（8.59）。
+    克制换来现在的 9.00 与 7.06，也换来四个可验收的远期目标（8.65）。
     不假装已经拥有，也不假装不想要——把顺序写清楚，比两头都喊要强。
   </div>
 </section>
 
 <div class="foot">
-  报告生成于 2026-11-16 · 代码版本 1.2.15（Node ≥22.5）· 统计口径：仓库内 <span class="mono">web/src</span>、<span class="mono">server</span>、<span class="mono">electron</span>、<span class="mono">test</span>、<span class="mono">scripts</span>、<span class="mono">extension</span> 六个目录，共 544 文件 / 129,891 行。<br>
-  分数口径：单机基准 <b>8.92</b>（13 维，已实现）· 17 维当前分 <b>7.00</b>（第 4）· 中期目标 <b>7.51</b>（第 2）· 远期目标 <b>8.59</b>（第 1）。三档换算见第 01、09 节。<br>
-  竞品分数为本报告评分框架下的<b>估算</b>（依据公开功能面），不是厂商官方评分，也不构成购买建议；TuKu 的分数全部可由仓库代码与实跑基准复核。上一版 13 维的 8.95 已由本版 8.92 取代。<br>
+  报告生成于 2026-11-16 · 代码版本 1.2.16（Node ≥22.5）· 统计口径：仓库内 <span class="mono">web/src</span>、<span class="mono">server</span>、<span class="mono">electron</span>、<span class="mono">test</span>、<span class="mono">scripts</span>、<span class="mono">extension</span> 六个目录，共 553 文件 / 134,484 行。<br>
+  分数口径：单机基准 <b>9.00</b>（13 维，已实现）· 17 维当前分 <b>7.06</b>（第 4）· 中期目标 <b>7.58</b>（第 2）· 远期目标 <b>8.65</b>（第 1）。三档换算见第 01、09 节。<br>
+  竞品分数为本报告评分框架下的<b>估算</b>（依据公开功能面），不是厂商官方评分，也不构成购买建议；TuKu 的分数全部可由仓库代码与实跑基准复核。上一版 8.92 已由本版 9.00 取代。<br>
   配套文档：<a href="./产品介绍.html">产品介绍（面向普通用户，不含评分方法）</a>
 </div>
 </div>

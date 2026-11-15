@@ -36,16 +36,37 @@ import { confirmDialog } from './Dialogs';
 import { ensureHardware } from '../lib/hardware';
 import type { WbSample } from './AdjustPanel';
 import {
+  IconClock,
   IconClose,
+  IconComment,
+  IconCompare,
   IconCopy,
   IconDownload,
+  IconEraser,
   IconExpand,
+  IconFile,
+  IconFilm,
   IconFolder,
+  IconGear,
+  IconGlobe,
   IconHeart,
+  IconInfo,
+  IconMonitor,
+  IconMore,
+  IconMusic,
+  IconPause,
+  IconPencil,
+  IconPlay,
   IconRotateCcw,
   IconRotateCw,
+  IconScissors,
+  IconSearch,
+  IconSliders,
+  IconStrip,
   IconSun,
+  IconTool,
   IconTrash,
+  IconType,
   IconWallpaper,
   IconWand,
 } from './Icons';
@@ -949,7 +970,7 @@ export default function Lightbox({
     {
       key: 'edit-ops',
       label: `非破坏编辑${item.editOps ? `（${item.editOps}）` : ''}…`,
-      icon: '🧬',
+      icon: <IconSliders />,
       title: '查看已记录但未写回原图的裁切 / 旋转 / 调色，可一次性应用到底片或整体还原',
       disabled: !isImage || !item.editOps,
       group: 'edit',
@@ -958,7 +979,7 @@ export default function Lightbox({
     {
       key: 'watermark',
       label: '水印 / 相框…',
-      icon: '🖋',
+      icon: <IconType />,
       title: '读取拍摄信息（品牌型号 / 光圈 / 快门 / ISO / 时间 / 地点）加水印，或加白框黑框等相框',
       disabled: !isImage,
       group: 'edit',
@@ -967,7 +988,7 @@ export default function Lightbox({
     {
       key: 'anno',
       label: `图上标注${annoCount > 0 ? `（${annoCount}）` : ''}`,
-      icon: '✏',
+      icon: <IconPencil />,
       title: '图上标注：矩形 / 箭头 / 文字 / 马赛克 / 画笔，自动保存',
       group: 'edit',
       show: isAnnotatable,
@@ -979,7 +1000,7 @@ export default function Lightbox({
     {
       key: 'matte-ai',
       label: matting ? '抠图中…' : 'AI 抠图（人像 / 宠物）',
-      icon: '✂',
+      icon: <IconScissors />,
       title: 'AI 抠图（U-2-Net 人像分割）：适合人物/宠物，风景与物体效果差；模型约 4.5MB，没下载会自动开始下载',
       disabled: !isImage || matting,
       group: 'edit',
@@ -988,7 +1009,7 @@ export default function Lightbox({
     {
       key: 'matte-flat',
       label: '纯底图抠图（白底 / 灰底）',
-      icon: '✂',
+      icon: <IconScissors />,
       title: '纯底图抠图：白底、灰底、蓝底、绿幕等单一颜色背景，纯像素处理、不用模型、秒出',
       disabled: !isImage || matting,
       group: 'edit',
@@ -1005,7 +1026,7 @@ export default function Lightbox({
     {
       key: 'wallpaper-preview',
       label: '壁纸效果预览…',
-      icon: '🖥',
+      icon: <IconMonitor />,
       title: '先看看这张图在实际屏幕上合成后的样子（不裁切、不拉伸），再决定是否设置',
       group: 'wall',
       run: () => setWpPreviewOpen(true),
@@ -1013,7 +1034,7 @@ export default function Lightbox({
     {
       key: 'toolbox',
       label: '素材工具箱…',
-      icon: '🧰',
+      icon: <IconTool />,
       title: '看尺寸 / 格式 / EXIF，或识别图里的文字、查来源、恢复旧版本',
       group: 'tool',
       run: () => setToolkit('info'),
@@ -1022,7 +1043,7 @@ export default function Lightbox({
       key: 'ocr',
       label: '图内文字（OCR）…',
       short: 'OCR',
-      icon: '🔤',
+      icon: <IconType />,
       title: '复制图里的文字（识别后也能用关键词搜到）',
       group: 'tool',
       run: () => setToolkit('ocr'),
@@ -1031,7 +1052,7 @@ export default function Lightbox({
       key: 'source',
       label: '来源 / 换大图…',
       short: '换大图',
-      icon: '🌐',
+      icon: <IconGlobe />,
       title: '以图搜图找原出处，或检测并替换成更大的版本',
       group: 'tool',
       show: isImage,
@@ -1041,7 +1062,7 @@ export default function Lightbox({
       key: 'reverse',
       label: '全网搜图…',
       short: '搜图',
-      icon: '🔎',
+      icon: <IconSearch />,
       title: '把这张图同时丢给国内外的以图搜图引擎（Yandex / SauceNAO / 百度 / 搜狗 / 360 / Lens / TinEye），国外引擎会先体检国际网络',
       group: 'tool',
       show: isImage,
@@ -1058,7 +1079,7 @@ export default function Lightbox({
       key: 'versions',
       label: '版本历史…',
       short: '版本',
-      icon: '🕘',
+      icon: <IconClock />,
       title: '每次裁切 / 调色 / 换大图前的原图都留着，可随时换回',
       group: 'tool',
       run: () => setToolkit('versions'),
@@ -1067,7 +1088,7 @@ export default function Lightbox({
       key: 'inpaint',
       label: '擦除修复…',
       short: '擦除',
-      icon: '🧽',
+      icon: <IconEraser />,
       title: '涂掉划痕、水印、小物件（内容感知扩散，可撤销）',
       group: 'tool',
       show: isImage,
@@ -1077,7 +1098,7 @@ export default function Lightbox({
       key: 'compare',
       label: '图片对比…',
       short: '对比',
-      icon: '↔',
+      icon: <IconCompare />,
       title: '并排 / 分割 / 重叠三种方式与另一张对比',
       group: 'tool',
       show: isImage && items.length > 1,
@@ -1127,7 +1148,7 @@ export default function Lightbox({
     {
       key: 'slideshow',
       label: playing ? '暂停幻灯片' : '幻灯片播放',
-      icon: playing ? '⏸' : '▶',
+      icon: playing ? <IconPause /> : <IconPlay />,
       title: '幻灯片自动播放（空格切换）',
       group: 'view',
       run: () => setPlaying((p) => !p),
@@ -1136,7 +1157,7 @@ export default function Lightbox({
       key: 'thumbs',
       label: showThumbs ? '隐藏底部缩略图' : '显示底部缩略图',
       short: '缩略图',
-      icon: '▤',
+      icon: <IconStrip />,
       title: '显示/隐藏底部缩略图条',
       group: 'view',
       run: () => setShowThumbs((v) => !v),
@@ -1160,6 +1181,8 @@ export default function Lightbox({
     <div
       ref={rootRef}
       className={`lightbox${playing ? ' playing' : ''}${chrome ? '' : ' hide-chrome'}`}
+      data-a11y-dialog
+      aria-label={`预览：${item.title || '未命名'}`}
       onMouseMove={onMouseMove}
       onMouseUp={endDrag}
       onMouseLeave={endDrag}
@@ -1179,6 +1202,16 @@ export default function Lightbox({
           <span
             className="lb-title is-clickable"
             title={`${item.title}\n点击在文件夹中显示`}
+            role="button"
+            tabIndex={0}
+            onKeyDown={(e) => {
+              if (e.key !== 'Enter' && e.key !== ' ') return;
+              e.preventDefault();
+              e.stopPropagation();
+              revealFile(item.path).catch((err: Error) =>
+                onChangeToast?.(`打开所在文件夹失败：${err.message}`)
+              );
+            }}
             onClick={() =>
               revealFile(item.path).catch((err: Error) =>
                 onChangeToast?.(`打开所在文件夹失败：${err.message}`)
@@ -1194,6 +1227,7 @@ export default function Lightbox({
             className={`btn sm${item.favorite ? ' primary' : ''}`}
             onClick={() => onToggleFavorite(item)}
             title={item.favorite ? '取消收藏' : '加入收藏'}
+            aria-pressed={!!item.favorite}
           >
             <IconHeart filled={item.favorite} />
             <span className="lb-txt">{item.favorite ? '已收藏' : '收藏'}</span>
@@ -1225,13 +1259,16 @@ export default function Lightbox({
             <button
               className={`btn sm${rotOpen ? ' primary' : ''}`}
               title={'旋转 90° 并保存（左转 / 右转）'}
+              aria-expanded={rotOpen}
               disabled={!isImage || !!rotating}
               onClick={() => setRotOpen((v) => !v)}
             >
               <IconRotateCw />
               <span className="lb-txt">{rotating ? '保存中…' : '旋转'}</span>
               <span className="lb-txt-short">{rotating ? '保存中…' : '旋转'}</span>
-              <span className="lb-icon-only">↻</span>
+              <span className="lb-icon-only">
+                <IconRotateCw size={14} />
+              </span>
             </button>
             {rotOpen && (
               <div className="lb-more-menu" onMouseDown={(e) => e.stopPropagation()}>
@@ -1261,18 +1298,24 @@ export default function Lightbox({
           <button
             className={`btn sm${commentsOpen ? ' primary' : ''}`}
             title={'评论：记录用途、修改意见（Ctrl+Enter 发送）'}
+            aria-expanded={commentsOpen}
             onClick={() => setCommentsOpen((v) => !v)}
           >
-            <span className="lb-icon-only">💬</span>
+            <span className="lb-icon-only">
+              <IconComment size={14} />
+            </span>
             <span className="lb-txt">{'评论'}{cmtCount > 0 ? ` ${cmtCount}` : ''}</span>
             <span className="lb-txt-short">{'评论'}{cmtCount > 0 ? ` ${cmtCount}` : ''}</span>
           </button>
           <button
             className={`btn sm${infoOpen ? ' lb-on' : ''}`}
             title={'显示 / 隐藏详情信息（I）'}
+            aria-expanded={infoOpen}
             onClick={() => setInfoOpen((v) => !v)}
           >
-            <span className="lb-icon-only">ⓘ</span>
+            <span className="lb-icon-only">
+              <IconInfo size={14} />
+            </span>
             <span className="lb-txt">{'信息'}</span>
             <span className="lb-txt-short">{'信息'}</span>
           </button>
@@ -1291,8 +1334,11 @@ export default function Lightbox({
               className={`btn sm${moreOpen ? ' primary' : ''}`}
               onClick={() => setMoreOpen((v) => !v)}
               title={'更多操作（可在菜单底部自定义顶栏显示哪些）'}
+              aria-expanded={moreOpen}
             >
-              <span className="lb-icon-only">⋯</span>
+              <span className="lb-icon-only">
+                <IconMore size={14} />
+              </span>
               <span className="lb-txt">{'更多'}</span>
               <span className="lb-txt-short">{'更多'}</span>
             </button>
@@ -1341,7 +1387,7 @@ export default function Lightbox({
                     setTczOpen(true);
                   }}
                 >
-                  ⚙ 自定义工具栏…
+                  <IconGear size={13} /> 自定义工具栏…
                 </button>
               </div>
             )}
@@ -1483,8 +1529,13 @@ export default function Lightbox({
             <span style={{ fontSize: 12, color: 'var(--muted)', whiteSpace: 'nowrap' }}>
               ≥ {(sim.minCos * 100).toFixed(0)}%
             </span>
-            <button className="btn sm ghost" onClick={() => setSim((s) => ({ ...s, open: false }))}>
-              ✕
+            <button
+              className="btn sm ghost"
+              aria-label="关闭相似搜索"
+              title="关闭"
+              onClick={() => setSim((s) => ({ ...s, open: false }))}
+            >
+              <IconClose size={14} />
             </button>
           </div>
           <div className="lb-sim-grid">
@@ -1514,8 +1565,13 @@ export default function Lightbox({
         <div className="lb-edit-panel" onClick={(e) => e.stopPropagation()}>
           <div className="lb-edit-head">
             <b>裁切</b>
-            <button className="btn sm ghost" onClick={closeEditor} title="放弃本次编辑">
-              ✕
+            <button
+              className="btn sm ghost"
+              onClick={closeEditor}
+              title="放弃本次编辑"
+              aria-label="放弃本次编辑"
+            >
+              <IconClose size={14} />
             </button>
           </div>
 
@@ -1588,7 +1644,15 @@ export default function Lightbox({
           {strip.map((it, i) => {
             const kind = it.mediaKind || 'image';
             const glyph =
-              kind === 'video' ? '🎬' : kind === 'audio' ? '🎵' : kind === 'font' ? 'Aa' : '📄';
+              kind === 'video' ? (
+                <IconFilm size={18} />
+              ) : kind === 'audio' ? (
+                <IconMusic size={18} />
+              ) : kind === 'font' ? (
+                <span className="lb-thumb-aa">Aa</span>
+              ) : (
+                <IconFile size={18} />
+              );
             // RAW / 设计稿 / 书签都有真实缩略图；视频取过封面帧（coverTs）同样有画面
             const hasBitmap =
               kind === 'image' ||

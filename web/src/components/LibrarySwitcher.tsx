@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { api } from '../api';
 import type { Library, SwitchLibraryResult } from '../types';
-import { IconFolder } from './Icons';
+import { IconCheck, IconChevronDown, IconFolder, IconLock, IconMore } from './Icons';
 import LibraryLockDialog from './LibraryLockDialog';
 
 /**
@@ -139,10 +139,12 @@ export default function LibrarySwitcher({
         <span className="lib-trigger-name">{active?.name ?? '选择资源库'}</span>
         {active?.hasPassword && (
           <span className="lib-trigger-lock" title="这个资源库已加密码">
-            🔒
+            <IconLock size={12} />
           </span>
         )}
-        <span className="lib-trigger-caret">▾</span>
+        <span className="lib-trigger-caret">
+          <IconChevronDown size={13} />
+        </span>
       </button>
 
       {open &&
@@ -174,12 +176,12 @@ export default function LibrarySwitcher({
                   <span className="lib-row-name">{lib.name}</span>
                   {lib.hasPassword && (
                     <span className="lib-row-lock" title={lib.locked ? '已加密码（现在锁着）' : '已加密码（本次已解锁）'}>
-                      🔒
+                      <IconLock size={12} />
                     </span>
                   )}
                   {lib.id === activeLibId && (
                     <span className="lib-row-check" title="当前资源库">
-                      ✓
+                      <IconCheck size={13} />
                     </span>
                   )}
                   <button
@@ -188,7 +190,7 @@ export default function LibrarySwitcher({
                     title="资源库操作"
                     onClick={(e) => openRowMenu(e, lib)}
                   >
-                    ⋯
+                    <IconMore size={14} />
                   </button>
                 </div>
               ))}

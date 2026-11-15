@@ -723,6 +723,7 @@ export default function EnhanceSection({ settings, patch, onToast }: Props) {
           <button
             className="del"
             title="删除该服务"
+            aria-label={`删除服务「${svc.name || '未命名'}」`}
             onClick={() =>
               patch({
                 enhance: {

@@ -4,7 +4,7 @@
  */
 import { request } from './core';
 import type { SmartFolder, VersionInfo, ActionStep, ActionConditions, ActionDef, ActionPreviewStep } from './types';
-import type { FaceStatus, FacePerson, ReverseEngine, ReverseNetwork, ReverseSearchResponse, StitchTemplate, StitchCrop } from './models';
+import type { FaceStatus, FacePerson, ReverseEngine, ReverseNetwork, ReverseSearchResponse, StitchTemplate, StitchCrop, StitchPlan } from './models';
 import type { ImageItem } from '../types';
 
 export const smartAPI = {
@@ -120,6 +120,25 @@ export const smartAPI = {
     }>(`/api/images/${id}/exif`),
   pdfInfo: (id: number) =>
     request<{ ok: boolean; pages: number; exact: boolean; size: number }>(`/api/images/${id}/pdf-info`),
+  /** EPUB：目录与封面（打开阅读器时一次） */
+  epubOutline: (id: number) =>
+    request<{
+      ok: boolean;
+      title: string;
+      author: string;
+      language: string;
+      cover: string;
+      chapters: { index: number; label: string }[];
+    }>(`/api/images/${id}/epub`),
+  /** EPUB：单章正文（服务端已把 HTML 转成纯文本块 + data URL 插图） */
+  epubChapter: (id: number, index: number) =>
+    request<{
+      ok: boolean;
+      index: number;
+      label: string;
+      total: number;
+      blocks: ({ type: 'text'; text: string } | { type: 'image'; src: string })[];
+    }>(`/api/images/${id}/epub/${index}`),
   versions: (id: number) =>
     request<{
       ok: boolean;
@@ -316,6 +335,10 @@ export const smartAPI = {
       title?: string;
       subtitle?: string;
       billing?: string;
+      /** 海报文字样式：本机字体 key（sys:家族名）/ 标题字号倍率 / 标题颜色 #rrggbb */
+      font?: string;
+      titleScale?: number;
+      titleColor?: string;
       file?: string;
     } = {}
   ) => {
@@ -339,9 +362,40 @@ export const smartAPI = {
     if (opts.title) q.set('title', opts.title);
     if (opts.subtitle) q.set('subtitle', opts.subtitle);
     if (opts.billing) q.set('billing', opts.billing);
+    if (opts.font) q.set('font', opts.font);
+    if (opts.titleScale != null && opts.titleScale !== 1) q.set('titleScale', String(opts.titleScale));
+    if (opts.titleColor) q.set('titleColor', opts.titleColor);
     if (opts.file) q.set('file', opts.file);
     return `/api/export/stitch?${q.toString()}`;
   },
+  /* 版面坐标：每格的归一化位置 + 缩放下限。算法版式的格子是服务端算的，
+     前端不能自己猜，否则「拖的那个框」不是「真正被裁的那块」 */
+  stitchPlan: (
+    ids: number[],
+    opts: {
+      template?: string;
+      layout?: string;
+      ratio?: string;
+      outWidth?: number;
+      columns?: number;
+      cell?: number;
+      gap?: number;
+      seamless?: boolean;
+    } = {}
+  ) => {
+    const q = new URLSearchParams({ ids: ids.join(',') });
+    if (opts.seamless) q.set('seamless', '1');
+    if (opts.template) q.set('template', opts.template);
+    if (opts.layout) q.set('layout', opts.layout);
+    if (opts.ratio) q.set('ratio', opts.ratio);
+    if (opts.outWidth) q.set('outWidth', String(opts.outWidth));
+    if (opts.columns) q.set('columns', String(opts.columns));
+    if (opts.cell) q.set('cell', String(opts.cell));
+    if (opts.gap != null) q.set('gap', String(opts.gap));
+    return request<StitchPlan>(`/api/export/stitch/plan?${q.toString()}`);
+  },
+  /* 本机字体（海报文字选字体用）：走水印那套扫描结果，有 60 秒缓存，不带 refresh */
+  stitchFonts: () => request<{ fonts: { key: string; name: string; group: string }[] }>('/api/watermark/fonts'),
   /* 模板清单：构图数据只在服务端存一份，前端画缩略图和叠加框都用它 */
   stitchTemplates: () =>
     request<{ templates: StitchTemplate[]; layouts: { id: string; name: string; hint: string }[] }>(

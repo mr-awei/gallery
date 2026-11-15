@@ -16,7 +16,10 @@ const FOCUSABLE =
 
 interface Entry {
   card: HTMLElement;
-  backdrop: HTMLElement;
+  /** 点它等价于「点空白关闭」；全屏预览类没有遮罩，为 null */
+  backdrop: HTMLElement | null;
+  /** 是否由本模块代按 Esc 关闭（组件自己处理 Esc 的全屏层设为 false，只做焦点陷阱） */
+  esc: boolean;
   /** 打开弹窗前的焦点元素，关闭后还给它 */
   prev: HTMLElement | null;
 }
@@ -41,10 +44,13 @@ function titleOf(card: HTMLElement): string {
   return raw.replace(/\s+/g, ' ').trim().slice(0, 40);
 }
 
-function enhance(backdrop: HTMLElement) {
-  if (stack.some((e) => e.backdrop === backdrop)) return;
-  const card = backdrop.querySelector<HTMLElement>('.modal-card');
-  if (!card) return;
+function enhance(
+  card: HTMLElement,
+  backdrop: HTMLElement | null,
+  esc: boolean,
+  focusFirst = true
+) {
+  if (stack.some((e) => e.card === card)) return;
   if (!card.hasAttribute('role')) card.setAttribute('role', 'dialog');
   if (!card.hasAttribute('aria-modal')) card.setAttribute('aria-modal', 'true');
   if (!card.hasAttribute('aria-label') && !card.hasAttribute('aria-labelledby')) {
@@ -55,10 +61,12 @@ function enhance(backdrop: HTMLElement) {
   if (!card.hasAttribute('tabindex')) card.tabIndex = -1;
 
   const prev = document.activeElement instanceof HTMLElement ? document.activeElement : null;
-  stack.push({ card, backdrop, prev });
+  stack.push({ card, backdrop, esc, prev });
 
-  // 打开就把焦点送进去，否则键盘用户还在背后列表里 Tab
-  const first = focusables(card)[0];
+  // 打开就把焦点送进去，否则键盘用户还在背后列表里 Tab。
+  // 全屏预览（灯箱/叠图）落在容器本身而不是第一个按钮：
+  // 预览里空格是播放暂停、方向键是切图，焦点停在「关闭」按钮上会被按钮吞掉。
+  const first = focusFirst ? focusables(card)[0] : null;
   (first || card).focus({ preventScroll: true });
 }
 
@@ -66,11 +74,13 @@ function enhance(backdrop: HTMLElement) {
 function reconcile() {
   for (let i = stack.length - 1; i >= 0; i--) {
     const e = stack[i];
-    if (e.backdrop.isConnected) continue;
+    if (e.card.isConnected) continue;
     stack.splice(i, 1);
     const active = document.activeElement;
     // 严格模式/连续切换时可能已经打开了另一个弹窗，那种情况不抢焦点
-    const inAnotherDialog = active instanceof HTMLElement && !!active.closest('.modal-card');
+    const inAnotherDialog =
+      active instanceof HTMLElement &&
+      !!active.closest('.modal-card, [data-a11y-dialog]');
     if (!inAnotherDialog && e.prev && e.prev.isConnected) e.prev.focus({ preventScroll: true });
   }
 }
@@ -85,6 +95,8 @@ function onKeyDown(e: KeyboardEvent) {
     // 普通文本框里按 Esc 仍然关弹窗（和系统对话框一致）
     const el = document.activeElement;
     if (el instanceof HTMLElement && (el.tagName === 'SELECT' || el.isContentEditable)) return;
+    // 全屏预览类自己处理 Esc（还要考虑「正在编辑时先退出编辑」），这里不代按
+    if (!top.esc || !top.backdrop) return;
     e.preventDefault();
     // 各弹窗的遮罩都绑了 onClick={onClose}，点它等价于用户点空白处关闭
     top.backdrop.click();
@@ -115,7 +127,17 @@ function onKeyDown(e: KeyboardEvent) {
 }
 
 function scan() {
-  document.querySelectorAll<HTMLElement>('.modal-backdrop').forEach(enhance);
+  document.querySelectorAll<HTMLElement>('.modal-backdrop').forEach((backdrop) => {
+    const card = backdrop.querySelector<HTMLElement>('.modal-card');
+    if (card) enhance(card, backdrop, true);
+  });
+  // 全屏预览/自定义遮罩（灯箱、叠图查看器、对比视图…）只需焦点陷阱与对话框语义，
+  // Esc 由组件自己处理；用 data-a11y-dialog 标记，元素自身即对话框容器。
+  document.querySelectorAll<HTMLElement>('[data-a11y-dialog]').forEach((el) => {
+    // data-a11y-dialog="esc"：元素自己绑了「点空白关闭」，Esc 代它点一下即可
+    const byEscape = el.dataset.a11yDialog === 'esc';
+    enhance(el, byEscape ? el : null, byEscape, false);
+  });
   reconcile();
 }
 

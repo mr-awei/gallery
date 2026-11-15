@@ -1,3 +1,4 @@
+import { IconWarning } from '../components/Icons';
 import React, { useEffect, useState } from 'react';
 import type { ImageItem, Stats } from '../types';
 import { Bars, Donut, TrendLine } from '../components/Charts';
@@ -79,7 +80,7 @@ export default function Dashboard({ stats, error, onOpen, onNavigate }: Props) {
       <div className="empty">
         {error ? (
           <>
-            <div className="big">⚠️</div>
+            <div className="big"><IconWarning size={40} /></div>
             <h3>统计没能加载出来</h3>
             <p>{error}</p>
             <p style={{ color: 'var(--muted)' }}>用顶部错误条上的「重试」再拉一次；持续失败请查看日志。</p>
@@ -120,26 +121,26 @@ export default function Dashboard({ stats, error, onOpen, onNavigate }: Props) {
 
       <div className="stat-grid">
         <div className="card stat-card">
-          <div className="label">🖼️ 总图片数</div>
+          <div className="label">总图片数</div>
           <div className="value">{stats.total}</div>
           <div className="hint">已通过 pHash 去重</div>
         </div>
         <div className="card stat-card">
-          <div className="label">💗 收藏数</div>
+          <div className="label">收藏数</div>
           <div className="value">{stats.favorite}</div>
           <div className="hint">
             占比 {stats.total ? Math.round((stats.favorite / stats.total) * 100) : 0}%
           </div>
         </div>
         <div className="card stat-card">
-          <div className="label">💾 图库体积</div>
+          <div className="label">图库体积</div>
           <div className="value">{formatSize(stats.totalSize)}</div>
           <div className="hint">
             平均 {stats.total ? formatSize(Math.round(stats.totalSize / stats.total)) : '0 B'} / 张
           </div>
         </div>
         <div className="card stat-card">
-          <div className="label">📡 采集状态</div>
+          <div className="label">采集状态</div>
           <div className="value" style={{ fontSize: 20 }}>
             {stats.crawling ? '采集中…' : '空闲'}
           </div>

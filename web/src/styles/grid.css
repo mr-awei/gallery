@@ -603,6 +603,8 @@
   white-space: nowrap;
 }
 .list-star {
+  display: inline-flex;
+  align-items: center;
   color: #ffcf5c;
   font-size: 11px;
   flex: none;

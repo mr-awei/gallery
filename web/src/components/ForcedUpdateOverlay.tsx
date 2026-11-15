@@ -16,6 +16,13 @@ import { desktop, quiet, type UpdateState } from '../api';
 export default function ForcedUpdateOverlay() {
   const [state, setState] = useState<UpdateState | null>(null);
   const [busy, setBusy] = useState(false);
+  const cardRef = React.useRef<HTMLDivElement | null>(null);
+
+  // 这不是普通弹窗，用户可能正在别处敲键盘：出现即把焦点移到卡片上，
+  // 否则读屏只念一句 role=alertdialog，后面 Tab 却从背后的图库开始走。
+  useEffect(() => {
+    if (state) cardRef.current?.focus({ preventScroll: true });
+  }, [state?.ready, state?.mandatory, state?.status]);
 
   useEffect(() => {
     if (!desktop?.updateState) return;
@@ -136,7 +143,7 @@ export default function ForcedUpdateOverlay() {
 
   return (
     <div style={overlayStyle} role="alertdialog" aria-modal="true" aria-label="应用更新">
-      <div style={cardStyle}>
+      <div style={cardStyle} ref={cardRef} tabIndex={-1}>
         <div style={badgeStyle}>图库</div>
         <h1 style={titleStyle}>{title}</h1>
         <p style={descStyle}>{desc}</p>
@@ -144,10 +151,17 @@ export default function ForcedUpdateOverlay() {
         {/* 延后到期：下载阶段给进度，别让人对着空白遮罩等 */}
         {!ready && (
           <>
-            <div style={barWrapStyle}>
+            <div
+              style={barWrapStyle}
+              role="progressbar"
+              aria-label={'更新下载进度'}
+              aria-valuemin={0}
+              aria-valuemax={100}
+              aria-valuenow={failed || state.status === 'checking' ? undefined : progress}
+            >
               <div style={{ ...barStyle, width: `${state.status === 'checking' ? 2 : progress}%` }} />
             </div>
-            <div style={hintStyle}>
+            <div style={hintStyle} role="status" aria-live="polite">
               {failed
                 ? '下载失败'
                 : state.status === 'checking'

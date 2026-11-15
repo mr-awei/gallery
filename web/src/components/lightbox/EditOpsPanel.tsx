@@ -96,7 +96,15 @@ export default function EditOpsPanel({
   };
 
   return (
-    <div className="modal-backdrop" onMouseDown={(e) => e.stopPropagation()}>
+    <div
+      className="modal-backdrop"
+      onMouseDown={(e) => e.stopPropagation()}
+      // 灯箱里的二级面板没走 .modal-card，手动挂上对话框语义：焦点陷阱 + Esc 关闭 + 点空白关闭
+      data-a11y-dialog="esc"
+      onClick={(e) => {
+        if (e.target === e.currentTarget) onClose();
+      }}
+    >
       <div className="modal" style={{ width: 520, maxWidth: '92vw' }}>
         <div className="modal-head">
           <h3 style={{ margin: 0 }}>

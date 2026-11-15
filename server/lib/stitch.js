@@ -19,6 +19,7 @@ import sharp from 'sharp';
 import * as lib from '../library.js';
 import { existingPreviewPath } from '../thumbs.js';
 import { detectFocus } from './focus.js';
+import { resolveSystemFont } from './fonts.js';
 import { templateById, templateBoxes } from './stitch-templates.js';
 
 export const STITCH_MAX = 60;
@@ -78,9 +79,11 @@ function gridBoxes(rows, opts) {
   const median = widths.length ? widths[Math.floor(widths.length / 2)] : 400;
   const cellOpt = Number(opts.cell);
   const cell = Number.isFinite(cellOpt) && cellOpt >= 80 ? clamp(cellOpt, 80, 1600) : clamp(median, 200, 1200);
-  // 单元格高度按第一张的比例定，整张表统一才像联系表
-  const cellW = cell;
-  const cellH = Math.max(40, Math.round(cell * clamp(aspectOf(rows[0]), 0.4, 2)));
+  // cell 是「每格最长边」：按第一张的比例推另一边，整张表统一才像联系表。
+  // 之前把比例乘上去（横图 2.25 → 格子变成 1:2 竖条），联系表里全是竖长留白
+  const a = clamp(aspectOf(rows[0]), 0.4, 2.5);
+  const cellW = Math.max(40, Math.round(a >= 1 ? cell : cell * a));
+  const cellH = Math.max(40, Math.round(a >= 1 ? cell / a : cell));
   const rowCount = Math.ceil(n / cols);
   const boxes = [];
   for (let i = 0; i < n; i++) {
@@ -316,26 +319,33 @@ function titleSvg(W, H, title, pad) {
 }
 
 /**
- * 取一张图的可用像素源：预览图 → 缩略图 → 原图。
- * RAW（CR2/NEF/ARW）和部分 PSD 的解码器在 sharp 外面，直接读原图会解码失败，
- * 但这类素材的预览图早就生成好了——拼图用预览图而不是直接放弃这一格。
+ * 取一张图的可用像素源。
+ *
+ * 默认**原图优先**：拼图是成品输出，缩略图最长边只有几百像素，放大会明显发虚。
+ * RAW（CR2/NEF/ARW）/PSD 之类 sharp 解不开，会自然落到预览图再落到缩略图。
+ * small=true 走反方向（缩略图优先）——模糊铺底、色块取样用它就够，读原图纯属浪费。
  */
-function sourcesFor(row) {
+function sourcesFor(row, { small = false } = {}) {
   const list = [];
+  const push = (p) => {
+    if (p && !list.includes(p)) list.push(p);
+  };
+  let preview = null;
   try {
-    const pv = existingPreviewPath(row.id, Number(row.fs_mtime) || 0);
-    if (pv) list.push(pv);
+    preview = existingPreviewPath(row.id, Number(row.fs_mtime) || 0);
   } catch {
-    /* 预览图不存在就用下一档 */
+    /* 没有预览图就少一档 */
   }
-  if (row.thumb) {
-    try {
-      if (fs.existsSync(row.thumb)) list.push(row.thumb);
-    } catch {
-      /* 忽略 */
-    }
+  const thumb = row.thumb && fs.existsSync(row.thumb) ? row.thumb : null;
+  if (small) {
+    push(thumb);
+    push(preview);
+    push(row.abs_path);
+  } else {
+    push(row.abs_path);
+    push(preview);
+    push(thumb);
   }
-  if (row.abs_path) list.push(row.abs_path);
   return list;
 }
 
@@ -369,32 +379,68 @@ async function orientedSize(src) {
 
 /**
  * 归一化焦点 + 缩放 → 源图上的裁切窗口（像素）。
- * zoom = 1 时窗口是「刚好覆盖格子」的最小窗口（等价于 cover 居中），
- * 放大到 3 就是往里推近 3 倍；焦点是窗口中心在源图里的归一化位置，会自动收在边界内。
+ *
+ * z = 1 是「刚好盖住格子」（cover 居中），往上推是放大。往下不再卡在 1：
+ * 一直缩到 `zMin`（整张图刚好塞进格子的那一点）都允许，此时图比格子小，
+ * 多出来的是背景色而不是空白，所以 mode 会是 'fit'。
+ * 再往下没有任何意义（图只会更小），后端直接夹在 zMin，前端也用同一个 zMin 提示用户。
  */
+/** 某张图在某格里的缩放下限：再缩图片就比格子还小，只会更糊 */
+export function cropZMin(sw, sh, box) {
+  if (!(sw > 0 && sh > 0 && box?.w > 0 && box?.h > 0)) return 1;
+  const coverK = Math.max(box.w / sw, box.h / sh);
+  return Math.min(box.w / sw, box.h / sh) / coverK;
+}
+
 export function cropWindow(sw, sh, box, crop) {
-  const targetAspect = box.w / box.h;
-  const z = clamp(Number(crop?.z) || 1, 1, 4);
-  let cw;
-  let ch;
-  if (sw / sh > targetAspect) {
-    ch = sh;
-    cw = sh * targetAspect;
-  } else {
-    cw = sw;
-    ch = sw / targetAspect;
-  }
-  cw = clamp(cw / z, 8, sw);
-  ch = clamp(ch / z, 8, sh);
+  const coverK = Math.max(box.w / sw, box.h / sh); // 盖满格子的缩放比
+  const fitK = Math.min(box.w / sw, box.h / sh); // 整图塞进格子的缩放比
+  const zMin = fitK / coverK; // 缩放下限：再缩图片就比格子还小，只会更糊
+  const rawZ = Number(crop?.z);
+  const z = clamp(Number.isFinite(rawZ) && rawZ > 0 ? rawZ : 1, zMin, 4);
+  const k = coverK * z; // 源图 → 画布的实际缩放比
   const fx = clamp(Number.isFinite(Number(crop?.fx)) ? Number(crop.fx) : 0.5, 0, 1);
   const fy = clamp(Number.isFinite(Number(crop?.fy)) ? Number(crop.fy) : 0.5, 0, 1);
+
+  if (sw * k >= box.w && sh * k >= box.h) {
+    // 图仍盖得住格子：裁一块按框比例铺满（z=1 就是原来的 cover 居中）
+    const cw = clamp(box.w / k, 8, sw);
+    const ch = clamp(box.h / k, 8, sh);
+    const left = clamp(fx * sw - cw / 2, 0, Math.max(0, sw - cw));
+    const top = clamp(fy * sh - ch / 2, 0, Math.max(0, sh - ch));
+    return {
+      mode: 'crop',
+      left: Math.round(left),
+      top: Math.round(top),
+      width: Math.max(1, Math.min(Math.round(cw), Math.round(sw - left))),
+      height: Math.max(1, Math.min(Math.round(ch), Math.round(sh - top))),
+      z,
+      zMin,
+    };
+  }
+
+  // 缩到图比格子小：能完整看到的那部分原样摆进去，空出来的地方铺背景
+  const cw = Math.min(sw, Math.max(8, box.w / k));
+  const ch = Math.min(sh, Math.max(8, box.h / k));
   const left = clamp(fx * sw - cw / 2, 0, Math.max(0, sw - cw));
   const top = clamp(fy * sh - ch / 2, 0, Math.max(0, sh - ch));
+  const dw = Math.max(1, Math.round(cw * k));
+  const dh = Math.max(1, Math.round(ch * k));
+  // 比格子窄的那一边允许在格子里挪，但不许挪出格子
+  const dx = clamp(box.w / 2 - fx * dw, Math.min(0, box.w - dw), Math.max(0, box.w - dw));
+  const dy = clamp(box.h / 2 - fy * dh, Math.min(0, box.h - dh), Math.max(0, box.h - dh));
   return {
+    mode: 'fit',
     left: Math.round(left),
     top: Math.round(top),
-    width: Math.max(1, Math.min(Math.round(cw), Math.round(sw - left))),
-    height: Math.max(1, Math.min(Math.round(ch), Math.round(sh - top))),
+    width: Math.round(cw),
+    height: Math.round(ch),
+    dx: Math.round(dx),
+    dy: Math.round(dy),
+    dw,
+    dh,
+    z,
+    zMin,
   };
 }
 
@@ -407,7 +453,8 @@ export function parseCrops(raw, n) {
     return {
       fx: Number.isFinite(fx) ? clamp(fx, 0, 1) : 0.5,
       fy: Number.isFinite(fy) ? clamp(fy, 0, 1) : 0.5,
-      z: Number.isFinite(z) ? clamp(z, 1, 4) : 1,
+      // 下界留到 cropWindow 按每格算（不同格子的 zMin 不一样），这里只挡明显离谱的值
+      z: Number.isFinite(z) ? clamp(z, 0.1, 4) : 1,
     };
   });
   while (list.length < n) list.push({ fx: 0.5, fy: 0.5, z: 1 });
@@ -456,13 +503,31 @@ async function shapedTile(row, box, crop, opt) {
       const { w: sw, h: sh } = await orientedSize(src);
       if (!(sw >= 8 && sh >= 8)) continue;
       const rect = cropWindow(sw, sh, box, crop);
-      let buf = await sharp(src, { failOn: 'none' })
-        .rotate()
-        .extract(rect)
-        .resize(box.w, box.h, { fit: 'fill' })
-        .flatten({ background: opt.bg })
-        .png()
-        .toBuffer();
+      const srcRect = { left: rect.left, top: rect.top, width: rect.width, height: rect.height };
+      let buf;
+      if (rect.mode === 'fit') {
+        // 整图摆进格子：先按源窗口取图缩到目标尺寸，再贴到背景画布上
+        const piece = await sharp(src, { failOn: 'none' })
+          .rotate()
+          .extract(srcRect)
+          .resize(rect.dw, rect.dh, { fit: 'fill' })
+          .png()
+          .toBuffer();
+        buf = await sharp({
+          create: { width: box.w, height: box.h, channels: 4, background: opt.bg },
+        })
+          .composite([{ input: piece, left: rect.dx, top: rect.dy }])
+          .png()
+          .toBuffer();
+      } else {
+        buf = await sharp(src, { failOn: 'none' })
+          .rotate()
+          .extract(srcRect)
+          .resize(box.w, box.h, { fit: 'fill' })
+          .flatten({ background: opt.bg })
+          .png()
+          .toBuffer();
+      }
       if (radius > 0) {
         const mask = await sharp(roundMaskSvg(box.w, box.h, radius)).png().toBuffer();
         buf = await sharp(buf).composite([{ input: mask, blend: 'dest-in' }]).png().toBuffer();
@@ -517,9 +582,20 @@ function estTextWidth(text, size, tracking) {
 /**
  * 海报文字层：底部压暗带 + 标题 + 副标题 + 演职员式小字。
  * 字全部走 SVG，不依赖本机字体文件；宽度超出就自动缩字号，不换行（标题短）。
+ *
+ * style 是用户改过的排版：font 字体族（本机字体名）、size 标题字号倍率、color 标题颜色。
+ * 只覆盖标题——副标题/署名跟着模板走，免得三个字号一起飘。
  */
-function posterTextSvg(W, H, tpl, text) {
+function posterTextSvg(W, H, tpl, text, style = {}) {
   const short = Math.min(W, H);
+  const FALLBACK_FONT = 'Segoe UI, Microsoft YaHei, Noto Sans SC, sans-serif';
+  // 用户选的本机字体（key 形如 sys:Microsoft YaHei）：只认清单里真实存在的家族名，
+  // 认不出就退回默认栈——写进 SVG 的字体名如果本机没有，会掉到衬线/豆腐块
+  const sysFont = String(style.font || '').trim() ? resolveSystemFont(String(style.font).trim()) : null;
+  const fontFamily = sysFont ? sysFont.stack : FALLBACK_FONT;
+  const sizeScale = clamp(Number(style.size) || 1, 0.4, 2.5);
+  const userColor = String(style.color || '').trim();
+  const titleColor = /^#[0-9a-fA-F]{3,8}$/.test(userColor) ? userColor : null;
   const parts = [];
   if (tpl.band) {
     const bandH = Math.round(H * tpl.band);
@@ -531,26 +607,29 @@ function posterTextSvg(W, H, tpl, text) {
         `<rect x="0" y="${H - bandH}" width="${W}" height="${bandH}" fill="url(#band)"/>`
     );
   }
-  const line = (spec, raw, fallback) => {
+  const line = (spec, raw, fallback, opt = {}) => {
     const value = String(raw || '').trim() || fallback;
     if (!value) return '';
+    const scale = Number(opt.scale) || 1;
     const tracking = Number(spec.tracking) || 0;
-    const trackingPx = (spec.size * short * tracking) / 2;
-    let size = (Number(spec.size) || 0.03) * short;
+    const baseSize = (Number(spec.size) || 0.03) * short * scale;
+    const trackingPx = (baseSize * tracking) / 2;
+    let size = baseSize;
     const body = spec.upper ? value.toUpperCase() : value;
     const maxW = W * (spec.align === 'left' ? 0.86 : 0.9);
     // 太宽就缩字号，最多缩到 45%：再小就成噪点了
-    while (size > (Number(spec.size) || 0.03) * short * 0.45 && estTextWidth(body, size, tracking) > maxW) size -= 2;
+    while (size > baseSize * 0.45 && estTextWidth(body, size, tracking) > maxW) size -= 2;
     const weight = Number(spec.weight) || 500;
+    const fill = opt.color || spec.color || '#fff';
     const x = spec.align === 'left' ? Math.round(W * 0.07) : W / 2;
     const anchor = spec.align === 'left' ? 'start' : 'middle';
     const y = Math.round((Number(spec.y) || 0.9) * H);
     const lines = String(body).split(/\s*\|\s*|\n/).filter(Boolean);
     if (lines.length <= 1) {
       return (
-        `<text x="${x}" y="${y}" text-anchor="${anchor}" font-family="Segoe UI, Microsoft YaHei, Noto Sans SC, sans-serif" ` +
-        `font-size="${Math.round(size)}" font-weight="${weight}" letter-spacing="${trackingPx.toFixed(1)}" ` +
-        `fill="${spec.color || '#fff'}">${escapeXml(body)}</text>`
+        `<text x="${x}" y="${y}" text-anchor="${anchor}" font-family="${fontFamily}" ` +
+          `font-size="${Math.round(size)}" font-weight="${weight}" letter-spacing="${trackingPx.toFixed(1)}" ` +
+          `fill="${fill}">${escapeXml(body)}</text>`
       );
     }
     // 多行（署名条）：行距 1.35，逐行下移
@@ -558,9 +637,9 @@ function posterTextSvg(W, H, tpl, text) {
       .map((ln, i) => {
         const ly = Math.round(y + i * size * 1.35);
         return (
-          `<text x="${x}" y="${ly}" text-anchor="${anchor}" font-family="Segoe UI, Microsoft YaHei, Noto Sans SC, sans-serif" ` +
+          `<text x="${x}" y="${ly}" text-anchor="${anchor}" font-family="${fontFamily}" ` +
           `font-size="${Math.round(size)}" font-weight="${weight}" letter-spacing="${trackingPx.toFixed(1)}" ` +
-          `fill="${spec.color || '#fff'}">${escapeXml(ln)}</text>`
+          `fill="${fill}">${escapeXml(ln)}</text>`
         );
       })
       .join('');
@@ -569,13 +648,12 @@ function posterTextSvg(W, H, tpl, text) {
     const m = tpl.masthead;
     parts.push(
       `<text x="${W / 2}" y="${Math.round((Number(m.y) || 0.06) * H)}" text-anchor="middle" ` +
-        `font-family="Segoe UI, Microsoft YaHei, Noto Sans SC, sans-serif" font-size="${Math.round(
-          (Number(m.size) || 0.05) * short
-        )}" font-weight="${Number(m.weight) || 700}" letter-spacing="${((Number(m.tracking) || 0.2) * (Number(m.size) || 0.05) * short) / 2}" ` +
-        `fill="${m.color || '#fff'}">${escapeXml(m.upper ? String(text.title || '').toUpperCase() : text.title || '')}</text>`
+        `font-family="${fontFamily}" font-size="${Math.round((Number(m.size) || 0.05) * short * sizeScale)}" ` +
+        `font-weight="${Number(m.weight) || 700}" letter-spacing="${((Number(m.tracking) || 0.2) * (Number(m.size) || 0.05) * short * sizeScale) / 2}" ` +
+        `fill="${titleColor || m.color || '#fff'}">${escapeXml(m.upper ? String(text.title || '').toUpperCase() : text.title || '')}</text>`
     );
   }
-  if (tpl.title) parts.push(line(tpl.title, text.title, ''));
+  if (tpl.title) parts.push(line(tpl.title, text.title, '', { scale: sizeScale, color: titleColor }));
   if (tpl.sub) parts.push(line(tpl.sub, text.sub, ''));
   if (tpl.billing) parts.push(line(tpl.billing, text.billing, ''));
   if (!parts.length) return null;
@@ -599,7 +677,7 @@ function sprocketSvg(W, H) {
 
 /** 模糊铺底：把主图放大模糊当背景，留白处不再是死白，宣传图都这么做 */
 async function backdropBuffer(row, W, H) {
-  for (const src of sourcesFor(row)) {
+  for (const src of sourcesFor(row, { small: true })) {
     try {
       return await sharp(src, { failOn: 'none' })
         .rotate()
@@ -682,11 +760,18 @@ async function buildTemplateStitch(rows, tpl, opts) {
       console.warn('[stitch] 齿孔渲染失败，已跳过：', err?.message || err);
     }
   }
-  const textLayer = posterTextSvg(geo.W, geo.H, tpl, {
-    title: opts.title,
-    sub: opts.subtitle,
-    billing: opts.billing,
-  });
+  const textLayer = posterTextSvg(
+    geo.W,
+    geo.H,
+    tpl,
+    {
+      title: opts.title,
+      sub: opts.subtitle,
+      billing: opts.billing,
+    },
+    // 字体 / 标题字号倍率 / 标题颜色：用户没改就全走模板默认
+    { font: opts.font, size: opts.titleScale, color: opts.titleColor }
+  );
   if (textLayer) {
     try {
       composites.push({ input: await sharp(textLayer).png().toBuffer(), left: 0, top: 0 });
@@ -759,11 +844,39 @@ export function layoutGeometry(rows, opts = {}) {
 }
 
 /**
+ * 构图台用的版面坐标：和真正出图走同一套几何（模板走 templateBoxes、算法版式走 layoutGeometry），
+ * 所以「前端拖的那个框」就是「服务端裁的那块」，不存在两套坐标慢慢对不上。
+ * @param {{width?:number, height?:number}[]} rows
+ */
+export function planGeometry(rows, opts = {}) {
+  const tpl = templateById(String(opts.template || ''));
+  let geo;
+  if (tpl && rows.length >= tpl.min && rows.length <= tpl.max) {
+    const W = clamp(Math.round(Number(opts.outWidth) || 2400), 600, 6000);
+    // gap 留空 = 走模板默认缝；无缝模板或勾了无缝一律零缝（与 buildTemplateStitch 同规则）
+    const seamless = opts.seamless === undefined ? Boolean(tpl.seamless) : isOn(opts.seamless);
+    const gapRaw = Number(opts.gap);
+    const gap = seamless ? 0 : Number.isFinite(gapRaw) ? clamp(gapRaw, 0, 120) : undefined;
+    geo = templateBoxes(tpl, W, rows.length, { gap, seamless });
+  } else {
+    geo = layoutGeometry(rows, opts);
+  }
+  // 缩放下限必须在「像素框 × 素材像素」这一套单位里算：
+  // 归一化后的 w/h 分别除过 W/H，乘同一个 1000 会把比例算错（横图进方格的 zMin 会算成 0.67）
+  const zMin = geo.boxes.map((b) => {
+    const row = rows[b.idx] || rows[0] || {};
+    return cropZMin(Number(row.width) || 1600, Number(row.height) || 1200, b);
+  });
+  return { template: tpl, W: geo.W, H: geo.H, ratio: geo.W / geo.H, boxes: geo.boxes, zMin };
+}
+
+/**
  * @param {{ids?:number[], template?:string, crops?:string, subtitle?:string, billing?:string,
  *          layout?:string, ratio?:string, outWidth?:number, columns?:number,
  *          gap?:number, bg?:string, cell?:number, format?:string, quality?:number,
  *          title?:string, radius?:number, shadow?:number, border?:string|number|boolean,
- *          backdrop?:string|number|boolean, seamless?:string|number|boolean}} opts
+ *          backdrop?:string|number|boolean, seamless?:string|number|boolean,
+ *          font?:string, titleScale?:number|string, titleColor?:string}} opts
  */
 export async function buildStitch(opts = {}) {
   const ids = (Array.isArray(opts.ids) ? opts.ids : [])
@@ -788,12 +901,17 @@ export async function buildStitch(opts = {}) {
 
   const { layout, ...geo } = layoutGeometry(rows, opts);
 
+  // 算法版式也能逐格调：传了 crops 就走裁切路径，没传保持原来的 fit 渲染
+  const crops = parseCrops(opts.crops, rows.length);
+  const radius = Math.max(0, Math.round(Number(opts.radius) || 0));
   const composites = [];
   let tiles = 0;
   for (const b of geo.boxes) {
     const row = rows[b.idx];
     if (!row) continue;
-    const buf = await decodeForStitch(row, b, geo.fit, bg);
+    const buf = crops
+      ? await shapedTile(row, b, crops[b.idx] || { fx: 0.5, fy: 0.5, z: 1 }, { radius, bg, border: opts.border })
+      : await decodeForStitch(row, b, geo.fit, bg);
     if (buf) {
       composites.push({ input: buf, left: b.x, top: b.y });
       tiles += 1;

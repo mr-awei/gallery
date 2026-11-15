@@ -5,7 +5,7 @@ import path from 'node:path';
 import sharp from 'sharp';
 import * as lib from '../library.js';
 import { buildGalleryHtml, safeFileName, MAX_ITEMS } from '../gallery-export.js';
-import { buildStitch, suggestCrops } from '../lib/stitch.js';
+import { buildStitch, suggestCrops, planGeometry } from '../lib/stitch.js';
 import { STITCH_TEMPLATES, FLOW_LAYOUTS } from '../lib/stitch-templates.js';
 import { eagleExportPreview, exportEagleLibrary } from '../lib/eagle-export.js';
 import { startEagleExportJob } from '../eagle-export-job.js';
@@ -162,6 +162,32 @@ export function register(app, ctx) {
     })
   );
 
+  /* 版面坐标：前端构图台要知道每一格在画布里的位置（归一化）与缩放下限 zMin。
+   * 算法版式（grid/justified/mosaic…）的格子是服务端算的，前端不能自己猜；
+   * 模板的格子也走这里，保证「拖的那个框」就是「真正被裁的那块」。 */
+  app.get(
+    '/api/export/stitch/plan',
+    asyncRoute(async (req, res) => {
+      const ids = String(req.query.ids || '')
+        .split(',')
+        .map((s) => Number(s.trim()))
+        .filter((n) => Number.isFinite(n) && n > 0);
+      const rows = ids.map((id) => lib.getImage(id)).filter(Boolean);
+      if (!rows.length) return res.status(400).json({ error: '没有可用素材' });
+      const geo = planGeometry(rows, req.query);
+      const boxes = geo.boxes.map((b) => ({
+        x: b.x / geo.W,
+        y: b.y / geo.H,
+        w: b.w / geo.W,
+        h: b.h / geo.H,
+        idx: b.idx,
+      }));
+      // zMin 由 planGeometry 在像素口径里算好（归一化坐标乘常数会把比例算错）
+      res.setHeader('Cache-Control', 'no-store');
+      res.json({ ratio: geo.ratio, boxes, zMin: geo.zMin });
+    })
+  );
+
   /* 图片拼接 / 版面生成：GET 是为了让桌面端下载（主进程只能带 ?token=）也能用。
    * 参数：ids=1,2,3 / template=<模板 id> / crops=fx,fy,z;...（auto = 自动构图）
    *      layout=auto|grid|justified|mosaic|poster|comic|seamless|stack（模板之外的兜底版式）
@@ -201,6 +227,10 @@ export function register(app, ctx) {
         format: req.query.format,
         quality: req.query.quality,
         title,
+        // 海报排版的三个可调项：字体族 / 标题字号倍率 / 标题颜色
+        font: req.query.font,
+        titleScale: req.query.titleScale,
+        titleColor: req.query.titleColor,
       });
       const file = `${safeFileName(fileTitle)}.${r.ext}`;
       res.setHeader('Content-Type', r.mime);
@@ -223,7 +253,8 @@ export function register(app, ctx) {
         { key: 'webp', label: 'WebP', ext: 'webp', note: '同画质更小，网页常用' },
         { key: 'avif', label: 'AVIF', ext: 'avif', note: '压缩率最高，老软件可能打不开' },
       ],
-      qualities: [95, 90, 82, 70],
+      // 最高档给 100：需要「一点不将就」的时候得有得选（体积会明显变大）
+      qualities: [100, 95, 90, 82],
       maxSides: [0, 4096, 2048, 1024, 512],
     });
   });

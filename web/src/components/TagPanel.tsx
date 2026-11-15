@@ -1,3 +1,4 @@
+import { IconPencil, IconTrash } from './Icons';
 import { useEffect, useState, type DragEvent } from 'react';
 import { api } from '../api';
 import { confirmDialog, promptDialog } from './Dialogs';
@@ -201,6 +202,14 @@ export default function TagPanel({
             <div
               className={`tag-group-name${groupHint === group ? ' drop-target' : ''}`}
               onClick={() => toggle(group)}
+              role="button"
+              tabIndex={0}
+              aria-expanded={!isCollapsed}
+              onKeyDown={(e) => {
+                if (e.key !== 'Enter' && e.key !== ' ') return;
+                e.preventDefault();
+                toggle(group);
+              }}
               onDragOver={(e) => {
                 if (!drag) return;
                 e.preventDefault();
@@ -306,9 +315,9 @@ export default function TagPanel({
           style={{ left: menu.x, top: menu.y }}
           onClick={(e) => e.stopPropagation()}
         >
-          <button onClick={() => void renameGroup(menu.group)}>✏ 重命名分组</button>
+          <button onClick={() => void renameGroup(menu.group)}><IconPencil size={13} /> 重命名分组</button>
           <button className="danger" onClick={() => void deleteGroup(menu.group)}>
-            🗑 删除分组
+            <IconTrash size={13} /> 删除分组
           </button>
           <div className="tag-group-menu-note">删除只解散分组，标签与图片都会保留</div>
         </div>

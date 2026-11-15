@@ -1,8 +1,9 @@
-import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { api, formatSize, quiet } from '../api';
 import { confirmDialog } from '../components/Dialogs';
 import type { DupeGroup, Filters, ImageItem, SimilarGroup } from '../types';
 import { IconRefresh, IconTrash, IconWand } from '../components/Icons';
+import { IconSliders } from '../components/Icons';
 import DuelView from '../components/DuelView';
 import CompareView from '../components/CompareView';
 
@@ -82,6 +83,16 @@ export default function Tidy({ onToast, onLibraryChanged, filters, folderId, sel
     [duel, onToast, onLibraryChanged]
   );
   const [mode, setMode] = useState<'phash' | 'format' | 'clip' | 'md5'>('phash'); // 当前列表来源：pHash / 同名格式 / CLIP / MD5 完全重复
+
+  /**
+   * 分组卡片的增量渲染数量。
+   *
+   * 这里没用 VirtualGrid：卡片高度不固定（标题行 + 可换行的缩略图排），固定行高
+   * 的窗口算不出来。改成「先渲染 30 组，滚到底部哨兵再追加 30 组」，
+   * 首屏 DOM 从「全部重复组」降到 30 张卡片，滚动由用户驱动，不会一次铺几万个节点。
+   */
+  const [groupLimit, setGroupLimit] = useState(30);
+  const sentinelRef = useRef<HTMLDivElement | null>(null);
 
   /* ------------------------- 完全重复（MD5） ------------------------- */
   const [md5Groups, setMd5Groups] = useState<DupeGroup[]>([]);
@@ -292,6 +303,25 @@ export default function Tidy({ onToast, onLibraryChanged, filters, folderId, sel
     () => groups.filter((g) => !skipped.has(g.recommendId)),
     [groups, skipped]
   );
+
+  /** 切到别的分组来源时回到第一批，否则会带着上一模式的增量继续铺 */
+  useEffect(() => {
+    setGroupLimit(30);
+  }, [mode]);
+
+  /** 滚到卡片末尾的哨兵就再追加一批，滚动本身驱动，不预生成看不见的卡片 */
+  useEffect(() => {
+    const el = sentinelRef.current;
+    if (!el) return;
+    const io = new IntersectionObserver(
+      (entries) => {
+        if (entries.some((e) => e.isIntersecting)) setGroupLimit((n) => n + 30);
+      },
+      { rootMargin: '600px 0px' }
+    );
+    io.observe(el);
+    return () => io.disconnect();
+  }, [mode, groupLimit, visibleGroups.length, md5Groups.length]);
 
   useEffect(() => {
     loadStats();
@@ -585,7 +615,7 @@ export default function Tidy({ onToast, onLibraryChanged, filters, folderId, sel
         (md5Groups.length === 0 ? (
           !scanning && (
             <div className="empty">
-              <div className="big">🧬</div>
+              <div className="big"><IconSliders size={42} /></div>
               <h3>没有字节完全相同的重复文件</h3>
               <p style={{ color: 'var(--muted)', fontSize: 13 }}>
                 同一张图被重复导入、或从不同渠道存成两份时才会出现在这里；相似但不同的图请在 pHash 那栏处理
@@ -593,7 +623,7 @@ export default function Tidy({ onToast, onLibraryChanged, filters, folderId, sel
             </div>
           )
         ) : (
-          md5Groups.map((g) => {
+          md5Groups.slice(0, groupLimit).map((g) => {
             const keep = md5Keep[g.md5] || g.items[0]?.id;
             return (
               <div className="card" key={g.md5} style={{ marginBottom: 14 }}>
@@ -643,7 +673,7 @@ export default function Tidy({ onToast, onLibraryChanged, filters, folderId, sel
 
       {mode !== 'md5' && visibleGroups.length === 0 && !scanning && (
         <div className="empty">
-          <div className="big">🧹</div>
+          <div className="big"><IconTrash size={42} /></div>
           <h3>没有需要合并的相似图片</h3>
           <p style={{ color: 'var(--muted)', fontSize: 13 }}>
             同一张照片的不同裁剪 / 不同来源版本会自动出现在这里，可整组对比后保留最清晰的那张
@@ -651,7 +681,7 @@ export default function Tidy({ onToast, onLibraryChanged, filters, folderId, sel
         </div>
       )}
 
-      {visibleGroups.map((g) => {
+      {visibleGroups.slice(0, groupLimit).map((g) => {
         const keep = picked[g.key] || g.recommendId;
         return (
           <div className="card" key={g.key} style={{ marginBottom: 14 }}>
@@ -747,6 +777,13 @@ export default function Tidy({ onToast, onLibraryChanged, filters, folderId, sel
           </div>
         );
       })}
+
+      {/* 增量渲染哨兵：进入视口就再放 30 组出来 */}
+      {(visibleGroups.length > groupLimit || md5Groups.length > groupLimit) && (
+        <div ref={sentinelRef} className="hint" style={{ padding: '14px 0', textAlign: 'center' }}>
+          {`已显示 ${Math.min(groupLimit, mode === 'md5' ? md5Groups.length : visibleGroups.length)} 组，继续滚动加载更多…`}
+        </div>
+      )}
 
       {cmpGroup && (
         <CompareView

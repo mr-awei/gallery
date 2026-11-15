@@ -1,3 +1,4 @@
+import { IconSearch, IconPencil, IconRotateCw } from './Icons';
 /**
  * 保存的筛选器：把当前筛选栏（关键词 / 类型 / 星级 / 标签 / 文件夹…）整套存成一条，
  * 侧栏一键回到同一视图。和「智能文件夹」的区别：智能文件夹是规则型虚拟夹（会自动收图），
@@ -59,7 +60,7 @@ export default function SavedFilterList({
             onEdit(f);
           }}
         >
-          <span className="sf-icon">{f.icon || '🔎'}</span>
+          <span className="sf-icon">{f.icon || <IconSearch size={13} />}</span>
           <span className="sf-name">{f.name}</span>
           <button
             className="sf-more"
@@ -69,7 +70,7 @@ export default function SavedFilterList({
               onEdit(f);
             }}
           >
-            ✎
+            <IconPencil size={13} />
           </button>
           <button
             className="sf-more"
@@ -79,7 +80,7 @@ export default function SavedFilterList({
               onOverwrite(f);
             }}
           >
-            ↻
+            <IconRotateCw size={13} />
           </button>
           <button
             className="sf-more"

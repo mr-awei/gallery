@@ -264,6 +264,11 @@
   padding: 12px 16px;
   border-bottom: 1px solid var(--line);
 }
+.stack-viewer-head b {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
 
 .stack-viewer-grid {
   display: grid;
@@ -846,8 +851,10 @@
 }
 
 /* ---- 人物页照片墙：手动指定封面 ---- */
+/* 格子由 MasonryGrid 绝对定位给定宽高（3:4），卡片撑满格子才有虚拟滚动的意义 */
 .people-tile {
   position: relative;
+  height: 100%;
   border-radius: 8px;
   overflow: hidden;
   /* 卡片本身不是按钮，里面有两个按钮：看大图 / 设为封面 */
@@ -856,13 +863,13 @@
 .people-tile-img {
   display: block;
   width: 100%;
+  height: 100%;
   padding: 0;
   border: 1px solid var(--line);
   border-radius: 8px;
   overflow: hidden;
   background: var(--card);
   cursor: zoom-in;
-  aspect-ratio: 1 / 1;
 }
 .people-tile-img img {
   width: 100%;

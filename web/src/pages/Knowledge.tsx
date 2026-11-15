@@ -2,6 +2,7 @@ import React, { useCallback, useEffect, useState } from 'react';
 import { api, quiet } from '../api';
 import type { AiPreset, AiStatus, FeedbackItem, KbRule, KbStats } from '../types';
 import { IconGear, IconTrash } from '../components/Icons';
+import { IconWarning } from '../components/Icons';
 import { formatDate } from '../api';
 import { reasonLabel } from '../components/DeleteReasonDialog';
 
@@ -167,22 +168,22 @@ export default function Knowledge({
 
       <div className="stat-grid">
         <div className="card stat-card">
-          <div className="label">📝 不满意反馈</div>
+          <div className="label">不满意反馈</div>
           <div className="value">{stats?.feedbackCount ?? 0}</div>
           <div className="hint">删除时留下的记录</div>
         </div>
         <div className="card stat-card">
-          <div className="label">🧠 知识库规则</div>
+          <div className="label">知识库规则</div>
           <div className="value">{stats?.enabledRuleCount ?? 0}</div>
           <div className="hint">共 {stats?.ruleCount ?? 0} 条，可单独启停</div>
         </div>
         <div className="card stat-card">
-          <div className="label">⚠️ 低分图片</div>
+          <div className="label">低分图片</div>
           <div className="value">{stats?.lowScoreCount ?? 0}</div>
           <div className="hint">采集时会被自动过滤</div>
         </div>
         <div className="card stat-card">
-          <div className="label">📊 平均画质分</div>
+          <div className="label">平均画质分</div>
           <div className="value">{stats?.avgScore ?? 100}</div>
           <div className="hint">满分 100，命中规则扣分</div>
         </div>
@@ -313,6 +314,7 @@ export default function Knowledge({
             </div>
             <button
               className="del"
+              aria-label={'删除这条反馈'}
               onClick={async () => {
                 await api.kbDeleteFeedback(f.id);
                 refresh();

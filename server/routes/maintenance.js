@@ -17,6 +17,7 @@ import { probeMedia } from '../lib/media-probe.js';
 import { thumbRebuildStatus } from '../lib/thumb-rebuild.js';
 import { pruneGhostFolders } from '../folders.js';
 import { cleanOrphans, scanOrphans } from '../lib/integrity.js';
+import { checkForeignKeys, foreignKeyStatus } from '../db/foreign-keys.js';
 import { readSidecar } from '../lib/xmp.js';
 import { parseExif } from '../lib/exif.js';
 
@@ -444,7 +445,8 @@ export function register(app, ctx) {
 
   /**
    * 一致性守卫：孤儿行对账。
-   * 库里没有外键，异常退出（进程被杀 / 磁盘满）会留下指向已删图片的关联行 ——
+   * 外键（server/db/foreign-keys.js）挡住的是「今后」的孤儿；外键上线之前的老库
+   * 以及刻意不建外键的留档表（trash / wallpaper_log / feedback）还会带着历史坏账 ——
    * 它们不报错，但会让统计虚高、回收站里出现点开是空白的条目。
    * GET 只扫描（安全）；POST 才真删，传 dryRun:true 可先看会删多少。
    */
@@ -599,9 +601,16 @@ export function register(app, ctx) {
       pathIndex: getPathIndexState(),
       // 孤儿统计与清理共用同一套规则（lib/integrity.js），避免「健康页说有、清理时漏表」
       orphans: scanOrphans(db),
+      // 外键：开关是否真的打开 + 建库时的体检快照（0 = 当时没有不一致）
+      foreignKeys: foreignKeyStatus(db),
       // 结构层「修失败了但还能跑」的问题（如 hue 列迁移不完整），以前完全不可见
       warnings: getSchemaWarnings(),
     });
+  });
+
+  /** 实时外键体检：`PRAGMA foreign_key_check` 要全表扫，所以只做手动动作 */
+  app.get('/api/maintenance/foreign-keys', (_req, res) => {
+    res.json({ ok: true, ...foreignKeyStatus(db), check: checkForeignKeys(db) });
   });
 
   /** 重复路径清干净后补建唯一索引（启动时建不上只会告警，不会阻断） */

@@ -243,7 +243,16 @@ export default function AppDialogs(props: Props) {
         />
       )}
 
-      {toast && <div className={`toast${toast.kind === 'error' ? ' toast-error' : ''}`}>{toast.text}</div>}
+      {/* 视觉 toast 对读屏隐藏，播报交给下面常驻的 live region：
+          动态挂载/卸载的节点未必被播报，常驻容器才能保证「已保存/已删除」一定念出来 */}
+      {toast && (
+        <div className={`toast${toast.kind === 'error' ? ' toast-error' : ''}`} aria-hidden="true">
+          {toast.text}
+        </div>
+      )}
+      <div className="sr-only" role="status" aria-live="polite" aria-atomic="true">
+        {toast ? toast.text : ''}
+      </div>
 
       {/* 应用内 prompt/confirm 对话框（替代原生弹窗，全局唯一挂载点） */}
       <DialogHost />

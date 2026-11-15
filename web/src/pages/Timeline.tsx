@@ -2,6 +2,7 @@
 import type { ImageItem, TimelineSummary } from '../types';
 import type { JobItem } from '../api';
 import { api } from '../api';
+import VirtualGrid from '../components/VirtualGrid';
 
 /**
  * 时间线视图：按拍摄时间倒序，三级索引「年 → 月 → 日」，图片按天懒加载。
@@ -108,10 +109,19 @@ function DayBlock({
         {state?.error && <span className="tl-month-error">{state.error}</span>}
       </header>
       {items.length > 0 && (
-        <div className="tl-grid">
-          {items.map((it) => (
+        /*
+          一天的图会随「加载更多」越堆越多（热门日子上千张），全量 map 会让 DOM 持续膨胀，
+          所以按行做窗口虚拟滚动；列宽目标沿用 CSS 里 148px 的约定。
+        */
+        <VirtualGrid
+          className="tl-grid-v"
+          items={items}
+          keyOf={(it) => it.id}
+          colWidth={148}
+          gap={8}
+          ratio={1}
+          renderItem={(it) => (
             <button
-              key={it.id}
               type="button"
               className="tl-cell"
               title={it.title}
@@ -120,8 +130,8 @@ function DayBlock({
               <img src={it.thumbUrl} alt={it.title} loading="lazy" decoding="async" />
               {(it.editOps || 0) > 0 && <span className="tl-nondestructive" title={'非破坏编辑未写入原图'}>◐</span>}
             </button>
-          ))}
-        </div>
+          )}
+        />
       )}
       {items.length > 0 && items.length < total && (
         <button type="button" className="tl-more" disabled={state?.loading} onClick={onLoadMore}>

@@ -214,8 +214,6 @@ body.sidebar-resizing iframe {
   background: var(--gradient);
   display: grid;
   place-items: center;
-  font-weight: 800;
-  font-size: 15px;
   color: #fff;
   box-shadow: 0 8px 24px rgba(255, 77, 141, 0.32);
 }
@@ -927,7 +925,9 @@ body.sidebar-resizing iframe {
 .folder-chevron {
   width: 18px;
   flex: 0 0 18px;
-  text-align: center;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
   color: var(--muted);
   font-size: 13px;
   line-height: 1;
@@ -961,6 +961,8 @@ body.sidebar-resizing iframe {
 }
 /* 隐私空间：锁形标记（解锁后降透明度，提示「现在能看见」） */
 .folder-lock {
+  display: inline-flex;
+  align-items: center;
   font-size: 11px;
   padding: 0 2px;
   opacity: 0.9;

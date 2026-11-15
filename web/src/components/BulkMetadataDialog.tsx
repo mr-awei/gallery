@@ -68,7 +68,7 @@ export default function BulkMetadataDialog({ ids, onClose, onToast, onUpdated }:
       <div className="modal-card" style={{ maxWidth: 520 }} onClick={(e) => e.stopPropagation()}>
         <div className="modal-head">
           <b>批量编辑信息 · 已选 {ids.length} 张</b>
-          <button className="btn ghost sm" onClick={onClose} disabled={busy}>
+          <button className="btn ghost sm" onClick={onClose} disabled={busy} aria-label={'关闭'}>
             <IconClose />
           </button>
         </div>

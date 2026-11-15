@@ -1,0 +1,209 @@
+/* EPUB 阅读器：目录 + 正文双栏，窄屏收起目录 */
+
+/* 阅读界面要满幅，覆盖 MediaViewer 默认的居中留白 */
+.mv-wrap.mv-epub {
+  padding: 0;
+  align-items: stretch;
+  justify-content: flex-start;
+  overflow: hidden;
+  border-radius: 10px;
+  border: 1px solid var(--border);
+}
+.mv-wrap.mv-epub > .epub {
+  flex: 1 1 auto;
+  min-height: 0;
+}
+
+.epub {
+  display: flex;
+  height: 100%;
+  min-height: 0;
+  width: 100%;
+  outline: none;
+  color: var(--text);
+  background: var(--bg-soft);
+}
+
+.epub-toc {
+  width: 232px;
+  flex: 0 0 auto;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  border-right: 1px solid var(--border);
+  background: var(--panel);
+  transition: width 0.16s ease;
+}
+.epub-toc.collapsed {
+  width: 44px;
+}
+
+.epub-toc-head {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px;
+  border-bottom: 1px solid var(--border);
+  font-size: 12px;
+  color: var(--muted);
+}
+
+.epub-toc-list {
+  list-style: none;
+  margin: 0;
+  padding: 6px;
+  overflow-y: auto;
+  flex: 1 1 auto;
+  min-height: 0;
+}
+
+.epub-toc-item {
+  display: block;
+  width: 100%;
+  text-align: left;
+  padding: 7px 9px;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--muted);
+  font-size: 12.5px;
+  line-height: 1.45;
+  cursor: pointer;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.epub-toc-item:hover {
+  background: var(--panel-strong);
+  color: var(--text);
+}
+.epub-toc-item.on {
+  background: var(--panel-strong);
+  color: var(--text);
+  box-shadow: inset 2px 0 0 var(--accent);
+}
+
+.epub-main {
+  display: flex;
+  flex-direction: column;
+  flex: 1 1 auto;
+  min-width: 0;
+  min-height: 0;
+}
+
+.epub-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 8px 14px;
+  border-bottom: 1px solid var(--border);
+  background: var(--surface-head);
+}
+.epub-meta {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  min-width: 0;
+}
+.epub-meta strong {
+  font-size: 13.5px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.epub-meta span {
+  font-size: 12px;
+  color: var(--muted);
+  white-space: nowrap;
+}
+.epub-nav {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex: 0 0 auto;
+}
+.epub-count {
+  font-size: 12px;
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
+  min-width: 52px;
+  text-align: center;
+}
+
+.epub-body {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+  padding: 26px 0 40px;
+}
+.epub-body article {
+  max-width: 40em;
+  margin: 0 auto;
+  padding: 0 28px;
+}
+
+.epub-chapter-title {
+  font-size: 18px;
+  font-weight: 600;
+  margin: 0 0 18px;
+  line-height: 1.5;
+  color: var(--text);
+}
+
+.epub-p {
+  margin: 0 0 0.85em;
+  font-size: 15px;
+  line-height: 1.95;
+  letter-spacing: 0.01em;
+  text-indent: 2em;
+  color: var(--text);
+}
+/* 短行（标题、署名、诗句）不缩进 */
+.epub-p:first-of-type,
+.epub-p:has(+ .epub-img) {
+  text-indent: 0;
+}
+
+.epub-img {
+  display: block;
+  max-width: 100%;
+  max-height: 70vh;
+  margin: 16px auto;
+  border-radius: 8px;
+  background: var(--panel);
+}
+
+.epub-foot {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 6px 14px;
+  border-top: 1px solid var(--border);
+  font-size: 12px;
+  color: var(--muted);
+}
+
+.epub-tip {
+  padding: 28px;
+  text-align: center;
+  font-size: 13px;
+  color: var(--muted);
+}
+.epub-tip.epub-error {
+  color: var(--err);
+}
+.epub-tip-inline {
+  font-size: 12px;
+  color: var(--muted);
+}
+
+@media (max-width: 900px) {
+  .epub-toc {
+    display: none;
+  }
+  .epub-body article {
+    padding: 0 16px;
+  }
+}

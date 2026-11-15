@@ -13,6 +13,7 @@ import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { api, BASE, quiet } from '../../api';
 import type { FacePerson } from '../../api';
 import Select from '../Select';
+import { IconArrowUpRight } from '../Icons';
 
 type Face = {
   id: number;
@@ -218,7 +219,7 @@ export default function FaceChips({ imageId, onToast, onGotoPerson }: Props) {
                   title="看这个人的所有照片（跳到人物页）"
                   onClick={() => onGotoPerson(f.personId as number)}
                 >
-                  ↗
+                  <IconArrowUpRight size={12} />
                 </button>
               )}
               {f.hidden ? (

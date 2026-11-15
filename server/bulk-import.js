@@ -24,7 +24,7 @@ import { shouldSkipDir, isSyncConflict } from './lib/skip-dirs.js';
 import { md5File } from './lib/hash.js';
 import { thumbPathFor } from './thumbs.js';
 import { mapLimit } from './lib/utils.js';
-import { renderNameTemplate, uniqueTargetName } from './lib/name-template.js';
+import { renderNameTemplate, uniqueInSet, uniqueTargetName } from './lib/name-template.js';
 import * as clip from './clip.js';
 
 /**
@@ -260,6 +260,24 @@ async function* walkChunks(dirs, chunkSize = CHUNK, onDepthSkip = null) {
 /* ------------------------------ 主流程 ------------------------------ */
 
 /**
+ * Windows 上 copyFile 会偶发 EBUSY / EPERM（杀软正在扫、刚写完的句柄还没释放）。
+ * 这类错误几毫秒后就自愈，直接当失败会把好好的图降级成「原地登记」，
+ * 用户就会遇到「开了模板命名，结果一半没按模板」。重试三次再认输。
+ */
+async function copyFileRetry(from, to, tries = 3) {
+  for (let i = 0; ; i += 1) {
+    try {
+      await fsp.copyFile(from, to);
+      return;
+    } catch (err) {
+      const retriable = ['EBUSY', 'EPERM', 'EACCES', 'EMFILE', 'ENFILE'].includes(err?.code);
+      if (i >= tries - 1 || !retriable) throw err;
+      await new Promise((r) => setTimeout(r, 40 * (i + 1) * (i + 1)));
+    }
+  }
+}
+
+/**
  * 本地扫描默认「原地登记」：绝不重命名 / 移动用户硬盘上的文件。
  * 只有显式开启 importNameTemplateForLocal 才复制一份到保存文件夹并按模板命名，
  * 目录层级保留下来，文件夹关联才不会丢。复制失败就退回原路径继续登记，不让导入中断。
@@ -268,32 +286,70 @@ async function materializeLocalChunk(files, settings, keyword, seq, onError) {
   const tpl = String(settings.importNameTemplate || '').trim();
   if (!tpl || settings.importNameTemplateForLocal !== true) return files;
   const root = resolveStorageDir(settings);
-  const out = [];
-  for (const file of files) {
+  const base = seq.n;
+  const out = new Array(files.length);
+  /**
+   * 已占用的文件名：每个目录一个 Set。
+   *
+   * 老实现对每张图都调 uniqueTargetName → existsSync 试 name / name-1 / name-2…
+   * 模板里不带 {index} 时，第 n 张就要 stat n 次，一万张照片 ≈ 5000 万次系统调用，
+   * 「按模板导入」直接卡成不动。这里首次进目录 readdir 一次攒成集合，之后只在
+   * 内存里查重，冲突序号也接着已有名字往后数。
+   */
+  /**
+   * 目录 → 已占用名字集合。缓存的必须是「Promise」而不是「Set」：
+   * 四路并发同时进同一个目录时，如果缓存的是 Set，两路会各自 readdir 出两个空集合，
+   * 于是都算出同一个文件名，后一张直接把前一张覆盖掉（文件名相同 → abs_path 撞唯一索引
+   * → 那张图静默丢失）。缓存 Promise 才能让并发的第一个 await 拿到同一个集合。
+   */
+  const taken = new Map();
+  const takenIn = (dir) => {
+    let pending = taken.get(dir);
+    if (!pending) {
+      pending = fsp
+        .readdir(dir)
+        .then((names) => new Set(names))
+        // 目录还不存在：建好之后也只会是本批自己写的文件，集合从空开始就是对的
+        .catch(() => new Set());
+      taken.set(dir, pending);
+    }
+    return pending;
+  };
+  const madeDirs = new Set();
+  /**
+   * 复制是纯 IO 等待：串行复制等于把整段导入挂在一条链上。
+   * 同时跑 4 路（与去重 MD5 并发一致），结果按 out[i] 归位，顺序不受并发影响。
+   */
+  await mapLimit(files, 4, async (file, i) => {
     try {
       const rel = path.relative(root, path.dirname(file));
       const baseDir =
         !rel || rel.startsWith('..') || path.isAbsolute(rel)
           ? path.join(root, '_导入', path.basename(path.dirname(file)))
           : path.join(root, rel);
-      await fsp.mkdir(baseDir, { recursive: true });
+      if (!madeDirs.has(baseDir)) {
+        await fsp.mkdir(baseDir, { recursive: true });
+        madeDirs.add(baseDir);
+      }
       const ext = path.extname(file).replace(/^\./, '').toLowerCase() || 'jpg';
       const name = renderNameTemplate(tpl, {
         keyword: keyword || '壁纸库',
         source: 'local',
         originalName: path.basename(file),
         ext,
-        index: ++seq.n,
+        // 序号按批内偏移算，四路并发也有确定值（不依赖 ++seq.n 的执行顺序）
+        index: base + i + 1,
       });
-      const target = path.join(baseDir, uniqueTargetName(baseDir, name));
-      await fsp.copyFile(file, target);
-      out.push(target);
+      const target = path.join(baseDir, uniqueInSet(await takenIn(baseDir), name));
+      await copyFileRetry(file, target);
+      out[i] = target;
     } catch (err) {
       console.warn('[bulk] 按模板复制失败，改为原地登记：', file, err?.message || err);
       onError();
-      out.push(file);
+      out[i] = file;
     }
-  }
+  });
+  seq.n = base + files.length;
   return out;
 }
 
@@ -362,8 +418,27 @@ export async function bulkImportLocal({
   let pending = [];
   let lastFlush = Date.now();
   let lastPush = 0;
-  let finished = 0;
+  let completed = 0;
   let shownProgress = 0;
+
+  /**
+   * 进度推送：每处理完一个文件就试着推一次（内部 500ms 节流）。
+   *
+   * 老实现只在「整块 CHUNK 个文件全部派生完」之后推一次，一块 400 张要跑十几秒，
+   * 期间进度条一直钉在同一个数字上 —— 用户看到的就是「导入卡住了」。
+   * 另外 pct 原来只算「派生完成数 / 已发现数」，被跳过的未变文件完全不计入，
+   * 增量扫描时进度会一直 0% 然后突然 100%，同样像卡死。
+   */
+  const pushProgress = (file) => {
+    if (!onProgress) return;
+    const now = Date.now();
+    if (now - lastPush < 500) return;
+    lastPush = now;
+    // 文件是边发现边处理的，分母在扫描途中一直在涨 —— 取历史最大值保证单调
+    const pct = Math.min(99, Math.round((completed / Math.max(1, result.total)) * 100));
+    shownProgress = Math.max(shownProgress, pct);
+    onProgress(shownProgress, file, result);
+  };
 
   const flush = () => {
     if (!pending.length) return;
@@ -511,14 +586,13 @@ export async function bulkImportLocal({
       // 只看字段会让这些图永久 404，而 thumbMissingCount()（按 thumb='' 统计）也发现不了。
       if (sameSize && sameMtime && row.thumb && fs.existsSync(row.thumb)) {
         result.unchanged++; // 已登记且文件未变：跳过（增量扫描）
+        completed++;
+        pushProgress(m.file);
         continue;
       }
       work.push({ ...m, id: row.id, update: true }); // 文件被改过 / 缺缩略图：重新派生
     }
-    if (!work.length) {
-      finished += meta.length;
-      continue;
-    }
+    if (!work.length) continue;
 
     // 3.0) 实时去重：同一张图换个文件名/换个子目录，不该在库里再出现一次。
     // 先用「字节数相同」筛候选项（库里同尺寸的行通常极少），只对候选项算 MD5，
@@ -551,6 +625,7 @@ export async function bulkImportLocal({
         result.duplicate += dupFiles.length;
         result.dupSamples = result.dupSamples || [];
         for (const m of dupFiles.slice(0, 20)) result.dupSamples.push(path.basename(m.file));
+        completed += dupFiles.length;
         work = work.filter((m) => !m.dupContent);
       }
     }
@@ -576,15 +651,14 @@ export async function bulkImportLocal({
     } catch (err) {
       console.error('[bulk] 批量登记失败', err?.message || err);
       result.errors += work.length;
+      completed += work.length;
       continue;
     }
     if (dupSkipped) {
       // 已由另一条链路登记：跳过派生，别用这次的扫描结果去覆盖别人刚写好的行
       work = work.filter((m) => !m.dup);
-      if (!work.length) {
-        finished += meta.length;
-        continue;
-      }
+      completed += dupSkipped;
+      if (!work.length) continue;
     }
 
     // 4) 派生资产交给 worker 池（解码 / 编码 / pHash / 主色），主线程只收结果
@@ -593,7 +667,8 @@ export async function bulkImportLocal({
         pool
           .run({ file: m.file, thumbPath: thumbPathFor(m.id) })
           .then((res) => {
-            finished++;
+            completed++;
+            pushProgress(m.file);
             if (!res.ok) {
               result.errors++;
               return;
@@ -640,15 +715,6 @@ export async function bulkImportLocal({
       )
     );
     flush();
-
-    // 文件是边发现边处理的，分母在扫描途中一直在涨 —— 直接用会让进度条忽进忽退。
-    // 取历史最大值，保证单调前进（总量未知时的常见做法）。
-    if (onProgress && Date.now() - lastPush >= 500) {
-      lastPush = Date.now();
-      const pct = Math.min(99, Math.round((finished / Math.max(1, result.total)) * 100));
-      shownProgress = Math.max(shownProgress, pct);
-      onProgress(shownProgress, chunk[chunk.length - 1], result);
-    }
   }
 
   await pool.terminate();

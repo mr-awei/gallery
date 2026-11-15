@@ -1,6 +1,13 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { layoutGeometry, STITCH_MAX, cropWindow, parseCrops } from '../server/lib/stitch.js';
+import {
+  layoutGeometry,
+  planGeometry,
+  cropZMin,
+  STITCH_MAX,
+  cropWindow,
+  parseCrops,
+} from '../server/lib/stitch.js';
 import {
   STITCH_TEMPLATES,
   templatesFor,
@@ -167,6 +174,92 @@ test('裁切窗口：zoom=1 等价 cover 居中，放大后窗口变小且永不
     assert.ok(r.left >= 0 && r.top >= 0, `焦点 ${fx},${fy} 出界`);
     assert.ok(r.left + r.width <= 1000 && r.top + r.height <= 1000, `焦点 ${fx},${fy} 越界`);
   }
+});
+
+/* --------------------------- 构图台的坐标与下限 --------------------------- */
+
+test('planGeometry 与真正出图的几何一致，且坐标能归一化到画布内', () => {
+  const rows = fake(6);
+  for (const layout of ['grid', 'justified', 'mosaic', 'comic', 'poster']) {
+    const geo = layoutGeometry(rows, { layout, outWidth: 1600, gap: 8 });
+    const p = planGeometry(rows, { layout, outWidth: 1600, gap: 8 });
+    assert.equal(p.ratio.toFixed(6), (geo.W / geo.H).toFixed(6), `${layout} 画布比例对不上`);
+    geo.boxes.forEach((b, i) => {
+      const q = p.boxes[i];
+      assert.equal(q.idx, b.idx, `${layout} 第 ${i} 格的 idx 乱了`);
+      // 必须是同一套像素坐标——前端拿它除以 W/H 画框，差一点就是「看到的不是裁的」
+      assert.deepEqual(q, b, `${layout} 第 ${i} 格坐标和出图不一致`);
+      // 归一化后必须落在 0~1 里，否则前端画布会画到框外
+      const nx = q.x / geo.W;
+      const ny = q.y / geo.H;
+      assert.ok(nx >= 0 && ny >= 0 && nx + q.w / geo.W <= 1.000001 && ny + q.h / geo.H <= 1.000001, `${layout} 越界`);
+    });
+  }
+});
+
+test('planGeometry 的模板坐标带 gap/pad，不是裸 slots', () => {
+  const tpl = templateById('cinema-trio');
+  const rows = fake(3);
+  const geo = templateBoxes(tpl, 1400, 3, { gap: 10 });
+  const p = planGeometry(rows, { template: tpl.id, outWidth: 1400, gap: 10 });
+  assert.equal(p.ratio.toFixed(6), (geo.W / geo.H).toFixed(6));
+  assert.deepEqual(p.boxes, geo.boxes);
+  // 有缝就该往里收，跟裸槽位（x=0 贴边）不一样
+  assert.notDeepEqual(
+    p.boxes.map((b) => b.x),
+    tpl.slots.map((s) => s[0]),
+    '模板坐标没算缝，前端框和服务端裁切会差一块'
+  );
+});
+
+test('planGeometry 的 zMin 是像素口径：拿它裁同一张图正好整图入格', () => {
+  const rows = [
+    { width: 1600, height: 900 },
+    { width: 1600, height: 900 },
+    { width: 1600, height: 900 },
+  ];
+  const p = planGeometry(rows, { template: 'cinema-trio', outWidth: 1200 });
+  assert.equal(p.zMin.length, p.boxes.length);
+  p.boxes.forEach((b, i) => {
+    const r = cropWindow(1600, 900, { w: b.w, h: b.h }, { fx: 0.5, fy: 0.5, z: p.zMin[i] });
+    assert.equal(r.mode, 'fit', `第 ${i} 格按 zMin 裁出来不是整图`);
+    assert.ok(r.dw <= b.w + 0.5 && r.dh <= b.h + 0.5, `第 ${i} 格整图没装进框`);
+  });
+  // 联系表在素材比例一致时格子就是素材比例，没有可缩的余地
+  const g = planGeometry(rows, { layout: 'grid', columns: 3, cell: 600, gap: 0 });
+  g.zMin.forEach((z) => assert.ok(Math.abs(z - 1) < 0.01, `联系表不该有 zMin=${z}`));
+});
+
+test('缩放下限 zMin：缩到 zMin 正好整图装进格子，再缩就停住', () => {
+  const box = { w: 400, h: 600 }; // 2:3 的竖格
+  const zMin = cropZMin(1600, 900, box); // 横图塞进竖格，必须能缩
+  assert.ok(zMin > 0 && zMin < 1, `横图进竖格的 zMin 应在 (0,1)：${zMin}`);
+
+  const r = cropWindow(1600, 900, box, { fx: 0.5, fy: 0.5, z: zMin });
+  assert.equal(r.mode, 'fit', 'zMin 应该是「整图」模式');
+  assert.ok(r.dw <= box.w + 0.5 && r.dh <= box.h + 0.5, '整图没装进格子');
+  assert.ok(
+    Math.abs(r.dw - box.w) <= 0.5 || Math.abs(r.dh - box.h) <= 0.5,
+    '没贴着格子的一边，说明不是「刚好装下」'
+  );
+
+  const pinned = cropWindow(1600, 900, box, { fx: 0.5, fy: 0.5, z: 0.05 });
+  assert.equal(pinned.dw, r.dw, '小于下限应停在 zMin，不该继续缩小');
+
+  // 正方形图进正方形格子：zMin 就是 1，没有可缩余地
+  assert.equal(cropZMin(1000, 1000, { w: 300, h: 300 }), 1);
+  // 竖图进竖格同理
+  assert.equal(cropWindow(1600, 900, box, { fx: 0.5, fy: 0.5, z: 1 }).mode, 'crop');
+});
+
+test('联系表的格子按素材比例出框（cell 是最长边，不是乘上比例）', () => {
+  const g = layoutGeometry([{ width: 1600, height: 900 }], { layout: 'grid', cell: 600, gap: 0 });
+  const b = g.boxes[0];
+  assert.ok(Math.abs(b.w / b.h - 1600 / 900) < 0.02, `横图的格子变成了 ${b.w}x${b.h}`);
+  const tall = layoutGeometry([{ width: 900, height: 1600 }], { layout: 'grid', cell: 600, gap: 0 });
+  const t = tall.boxes[0];
+  assert.ok(Math.abs(t.w / t.h - 900 / 1600) < 0.02, `竖图的格子变成了 ${t.w}x${t.h}`);
+  assert.ok(Math.max(t.w, t.h) === 600, '最长边应等于 cell');
 });
 
 test('crops 解析：auto/空 表示不指定，缺项补居中，非法值夹紧', () => {

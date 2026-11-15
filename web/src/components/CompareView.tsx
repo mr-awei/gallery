@@ -1,3 +1,4 @@
+import { IconClose } from './Icons';
 import React, { useEffect, useRef, useState } from 'react';
 import { formatSize } from '../api';
 import type { ImageItem } from '../types';
@@ -184,7 +185,7 @@ export default function CompareView({ items, leftId, rightId, onKeep, onClose, r
             重置视图
           </button>
           <button className="btn sm danger" onClick={onClose} title="退出对比（快捷键 Esc）">
-            ✕ 退出对比 (Esc)
+            <IconClose size={13} /> 退出对比 (Esc)
           </button>
         </div>
       </div>

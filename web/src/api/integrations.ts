@@ -108,6 +108,10 @@ export const integrationsAPI = {
       message: string;
       /** 扫描整体失败时的原因（和「完成 0 张」是两回事） */
       error?: string;
+      /** 当前入库速度（张/秒），导入刚开始或已结束时可能为 0 */
+      speed?: number;
+      /** 预计剩余秒数（按百分比速率反推并做过平滑），误差大时前端只当作参考 */
+      etaSec?: number | null;
       result?: {
         total?: number;
         saved?: number;

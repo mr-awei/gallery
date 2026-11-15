@@ -1,3 +1,4 @@
+import { IconWarning } from '../components/Icons';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { api, copyText, formatDate, withToken } from '../api';
 import type { Filters, ImageItem } from '../types';
@@ -222,7 +223,7 @@ export default function Bookmarks({ onToast, onOpen, onLibraryChanged }: Props) 
                 <div className="bm-iframe-wrap">
                   {missing && (
                     <div className="bm-empty" style={{ borderBottom: '1px solid var(--line)' }}>
-                      ⚠️ 快照文件缺失（可能已被清理），这里没有内容可显示；需要看原文请点「打开原网址」。
+                      <IconWarning size={13} /> 快照文件缺失（可能已被清理），这里没有内容可显示；需要看原文请点「打开原网址」。
                     </div>
                   )}
                   <iframe

@@ -18,7 +18,8 @@ import {
   IconTrash,
   IconWand,
   IconWallpaper,
-} from '../components/Icons';
+  IconCode,
+  } from '../components/Icons';
 import Card from './settings/Card';
 import Select from '../components/Select';
 import ApiPlaygroundCard from './settings/ApiPlaygroundCard';
@@ -145,6 +146,12 @@ const NAV_GROUPS: { label: string; items: SectionMeta[] }[] = [
         label: '浏览器扩展',
         desc: '在哪里、怎么装、怎么用',
         icon: <IconLink />,
+      },
+      {
+        key: 'api',
+        label: 'API 参考',
+        desc: '全部接口清单与在线调试，可导出 Markdown',
+        icon: <IconCode />,
       },
       {
         key: 'plugins',
@@ -529,12 +536,10 @@ export default function Settings({
           {section === 'network' && <NetworkSection form={form} onToast={onToast} />}
 
           {/* --------------------------- 浏览器扩展 --------------------------- */}
-          {section === 'extension' && (
-            <>
-              <ExtensionSection onToast={onToast} />
-              <ApiPlaygroundCard onToast={onToast} />
-            </>
-          )}
+          {section === 'extension' && <ExtensionSection onToast={onToast} />}
+
+          {/* --------------------------- API 参考 --------------------------- */}
+          {section === 'api' && <ApiPlaygroundCard onToast={onToast} />}
 
           {/* ------------------------------ 插件 ------------------------------ */}
           {section === 'plugins' && <PluginSection onToast={onToast} onOpenMarket={() => setSection('market')} />}

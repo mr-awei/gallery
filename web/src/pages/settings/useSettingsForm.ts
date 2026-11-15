@@ -26,6 +26,7 @@ export type SectionKey =
   | 'wallpaper'
   | 'network'
   | 'extension'
+  | 'api'
   | 'data'
   | 'tags'
   | 'shortcut'

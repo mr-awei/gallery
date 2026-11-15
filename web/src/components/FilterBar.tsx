@@ -1,3 +1,4 @@
+import { IconCamera, IconEyedropper } from './Icons';
 import React, { useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import type { Filters, ViewMode } from '../types';
@@ -452,7 +453,7 @@ export default function FilterBar({
                 else void desktop?.captureScreenshot?.();
               }}
             >
-              📷
+              <IconCamera size={13} />
             </button>
           )}
           {/* Eagle 式缩略图尺寸：五档预设 + 无极滑块，只在图片展开的缩略视图下可用 */}
@@ -468,6 +469,7 @@ export default function FilterBar({
                       className={`thumb-preset${thumbPresetOf(curW)?.key === p.key ? ' on' : ''}`}
                       onClick={() => onColWidth(p.width)}
                       title={`${label}：列宽约 ${p.width}px`}
+                      aria-pressed={thumbPresetOf(curW)?.key === p.key}
                     >
                       {label}
                     </button>
@@ -641,6 +643,7 @@ export default function FilterBar({
                 style={{ background: h.c }}
                 title={`只看${h.label}色系`}
                 aria-label={`只看${h.label}色系`}
+                aria-pressed={selectedHues.includes(h.v)}
                 onClick={() => toggleHue(h.v)}
               />
             ))}
@@ -701,7 +704,7 @@ export default function FilterBar({
               title={'从屏幕任意位置取色：左键取色 · 右键取消'}
               onClick={startPick}
             >
-              {picking ? '截图中…' : '💧 吸管'}
+              {picking ? '截图中…' : (<><IconEyedropper size={13} /> 吸管</>)}
             </button>
           </div>
           {cap && (

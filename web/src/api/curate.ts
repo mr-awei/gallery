@@ -79,6 +79,15 @@ export const curateAPI = {
       { method: 'POST', body: '{}' }
     ),
 
+  /** API 参考：服务端自省出来的完整路由清单（含分组与鉴权口径） */
+  apiDocs: () =>
+    request<{
+      ok: boolean;
+      total: number;
+      groups: { key: string; label: string; note: string; count: number }[];
+      routes: { method: string; path: string; group: string; label: string; auth: string }[];
+    }>('/api/docs'),
+
   /**
    * Playground 专用：原样返回状态码与文本，不做 JSON 解析、不抛业务错误。
    * 调试页要看到「后端真正回了什么」，而不是被 api 层翻译后的结果。
@@ -132,6 +141,14 @@ export const curateAPI = {
       pathIndex: { ok: boolean; duplicates: number; error: string };
       /** 孤儿行统计，与清理接口共用同一套规则（lib/integrity.js） */
       orphans: { total: number; byTable: { table: string; column: string; note: string; count: number }[] };
+      /** 真外键：开关状态 + 建库时体检快照（violations > 0 表示历史坏账） */
+      foreignKeys: {
+        enabled: boolean;
+        builtAt: string;
+        violations: number;
+        rebuilt: { table: string; rows: number }[];
+        failures: { table: string; error: string }[];
+      };
       warnings: string[];
     }>('/api/maintenance/health'),
   rebuildPathIndex: () =>

@@ -1,7 +1,6 @@
 import React, { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { api, downloadFile, exportZipUrl, formatSize, openFolder, quiet } from '../api';
-import { UPLOAD_HINT, importFiles } from '../lib/importer';
 import type { Filters, ImageItem, FolderNode, Playlist, ViewMode } from '../types';
 import FilterBar from '../components/FilterBar';
 import ImageCard from '../components/ImageCard';
@@ -16,6 +15,7 @@ import StitchDialog from '../components/StitchDialog';
 import CompareView from '../components/CompareView';
 import ActionsPanel from '../components/ActionsPanel';
 import { IconDownload, IconFolder, IconHeart, IconTrash } from '../components/Icons';
+import { IconWarning, IconImages, IconGear, IconRotateCcw, IconGlobe, IconFolderOpen, IconClose, IconPencil, IconCheck, IconStar, IconRefresh } from '../components/Icons';
 import Select from '../components/Select';
 import ToolbarCustomizer from '../components/ToolbarCustomizer';
 import WatermarkStudio from '../components/WatermarkStudio';
@@ -70,6 +70,9 @@ interface Props {
     total?: number;
     unchanged?: number;
     message?: string;
+    /** 入库速度（张/秒）与预计剩余秒数：首次导入要跑几分钟，用户需要知道「还要等多久」 */
+    speed?: number;
+    etaSec?: number | null;
   } | null;
   missingCount?: number;
   /** 手动刷新序号：变化时清除图片卡片加载失败的残留状态（不再重挂载整页卡片） */
@@ -166,6 +169,36 @@ function fmtBytes(n: number) {
   return formatSize(n);
 }
 
+/**
+ * 剩余时间文案。首次导入动辄几分钟，只看到一个百分比用户没法判断还要不要等；
+ * 这里刻意按「秒 / 分 / 小时」粗粒度输出 —— 导入速度本来就是估的，给到秒反而假精确。
+ */
+function fmtEta(sec: number) {
+  const s = Math.max(0, Math.round(sec));
+  if (s < 60) return `约剩 ${s} 秒`;
+  const m = Math.round(s / 60);
+  if (m < 60) return `约剩 ${m} 分钟`;
+  return `约剩 ${Math.floor(m / 60)} 小时 ${m % 60} 分`;
+}
+
+/** 导入横幅的摘要括号：只列有值的项，避免 0 张时出现空括号 */
+function importSummary(p: {
+  saved?: number;
+  speed?: number;
+  etaSec?: number | null;
+  total?: number;
+  unchanged?: number;
+} | null | undefined) {
+  if (!p) return '';
+  const bits: string[] = [];
+  if (p.saved) bits.push(`已入库 ${p.saved} 张`);
+  if (p.speed) bits.push(`${p.speed} 张/秒`);
+  if (p.etaSec != null && p.etaSec > 0) bits.push(fmtEta(p.etaSec));
+  if (p.total) bits.push(`共 ${p.total} 张`);
+  if (p.unchanged) bits.push(`跳过 ${p.unchanged} 张未变化`);
+  return bits.length ? `（${bits.join(' · ')}）` : '';
+}
+
 const KIND_TEXT: Record<string, string> = {
   image: '图片',
   gif: 'GIF',
@@ -210,11 +243,7 @@ function Gallery(props: Props) {
   const [removing, setRemoving] = useState(false);
   /** 批量条的「更多」：低频批量操作收进菜单，别把 15 个按钮挤成一条 */
   const [bulkMore, setBulkMore] = useState(false);
-  /* 拖拽 / 粘贴入库（Eagle 三件套） */
-  const [dragDepth, setDragDepth] = useState(0);
-  const [uploading, setUploading] = useState<{ done: number; total: number; saved: number; failed: number } | null>(
-    null
-  );
+  /* 拖拽入库统一交给 App 层的 GlobalImport（屏幕中央圆形靶盘），本页不再整页接管 */
   /** 页面级右键菜单：原顶部工具栏的撤销 / 刷新 / 清理缺失 / 去采集 / 重置筛选 */
   const [pageMenu, setPageMenu] = useState<{ x: number; y: number } | null>(null);
   const pageMenuRef = useRef<HTMLDivElement | null>(null);
@@ -422,33 +451,7 @@ function Gallery(props: Props) {
     }
   };
 
-  /** 拖拽入库：和全局粘贴共用 lib/importer，这里额外显示逐张进度 */
-  const uploadFiles = useCallback(
-    async (files: File[]) => {
-      setUploading({ done: 0, total: files.length, saved: 0, failed: 0 });
-      const r = await importFiles(files, setUploading);
-      setUploading(null);
-      if (!r.saved) {
-        props.onToast?.(
-          r.skipped
-            ? `没有可入库的文件（${UPLOAD_HINT}）`
-            : `入库失败：${r.failed} 个文件未通过${r.firstError ? `（${r.firstError}）` : ''}`
-        );
-        return;
-      }
-      props.onToast?.(
-        r.failed
-          ? `入库完成：${r.saved} 个成功，${r.failed} 个失败${r.firstError ? `（${r.firstError}）` : ''}`
-          : `已入库 ${r.saved} 个文件`
-      );
-      props.onRefresh();
-    },
-    [props.onToast, props.onRefresh]
-  );
-
-  /* Ctrl+V 交给 App 层的 GlobalImport 统一处理（图库页卸载后也能粘），这里只保留拖拽进度条 */
-
-  /* 批量条自定义：acts 是全集，pinned 决定哪些直接露在条上，其余收进「更多」 */
+  /* Ctrl+V 与拖拽入库都交给 App 层的 GlobalImport 统一处理，本页只负责展示 */
   const [bulkPinned, setBulkPinned] = usePinnedActions('bulk', BULK_PINNED_DEFAULT);
   const [tczOpen, setTczOpen] = useState(false);
   const [watermarkIds, setWatermarkIds] = useState<number[]>([]);
@@ -606,24 +609,6 @@ function Gallery(props: Props) {
         e.preventDefault();
         setPageMenu({ x: e.clientX, y: e.clientY });
       }}
-      onDragEnter={(e) => {
-        if (!Array.from(e.dataTransfer.types).includes('Files')) return;
-        e.preventDefault();
-        setDragDepth((d) => d + 1);
-      }}
-      onDragOver={(e) => {
-        if (!Array.from(e.dataTransfer.types).includes('Files')) return;
-        e.preventDefault();
-        e.dataTransfer.dropEffect = 'copy';
-      }}
-      onDragLeave={() => setDragDepth((d) => Math.max(0, d - 1))}
-      onDrop={(e) => {
-        if (!Array.from(e.dataTransfer.types).includes('Files')) return;
-        e.preventDefault();
-        setDragDepth(0);
-        const files = Array.from(e.dataTransfer.files || []);
-        if (files.length) void uploadFiles(files);
-      }}
     >
       <div className="sticky-head">
         <div className="page-head">
@@ -640,7 +625,7 @@ function Gallery(props: Props) {
       {!!props.missingCount && !missingDismissed && (
         <div className="missing-banner">
           <div className="missing-banner-text">
-            <b>⚠ {props.missingCount} 张图片的文件在磁盘上找不到了</b>
+            <b><IconWarning size={13} /> {props.missingCount} 张图片的文件在磁盘上找不到了</b>
             <p>
               如果你只是移动或更换了保存文件夹，点「尝试重新定位」可按文件名自动找回；
               确认文件已彻底删除的话，可清理这些记录，避免白白占位。
@@ -663,6 +648,8 @@ function Gallery(props: Props) {
       {props.importing && (
         <div
           className="import-banner"
+          role="status"
+          aria-live="polite"
           style={{
             display: 'flex',
             alignItems: 'center',
@@ -681,9 +668,7 @@ function Gallery(props: Props) {
             {props.importProgress?.progress != null
               ? ` ${Math.min(99, Math.max(0, props.importProgress.progress))}%`
               : ''}
-            {props.importProgress?.saved ? `（已入库 ${props.importProgress.saved} 张）` : ''}
-            {props.importProgress?.total ? `／共 ${props.importProgress.total} 张` : ''}
-            {props.importProgress?.unchanged ? `，跳过 ${props.importProgress.unchanged} 张未变化` : ''}
+            {importSummary(props.importProgress)}
             —— 新图片会边扫描边出现
           </span>
         </div>
@@ -705,12 +690,12 @@ function Gallery(props: Props) {
 
       {viewMode !== 'folder' && !items.length && !loading && (
         <div className="empty">
-          <div className="big">🖼️</div>
+          <div className="big"><IconImages size={42} /></div>
           <h3>
             {props.importing
-              ? `正在扫描素材文件夹… ${Math.min(99, Math.max(0, props.importProgress?.progress ?? 0))}${
-                    props.importProgress?.saved ? `（已入库 ${props.importProgress.saved} 张）` : ''
-                  }`
+              ? `正在扫描素材文件夹… ${Math.min(99, Math.max(0, props.importProgress?.progress ?? 0))}%${importSummary(
+                  props.importProgress
+                )}`
               : '还没有符合条件的图片'}
           </h3>
           {props.importing ? (
@@ -754,6 +739,7 @@ function Gallery(props: Props) {
               className={`list-sort${props.filters.sort === 'name' ? ' on' : ''}`}
               onClick={() => props.onFiltersChange({ sort: 'name' })}
               title="按文件名排序"
+              aria-pressed={props.filters.sort === 'name'}
             >
               名称{props.filters.sort === 'name' ? ' ↑' : ''}
             </button>
@@ -763,6 +749,7 @@ function Gallery(props: Props) {
               className={`list-sort${props.filters.sort === 'size' ? ' on' : ''}`}
               onClick={() => props.onFiltersChange({ sort: 'size' })}
               title="按文件大小排序（大的在前）"
+              aria-pressed={props.filters.sort === 'size'}
             >
               大小{props.filters.sort === 'size' ? ' ↓' : ''}
             </button>
@@ -771,6 +758,7 @@ function Gallery(props: Props) {
               className={`list-sort${props.filters.sort === 'new' || props.filters.sort === 'old' ? ' on' : ''}`}
               onClick={() => props.onFiltersChange({ sort: props.filters.sort === 'new' ? 'old' : 'new' })}
               title="按入库时间排序，点击切换新旧"
+              aria-pressed={props.filters.sort === 'new' || props.filters.sort === 'old'}
             >
               采集时间{props.filters.sort === 'new' ? ' ↓' : props.filters.sort === 'old' ? ' ↑' : ''}
             </button>
@@ -786,6 +774,14 @@ function Gallery(props: Props) {
               }`}
               data-image-id={it.id}
               onClick={() => props.onOpen(it)}
+              // 列表行和网格卡片一样要能用键盘打开：Tab 到行、回车/空格进入预览
+              role="button"
+              tabIndex={0}
+              onKeyDown={(e) => {
+                if (e.key !== 'Enter' && e.key !== ' ') return;
+                e.preventDefault();
+                props.onOpen(it);
+              }}
               title={it.title}
               draggable
               onDragStart={(e) => {
@@ -843,15 +839,19 @@ function Gallery(props: Props) {
                   props.onToggleSelect(it.id);
                 }}
               >
-                {selected.has(it.id) ? '✓' : ''}
+                {selected.has(it.id) ? <IconCheck size={12} /> : ''}
               </span>
               <span className="list-name">
                 <img src={it.thumbUrl} alt="" loading="lazy" />
                 <span className="list-title">{it.title}</span>
-                {it.favorite && <span className="list-star">★</span>}
+                {it.favorite && (
+                  <span className="list-star">
+                    <IconStar size={12} filled />
+                  </span>
+                )}
                 {!!props.annotationCounts?.[String(it.id)] && (
                   <span className="list-badge" title={`${props.annotationCounts[String(it.id)]} 处标注`}>
-                    ✏ {props.annotationCounts[String(it.id)]}
+                    <IconPencil size={11} /> {props.annotationCounts[String(it.id)]}
                   </span>
                 )}
                 {!!props.dupeCounts?.[String(it.id)] && props.dupeCounts[String(it.id)] > 1 && (
@@ -1083,7 +1083,7 @@ function Gallery(props: Props) {
                         setTczOpen(true);
                       }}
                     >
-                      ⚙ 自定义工具栏…<em>把常用动作挪到条上</em>
+                      <IconGear size={13} /> 自定义工具栏…<em>把常用动作挪到条上</em>
                     </button>
                   </div>
                 </>
@@ -1214,23 +1214,7 @@ function Gallery(props: Props) {
       />
 
 
-      {/* 拖拽入库：整页接收文件，松手即入库（Eagle 同款体验） */}
-      {dragDepth > 0 && (
-        <div className="drop-zone">
-          <div className="drop-zone-inner">
-            <div className="big">⬇</div>
-            <b>松开鼠标即可入库</b>
-            <p>支持图片 / 视频 / GIF / 音频 / 字体 / PDF / Office / 3D 模型</p>
-          </div>
-        </div>
-      )}
-      {uploading && (
-        <div className="upload-toast">
-          <span className="spinner" /> 正在入库 {uploading.done}/{uploading.total}
-          {uploading.saved ? ` · 成功 ${uploading.saved}` : ''}
-          {uploading.failed ? ` · 失败 ${uploading.failed}` : ''}
-        </div>
-      )}
+      {/* 拖拽入库由 App 层 GlobalImport 统一接管：屏幕中央圆形靶盘，落点不在圈内不入库 */}
 
       {pageMenu &&
         createPortal(
@@ -1249,7 +1233,7 @@ function Gallery(props: Props) {
                 props.onUndo?.();
               }}
             >
-              ↩ 撤销编辑
+              <IconRotateCcw size={13} /> 撤销编辑
             </button>
             <button
               disabled={props.refreshing}
@@ -1259,7 +1243,10 @@ function Gallery(props: Props) {
                 props.onRefresh();
               }}
             >
-              <span className={props.refreshing ? 'spinning' : ''}>⟳</span> {props.refreshing ? '刷新中…' : '刷新'}
+              <span className={props.refreshing ? 'spinning' : ''}>
+                <IconRefresh size={14} />
+              </span>{' '}
+              {props.refreshing ? '刷新中…' : '刷新'}
             </button>
             <button
               disabled={!props.missingCount}
@@ -1269,7 +1256,7 @@ function Gallery(props: Props) {
                 props.onPurgeMissing?.();
               }}
             >
-              🗑 清理缺失{props.missingCount ? `（${props.missingCount}）` : ''}
+              <IconTrash size={13} /> 清理缺失{props.missingCount ? `（${props.missingCount}）` : ''}
             </button>
             <button
               onClick={() => {
@@ -1277,7 +1264,7 @@ function Gallery(props: Props) {
                 props.onStartCrawl();
               }}
             >
-              🌐 去采集
+              <IconGlobe size={13} /> 去采集
             </button>
             <div className="card-ctx-sep" />
             <button
@@ -1302,7 +1289,7 @@ function Gallery(props: Props) {
                 void openFolder(dir || undefined).catch(quiet);
               }}
             >
-              📂 打开所在位置
+              <IconFolderOpen size={13} /> 打开所在位置
             </button>
             <div className="card-ctx-sep" />
             <button
@@ -1312,7 +1299,7 @@ function Gallery(props: Props) {
                 props.onFiltersChange(RESET_FILTERS);
               }}
             >
-              ✕ 重置筛选
+              <IconClose size={13} /> 重置筛选
             </button>
           </div>,
           document.body

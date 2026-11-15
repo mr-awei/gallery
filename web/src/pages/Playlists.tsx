@@ -1,8 +1,10 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { api, quiet } from '../api';
 import type { ImageItem, Playlist } from '../types';
-import { IconFolder, IconTrash, IconWallpaper } from '../components/Icons';
+import { IconClose, IconFolder, IconTrash, IconWallpaper } from '../components/Icons';
+import { IconImages } from '../components/Icons';
 import { confirmDialog, promptDialog } from '../components/Dialogs';
+import VirtualGrid from '../components/VirtualGrid';
 import { formatDate } from '../api';
 
 export default function Playlists({
@@ -197,6 +199,7 @@ export default function Playlists({
                 <button
                   className="del"
                   title="删除清单"
+                  aria-label={`删除清单「${p.name}」`}
                   onClick={(e) => {
                     e.stopPropagation();
                     removeList(p);
@@ -288,20 +291,27 @@ export default function Playlists({
 
           {!activeId ? (
             <div className="empty" style={{ padding: '50px 20px' }}>
-              <div className="big">📂</div>
+              <div className="big"><IconFolder size={42} /></div>
               <h3>选择或新建一个清单</h3>
               <p>清单可以包含任意图片，用于分类收藏或作为定时换壁纸的来源范围。</p>
             </div>
           ) : !items.length ? (
             <div className="empty" style={{ padding: '50px 20px' }}>
-              <div className="big">🖼️</div>
+              <div className="big"><IconImages size={42} /></div>
               <h3>这个清单还是空的</h3>
               <p>去图库勾选图片后点「加入清单」，就能把它们加进来。</p>
             </div>
           ) : (
-            <div className="recent-grid">
-              {items.map((item) => (
-                <div key={item.id} style={{ position: 'relative' }}>
+            /* 清单可能有上千张，走窗口虚拟滚动（列宽 130 / 3:4 与 .recent-grid 一致） */
+            <VirtualGrid
+              className="recent-grid-v"
+              items={items}
+              keyOf={(item) => item.id}
+              colWidth={130}
+              gap={10}
+              ratio={3 / 4}
+              renderItem={(item) => (
+                <div className="recent-cell">
                   <img
                     src={item.thumbUrl}
                     alt={item.title}
@@ -313,21 +323,23 @@ export default function Playlists({
                     className="icon-btn"
                     style={{ position: 'absolute', top: 6, right: 6, width: 26, height: 26 }}
                     title="从清单移除"
+                    aria-label={`把 ${item.title || '这张图'} 从清单移除`}
                     onClick={() => removeItem(item.id)}
                   >
-                    ×
+                    <IconClose size={13} />
                   </button>
                   <button
                     className="icon-btn"
                     style={{ position: 'absolute', bottom: 6, right: 6, width: 26, height: 26 }}
                     title="设为桌面壁纸"
+                    aria-label="设为桌面壁纸"
                     onClick={() => onSetWallpaper(item)}
                   >
                     <IconWallpaper />
                   </button>
                 </div>
-              ))}
-            </div>
+              )}
+            />
           )}
         </div>
       </div>

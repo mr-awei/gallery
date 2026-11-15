@@ -290,7 +290,8 @@ select.select {
 .gi-drop {
   position: fixed;
   inset: 0;
-  z-index: 900;
+  /* 要压在对话框之上：否则在导出/拼图对话框里拖文件时靶盘被遮住，用户找不到落点 */
+  z-index: 12000;
   pointer-events: none;
   display: flex;
   align-items: center;
@@ -299,18 +300,29 @@ select.select {
   backdrop-filter: blur(3px);
 }
 .gi-drop-box {
+  /* 屏幕正中的圆形靶盘：松手只有落在这一圈里才入库 */
   display: flex;
   flex-direction: column;
   align-items: center;
+  justify-content: center;
   gap: 8px;
-  padding: 34px 54px;
-  border-radius: 18px;
-  border: 2px dashed rgba(255, 77, 141, 0.7);
-  background: rgba(24, 24, 34, 0.9);
-  box-shadow: 0 24px 60px rgba(0, 0, 0, 0.45);
+  width: 284px;
+  height: 284px;
+  padding: 26px;
+  border-radius: 50%;
+  border: 2px dashed rgba(255, 77, 141, 0.75);
+  background: rgba(24, 24, 34, 0.92);
+  box-shadow: 0 24px 60px rgba(0, 0, 0, 0.45), 0 0 0 10px rgba(255, 77, 141, 0.08);
+  text-align: center;
 }
 .gi-drop-box b {
   font-size: 18px;
+}
+.gi-drop-box em {
+  font-style: normal;
+  font-size: 11.5px;
+  color: var(--muted);
+  opacity: 0.85;
 }
 .gi-drop-box span {
   font-size: 12.5px;

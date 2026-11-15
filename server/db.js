@@ -2,6 +2,7 @@ import path from 'node:path';
 import { DatabaseSync } from 'node:sqlite';
 import { DB_FILE, GLOBAL_DB_FILE, DATA_DIR, THUMB_DIR, DEFAULT_STORAGE_DIR } from './config.js';
 import { createPathIndex } from './db/schema.js';
+import { applyForeignKeys } from './db/foreign-keys.js';
 import { initLibrarySchema } from './db/migrate.js';
 import { resetSettingsCache, seedLibrarySettings } from './db/settings.js';
 
@@ -22,7 +23,7 @@ import { resetSettingsCache, seedLibrarySettings } from './db/settings.js';
 
 /* ------------------------------- 连接准备 ------------------------------- */
 
-/** 连接级 pragma（busy_timeout / WAL / synchronous），每个连接都要设一遍 */
+/** 连接级 pragma（busy_timeout / WAL / synchronous / 外键），每个连接都要设一遍 */
 function applyPragmas(conn) {
   // 应用是双进程（Electron 主进程 + node server）共用库，启动时可能同时初始化，
   // 遇到锁应自动等待而不是直接抛 database is locked
@@ -40,6 +41,9 @@ function applyPragmas(conn) {
   }
   // WAL 下 NORMAL 是标准配置：提交不再逐次强制 fsync，断电最多丢最后几笔写入，不会损坏数据库
   conn.exec('PRAGMA synchronous = NORMAL;');
+  // 外键默认是 OFF —— 不显式打开，DDL 里的 REFERENCES 只是注释。
+  // 每个连接都要设：切库 / 重开连接后开关会跟着旧连接一起消失。
+  conn.exec('PRAGMA foreign_keys = ON;');
 }
 
 /* ------------------------------- 全局库 ------------------------------- */
@@ -96,6 +100,9 @@ export function openLibrary(dbFile) {
   const conn = new DatabaseSync(dbFile);
   applyPragmas(conn);
   initLibrarySchema(conn);
+  // 老库补外键：要临时关掉 foreign_keys（DROP 父表会级联清空刚搬好的子表），
+  // 只能在事务外做，所以排在 initLibrarySchema 之后。幂等，跑过就只查标记。
+  applyForeignKeys(conn);
   seedLibrarySettings(conn);
   return conn;
 }

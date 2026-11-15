@@ -8,7 +8,7 @@ import { useEffect, useState } from 'react';
 import { api } from '../api';
 import { useEscClose } from '../lib/useEscClose';
 import type { ImageItem } from '../types';
-import { IconClose } from './Icons';
+import { IconClose, IconStack } from './Icons';
 
 interface Props {
   stackId: number;
@@ -123,10 +123,14 @@ export default function StackViewer({ stackId, onClose, onChanged, onToast, onOp
   };
 
   return (
-    <div className="stack-viewer" onClick={onClose}>
+    <div className="stack-viewer" onClick={onClose} data-a11y-dialog="esc" aria-label={'同组图片叠图查看'}>
       <div className="stack-viewer-card" onClick={(e) => e.stopPropagation()}>
         <div className="stack-viewer-head">
-          <b>⧉ 堆叠 · {items.length} 张</b>
+          <b>
+            <IconStack size={14} /> {'堆叠 · '}
+            {items.length}
+            {' 张'}
+          </b>
           <div style={{ display: 'flex', gap: 8 }}>
             <button className="btn sm ghost" disabled={busy} onClick={() => void openPicker()}>
               {picker ? '收起列表' : '并入其他堆叠…'}

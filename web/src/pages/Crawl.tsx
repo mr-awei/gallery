@@ -486,7 +486,7 @@ export default function Crawl({ onToast }: { onToast: (msg: string, kind?: 'info
                     </div>
                   ))
               ) : (
-                <div style={{ color: '#6f6f8c' }}>没有失败记录 🎉</div>
+                <div style={{ color: '#6f6f8c' }}>没有失败记录</div>
               )}
             </div>
           )}

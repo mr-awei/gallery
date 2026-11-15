@@ -676,6 +676,29 @@ function HealthPanel({ onToast }: { onToast: (msg: string, kind?: 'info' | 'erro
           </button>
         )}
       </div>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap', marginTop: 6 }}>
+        <span
+          className="hint"
+          style={{ flex: 1 }}
+          title={[
+            h.foreignKeys.builtAt ? `约束建立时间：${new Date(h.foreignKeys.builtAt).toLocaleString()}` : '',
+            h.foreignKeys.failures.length
+              ? `未补上的表：${h.foreignKeys.failures.map((x) => `${x.table}（${x.error}）`).join('、')}`
+              : '',
+          ]
+            .filter(Boolean)
+            .join('\n')}
+        >
+          {'外键约束：'}
+          {h.foreignKeys.enabled ? '已启用' : '未启用（关联行不会被数据库拦截）'}
+          {h.foreignKeys.enabled && h.foreignKeys.violations > 0
+            ? `（建库体检发现 ${h.foreignKeys.violations} 条不一致，建议清理孤儿关联）`
+            : ''}
+          {h.foreignKeys.failures.length
+            ? `（${h.foreignKeys.failures.length} 张表没能补上约束，详见提示）`
+            : ''}
+        </span>
+      </div>
       {!!h.warnings?.length && (
         <ul style={{ margin: '8px 0 0', paddingLeft: 18, color: 'var(--warn)', fontSize: 12.5 }}>
           {h.warnings.map((w) => (

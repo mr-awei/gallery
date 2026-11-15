@@ -12,6 +12,8 @@ import { createPortal } from 'react-dom';
 import { api, BASE, copyImageToClipboard, revealFile, type FacePerson, type FaceStatus } from '../api';
 import type { ImageItem } from '../types';
 import { IconCopy, IconDownload, IconExpand, IconFolder, IconImages, IconSearch, IconTrash, IconUsers } from '../components/Icons';
+import MasonryGrid from '../components/MasonryGrid';
+import VirtualGrid from '../components/VirtualGrid';
 import ReverseSearchDialog, { type ReverseTarget } from '../components/ReverseSearchDialog';
 import Select from '../components/Select';
 import { ensureHardware } from '../lib/hardware';
@@ -543,6 +545,7 @@ export default function People({ onToast, onOpen, focusPersonId, focusNonce }: P
           <button
             className={`btn sm${showAllPersons ? ' primary' : ''}`}
             onClick={() => setShowAllPersons((v) => !v)}
+            aria-pressed={showAllPersons}
             title={'封面脸不够清晰的人物（多半只有一两张糊脸、甚至是误检）默认折叠，免得糊脸占满人物页'}
           >
             {showAllPersons
@@ -778,16 +781,16 @@ export default function People({ onToast, onOpen, focusPersonId, focusNonce }: P
             {'这个人目前没有可显示的图片（可能原图已被移出图库）。'}
           </div>
         )}
-        <div
-          style={{
-            display: 'grid',
-            gridTemplateColumns: `repeat(auto-fill, minmax(${colW}px, 1fr))`,
-            gap: 8,
-          }}
-        >
-          {(items || []).map((it) => (
+        {/*
+          照片墙必须走 MasonryGrid 的窗口虚拟滚动：老实现是整个 items 一次性 map 成
+          DOM，再配一个「只显示 2000 张」的上限挡住 —— 名人照片几千张时首屏就要排
+          几千个 img，滚动掉帧且内存疯长。格子尺寸仍由 colW 滑块控制。
+        */}
+        <MasonryGrid
+          items={items || []}
+          colWidth={colW}
+          renderItem={(it) => (
             <div
-              key={it.id}
               className="people-tile"
               onContextMenu={(e) => {
                 e.preventDefault();
@@ -818,8 +821,8 @@ export default function People({ onToast, onOpen, focusPersonId, focusNonce }: P
                 </button>
               )}
             </div>
-          ))}
-        </div>
+          )}
+        />
         {!!items && itemsTotal > items.length && (
           <div className="hint" style={{ marginTop: 10 }}>
             {`只显示了 ${items.length} / ${itemsTotal} 张图片`}
@@ -926,22 +929,29 @@ export default function People({ onToast, onOpen, focusPersonId, focusNonce }: P
       )}
 
       {!!persons.length && (
-        <div
-          style={{
-            display: 'grid',
-            gridTemplateColumns: 'repeat(auto-fill, minmax(132px, 1fr))',
-            gap: 12,
-          }}
-        >
-          {persons.map((p) => (
+        /*
+          人物卡片也走窗口虚拟滚动：以前是 persons.map 全量铺 DOM，几千个人物时
+          光首屏就要生成几千张封面图请求。extraHeight 是卡片下方两行文字的高度。
+        */
+        <VirtualGrid
+          items={persons}
+          keyOf={(p) => p.id}
+          colWidth={132}
+          gap={12}
+          ratio={1}
+          extraHeight={46}
+          renderItem={(p) => (
             <button
-              key={p.id}
               onClick={() => void openPerson(p)}
               onContextMenu={(e) => {
                 e.preventDefault();
                 setPersonCtx({ x: e.clientX, y: e.clientY, p });
               }}
               style={{
+                display: 'flex',
+                flexDirection: 'column',
+                width: '100%',
+                height: '100%',
                 padding: 0,
                 border: '1px solid var(--line)',
                 borderRadius: 10,
@@ -952,7 +962,7 @@ export default function People({ onToast, onOpen, focusPersonId, focusNonce }: P
               }}
               title={`${p.name || `人物 #${p.id}`} · ${`${p.photoCount ?? p.count} 张照片 · ${p.count} 张人脸`}`}
             >
-              <div style={{ aspectRatio: '1 / 1', background: '#111' }}>
+              <div style={{ flex: 1, minHeight: 0, background: '#111' }}>
                 {p.coverFaceId ? (
                   <img
                     src={coverUrl(p)}
@@ -966,7 +976,7 @@ export default function People({ onToast, onOpen, focusPersonId, focusNonce }: P
                   </div>
                 )}
               </div>
-              <div style={{ padding: '7px 9px' }}>
+              <div style={{ padding: '7px 9px', flex: 'none' }}>
                 <div style={{ fontSize: 12.5, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                   {p.name || `人物 #${p.id}`}
                 </div>
@@ -975,8 +985,8 @@ export default function People({ onToast, onOpen, focusPersonId, focusNonce }: P
                 </div>
               </div>
             </button>
-          ))}
-        </div>
+          )}
+        />
       )}
       {personsTotal > persons.length && (
         <div className="hint" style={{ marginTop: 12 }}>

@@ -9,6 +9,10 @@ export type ImportProgress = {
   total?: number;
   unchanged?: number;
   message?: string;
+  /** 入库速度（张/秒） */
+  speed?: number;
+  /** 预计剩余秒数；null / undefined 表示还算不出来 */
+  etaSec?: number | null;
 } | null;
 
 /**
@@ -69,6 +73,8 @@ export function useImportWatch({
             total: Number(status.result?.total) || 0,
             unchanged: Number(status.result?.unchanged) || 0,
             message: status.message || '',
+            speed: Number(status.speed) || 0,
+            etaSec: status.etaSec == null ? null : Number(status.etaSec),
           });
           refreshStats(); // 内含库增长对账：stats.total 变大则 load(1, true)
         } else if (!confirmed) {

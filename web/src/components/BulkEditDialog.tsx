@@ -1,3 +1,4 @@
+import { IconClose } from './Icons';
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useJobProgress } from '../hooks/useJobProgress';
 import type { AdjustParams, EditJobStatus, EditSaveOptions } from '../types';
@@ -173,8 +174,8 @@ export default function BulkEditDialog({ ids, preview, films, onClose, onToast, 
       <div className="modal-card bulk-edit-modal" onClick={(e) => e.stopPropagation()}>
         <div className="modal-head">
           <b>批量调色 · 已选 {ids.length} 张</b>
-          <button className="btn sm ghost" onClick={onClose} disabled={running}>
-            ✕
+          <button className="btn sm ghost" onClick={onClose} disabled={running} aria-label={'关闭'}>
+            <IconClose size={14} />
           </button>
         </div>
 

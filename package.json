@@ -1,7 +1,7 @@
 {
   "name": "tuku-gallery",
   "productName": "TuKu",
-  "version": "1.2.15",
+  "version": "1.2.16",
   "private": true,
   "description": "通用图片管理与壁纸工具 — 多源采集 / pHash 去重 / 暗色图片库",
   "author": "图库",
@@ -58,7 +58,6 @@
     "jszip": "^3.10.2",
     "libheif-js": "^1.23.5",
     "lru-cache": "^11.2.2",
-    "mammoth": "^1.13.0",
     "react": "^18.3.1",
     "react-dom": "^18.3.1",
     "semver": "^7.7.3",
@@ -66,8 +65,6 @@
     "side-channel-list": "^1.0.0",
     "side-channel-map": "^1.0.1",
     "side-channel-weakmap": "^1.0.2",
-    "three": "^0.187.0",
-    "xlsx": "^0.18.5",
     "yallist": "^5.0.0"
   },
   "devDependencies": {
@@ -81,8 +78,11 @@
     "electron": "^44.4.5",
     "electron-builder": "^26.0.12",
     "eslint": "^10.14.0",
+    "mammoth": "^1.13.0",
+    "three": "^0.187.0",
     "typescript": "^5.7.2",
-    "vite": "^6.0.7"
+    "vite": "^6.0.7",
+    "xlsx": "^0.18.5"
   },
   "build": {
     "appId": "com.tuku.gallery",
@@ -100,8 +100,19 @@
       "build/icon.ico",
       "!node_modules/react/**",
       "!node_modules/react-dom/**",
-      "!node_modules/scheduler/**"
+      "!node_modules/scheduler/**",
+      "!node_modules/onnxruntime-web/**",
+      "!node_modules/three/**",
+      "!node_modules/xlsx/**",
+      "!node_modules/mammoth/**",
+      "!node_modules/codepage/**",
+      "!node_modules/@huggingface/transformers/dist/ort-wasm*",
+      "!node_modules/@huggingface/transformers/dist/transformers.js",
+      "!node_modules/@huggingface/transformers/dist/transformers.min.js",
+      "!node_modules/@huggingface/transformers/dist/transformers.web*",
+      "!**/*.map"
     ],
+    "afterPack": "scripts/after-pack.cjs",
     "extraResources": [
       {
         "from": "extension",

@@ -1,5 +1,6 @@
 import { rgbToOklab } from '../lib/oklab.js';
 import { repairTakenAt } from '../lib/timeline-repair.js';
+import { fkTail } from './foreign-keys.js';
 import { LIBRARY_SCHEMA_SQL, LIBRARY_TRIGGER_SQL } from './schema-sql.js';
 import { getPathIndexState, noteSchemaWarning, setPathIndexState } from './state.js';
 
@@ -87,7 +88,7 @@ CREATE TABLE IF NOT EXISTS edit_ops (
   image_id INTEGER NOT NULL,
   kind TEXT NOT NULL,
   params TEXT NOT NULL DEFAULT '{}',
-  created_at TEXT NOT NULL
+  created_at TEXT NOT NULL${fkTail('edit_ops')}
 );
 CREATE INDEX IF NOT EXISTS idx_edit_ops_image ON edit_ops(image_id);
 CREATE TRIGGER IF NOT EXISTS trg_edit_ops_delete AFTER DELETE ON images BEGIN

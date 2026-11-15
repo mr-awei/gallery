@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { Suspense, lazy, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
 import { isDesktop, openFolder, openFolderById, quiet } from './api';
 import type { Filters, View, ViewMode } from './types';
@@ -21,7 +21,6 @@ import { useSavedFilters } from './hooks/useSavedFilters';
 import { useSidebarWidth } from './hooks/useSidebarWidth';
 import { useAppKeyBindings } from './hooks/useAppKeyBindings';
 import AppPages from './app/AppPages';
-import AppDialogs from './app/AppDialogs';
 import LoadErrorBar from './app/LoadErrorBar';
 import { useThemeAndTour } from './app/useThemeAndTour';
 import { useImportWatch } from './app/useImportWatch';
@@ -37,6 +36,13 @@ import { useViewActions } from './app/useViewActions';
 import { usePaletteCommands } from './app/usePaletteCommands';
 import { useEnhance } from './app/useEnhance';
 import { useDialogState } from './app/useDialogState';
+
+/**
+ * 27 个浮层（导出、水印、批注、人物、堆叠、命令面板…）不该压在首包里：
+ * 首屏只用外壳 + 图库列表，浮层等真要打开时再取。启动后空闲时段预取，
+ * 所以第一次按 Cmd+K 也不会等加载。
+ */
+const AppDialogs = lazy(() => import('./app/AppDialogs'));
 
 /** 首屏状态来自 URL：分享出去的链接 / 刷新后都能还原到同一个筛选视图 */
 const initialRoute: RouteState = parseRoute(window.location.search);
@@ -54,6 +60,17 @@ const defaultFilters: Filters = initialRoute.filters;
  * 因为它们之间有先后依赖（先拉设置再决定开不开教程、先订阅推送再对账等）。
  */
 export default function App() {
+  /* 空闲时把浮层 chunk 备好：首屏不等它，但用户真按 Cmd+K 时它已经在内存里 */
+  useEffect(() => {
+    const load = () => void import('./app/AppDialogs');
+    if (typeof window.requestIdleCallback === 'function') {
+      const id = window.requestIdleCallback(load, { timeout: 2500 });
+      return () => window.cancelIdleCallback?.(id);
+    }
+    const timer = setTimeout(load, 1200);
+    return () => clearTimeout(timer);
+  }, []);
+
   // 提示条 / 错误条 / 弹窗开关下沉到 hook：App 主体只管图库数据与筛选
   const ui = useAppUiState();
   const {
@@ -279,6 +296,10 @@ export default function App() {
 
   return (
     <div className="app">
+      {/* 键盘用户不必逐个 Tab 过侧栏 40 多个入口：Tab 第一下就能跳到主内容 */}
+      <a className="skip-link" href="#main">
+        {'跳到主内容'}
+      </a>
       {/* 任意页面都能拖入 / 粘贴入库（Eagle 三件套）；图库页接管时这里自动让位 */}
       <GlobalImport
         onImported={(n) => {
@@ -367,7 +388,7 @@ export default function App() {
           onToast={showToast}
         />
 
-        <main className="main">
+        <main className="main" id="main" tabIndex={-1}>
           {/* 后台请求失败：明确说「没加载出来」而不是让界面装作「没有数据」 */}
           {loadError && (
             <LoadErrorBar error={loadError} onRetry={retryFailedLoad} onClose={() => setLoadError('')} />
@@ -473,6 +494,7 @@ export default function App() {
       </div>
       {/* /.app-body */}
 
+      <Suspense fallback={null}>
       <AppDialogs
         ui={ui}
         dialogs={dialogs}
@@ -526,6 +548,7 @@ export default function App() {
         onLibraryCreated={onLibraryCreated}
         showToast={showToast}
       />
+      </Suspense>
     </div>
   );
 }

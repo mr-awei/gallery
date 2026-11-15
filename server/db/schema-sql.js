@@ -1,7 +1,7 @@
 /**
  * 库内建表 / 索引 / 触发器的 DDL 原文。
  *
- * 纯字符串模块：不 import 任何东西，避免与 db.js 形成循环依赖。
+ * 只 import 叶子模块 foreign-keys.js（它不 import 任何东西），不会与 db.js 成环。
  *
  * 顺序有硬约束（历史踩过的坑）：
  * - 本文件在「逐列探测补列（ensureColumn）」之前执行，所以**不能**把依赖后加列的索引
@@ -9,7 +9,10 @@
  *   no such column。这类索引统一放在 schema.js 的 reconcile 段、对应补列之后。
  * - LIBRARY_TRIGGER_SQL 依赖三个 SQL 函数（sync_item_tags / delete_item_tags /
  *   delete_image_notes），执行前必须先用 conn.function() 注册（见 schema.js）。
+ * - 外键约束统一由 fkTail('表名') 追加：约束清单只放在 foreign-keys.js 一处，
+ *   新建库与老库重建（applyForeignKeys）用的是同一份定义，免得两边写法漂移。
  */
+import { fkTail } from './foreign-keys.js';
 
 /** 建表 + 索引（不含依赖后加列的索引） */
 export const LIBRARY_SCHEMA_SQL = `
@@ -109,7 +112,7 @@ CREATE TABLE IF NOT EXISTS playlist_items (
   playlist_id INTEGER NOT NULL,
   image_id INTEGER NOT NULL,
   added_at TEXT NOT NULL,
-  UNIQUE(playlist_id, image_id)
+  UNIQUE(playlist_id, image_id)${fkTail('playlist_items')}
 );
 CREATE INDEX IF NOT EXISTS idx_playlist_items ON playlist_items(playlist_id);
 
@@ -131,14 +134,14 @@ CREATE TABLE IF NOT EXISTS ai_desc (
   issues TEXT NOT NULL DEFAULT '',
   quality INTEGER NOT NULL DEFAULT 0,
   model TEXT NOT NULL DEFAULT '',
-  created_at TEXT NOT NULL
+  created_at TEXT NOT NULL${fkTail('ai_desc')}
 );
 
 CREATE TABLE IF NOT EXISTS clip_vec (
   image_id INTEGER PRIMARY KEY,
   dim INTEGER NOT NULL,
   vec BLOB NOT NULL,
-  created_at TEXT NOT NULL
+  created_at TEXT NOT NULL${fkTail('clip_vec')}
 );
 
 -- 人脸：一张图可检出多张脸，每张脸存 512 维归一化特征（ArcFace）。
@@ -151,7 +154,7 @@ CREATE TABLE IF NOT EXISTS faces (
   score REAL NOT NULL DEFAULT 0,
   det REAL NOT NULL DEFAULT 0,
   vec BLOB NOT NULL,
-  created_at TEXT NOT NULL
+  created_at TEXT NOT NULL${fkTail('faces')}
 );
 CREATE INDEX IF NOT EXISTS idx_faces_image ON faces(image_id);
 CREATE INDEX IF NOT EXISTS idx_faces_person ON faces(person_id);
@@ -169,7 +172,7 @@ CREATE TABLE IF NOT EXISTS persons (
 CREATE TABLE IF NOT EXISTS image_quality (
   image_id INTEGER PRIMARY KEY,
   sharpness REAL NOT NULL,
-  created_at TEXT NOT NULL
+  created_at TEXT NOT NULL${fkTail('image_quality')}
 );
 
 CREATE TABLE IF NOT EXISTS wallpaper_fit (
@@ -181,7 +184,7 @@ CREATE TABLE IF NOT EXISTS wallpaper_fit (
   brightness INTEGER,
   likes INTEGER NOT NULL DEFAULT 0,
   dislikes INTEGER NOT NULL DEFAULT 0,
-  created_at TEXT NOT NULL
+  created_at TEXT NOT NULL${fkTail('wallpaper_fit')}
 );
 
 CREATE TABLE IF NOT EXISTS smart_folders (
@@ -198,7 +201,7 @@ CREATE TABLE IF NOT EXISTS smart_folders (
 CREATE TABLE IF NOT EXISTS item_tags (
   tag TEXT NOT NULL,
   image_id INTEGER NOT NULL,
-  PRIMARY KEY (tag, image_id)
+  PRIMARY KEY (tag, image_id)${fkTail('item_tags')}
 );
 CREATE INDEX IF NOT EXISTS idx_item_tags_image ON item_tags(image_id);
 
@@ -213,7 +216,7 @@ CREATE TABLE IF NOT EXISTS folders (
   lock_hash TEXT NOT NULL DEFAULT '',    -- 隐私空间：密码哈希（scrypt），空串 = 未加锁
   lock_salt TEXT NOT NULL DEFAULT '',    -- 哈希用盐；明文密码永不落库
   created_at TEXT NOT NULL,
-  updated_at TEXT NOT NULL
+  updated_at TEXT NOT NULL${fkTail('folders')}
 );
 CREATE INDEX IF NOT EXISTS idx_folders_path ON folders(path);
 CREATE INDEX IF NOT EXISTS idx_folders_parent ON folders(parent_id);
@@ -222,7 +225,7 @@ CREATE INDEX IF NOT EXISTS idx_folders_parent ON folders(parent_id);
 CREATE TABLE IF NOT EXISTS image_folders (
   image_id INTEGER NOT NULL,
   folder_id INTEGER NOT NULL,
-  PRIMARY KEY (image_id, folder_id)
+  PRIMARY KEY (image_id, folder_id)${fkTail('image_folders')}
 );
 CREATE INDEX IF NOT EXISTS idx_image_folders_folder ON image_folders(folder_id);
 
@@ -251,7 +254,7 @@ CREATE TABLE IF NOT EXISTS tag_alias (
 CREATE TABLE IF NOT EXISTS image_annotations (
   image_id INTEGER PRIMARY KEY,
   data TEXT NOT NULL DEFAULT '[]',
-  updated_at TEXT NOT NULL DEFAULT ''
+  updated_at TEXT NOT NULL DEFAULT ''${fkTail('image_annotations')}
 );
 
 -- 图片评论：Eagle 4 的图注评论，按时间正序展示
@@ -260,7 +263,7 @@ CREATE TABLE IF NOT EXISTS image_comments (
   image_id INTEGER NOT NULL,
   body TEXT NOT NULL,
   author TEXT NOT NULL DEFAULT '',
-  created_at TEXT NOT NULL
+  created_at TEXT NOT NULL${fkTail('image_comments')}
 );
 CREATE INDEX IF NOT EXISTS idx_image_comments_image ON image_comments(image_id);
 
@@ -282,7 +285,7 @@ CREATE TABLE IF NOT EXISTS edit_history (
   prev_obj_phash TEXT NOT NULL DEFAULT '',
   created_at TEXT NOT NULL,
   -- 0 = 待撤销（undo 栈），1 = 已撤销可重做（redo 栈）
-  undone INTEGER NOT NULL DEFAULT 0
+  undone INTEGER NOT NULL DEFAULT 0${fkTail('edit_history')}
 );
 CREATE INDEX IF NOT EXISTS idx_edit_history_image ON edit_history(image_id, id);
 
@@ -329,7 +332,7 @@ CREATE TABLE IF NOT EXISTS image_ocr (
   text TEXT NOT NULL DEFAULT '',
   lang TEXT NOT NULL DEFAULT '',
   engine TEXT NOT NULL DEFAULT '',
-  created_at TEXT NOT NULL
+  created_at TEXT NOT NULL${fkTail('image_ocr')}
 );
 CREATE INDEX IF NOT EXISTS idx_image_ocr_created ON image_ocr(created_at);
 
@@ -368,7 +371,7 @@ CREATE TABLE IF NOT EXISTS image_notes (
   image_id INTEGER NOT NULL,
   body TEXT NOT NULL DEFAULT '',
   ts REAL NOT NULL DEFAULT 0,
-  created_at TEXT NOT NULL
+  created_at TEXT NOT NULL${fkTail('image_notes')}
 );
 CREATE INDEX IF NOT EXISTS idx_image_notes_image ON image_notes(image_id, id);
 `;

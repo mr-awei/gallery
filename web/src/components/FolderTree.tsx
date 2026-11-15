@@ -1,5 +1,16 @@
 import { useEffect, useLayoutEffect, useMemo, useRef, useState, type DragEvent, type MouseEvent as ReactMouseEvent } from 'react';
 import { createPortal } from 'react-dom';
+import {
+  IconChevronDown,
+  IconChevronRight,
+  IconClose,
+  IconImages,
+  IconLock,
+  IconPalette,
+  IconPencil,
+  IconPlus,
+  IconUnlock,
+} from './Icons';
 import { FOLDER_MIME, IMAGE_MIME } from '../lib/dnd';
 import type { FolderNode } from '../types';
 
@@ -288,7 +299,7 @@ export default function FolderTree({
                     toggleCollapse(f.id);
                   }}
                 >
-                  {isCollapsed ? '▸' : '▾'}
+                  {isCollapsed ? <IconChevronRight size={13} /> : <IconChevronDown size={13} />}
                 </span>
               ) : (
                 <span className="folder-chevron placeholder" />
@@ -328,7 +339,7 @@ export default function FolderTree({
               )}
               {f.locked && (
                 <span className="folder-lock" title={f.unlocked ? '已解锁（本次会话可见）' : '隐私空间：已加锁'}>
-                  {f.unlocked ? '🔓' : '🔒'}
+                  {f.unlocked ? <IconUnlock size={12} /> : <IconLock size={12} />}
                 </span>
               )}
               {f.total > 0 && !f.locked && <span className="folder-count">{f.total}</span>}
@@ -351,11 +362,11 @@ export default function FolderTree({
               title={allChildrenCollapsed ? '展开全部子文件夹' : '收起全部子文件夹'}
               onClick={toggleAllChildren}
             >
-              {allChildrenCollapsed ? '⊞' : '⊟'}
+              {allChildrenCollapsed ? <IconChevronDown size={14} /> : <IconChevronRight size={14} />}
             </button>
           )}
-          <button className="folder-add-btn" title="新建文件夹" onClick={() => onCreate(null)}>
-            ＋
+          <button className="folder-add-btn" title="新建文件夹" aria-label="新建文件夹" onClick={() => onCreate(null)}>
+            <IconPlus size={14} />
           </button>
         </div>
       </div>
@@ -375,7 +386,7 @@ export default function FolderTree({
                 toggleCollapse(ROOT_KEY);
               }}
             >
-              {collapsed.has(ROOT_KEY) ? '▸' : '▾'}
+              {collapsed.has(ROOT_KEY) ? <IconChevronRight size={13} /> : <IconChevronDown size={13} />}
             </span>
           ) : (
             <span className="folder-chevron placeholder" />
@@ -396,36 +407,53 @@ export default function FolderTree({
           >
             {mf ? (
               <>
-                <button onClick={() => { setMenu(null); onOpen(mf.id); }}>📂 打开文件夹</button>
+                <button onClick={() => { setMenu(null); onOpen(mf.id); }}>打开文件夹</button>
                 <div className="card-ctx-sep" />
-                <button onClick={() => { setMenu(null); onCreate(mf.id); }}>＋ 新建子文件夹</button>
+                <button onClick={() => { setMenu(null); onCreate(mf.id); }}>
+                  <IconPlus size={13} /> 新建子文件夹
+                </button>
                 {onBatchCreate && (
-                  <button onClick={() => { setMenu(null); onBatchCreate(mf.id); }}>＋ 批量新建子文件夹…</button>
+                  <button onClick={() => { setMenu(null); onBatchCreate(mf.id); }}>
+                    <IconPlus size={13} /> 批量新建子文件夹…
+                  </button>
                 )}
                 {onEditAppearance && (
-                  <button onClick={() => { setMenu(null); onEditAppearance(mf.id); }}>🎨 图标与颜色…</button>
+                  <button onClick={() => { setMenu(null); onEditAppearance(mf.id); }}>
+                    <IconPalette size={13} /> 图标与颜色…
+                  </button>
                 )}
                 {onSetCover && (
-                  <button onClick={() => { setMenu(null); onSetCover(mf.id); }}>🖼 设置封面</button>
+                  <button onClick={() => { setMenu(null); onSetCover(mf.id); }}>
+                    <IconImages size={13} /> 设置封面
+                  </button>
                 )}
                 {onEditTags && (
                   <button onClick={() => { setMenu(null); onEditTags(mf.id); }}># 文件夹标签</button>
                 )}
                 {onToggleLock && (
                   <button onClick={() => { setMenu(null); onToggleLock(mf.id); }}>
-                    {mf.locked ? (mf.unlocked ? '🔒 重新上锁 / 改密码' : '🔓 解锁') : '🔒 加密码锁（隐私空间）'}
+                    {mf.locked && mf.unlocked ? <IconUnlock size={13} /> : <IconLock size={13} />}
+                    {mf.locked ? (mf.unlocked ? ' 重新上锁 / 改密码' : ' 解锁') : ' 加密码锁（隐私空间）'}
                   </button>
                 )}
                 <div className="card-ctx-sep" />
-                <button onClick={() => { setMenu(null); onRename(mf.id); }}>✎ 重命名</button>
-                <button onClick={() => { setMenu(null); onDelete(mf.id); }}>✕ 删除文件夹（不删图片）</button>
+                <button onClick={() => { setMenu(null); onRename(mf.id); }}>
+                  <IconPencil size={13} /> 重命名
+                </button>
+                <button onClick={() => { setMenu(null); onDelete(mf.id); }}>
+                  <IconClose size={13} /> 删除文件夹（不删图片）
+                </button>
               </>
             ) : (
               <>
-                <button onClick={() => { setMenu(null); onOpenRoot(); }}>📂 打开素材根目录</button>
-                <button onClick={() => { setMenu(null); onCreate(null); }}>＋ 新建文件夹</button>
+                <button onClick={() => { setMenu(null); onOpenRoot(); }}>打开素材根目录</button>
+                <button onClick={() => { setMenu(null); onCreate(null); }}>
+                  <IconPlus size={13} /> 新建文件夹
+                </button>
                 {onBatchCreate && (
-                  <button onClick={() => { setMenu(null); onBatchCreate(null); }}>＋ 批量新建文件夹…</button>
+                  <button onClick={() => { setMenu(null); onBatchCreate(null); }}>
+                    <IconPlus size={13} /> 批量新建文件夹…
+                  </button>
                 )}
               </>
             )}
