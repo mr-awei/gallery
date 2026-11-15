@@ -1,0 +1,376 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>图库 TuKu · 全面评测与提分方案 · v1.2.14</title>
+<style>
+:root{--bg:#0b0d12;--panel:#12161f;--panel2:#171c28;--line:#242b3a;--fg:#e9ecf5;--muted:#9aa3b8;--dim:#6c7488;--accent:#5b8cff;--ok:#34d399;--warn:#fbbf24;--bad:#f87171}
+*{box-sizing:border-box}
+body{margin:0;background:radial-gradient(1200px 600px at 20% -10%,#17203a,var(--bg) 55%) no-repeat,var(--bg);color:var(--fg);font:15px/1.72 -apple-system,"Segoe UI","Microsoft YaHei",system-ui,sans-serif;padding:40px 20px 80px}
+.wrap{max-width:1180px;margin:0 auto}
+header{border-bottom:1px solid var(--line);padding-bottom:24px;margin-bottom:26px}
+h1{font-size:31px;line-height:1.25;margin:0 0 12px}
+h1 .ver{font-size:13.5px;font-weight:600;color:var(--accent);background:#16203a;border:1px solid #26365c;padding:3px 9px;border-radius:999px;margin-left:10px;vertical-align:middle}
+.sub{color:var(--muted);font-size:14.5px;max-width:980px}.sub b{color:var(--fg)}
+h2{font-size:21px;margin:44px 0 6px;padding-top:20px;border-top:1px solid var(--line)}
+h2 .no{color:var(--accent);font-size:13px;font-weight:700;margin-right:10px}
+h3{font-size:16px;margin:24px 0 8px;color:#cbd4ea}
+h4{font-size:14px;margin:16px 0 6px;color:var(--muted)}
+p{margin:9px 0}small{color:var(--dim)}
+code{font:12.5px/1.5 ui-monospace,Consolas,monospace;background:#1b2130;border:1px solid #263048;color:#c8d3ee;padding:1px 5px;border-radius:4px}
+a{color:var(--accent);text-decoration:none}
+.cards{display:grid;grid-template-columns:repeat(auto-fit,minmax(178px,1fr));gap:13px;margin:20px 0 4px}
+.card{background:linear-gradient(180deg,var(--panel2),var(--panel));border:1px solid var(--line);border-radius:12px;padding:15px 17px}
+.card .k{font-size:12px;color:var(--muted)}.card .v{font-size:28px;font-weight:750;margin-top:3px}.card .d{font-size:12px;color:var(--dim)}
+.card.hero{border-color:#2f4a86;background:linear-gradient(180deg,#1a2748,#131a2b)}.card.hero .v{color:#9db6ff}
+.good{color:var(--ok)}.mid{color:var(--warn)}.bad{color:var(--bad)}
+table{width:100%;border-collapse:collapse;margin:13px 0;font-size:13.5px}
+th,td{border-bottom:1px solid var(--line);padding:8px 10px;text-align:left;vertical-align:top}
+th{color:var(--muted);font-weight:600;background:#0f1420;font-size:12.5px}
+tbody tr:hover{background:#141a27}
+td.num,th.num{text-align:right;font-variant-numeric:tabular-nums;white-space:nowrap}
+.tag{display:inline-block;font-size:11.5px;padding:1px 7px;border-radius:999px;white-space:nowrap}
+.t-p0{background:#3b1620;color:#ff9aa8;border:1px solid #5e2230}
+.t-p1{background:#3a2c11;color:#ffd479;border:1px solid #5c4519}
+.t-p2{background:#152a3d;color:#8ec9ff;border:1px solid #22405c}
+.t-ok{background:#0f2e24;color:#7ff0c0;border:1px solid #1b4d3c}
+.bar{height:7px;border-radius:99px;background:#1d2333;overflow:hidden;min-width:70px}
+.bar i{display:block;height:100%;background:linear-gradient(90deg,#3f6fe0,#6ea8ff)}
+.grid2{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+@media(max-width:860px){.grid2{grid-template-columns:1fr}}
+.box{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:15px 17px}
+.box h4{margin-top:0}
+ul,ol{margin:7px 0 7px 22px;padding:0}li{margin:4px 0}
+.quote{border-left:3px solid var(--accent);background:#121a2c;padding:10px 14px;color:#c3cee8;border-radius:0 8px 8px 0;margin:13px 0;font-size:13.5px}
+.radar{display:grid;grid-template-columns:minmax(280px,430px) 1fr;gap:22px;align-items:center;margin:16px 0}
+@media(max-width:860px){.radar{grid-template-columns:1fr}}
+.legend div{font-size:13px;color:var(--muted);margin:8px 0}
+.legend i{display:inline-block;width:22px;height:3px;border-radius:2px;margin-right:8px;vertical-align:middle}
+.score{display:grid;grid-template-columns:auto 1fr 46px;gap:10px;align-items:center;margin:7px 0;font-size:13.5px}
+.score span{text-align:right;color:var(--muted)}
+footer{margin-top:56px;padding-top:18px;border-top:1px solid var(--line);color:var(--dim);font-size:12.5px}
+</style>
+</head>
+<body>
+<div class="wrap">
+<header>
+  <h1>图库 TuKu · 全面评测与提分方案<span class="ver">v1.2.14</span></h1>
+  <div class="sub">
+    只回答三个问题：<b>现在处在什么水平</b>、<b>差在哪</b>、<b>按什么顺序补最划算</b>。
+    评分标准按「本地优先的桌面素材 / 图片管理器」重新设计：<b>13 维、100 分权重</b>，不含社区、云同步、多用户与移动端 App —— 这些明确不在路线图里，缺了不扣分。
+    对标 Eagle 4（商用基准）、digiKam 8（开源桌面 DAM）、PhotoPrism 与 Immich（自托管标杆）、hydrus / TagSpaces（本地标签库）。
+    结论以本仓库<b>代码静态审核 + <code>npm run verify</code> + <code>npm run bench</code> 实跑</b>为依据，复核日期 2026-11-15。
+  </div>
+</header>
+
+<div class="cards">
+  <div class="card hero"><div class="k">综合得分（13 维加权）</div><div class="v">8.71</div><div class="d">本地管理器口径 · 第 1 名</div></div>
+  <div class="card"><div class="k">对标 Eagle 4</div><div class="v good">+0.35</div><div class="d">8.36 · 差距在多格式与打磨</div></div>
+  <div class="card"><div class="k">强项维度</div><div class="v">8 项 ≥ 9.0</div><div class="d">自动化 9.3 · 桌面集成 9.4</div></div>
+  <div class="card"><div class="k">短板维度</div><div class="v mid">3 项 &lt; 8.0</div><div class="d">易用 7.6 · 性能 8.0 · 交付 8.0</div></div>
+  <div class="card"><div class="k">明确不做</div><div class="v">4 类</div><div class="d">社区 / 云 / 多用户 / 移动 App</div></div>
+</div>
+
+<h2><span class="no">01</span>评估边界：为什么重做评分</h2>
+<p>旧版评分把「云同步、社区、协作」算进通用维度，于是「没做云」被扣分 —— 可云本来就不在预算与定位里。扣分项与产品目标不一致，分数就失去指导意义。这次只评<b>本地管理器该做好的事</b>，且每一维都要能在代码或实跑数据里找到证据；找不到证据的能力按 0 计。</p>
+<div class="grid2">
+  <div class="box">
+    <h4>纳入评分</h4>
+    <ul>
+      <li>收集 → 组织 → 检索 → 编辑 → 导出这条主线</li>
+      <li>本地 AI（人脸 / 语义 / OCR）与离线可用性</li>
+      <li>自动化与开放接口（插件 / API / MCP / 扩展）</li>
+      <li>Windows 桌面与系统集成</li>
+      <li>性能、数据安全、工程质量、交付与文档</li>
+    </ul>
+  </div>
+  <div class="box">
+    <h4>不计分（附理由）</h4>
+    <ul>
+      <li><b>云同步 / 社区 / 多用户</b>：要服务器与账号体系，明确不做</li>
+      <li><b>移动端原生 App</b>：用「扫码投送 + 局域网只读浏览」替代</li>
+      <li><b>在线素材市场</b>：无运营与审核能力</li>
+      <li><b>订阅与商业化</b>：与目标无关</li>
+    </ul>
+    <p><small>替代能力（局域网分享、同步文件夹、备份）只按「桌面便利性」计分，不折算成云能力。</small></p>
+  </div>
+</div>
+
+<h2><span class="no">02</span>评分标准：13 维、100 分权重</h2>
+<p>每维 0–10 分。下表写清「9 分要求什么」，避免打分靠印象。</p>
+<table>
+  <thead><tr><th style="width:30px">#</th><th style="width:132px">维度</th><th class="num" style="width:52px">权重</th><th>9 分锚点（做到才算优秀）</th></tr></thead>
+  <tbody>
+    <tr><td>1</td><td>收集与导入</td><td class="num">8</td><td>本地 / 拖拽 / 剪贴板 / 网页 / 扩展 / 局域网多路收口，断点续传、内容级去重、失败可解释</td></tr>
+    <tr><td>2</td><td>组织与元数据</td><td class="num">10</td><td>多层文件夹 + 多对多 + 标签分组/别名 + 评分/收藏/备注 + 智能规则 + 批量操作与撤销</td></tr>
+    <tr><td>3</td><td>浏览与检索</td><td class="num">12</td><td>大库流畅平铺、时间线、前缀语法、中文可用全文索引、语义/OCR 混合检索、保存的筛选器</td></tr>
+    <tr><td>4</td><td>编辑与产出</td><td class="num">8</td><td>非破坏编辑链、批处理、水印相框、视频/GIF、拼接、多种导出（CSV/JSON/HTML 画廊）</td></tr>
+    <tr><td>5</td><td>格式与媒体</td><td class="num">7</td><td>常见图 + RAW + 设计稿（PSD/AI/Sketch/Figma）+ HEIF + 视频音频 + 字体/3D/PDF</td></tr>
+    <tr><td>6</td><td>AI 能力</td><td class="num">8</td><td>本地模型跑人脸/语义/OCR，离线可用，结果可解释，不假装搜过</td></tr>
+    <tr><td>7</td><td>自动化与开放</td><td class="num">8</td><td>动作编排（条件/预演/撤销）、插件、MCP、带权限分级的 API、浏览器扩展</td></tr>
+    <tr><td>8</td><td>桌面与系统集成</td><td class="num">7</td><td>壁纸/动态壁纸/屏保/托盘/全局热键/文件关联/局域网投送与只读分享</td></tr>
+    <tr><td>9</td><td>性能与规模</td><td class="num">9</td><td>百万级列表与搜索可交互，导入吞吐可测，内存可控，有可复跑的基准门槛</td></tr>
+    <tr><td>10</td><td>数据安全与可恢复</td><td class="num">8</td><td>事务与 WAL、版本化迁移、回收站、可撤销、备份可验证、库-盘对账、访问口令</td></tr>
+    <tr><td>11</td><td>稳定性与工程质量</td><td class="num">7</td><td>进程隔离与自愈、类型守门、单测+冒烟+基准、错误不静默、依赖精简</td></tr>
+    <tr><td>12</td><td>易用性与界面</td><td class="num">5</td><td>信息架构清晰、有引导与空态、键盘可达、读屏可用、多语言长尾完整</td></tr>
+    <tr><td>13</td><td>文档与交付</td><td class="num">3</td><td>README 可当手册、应用内教程、更新与回滚、跨平台验收、许可清晰</td></tr>
+  </tbody>
+</table>
+<div class="quote">
+  权重说明：检索（12）与组织（10）最重，因为这是「管理器」与本机文件夹、网盘相册的根本区别；性能（9）与收集（8）次之，因为百万级与多路收口是这类产品的天花板。云与社区不设维度，所以不会出现「因为没做云而扣分」。
+</div>
+<h2><span class="no">03</span>总分与排名</h2>
+<table>
+  <thead><tr><th style="width:40px">#</th><th style="width:150px">产品</th><th class="num" style="width:64px">总分</th><th>它最强的地方</th><th>它最弱的地方（按本口径）</th></tr></thead>
+  <tbody>
+    <tr><td>1</td><td><b>图库 TuKu 1.2.14</b></td><td class="num"><b class="good">8.71</b></td><td>自动化与开放接口、桌面集成、检索深度、非破坏编辑链</td><td>多格式广度、细节打磨、跨平台验收</td></tr>
+    <tr><td>2</td><td>Eagle 4.x</td><td class="num">8.36</td><td>格式广度（90+）、生态与素材沉淀、稳定性、多平台</td><td>无开放 API/MCP，无壁纸与时间线，AI 靠插件，无局域网投送</td></tr>
+    <tr><td>3</td><td>digiKam 8.x</td><td class="num">7.83</td><td>RAW、元数据/XMP、批处理队列、跨平台免费</td><td>界面与交互老旧，检索结构化弱，无桌面集成</td></tr>
+    <tr><td>4</td><td>Immich</td><td class="num">7.73</td><td>手机自动备份、人脸、语义、多用户共享</td><td>必须自建服务器，无桌面编辑与素材组织深度</td></tr>
+    <tr><td>5</td><td>PhotoPrism</td><td class="num">7.40</td><td>索引既有文件夹、AI 标签、地图与时间线</td><td>Docker 依赖，非桌面应用，编辑与产出弱</td></tr>
+    <tr><td>6</td><td>hydrus network</td><td class="num">7.00</td><td>标签体系与重复检测极强、完全本地</td><td>学习曲线陡，无设计资产与桌面集成</td></tr>
+    <tr><td>7</td><td>TagSpaces</td><td class="num">6.50</td><td>文件系统级标签、轻量、跨平台</td><td>功能浅、AI 弱、大库体验差</td></tr>
+  </tbody>
+</table>
+<p><small>计分方式：Σ(维度分 × 权重) ÷ 100。加权原始和：TuKu 870.5 · Eagle 835.5 · digiKam 782.9 · Immich 772.7 · PhotoPrism 739.5。</small></p>
+
+<h2><span class="no">04</span>能力画像</h2>
+<div class="radar">
+  <div><svg id="radar" viewBox="0 0 400 400" width="100%" role="img" aria-label="13 维能力雷达图"></svg></div>
+  <div>
+    <div class="legend">
+      <div><i style="background:#5b8cff"></i>图库 TuKu 1.2.14 — 形状「右半边饱满」：越靠本地自动化越强</div>
+      <div><i style="background:#f0c65a"></i>Eagle 4.x — 格式与易用占优，桌面与开放接口塌陷</div>
+      <div><i style="background:#57c9a5"></i>digiKam 8.x — 均衡但没有尖峰</div>
+    </div>
+    <p style="margin-top:14px"><small>读图要点：TuKu 的凹陷集中在「格式」「性能」「易用」「文档」四个方向，正好对应第 08 节的 P0/P1 清单；Eagle 的凹陷在「桌面集成」「自动化与开放」「AI」。</small></p>
+  </div>
+</div>
+<script>
+(function(){
+  var AX=['收集','组织','检索','编辑','格式','AI','开放','桌面','性能','安全','工程','易用','文档'];
+  var SERIES=[
+    {n:'TuKu',c:'#5b8cff',v:[9.2,9.3,9.0,8.8,8.2,8.5,9.3,9.4,8.0,8.3,8.5,7.6,8.0]},
+    {n:'Eagle',c:'#f0c65a',v:[9.0,9.4,8.6,8.0,9.5,7.5,8.0,5.0,9.2,8.5,7.5,9.0,9.5]},
+    {n:'digiKam',c:'#57c9a5',v:[8.0,8.8,8.2,8.5,9.0,7.0,7.5,6.0,7.0,8.0,8.0,6.5,9.0]}
+  ];
+  var NS='http://www.w3.org/2000/svg',cx=200,cy=198,R=132,n=AX.length;
+  var svg=document.getElementById('radar');
+  function pt(i,r){var a=-Math.PI/2+i*2*Math.PI/n;return [cx+Math.cos(a)*r,cy+Math.sin(a)*r]}
+  function poly(r,attrs){var d=[];for(var i=0;i<n;i++){var p=pt(i,r);d.push((i?'L':'M')+p[0].toFixed(1)+' '+p[1].toFixed(1))}var e=document.createElementNS(NS,'path');e.setAttribute('d',d.join(' ')+'Z');for(var k in attrs)e.setAttribute(k,attrs[k]);svg.appendChild(e)}
+  [0.25,0.5,0.75,1].forEach(function(f){poly(R*f,{fill:'none',stroke:'#242b3a','stroke-width':1})});
+  for(var i=0;i<n;i++){
+    var p=pt(i,R),l=pt(i,R+18);
+    var ln=document.createElementNS(NS,'line');ln.setAttribute('x1',cx);ln.setAttribute('y1',cy);ln.setAttribute('x2',p[0]);ln.setAttribute('y2',p[1]);ln.setAttribute('stroke','#1e2532');svg.appendChild(ln);
+    var t=document.createElementNS(NS,'text');t.setAttribute('x',l[0]);t.setAttribute('y',l[1]);t.setAttribute('fill','#8b95ad');t.setAttribute('font-size','9.5');t.setAttribute('text-anchor','middle');t.setAttribute('dominant-baseline','middle');t.textContent=AX[i];svg.appendChild(t);
+  }
+  SERIES.forEach(function(s){
+    var d=[];for(var i=0;i<n;i++){var p=pt(i,R*s.v[i]/10);d.push((i?'L':'M')+p[0].toFixed(1)+' '+p[1].toFixed(1))}
+    var e=document.createElementNS(NS,'path');e.setAttribute('d',d.join(' ')+'Z');e.setAttribute('fill',s.c);e.setAttribute('fill-opacity',s.n==='TuKu'?0.18:0.06);e.setAttribute('stroke',s.c);e.setAttribute('stroke-width',s.n==='TuKu'?2:1.4);svg.appendChild(e);
+  });
+})();
+</script>
+<h2><span class="no">05</span>13 维点评分与证据</h2>
+<table>
+  <thead><tr><th style="width:104px">维度</th><th class="num" style="width:52px">得分</th><th style="width:44%">判定依据（代码 / 实跑）</th><th>主要差距</th></tr></thead>
+  <tbody>
+    <tr><td>收集与导入</td><td class="num good">9.2</td><td>本地导入 + 断点续传 + 目录监听（<code>server/importer.js</code>）、剪贴板与拖拽、浏览器扩展、扫码投送、10 源采集、内容级去重、Eagle 库导入</td><td>监听在极端时序下的首张丢失刚修完，缺长期回归；无手机端自动备份（不评）</td></tr>
+    <tr><td>组织与元数据</td><td class="num good">9.3</td><td>35 张表含 <code>folders</code> / <code>image_folders</code> 多对多、<code>tag_meta</code> 别名、智能文件夹 AND/OR、批量改上限 5000、堆叠、书签、清单、保存筛选器</td><td>无画布式情绪板；标签层级与配色较浅</td></tr>
+    <tr><td>浏览与检索</td><td class="num good">9.0</td><td>FTS5 trigram（中文可用）+ 前缀语法 + 语义向量 + RRF 融合 + 系统 OCR + 时间线三级 + 虚拟化瀑布流；2 万行下搜索 11ms</td><td>1–2 字短词回退 <code>LIKE</code> 全表扫；无地图检索；以图搜图仅 pHash 近似</td></tr>
+    <tr><td>编辑与产出</td><td class="num">8.8</td><td>非破坏编辑链、裁切/旋转/调色/擦除/标注、水印相框（23+20 款）、插值增强、视频裁切与 GIF/WebM、拼接、CSV/JSON/HTML 画廊导出</td><td>无图层与蒙版、无文字排版级标注、无 RAW 显影；撤销依赖 <code>edit_history</code> 单层</td></tr>
+    <tr><td>格式与媒体</td><td class="num mid">8.2</td><td>常见图 + RAW + 设计稿（PSD/AI/EPS/Sketch/XD/Figma/INDD/CDR）+ HEIF + 视频音频 + 3D + PDF</td><td>字体预览、电子书等弱于 Eagle 的 90+；无 XMP sidecar 读写</td></tr>
+    <tr><td>AI 能力</td><td class="num">8.5</td><td>SCRFD + ArcFace 本地人脸（191MB 本地模型）、CLIP 本地语义、HNSW 索引、Windows OCR、知识库问答，均可离线</td><td>自动标签/描述走外部 AI，断网退化；无本地零样本标签；模型需下载</td></tr>
+    <tr><td>自动化与开放</td><td class="num good">9.3</td><td>Actions（条件 + 预演 + 整体撤销）、插件市场 + 4 个官方插件 + 子进程隔离、MCP server、<code>/api/v1</code> 带 scope 与审计、浏览器扩展</td><td>插件无 OS 级沙箱（无网络/路径白名单）；无事件钩子脚本</td></tr>
+    <tr><td>桌面与系统集成</td><td class="num good">9.4</td><td>静态/动态壁纸、屏保、托盘、全局热键、文件关联、局域网投送 + 只读分享</td><td>无多显示器独立壁纸；mac/Linux 集成未验收</td></tr>
+    <tr><td>性能与规模</td><td class="num mid">8.0</td><td>基准 15 项达标（2 万行：列表 5ms / 深页 8ms / 搜索 11ms / 统计冷 37ms / CLIP 46ms）、6431 行/秒灌库、worker 池 + 批量事务</td><td>基准默认只跑 2 万行；前端 10 万项布局签名全量重建、48/页 → 2000+ 请求；首包 1.29MB 单 chunk</td></tr>
+    <tr><td>数据安全与可恢复</td><td class="num">8.3</td><td>WAL + <code>synchronous=NORMAL</code>、版本化迁移、回收站、<code>edit_history</code> 撤销（2GB 配额）、备份为文件夹拷贝（百万级友好）、库-盘对账、口令门禁 423</td><td>0 外键；备份无校验和清单；口令是门禁不是磁盘加密；无自动备份排程</td></tr>
+    <tr><td>稳定性与工程质量</td><td class="num">8.5</td><td>服务跑 <code>utilityProcess</code> 单属主 + 崩溃自愈、431 单测 / 133 冒烟 / 15 基准、4 套 tsconfig 全量 <code>@ts-check</code>、26 个生产依赖、自研 lint 规则</td><td>29 处空 <code>catch</code>；5 个巨型文件（<code>api.ts</code> 2745 行等）；前后端类型手工维护</td></tr>
+    <tr><td>易用性与界面</td><td class="num bad">7.6</td><td>命令面板、150 条应用内教程、空态与分级 toast、快捷键可改、视觉现代</td><td>27 个弹窗仅 4 个绑 <code>Esc</code>、无焦点陷阱；英文长尾 5545 行硬编码中文</td></tr>
+    <tr><td>文档与交付</td><td class="num mid">8.0</td><td>README 可当手册、更新记录完整、<code>npm run verify</code> 一条命令守门、CI 双远程 + tag 出 Release、NSIS 签名配置</td><td>仅 Windows 实测；mac/Linux 构建配置在但未验收；许可为保留所有权利，外部不可审计</td></tr>
+  </tbody>
+</table>
+
+<div class="grid2">
+  <div class="box">
+    <h4>三项最强（≥ 9.0）</h4>
+    <div class="score"><b>桌面集成</b><div class="bar"><i style="width:94%"></i></div><span>9.4</span></div>
+    <div class="score"><b>组织元数据</b><div class="bar"><i style="width:93%"></i></div><span>9.3</span></div>
+    <div class="score"><b>自动化开放</b><div class="bar"><i style="width:93%"></i></div><span>9.3</span></div>
+    <p><small>这三项恰好是 Eagle 与开源项目共同的塌陷区：Eagle 无开放 API、无壁纸、无 MCP；digiKam 与 PhotoPrism 无桌面集成。</small></p>
+  </div>
+  <div class="box">
+    <h4>三项最弱（&lt; 8.0）</h4>
+    <div class="score"><b>易用与界面</b><div class="bar"><i style="width:76%"></i></div><span>7.6</span></div>
+    <div class="score"><b>性能规模</b><div class="bar"><i style="width:80%"></i></div><span>8.0</span></div>
+    <div class="score"><b>文档交付</b><div class="bar"><i style="width:80%"></i></div><span>8.0</span></div>
+    <p><small>三项都不是「能力缺失」，而是「已有能力没打磨到位」—— 这也是为什么第 08 节的 P0 全是低成本项。</small></p>
+  </div>
+</div>
+
+<h3>敏感性检查：换一套权重会不会翻盘</h3>
+<p>如果把「格式与媒体」权重从 7 提到 12、「易用性」从 5 提到 10（更贴近设计师选型的关注点），并从「自动化 −4、桌面 −3、数据安全 −3」挪出权重：</p>
+<table>
+  <thead><tr><th>口径</th><th class="num">TuKu</th><th class="num">Eagle</th><th>结论</th></tr></thead>
+  <tbody>
+    <tr><td>本地管理器口径（本文）</td><td class="num"><b>8.71</b></td><td class="num">8.36</td><td>TuKu 领先 0.35，靠自动化与桌面集成</td></tr>
+    <tr><td>设计师工具口径（重格式与易用）</td><td class="num">8.59</td><td class="num">8.56</td><td>几乎打平，Eagle 的格式与打磨优势追平了差距</td></tr>
+    <tr><td>专业 DAM 口径（重 XMP/RAW/批处理）</td><td class="num">8.35</td><td class="num">8.30</td><td>digiKam 升到 8.05，三者贴身；TuKu 的 XMP 缺口开始扣分</td></tr>
+  </tbody>
+</table>
+<div class="quote">
+  结论要诚实：<b>面向「个人 / 摄影 / 素材收集 + 自动化」的本地管理器，TuKu 确实更全面</b>；<b>面向「设计师素材库 + 多平台协作」，Eagle 仍更成熟</b>。0.35 的领先不是压倒性的，P0 那几项补丁做完才能把差距拉到可感知。
+</div>
+<h2><span class="no">06</span>优势：真正拉开差距的十件事</h2>
+<p>下面每条都能在代码里指到位置，不是宣传语。</p>
+<table>
+  <thead><tr><th style="width:30px">#</th><th style="width:170px">优势</th><th>证据与为什么它值钱</th></tr></thead>
+  <tbody>
+    <tr><td>1</td><td><b>本地优先、完全离线</b></td><td>无账号、无服务端依赖；人脸/语义/OCR 全在本机跑，断网可用。Eagle 需要登录，PhotoPrism/Immich 需要常驻服务器 —— 这条是产品定位的根，不是功能点。</td></tr>
+    <tr><td>2</td><td><b>检索栈有纵深</b></td><td>FTS5 trigram（<code>server/db.js</code>）解决中文分词，短词回退 <code>LIKE</code>；再叠 CLIP 向量与 RRF 融合、系统 OCR、前缀语法（<code>tag:</code> / <code>rating:</code> / <code>ext:</code>）。多数同类产品只有「文件名 + 标签」。</td></tr>
+    <tr><td>3</td><td><b>非破坏编辑 + 可回滚</b></td><td>编辑走编辑链而非覆盖原图，<code>edit_history</code> 保留原图副本（2GB 配额）。同类开源项目普遍直接写回或只存 sidecar。</td></tr>
+    <tr><td>4</td><td><b>桌面集成最全</b></td><td>静态/动态壁纸、屏保、托盘、全局热键、文件关联、局域网投送与只读分享（<code>server/routes/share.js</code>）。Eagle 完全没做系统集成，digiKam 只做了文件关联。</td></tr>
+    <tr><td>5</td><td><b>自动化是「可撤销的自动化」</b></td><td>Actions 支持条件触发、预演（dry-run）与整体撤销；插件跑在独立子进程并带 5s 超时；<code>/api/v1</code> 有 scope 分级与审计；还提供 MCP server。Eagle 的插件体系更成熟，但没有 HTTP API 与 MCP。</td></tr>
+    <tr><td>6</td><td><b>性能被当成可验收的指标</b></td><td><code>scripts/bench.mjs</code> 15 项门槛（列表 5ms / 深页 8ms / 搜索 11ms）、worker 池 + 批量事务，灌库 6431 行/秒。大多数个人项目只有「感觉挺快」。</td></tr>
+    <tr><td>7</td><td><b>数据可恢复链条完整</b></td><td>WAL + <code>synchronous=NORMAL</code>、<code>schema_migrations</code> 版本化迁移、回收站、库-盘对账、备份即文件夹拷贝（百万级不炸内存）。</td></tr>
+    <tr><td>8</td><td><b>安全是按威胁模型写的</b></td><td><code>server/auth.js</code> 开头就写清威胁模型；<code>timingSafeEqual</code> 比较、<code>Sec-Fetch-Site</code> 拦跨站、query token 只允许只读、扩展 origin 白名单、登录限流与审计。这类项目常见的是「本地嘛，无所谓」。</td></tr>
+    <tr><td>9</td><td><b>测试与守门成本低</b></td><td>431 单测 / 133 冒烟 / 15 基准，<code>npm run verify</code> 一条命令串起来；冒烟会真的起服务、灌库、丢文件看监听。这轮发现的 4 个真 bug 全是被这条链子逼出来的。</td></tr>
+    <tr><td>10</td><td><b>能力标注诚实</b></td><td>插件「白名单不是沙箱」写在 README；语义没命中会明确降级；插值不叫超分。对本地工具来说，可信度本身就是体验。</td></tr>
+  </tbody>
+</table>
+
+<h2><span class="no">07</span>缺点：按「会不会出事」排序</h2>
+<p>P0 = 会丢数据或让用户卡死；P1 = 明显拖后腿；P2 = 打磨项。位置列可直接跳到代码。</p>
+<table>
+  <thead><tr><th style="width:44px">级别</th><th style="width:170px">问题</th><th style="width:150px">位置</th><th>影响与判断</th><th class="num" style="width:52px">成本</th></tr></thead>
+  <tbody>
+    <tr><td><span class="tag t-p0">P0</span></td><td><b>列表分页与布局签名</b></td><td><code>web/src/components/MasonryGrid.tsx</code>、<code>lib/api.ts</code> 分页</td><td>10 万张时每加一页都全量重算布局签名，48/页意味着要看完整库得发 2000+ 请求。大库用户会觉得「越用越卡」，而这不是硬件问题。</td><td class="num">中</td></tr>
+    <tr><td><span class="tag t-p0">P0</span></td><td><b>29 处空 catch</b></td><td><code>web/src/**</code>、<code>server/**</code></td><td>失败被吞掉，用户看到的是「点了没反应」而不是错误提示；排查时也没有日志锚点。这类问题在实装版上最难复现。</td><td class="num">低</td></tr>
+    <tr><td><span class="tag t-p0">P0</span></td><td><b>弹窗键盘与无障碍</b></td><td><code>web/src/components/Dialogs.tsx</code> 等 27 处</td><td>只有 4 个弹窗绑了 <code>Esc</code>，无焦点陷阱，纯键盘用户会被困住；读屏软件读不出弹窗角色。</td><td class="num">中</td></tr>
+    <tr><td><span class="tag t-p0">P0</span></td><td><b>备份缺完整性校验</b></td><td><code>server/lib/transfer.js</code></td><td>备份是文件夹拷贝，没有文件数/校验和清单。半途失败时无法判断这份备份能不能用，恢复前也没有预检。</td><td class="num">低</td></tr>
+    <tr><td><span class="tag t-p0">P0</span></td><td><b>0 个外键约束</b></td><td><code>server/db.js</code>（35 表 / 36 索引 / 0 FK）</td><td>跨表一致性全靠应用层。异常路径（进程被杀、磁盘满）可能留下孤儿行，而删图/删标签这类操作最容易踩。</td><td class="num">中</td></tr>
+    <tr><td><span class="tag t-p1">P1</span></td><td><b>首包 1.29MB 单 chunk</b></td><td><code>vite.config.ts</code>（build 为空配置）</td><td>27 个对话框、Lightbox、设置各页全在主包里。冷启动与低配机器首屏明显偏慢。</td><td class="num">低</td></tr>
+    <tr><td><span class="tag t-p1">P1</span></td><td><b>英文长尾未完成</b></td><td><code>web/src/lib/i18n.ts</code> 与 5545 行硬编码中文</td><td>英文界面只覆盖主干，设置页与错误文案大量中文。对外发布前必须解决，否则等于只有中文版。</td><td class="num">高</td></tr>
+    <tr><td><span class="tag t-p1">P1</span></td><td><b>前后端契约手工维护</b></td><td><code>web/src/lib/types.ts</code>（1410 行手写）对 <code>server/library.js</code> 的 <code>toDTO</code></td><td>字段名/可空性靠人肉同步，改名时编译器帮不上忙。这轮就出现过 DTO 与前端假设不一致的排查成本。</td><td class="num">中</td></tr>
+    <tr><td><span class="tag t-p1">P1</span></td><td><b>五个巨型文件</b></td><td><code>api.ts</code> 2745 行、<code>electron/main.js</code> 2928 行、<code>App.tsx</code> 2060 行、<code>db.js</code> 1521 行、<code>face.js</code> 1496 行</td><td>改动集中处极易冲突，回归面大；也是「不敢重构」的源头。</td><td class="num">高</td></tr>
+    <tr><td><span class="tag t-p1">P1</span></td><td><b>百万级没进 CI</b></td><td><code>scripts/bench.mjs</code> 默认 2 万行</td><td>规模回归没有守门，只有手动 <code>--rows 1000000</code> 才发现慢。评分里性能只有 8.0 就是这个原因。</td><td class="num">中</td></tr>
+    <tr><td><span class="tag t-p1">P1</span></td><td><b>自动标签依赖外部 AI</b></td><td>AI 供应商配置链路</td><td>断网或未配置 key 时「智能标签/描述」直接不可用，与「本地优先」的定位有落差。</td><td class="num">中高</td></tr>
+    <tr><td><span class="tag t-p1">P1</span></td><td><b>无 XMP sidecar</b></td><td>全仓库无 XMP 读写</td><td>标签/评分为私有 DB，迁到 Lightroom/digiKam 就断链；专业 DAM 口径下的硬伤。</td><td class="num">中</td></tr>
+    <tr><td><span class="tag t-p1">P1</span></td><td><b>无地图/地点检索</b></td><td><code>server/lib/geo.js</code> 有地区数据，无视图</td><td>照片库常见诉求（旅行/地点）缺一维，PhotoPrism/digiKam 都有。</td><td class="num">中</td></tr>
+    <tr><td><span class="tag t-p2">P2</span></td><td><b>插件无 OS 沙箱</b></td><td><code>server/lib/plugin-host.js</code></td><td>子进程隔离 + 超时，但没有路径/网络白名单。安装来源不可信时会放大风险。</td><td class="num">高</td></tr>
+    <tr><td><span class="tag t-p2">P2</span></td><td><b>库锁不是磁盘加密</b></td><td>资源库口令（423 门禁）</td><td>DB 与缩略图仍是明文，拷走即可读。文案已说明，但用户容易误解成「加密」。</td><td class="num">高</td></tr>
+    <tr><td><span class="tag t-p2">P2</span></td><td><b>仅 Windows 验收</b></td><td><code>package.json</code> build 有 mac/linux 目标</td><td>构建配置在，但没有真机验收；对外说跨平台会有落差。</td><td class="num">中</td></tr>
+    <tr><td><span class="tag t-p2">P2</span></td><td><b>撤销只有单层</b></td><td><code>server/lib/undo.js</code></td><td>编辑回滚按图备份，不是操作级多步撤销；连续误操作只能一步步来。</td><td class="num">中</td></tr>
+    <tr><td><span class="tag t-p2">P2</span></td><td><b>无自动备份排程</b></td><td>备份是手动入口</td><td>本地管理器最该有的「每周自动备份到另一块盘」缺席。</td><td class="num">低</td></tr>
+    <tr><td><span class="tag t-p2">P2</span></td><td><b>字体/电子书/3D 预览浅</b></td><td>格式白名单与预览组件</td><td>打开得了，但不如 Eagle 的字体渲染与 3D 交互；属于「能用但不惊艳」。</td><td class="num">中</td></tr>
+    <tr><td><span class="tag t-p2">P2</span></td><td><b>无崩溃诊断包</b></td><td>仅有本地 crashReporter</td><td>用户报障时只能靠截图与口头描述；一键导出「日志 + 最近错误 + 环境」能省大量往返。</td><td class="num">低</td></tr>
+  </tbody>
+</table>
+<h2><span class="no">08</span>提分方案：先修「便宜的致命项」</h2>
+<p>排序原则：<b>先做「成本低、影响面广、且能同时抬高多个维度」的项</b>。预估增益按「维度分提升 × 权重 ÷ 100」计算，全部做完约 <b>+0.42 → 9.13</b>；但更重要的是用户能直接感知的三件事：大库不卡、键盘能用、备份敢删。</p>
+<table>
+  <thead><tr><th style="width:44px">阶段</th><th style="width:34px">#</th><th style="width:210px">动作</th><th style="width:110px">影响维度</th><th class="num" style="width:64px">预估增益</th><th style="width:56px">工作量</th><th>验收标准</th></tr></thead>
+  <tbody>
+    <tr><td rowspan="6"><span class="tag t-p0">P0</span><br><small>1.3.0</small></td><td>1</td><td>分页自适应（48 → 120/240）+ 布局签名增量更新</td><td>性能</td><td class="num">+0.054</td><td>2–3 天</td><td>10 万张首屏 &lt; 1.5s；滚动到第 2000 项不掉帧；请求数下降一个数量级</td></tr>
+    <tr><td>2</td><td>Vite 分包：27 个对话框 + Lightbox + 设置页动态 import，配 <code>manualChunks</code></td><td>性能</td><td class="num">+0.018</td><td>1–2 天</td><td>首包 &lt; 600KB；冷启动可交互时间 −30%</td></tr>
+    <tr><td>3</td><td>统一 <code>Modal</code> 基础组件：焦点陷阱、<code>Esc</code>、<code>role="dialog"</code>、<code>aria-modal</code>、自动聚焦</td><td>易用</td><td class="num">+0.050</td><td>3–4 天</td><td>全部弹窗可纯键盘操作；读屏能报出标题与按钮</td></tr>
+    <tr><td>4</td><td>清掉 29 处空 <code>catch</code>，改为「记录 + 用户可见提示」</td><td>工程 / 易用</td><td class="num">+0.021</td><td>1–2 天</td><td><code>rg "catch \{\}"</code> 为 0；失败路径有 toast 或日志锚点</td></tr>
+    <tr><td>5</td><td>备份加「清单 + 校验和 + 恢复前预检」，失败可续</td><td>数据安全</td><td class="num">+0.024</td><td>2 天</td><td>备份产物含 manifest；恢复前能报「缺 3 个文件」而不是中途失败</td></tr>
+    <tr><td>6</td><td>给「删图 / 删标签 / 删文件夹」补一致性守卫（应用层等价外键）</td><td>数据安全</td><td class="num">+0.016</td><td>2–3 天</td><td>异常中断后跑对账 0 孤儿；有单测覆盖</td></tr>
+    <tr><td rowspan="7"><span class="tag t-p1">P1</span><br><small>1.4.0</small></td><td>7</td><td>从服务端 DTO 生成 TS 类型（zod 或脚本），去掉手写 <code>types.ts</code></td><td>工程</td><td class="num">+0.014</td><td>3–4 天</td><td>改字段编译期报错；<code>types.ts</code> 由生成器产出</td></tr>
+    <tr><td>8</td><td>拆 <code>api.ts</code> / <code>main.js</code> / <code>App.tsx</code> 三个巨型文件（按域切模块）</td><td>工程</td><td class="num">+0.021</td><td>1–2 周</td><td>单文件 &lt; 600 行；行为不变，冒烟全绿</td></tr>
+    <tr><td>9</td><td>百万级基准进 CI 夜间任务，低于阈值即失败</td><td>性能</td><td class="num">+0.027</td><td>2–3 天</td><td>每晚跑 <code>--rows 1000000</code>；回归当天可见</td></tr>
+    <tr><td>10</td><td>本地零样本自动标签（CLIP 词表映射），断网也能出标签</td><td>AI</td><td class="num">+0.040</td><td>1–2 周</td><td>断开网络仍能生成标签；有准确率抽样报告</td></tr>
+    <tr><td>11</td><td>XMP sidecar 读写（标签 / 评分 / 备注）</td><td>格式</td><td class="num">+0.028</td><td>1 周</td><td>写出的 XMP 能被 digiKam 正确读取并可回读</td></tr>
+    <tr><td>12</td><td>地点视图（用现有地区数据 + EXIF GPS）</td><td>检索</td><td class="num">+0.024</td><td>1 周</td><td>按城市/国家聚合，可与其他筛选器叠加</td></tr>
+    <tr><td>13</td><td>i18n 长尾收口（先 Settings / Tidy / People / About）</td><td>易用 / 交付</td><td class="num">+0.025</td><td>1–2 周</td><td>切英文后抽查 10 个页面 0 中文残留</td></tr>
+    <tr><td rowspan="4"><span class="tag t-p2">P2</span><br><small>2.0</small></td><td>14</td><td>插件路径/网络白名单 + 安装时权限提示</td><td>开放</td><td class="num">+0.016</td><td>1–2 周</td><td>插件越权访问被拒并留审计记录</td></tr>
+    <tr><td>15</td><td>macOS / Linux 真机验收与签名</td><td>交付 / 桌面</td><td class="num">+0.018</td><td>2–3 周</td><td>三平台各跑一遍冒烟与打包</td></tr>
+    <tr><td>16</td><td>字体渲染 + 3D 交互预览加深</td><td>格式</td><td class="num">+0.014</td><td>2 周</td><td>字体可试排版；3D 可旋转缩放</td></tr>
+    <tr><td>17</td><td>一键诊断包（日志 + 最近错误 + 环境，纯本地导出）</td><td>工程</td><td class="num">+0.007</td><td>2 天</td><td>用户报障只需附一个 zip</td></tr>
+  </tbody>
+</table>
+<div class="quote">
+  <b>不建议现在做的：</b>SQLCipher 全库加密（成本高、密钥管理更麻烦，且与「本地管理器」定位冲突）、多显示器独立壁纸（小众）、情绪板画布（Eagle 的核心差异点，但工作量等同重做一个产品）。
+</div>
+
+<h2><span class="no">09</span>路线图</h2>
+<table>
+  <thead><tr><th style="width:92px">版本</th><th style="width:110px">主题</th><th>内容</th><th class="num" style="width:90px">预计得分</th></tr></thead>
+  <tbody>
+    <tr><td><b>1.3.0</b><br><small>约 4 周</small></td><td>大库不卡、键盘能用、备份敢删</td><td>P0 六项：分页与签名、分包、Modal 基础组件、空 catch 清零、备份校验、一致性守卫</td><td class="num">8.89</td></tr>
+    <tr><td><b>1.4.0</b><br><small>约 6 周</small></td><td>互操作与离线 AI</td><td>P1：契约生成、拆巨型文件、百万级 CI、本地零样本标签、XMP、地点视图、i18n 收口</td><td class="num">9.08</td></tr>
+    <tr><td><b>2.0</b><br><small>季度级</small></td><td>跨平台与可扩展</td><td>P2：插件白名单、mac/Linux 验收、字体与 3D 预览、诊断包</td><td class="num">9.13</td></tr>
+  </tbody>
+</table>
+<p><small>得分是按第 08 节估算值累加的结果，不是承诺；每完成一项应当在本文与 README 里同步更新证据，否则分数会再次失真。</small></p>
+<h2><span class="no">10</span>明确不做的四类事</h2>
+<div class="grid2">
+  <div class="box">
+    <h4>不做，以及为什么</h4>
+    <ul>
+      <li><b>云同步</b>：要服务器、带宽与账号体系，成本与维护都是无底洞；同步文件夹 + 手动备份已经能覆盖 90% 场景。</li>
+      <li><b>社区 / 素材市场</b>：需要审核、版权、举报与运营，不是一个人的项目该碰的。</li>
+      <li><b>多用户与协作</b>：权限模型、冲突合并、审计会推翻现有单用户数据模型。</li>
+      <li><b>移动端原生 App</b>：上架、签名、审核、双端同步都要持续投入。</li>
+    </ul>
+  </div>
+  <div class="box">
+    <h4>用什么替代</h4>
+    <ul>
+      <li><b>局域网投送 + 只读分享</b>：手机/平板浏览器扫码看图、下载，不依赖公网。</li>
+      <li><b>同步文件夹</b>：把素材根目录放进 OneDrive / Syncthing / 局域网共享，由系统层负责同步。</li>
+      <li><b>导出与互操作</b>：CSV / JSON / HTML 画廊，随时能带走数据。</li>
+      <li><b>备份</b>：本地文件夹拷贝（百万级友好），建议配一块外置盘。</li>
+    </ul>
+  </div>
+</div>
+<p>这条边界要写进 README 与产品页：<b>「本地优先」不是缩水版，而是取舍后的产品主张</b>。用户知道你不做云，就不会因为「没有手机自动备份」而失望；反过来，含糊其辞才会带来差评。</p>
+
+<h2><span class="no">11</span>互操作：数据能不能带走</h2>
+<table>
+  <thead><tr><th style="width:150px">方向</th><th style="width:80px">支持度</th><th>说明</th></tr></thead>
+  <tbody>
+    <tr><td>从 Eagle 迁入</td><td><span class="tag t-ok">支持</span></td><td>可读取 Eagle 库结构与元数据；这是目前最重要的迁入路径。</td></tr>
+    <tr><td>迁出到其他 DAM</td><td><span class="tag t-p1">部分</span></td><td>只有 CSV/JSON 与文件本体；<b>没有 XMP sidecar</b>，Lightroom / digiKam 读不到标签与评分。P1-11 就是补这个。</td></tr>
+    <tr><td>备份可搬</td><td><span class="tag t-ok">支持</span></td><td>库就是文件夹，拷到别的机器可直接用；无账号绑定，这点优于 Eagle。</td></tr>
+    <tr><td>开放接口</td><td><span class="tag t-ok">支持</span></td><td><code>/api/v1</code> + scope + MCP，可被脚本与其他工具调用。</td></tr>
+    <tr><td>格式无损编辑</td><td><span class="tag t-p1">部分</span></td><td>编辑结果落在自己的编辑链里，不写回原图是优点；但副作用是外部工具看不到编辑结果，导出后才可交换。</td></tr>
+  </tbody>
+</table>
+
+<h2><span class="no">12</span>附录：客观指标（本次统计口径）</h2>
+<table>
+  <thead><tr><th style="width:180px">指标</th><th style="width:170px">数值</th><th>口径</th></tr></thead>
+  <tbody>
+    <tr><td>服务端代码</td><td class="num">43,457 行 / 168 文件</td><td><code>server/**</code>，不含构建产物</td></tr>
+    <tr><td>前端代码</td><td class="num">62,147 行 / 188 文件</td><td><code>web/**</code> 的 ts/tsx/css</td></tr>
+    <tr><td>桌面端 / 测试 / 脚本</td><td class="num">4,460 / 7,698 / 3,916 行</td><td><code>electron/</code>、<code>test/</code>、<code>scripts/</code></td></tr>
+    <tr><td>数据层</td><td class="num">35 表 / 36 索引 / 1 唯一索引 / 0 外键</td><td><code>server/db.js</code>（WAL、版本化迁移）</td></tr>
+    <tr><td>接口规模</td><td class="num">31 个路由文件</td><td><code>server/routes/*.js</code></td></tr>
+    <tr><td>测试（verify 自动回写）</td><td class="num"><span data-stat="unit">431 / 431</span> 单测 · <span data-stat="smoke">133 / 133</span> 冒烟 · <span data-stat="bench">15 / 15</span> 基准</td><td><code>npm run unit / smoke / bench:quick</code>；数字来自 <code>docs/.verify-stats.json</code></td></tr>
+    <tr><td>依赖</td><td class="num">26 生产 / 12 开发</td><td><code>package.json</code>（本地应用里算克制）</td></tr>
+    <tr><td>前端体积</td><td class="num">首包 1.29MB / 全部 JS 2.65MB</td><td><code>dist/web/assets</code> 未压缩</td></tr>
+    <tr><td>类型与错误处理</td><td class="num"><code>any</code> 31 处 / <code>@ts-ignore</code> 2 处 / 空 <code>catch</code> 29 处</td><td>正则统计，已排除注释中的说明性文字</td></tr>
+    <tr><td>多语言长尾</td><td class="num">5,545 行含中文字面量</td><td><code>web/**</code> 非注释行，英文界面覆盖不足的证据</td></tr>
+    <tr><td>基准（2 万行）</td><td class="num">列表 5ms · 深页 8ms · 搜索 11ms · 统计冷 37ms · CLIP 46ms</td><td><code>npm run bench:quick</code> 实跑，15 项全达标</td></tr>
+    <tr><td>导入吞吐</td><td class="num">6,431 行/秒</td><td>同一次基准的灌库阶段</td></tr>
+  </tbody>
+</table>
+<p><small>说明：所有数字来自 2026-11-15 的一次性统计脚本（遍历仓库、排除 <code>node_modules</code> 与构建产物）。数字会随代码变化，分数与结论应同步复核，否则这份文档会像它的上一版一样过期。</small></p>
+
+<h2><span class="no">13</span>一句话结论</h2>
+<div class="quote" style="font-size:14.5px">
+  这是一款<b>能力面比定位更宽</b>的本地管理器：检索、自动化、桌面集成已经超过 Eagle，但多格式、细节打磨与跨平台还差一口气。
+  接下来的重点不是「再加功能」，而是把已经有的东西<b>做扎实</b>：大库不卡、键盘能用、备份可验证、数据能带走。
+  这四件事做完，8.71 会变成 9.1，而且每一条用户都能立刻感觉到。
+</div>
+
+<footer>
+  图库 TuKu · 全面评测与提分方案 · v1.2.14 · 2026-11-15 按代码与实跑复核 ·
+  证据来源：仓库静态审核、<code>npm run verify</code>（lint / typecheck / 431 单测 / 133 冒烟 / 15 基准）、<code>npm run bench:quick</code> 实跑 ·
+  本评估不含社区、云同步、多用户与移动端 App
+</footer>
+</div>
+</body>
+</html>

@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 /**
- * 把 verify 的实跑统计回写进 docs/项目现状与差距.html。
+ * 把 verify 的实跑统计回写进 docs/评测与路线图.html。
  *
  * 背景：文档里的「177 文件 / 345 单测 / 106 冒烟 / 15 基准」以前靠手抄，
  * 上一版直接抄成 175 / 322 / 105，与实测差了一轮 —— 台账的信用全靠数字对得上，
@@ -16,7 +16,7 @@ import { fileURLToPath, pathToFileURL } from 'node:url';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const STATS_PATH = path.join(ROOT, 'docs', '.verify-stats.json');
-const DOC_PATH = path.join(ROOT, 'docs', '项目现状与差距.html');
+const DOC_PATH = path.join(ROOT, 'docs', '评测与路线图.html');
 
 export function readStats() {
   try {
