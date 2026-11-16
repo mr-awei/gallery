@@ -1,6 +1,6 @@
 # 图库 TuKu
 
-[![版本](https://img.shields.io/badge/version-1.2.19-2563eb.svg)](https://github.com/mr-awei/gallery/releases/latest)
+[![版本](https://img.shields.io/badge/version-1.2.20-2563eb.svg)](https://github.com/mr-awei/gallery/releases/latest)
 [![平台](https://img.shields.io/badge/platform-Windows%2010%2F11-5b6472.svg)](#1-它是什么)
 [![Electron](https://img.shields.io/badge/Electron-44.4.5-47848f.svg)](#4-架构与数据流)
 [![Node](https://img.shields.io/badge/Node-%E2%89%A522.5-339933.svg)](#11-从源码运行)
@@ -505,9 +505,9 @@ docs/              评测与路线图.html（评分 / 缺点 / 交付顺序）�
 
 | 环节 | 命令 | 本次结果 |
 | --- | --- | --- |
-| 静态检查 | `npm run lint` | 249 个文件，0 错误 / 0 告警；`electron/**`、`server/lib/**`、`server/routes/**` 缺 `@ts-check` 直接失败 |
+| 静态检查 | `npm run lint` | 250 个文件，0 错误 / 0 告警；`electron/**`、`server/lib/**`、`server/routes/**` 缺 `@ts-check` 直接失败 |
 | 类型 | `npm run typecheck` | Web / Node / 纯函数库 / server-lib 四套 tsconfig 通过 |
-| 单测 | `npm run unit` | 512/512（鉴权、颜色搜索、CLIP 索引、HNSW 召回、人脸几何、RAW/PSD、模型清单、插件市场、名称模板、LAN、回收站、相似检索、非破坏几何、外键级联、接口文档、夜间时段、瀑布流布局等） |
+| 单测 | `npm run unit` | 520/520（鉴权、颜色搜索、CLIP 索引、HNSW 召回、人脸几何、RAW/PSD、模型清单、插件市场、名称模板、LAN、回收站、相似检索、非破坏几何、外键级联、接口文档、夜间时段、瀑布流布局等） |
 | 冒烟 | `npm run smoke` | 143/143 |
 | 基准 | `npm run bench:quick` | 15/15 达标 |
 | 人工清单 | `npm run verify:manual` | 11 个脚本登记齐全，实跑 1 个无头脚本 |

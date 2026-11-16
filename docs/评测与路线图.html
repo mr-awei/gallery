@@ -183,8 +183,8 @@
   </p>
   <div class="chips">
     <span class="chip">审计日期 <b>2026-11-16</b></span>
-    <span class="chip">代码版本 <b>1.2.19</b></span>
-    <span class="chip">规模 <b>563 文件 / 136,618 行</b></span>
+    <span class="chip">代码版本 <b>1.2.20</b></span>
+    <span class="chip">规模 <b>563 文件 / 136,623 行</b></span>
     <span class="chip">方法 <b>代码审计 + 实跑基准 + 8 竞品对标</b></span>
     <span class="chip">配套文档 <b><a href="./产品介绍.html">功能资料（面向普通用户）</a></b></span>
   </div>
@@ -682,7 +682,8 @@
   <div class="callout" style="margin-top:18px">
     <b>现在只剩两堵墙：</b>① 买证书签名（决定"能不能发给别人用"）；
     ② mac / Linux 真机验收（不验收就别宣称支持）。剩下的都是打磨，可以慢慢来。
-    本版（1.2.19）清掉的是两件事：显卡后端在个别驱动组合上直接把服务进程打死（DML 原生崩溃）导致的「启动即失败」——崩溃会被主进程记进 <span class="mono">device-state.json</span>，下次启动自动走 CPU，页面加载也改为等服务恢复而不是直接判死；以及 1.2.18 安装包「启动就弹 A JavaScript error」的回归——新加的显卡状态模块在模块求值期依赖 <span class="mono">server/config.js</span>，而主进程是先求值 import 图再注入用户目录，于是 <span class="mono">mkdirSync</span> 打到了只读的 <span class="mono">app.asar</span> 里（Windows 报 ENOTDIR），现已改为自己推算根目录，并加了一条静态依赖图单测守住；
+    本版（1.2.20）修的是拼图构图台的一个样式塌陷：成品覆盖层 <span class="mono">.st-edit-result</span> 的宽度被 <span class="mono">modal.css</span> 里给普通对话框缩略图写的 <span class="mono">.modal-body img{width:150px;object-fit:cover}</span> 压掉（特定度 0,1,1 &gt; 0,1,0），预览只剩左边窄窄一条成品、右边露出底下的实时格子，看上去就是「画面撕裂、重复」。现已把选择器抬到 <span class="mono">.st-edit-canvas .st-edit-result</span> 并压掉描边与 align-self；导出文件本身一直是服务端合成的，未受影响。
+    上一版（1.2.19）清掉的是两件事：显卡后端在个别驱动组合上直接把服务进程打死（DML 原生崩溃）导致的「启动即失败」——崩溃会被主进程记进 <span class="mono">device-state.json</span>，下次启动自动走 CPU，页面加载也改为等服务恢复而不是直接判死；以及 1.2.18 安装包「启动就弹 A JavaScript error」的回归——新加的显卡状态模块在模块求值期依赖 <span class="mono">server/config.js</span>，而主进程是先求值 import 图再注入用户目录，于是 <span class="mono">mkdirSync</span> 打到了只读的 <span class="mono">app.asar</span> 里（Windows 报 ENOTDIR），现已改为自己推算根目录，并加了一条静态依赖图单测守住；
     上一版（1.2.17）清掉的是：网格布局的 O(n) 全量重算（改成增量追加 + 底边分桶）、AI 夜间批处理队列；
     v1.2.16 清掉的是：主网格虚拟滚动与 roving tabindex、首屏与包体、首次导入吞吐、接口示例代码、单机算力天花板、外键与 API 参考。
   </div>
@@ -694,7 +695,7 @@
   </p>
 
   <div class="grid4">
-    <div class="tile"><div class="v">136,618</div><div class="k">行代码 / 563 个文件</div><div class="s">web 67,662 · server 48,790 · test 9,171</div></div>
+    <div class="tile"><div class="v">136,623</div><div class="k">行代码 / 563 个文件</div><div class="s">web 67,667 · server 48,790 · test 9,171</div></div>
     <div class="tile"><div class="v">409</div><div class="k">HTTP 端点 / 34 个路由模块</div><div class="s">统一错误信封 + 输入白名单（数字取自 <span class="mono">/api/docs</span> 自省）</div></div>
     <div class="tile"><div class="v">40</div><div class="k">数据表 / 15 触发器 / 37 索引</div><div class="s">外键已开，FTS5 trigram 全文索引</div></div>
     <div class="tile"><div class="v" data-stat="summary" style="font-size:17px">250 · 520 · 143 · 15</div><div class="k">lint 文件 · 单测 · 冒烟 · 基准（verify 实跑回写）</div><div class="s"><span data-stat="testFiles">79</span> 个 .test.mjs 文件 · 一条命令跑完</div></div>
@@ -711,7 +712,7 @@
         <table style="min-width:0">
           <thead><tr><th>目录</th><th>文件</th><th>行数</th><th>占比</th></tr></thead>
           <tbody>
-            <tr><td>web/src（前端）</td><td class="num">222</td><td class="num">67,662</td><td class="num">49.5%</td></tr>
+            <tr><td>web/src（前端）</td><td class="num">222</td><td class="num">67,667</td><td class="num">49.5%</td></tr>
             <tr><td>server（后端）</td><td class="num">199</td><td class="num">48,790</td><td class="num">35.7%</td></tr>
             <tr><td>test（测试）</td><td class="num">81</td><td class="num">9,171</td><td class="num">6.7%</td></tr>
             <tr><td>electron（桌面）</td><td class="num">29</td><td class="num">5,185</td><td class="num">3.8%</td></tr>
@@ -960,7 +961,7 @@
 </section>
 
 <div class="foot">
-  报告生成于 2026-11-16 · 代码版本 1.2.19（Node ≥22.5）· 统计口径：仓库内 <span class="mono">web/src</span>、<span class="mono">server</span>、<span class="mono">electron</span>、<span class="mono">test</span>、<span class="mono">scripts</span>、<span class="mono">extension</span> 六个目录，共 563 文件 / 136,618 行。<br>
+  报告生成于 2026-11-16 · 代码版本 1.2.20（Node ≥22.5）· 统计口径：仓库内 <span class="mono">web/src</span>、<span class="mono">server</span>、<span class="mono">electron</span>、<span class="mono">test</span>、<span class="mono">scripts</span>、<span class="mono">extension</span> 六个目录，共 563 文件 / 136,623 行。<br>
   分数口径（全部百分制）：单机基准 <b>90.9</b>（13 维，已实现）· 17 维当前分 <b>71.2</b>（第 3）· 中期目标 <b>76.4</b>（第 2）· 远期目标 <b>87.1</b>（第 1）。同一口径下远期高于现在，三档换算见第 01、09 节。<br>
   竞品分数为本报告评分框架下的<b>估算</b>（依据公开功能面），不是厂商官方评分，也不构成购买建议；TuKu 的分数全部可由仓库代码与实跑基准复核。上一版 90.0 已由本版 90.9 取代。<br>
   配套文档：<a href="./产品介绍.html">产品介绍（面向普通用户，不含评分方法）</a>
