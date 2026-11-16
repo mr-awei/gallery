@@ -22,6 +22,7 @@ import { cancelMattingInstall, installMatting } from '../matting.js';
 import { cancelFaceInstall, cancelFaceScan, startFaceInstall, startFaceScan } from '../face.js';
 import { cancelEagleExport, startEagleExportJob } from '../eagle-export-job.js';
 import { cancelTimelineBackfill, startTimelineBackfill } from '../timeline-backfill.js';
+import { stopNightBatch } from '../lib/night-batch.js';
 
 /* ------------------------------ 撤销执行器 ------------------------------ */
 
@@ -223,6 +224,7 @@ const KIND_TITLE = {
   'face-scan': '人脸扫描',
   'eagle-export': '导出 Eagle 库',
   'timeline-backfill': '重建拍摄时间',
+  'night-batch': 'AI 夜间批处理',
 };
 
 export function register(app) {
@@ -261,6 +263,7 @@ export function register(app) {
       cancelTimelineBackfill();
       ok = true;
     }
+    else if (job.kind === 'night-batch') ok = stopNightBatch().ok;
     res.json({ ok, message: ok ? '已请求停止' : '该任务不支持从任务中心停止' });
   });
 

@@ -14,6 +14,7 @@ import { DET_FILE, REC_FILE, DET_KEY, REC_KEY, REPO, MIRRORS } from './constants
 import { downloadModelFile, verifyModelFileDetailed, KNOWN_SHA256 } from '../model-fetch.js';
 import { createJob, finishJob, jobProgress } from '../jobs.js';
 import { modelState, getInstallAbort, setInstallAbort } from './state.js';
+import { createOrtSession } from '../lib/onnx-device.js';
 
 /** 惰性单例：整进程唯一的 ONNX 会话持有者 */
 let sessionPromise = null;
@@ -127,8 +128,8 @@ export function getSessions() {
       }
     }
     const ort = await import('onnxruntime-node');
-    const det = await ort.InferenceSession.create(DET_FILE);
-    const rec = await ort.InferenceSession.create(REC_FILE);
+    const det = await createOrtSession(ort, DET_FILE, '人脸检测 SCRFD');
+    const rec = await createOrtSession(ort, REC_FILE, '人脸特征 ArcFace');
     return { ort, det, rec };
   })().catch((err) => {
     sessionPromise = null;

@@ -15,6 +15,7 @@ import sharp from 'sharp';
 import { DATA_DIR } from './config.js';
 import { downloadModelFile, verifyModelFileDetailed, KNOWN_SHA256, isPinned } from './model-fetch.js';
 import { createJob, finishJob, jobProgress } from './jobs.js';
+import { createOrtSession } from './lib/onnx-device.js';
 
 const AI_DIR = path.join(DATA_DIR, 'ai');
 const DIR = path.join(AI_DIR, 'matting');
@@ -334,7 +335,7 @@ async function getSession(profile) {
       );
     }
     const ort = await import('onnxruntime-node');
-    return ort.InferenceSession.create(modelFile);
+    return createOrtSession(ort, modelFile, `抠图 ${profile.id}`);
   })().catch((err) => {
     sessions.delete(profile.id);
     throw err;

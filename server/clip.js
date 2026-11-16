@@ -18,6 +18,7 @@ import { db, getLibraryGeneration, getActiveLibrary } from './db.js';
 import { MODEL_CACHE_DIR, DATA_DIR } from './config.js';
 import { KNOWN_SHA256 } from './model-fetch.js';
 import { createJob, finishJob } from './jobs.js';
+import { withDevicePreference } from './lib/onnx-device.js';
 import { openIndex } from './lib/clip-index.js';
 import { scanBuckets } from './lib/clip-scan.js';
 
@@ -119,10 +120,16 @@ function getExtractor() {
   }
   if (!extractorPromise) {
     extractorReady = false;
-    extractorPromise = pipeline('image-feature-extraction', MODEL_ID, {
-      dtype: 'q8',
-      progress_callback: onProgress('视觉塔'),
-    })
+    // 有显卡就挂在显卡上跑：视觉塔是导入时逐张过，CPU 上是大头
+    extractorPromise = withDevicePreference(
+      (device) =>
+        pipeline('image-feature-extraction', MODEL_ID, {
+          dtype: 'q8',
+          device,
+          progress_callback: onProgress('视觉塔'),
+        }),
+      'CLIP 视觉塔'
+    )
       .then((p) => {
         extractorReady = true;
         return p;
@@ -236,7 +243,10 @@ function getTextEncoder() {
     textPromise = (async () => {
       verifyPinnedModels(); // 文本塔与图像塔共用仓库权重，同样先过可信哈希清单
       const tokenizer = await AutoTokenizer.from_pretrained(MODEL_ID);
-      const model = await CLIPTextModelWithProjection.from_pretrained(MODEL_ID, { dtype: 'q8' });
+      const model = await withDevicePreference(
+        (device) => CLIPTextModelWithProjection.from_pretrained(MODEL_ID, { dtype: 'q8', device }),
+        'CLIP 文本塔'
+      );
       textReady = true;
       return { tokenizer, model };
     })().catch((err) => {
@@ -643,7 +653,7 @@ export async function topSimilar(vec, { k = 24, minCos = 0.8, excludeId = 0, ann
 
 /* ------------------------------- 全库补算 ------------------------------- */
 
-const backfillState = { running: false, done: 0, total: 0, error: '' };
+const backfillState = { running: false, done: 0, total: 0, error: '', cancelled: false };
 
 export function backfillStatus() {
   return {
@@ -651,10 +661,18 @@ export function backfillStatus() {
     done: backfillState.done,
     total: backfillState.total,
     error: backfillState.error,
+    cancelled: backfillState.cancelled,
     indexed: embeddingCount(),
     model: MODEL_ID,
     loadError,
   };
+}
+
+/** 停止补算：只在当前这张图算完后退出循环，已写入的特征保留（下次从缺失处继续） */
+export function cancelBackfill() {
+  if (!backfillState.running) return false;
+  backfillState.cancelled = true;
+  return true;
 }
 
 /** 为所有缺失特征的图片补算（异步后台跑，进度见 backfillStatus） */
@@ -669,6 +687,7 @@ export async function startBackfill() {
   backfillState.done = 0;
   backfillState.total = total;
   backfillState.error = '';
+  backfillState.cancelled = false;
   (async () => {
     try {
       await getExtractor();
@@ -683,6 +702,7 @@ export async function startBackfill() {
         if (!rows.length) break;
         cursor = rows[rows.length - 1].id;
         for (const { id, abs_path } of rows) {
+          if (backfillState.cancelled) break;
           if (generation !== getLibraryGeneration()) {
             backfillState.error = '已切换资源库，补算中止';
             break;
@@ -701,12 +721,14 @@ export async function startBackfill() {
           // 纯睡眠（百万张 ≈ 11 小时），setImmediate 同样让出主线程但不空等。
           await new Promise((r) => setImmediate(r));
         }
+        if (backfillState.cancelled) break;
         if (generation !== getLibraryGeneration()) break;
       }
     } catch (err) {
       backfillState.error = err?.message || String(err);
     } finally {
       backfillState.running = false;
+      backfillState.cancelled = false;
     }
   })();
   return { ok: true, total };

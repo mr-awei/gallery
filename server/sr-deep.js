@@ -10,6 +10,7 @@ import { createRequire } from 'node:module';
 import { pipeline, env } from '@huggingface/transformers';
 import sharp from 'sharp';
 import { MODEL_CACHE_DIR } from './config.js';
+import { withDevicePreference } from './lib/onnx-device.js';
 
 // 模型缓存放可写目录：打包版代码在只读 asar 内，指向 asar 会导致首次下载必挂
 env.cacheDir = MODEL_CACHE_DIR;
@@ -174,14 +175,20 @@ export async function loadSrModel(modelId) {
   state.message = '准备下载…';
   state.error = '';
   try {
-    const pipe = await pipeline('image-to-image', model.repo, {
-      progress_callback: (p) => {
-        if (typeof p?.progress === 'number') {
-          state.progress = Math.min(100, Math.round(p.progress));
-          state.message = p.file ? `下载中 ${state.progress}%（${p.file}）` : `下载中 ${state.progress}%`;
-        }
-      },
-    });
+    // Swin2SR 是这一档最慢的环节，能从 CPU 挪到显卡就挪（DirectML / CUDA，失败自动回退）
+    const pipe = await withDevicePreference(
+      (device) =>
+        pipeline('image-to-image', model.repo, {
+          device,
+          progress_callback: (p) => {
+            if (typeof p?.progress === 'number') {
+              state.progress = Math.min(100, Math.round(p.progress));
+              state.message = p.file ? `下载中 ${state.progress}%（${p.file}）` : `下载中 ${state.progress}%`;
+            }
+          },
+        }),
+      `Swin2SR ${model.repo}`
+    );
     pipes.set(model.repo, pipe);
     state.message = '已就绪';
   } catch (err) {

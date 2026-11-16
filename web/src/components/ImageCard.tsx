@@ -71,6 +71,12 @@ interface Props {
   onUngroupStack?: (stackId: number) => void;
   /** 把拖过来的图叠到这张上（目标是组主则并入该组，否则两张成组） */
   onStackDrop?: (dragIds: number[], target: ImageItem) => void;
+  /**
+   * Tab 停点。网格里由 MasonryGrid 用 roving tabindex 注入：
+   * 只有「当前活动格」是 0，其余 -1，否则万级图库按 Tab 要逐张过一遍。
+   * 单独使用（灯箱、堆叠查看器等）时缺省 0 即可。
+   */
+  tabIndex?: number;
 }
 
 /* 全局同时只保留一个卡片右键菜单：在另一张卡上右键时先收起上一张的（菜单状态在各卡实例内，需跨实例互斥） */
@@ -297,6 +303,7 @@ const ImageCard = React.memo(function ImageCard({
   onOpenStack,
   onUngroupStack,
   onStackDrop,
+  tabIndex = 0,
 }: Props) {
   // 手动排序时被拖到本卡上方高亮：告诉用户「松手就插到这张后面」
   const [dropHint, setDropHint] = useState(false);
@@ -778,7 +785,7 @@ const ImageCard = React.memo(function ImageCard({
         setMenu({ x: e.clientX, y: e.clientY });
       }}
       onKeyDown={onKeyDown}
-      tabIndex={0}
+      tabIndex={tabIndex}
       role="button"
       aria-label={item.title}
       aria-pressed={selected}

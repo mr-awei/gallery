@@ -5,23 +5,31 @@ import type { Filters, ImageItem, FolderNode, Playlist, ViewMode } from '../type
 import FilterBar from '../components/FilterBar';
 import ImageCard from '../components/ImageCard';
 import { promptDialog } from '../components/Dialogs';
-import BulkEditDialog from '../components/BulkEditDialog';
-import BatchCropStudio, { type CropItem } from '../components/BatchCropStudio';
-import ExportDialog from '../components/ExportDialog';
-import RenameBatchDialog from '../components/RenameBatchDialog';
-import BulkMetadataDialog from '../components/BulkMetadataDialog';
+import type { CropItem } from '../components/BatchCropStudio';
 import MasonryGrid from '../components/MasonryGrid';
-import StitchDialog from '../components/StitchDialog';
-import CompareView from '../components/CompareView';
 import ActionsPanel from '../components/ActionsPanel';
 import { IconDownload, IconFolder, IconHeart, IconTrash } from '../components/Icons';
 import { IconWarning, IconImages, IconGear, IconRotateCcw, IconGlobe, IconFolderOpen, IconClose, IconPencil, IconCheck, IconStar, IconRefresh } from '../components/Icons';
 import Select from '../components/Select';
 import ToolbarCustomizer from '../components/ToolbarCustomizer';
-import WatermarkStudio from '../components/WatermarkStudio';
 import { usePinnedActions } from '../lib/pinned';
 import { IMAGE_MIME, TAG_MIME } from '../lib/dnd';
-import FolderGroupView from '../components/FolderGroupView';
+
+/**
+ * 低频重浮层全部按需加载：它们只在用户点了「批量裁切 / 调色 / 水印 / 拼图 / 对比 / 导出」
+ * 之后才出现，没必要压在首屏包里。装到裸静态 import 时，这 8 个组件
+ * （画布、模板渲染、表格、对比台）合计把首包撑大两三百 KB，而首屏根本用不到。
+ */
+const BatchCropStudio = React.lazy(() => import('../components/BatchCropStudio'));
+const BulkEditDialog = React.lazy(() => import('../components/BulkEditDialog'));
+const ExportDialog = React.lazy(() => import('../components/ExportDialog'));
+const RenameBatchDialog = React.lazy(() => import('../components/RenameBatchDialog'));
+const BulkMetadataDialog = React.lazy(() => import('../components/BulkMetadataDialog'));
+const StitchDialog = React.lazy(() => import('../components/StitchDialog'));
+const CompareView = React.lazy(() => import('../components/CompareView'));
+const WatermarkStudio = React.lazy(() => import('../components/WatermarkStudio'));
+// 「按文件夹收纳」是另一种视图，只在切过去时才有用；文件夹预览与拖放逻辑不压首屏
+const FolderGroupView = React.lazy(() => import('../components/FolderGroupView'));
 
 interface Props {
   title: string;
@@ -715,20 +723,29 @@ function Gallery(props: Props) {
 
       {/* 图片展开视图只平铺素材本身（文件夹里的图也在内），不再插一排文件夹卡片；
           按文件夹浏览统一交给「按文件夹收纳」视图 */}
+      {/* 筛选/搜索后读屏用户需要知道还剩多少张，否则只能自己数 */}
+      <div className="sr-only" role="status" aria-live="polite" aria-atomic="true">
+        {props.loading ? '正在加载图片' : `共 ${total} 张图片`}
+      </div>
+
       {viewMode === 'folder' ? (
-        <FolderGroupView
-          folders={props.folders || []}
-          folderId={props.folderId ?? null}
-          rootName={props.rootName || '当前资源库'}
-          onOpenRoot={props.onOpenRoot || (() => undefined)}
-          onOpenFolder={props.onOpenFolder || (() => undefined)}
-          onOpenImage={props.onOpenImageFromFolder || (() => undefined)}
-          onDropImages={props.onDropImagesOnFolder}
-          onShowUnfiled={props.onShowUnfiled}
-          unfiledCount={props.unfiledCount}
-          refreshSeq={props.refreshSeq}
-          totalImages={total}
-        />
+        <React.Suspense
+          fallback={<div className="tiny muted" style={{ padding: '28px 4px' }}>正在加载文件夹视图…</div>}
+        >
+          <FolderGroupView
+            folders={props.folders || []}
+            folderId={props.folderId ?? null}
+            rootName={props.rootName || '当前资源库'}
+            onOpenRoot={props.onOpenRoot || (() => undefined)}
+            onOpenFolder={props.onOpenFolder || (() => undefined)}
+            onOpenImage={props.onOpenImageFromFolder || (() => undefined)}
+            onDropImages={props.onDropImagesOnFolder}
+            onShowUnfiled={props.onShowUnfiled}
+            unfiledCount={props.unfiledCount}
+            refreshSeq={props.refreshSeq}
+            totalImages={total}
+          />
+        </React.Suspense>
       ) : viewMode === 'list' ? (
         /* 列表视图（Eagle List View）：一屏看更多，靠标签/日期/大小做整理 */
         <div className="list-view" ref={listRef}>
@@ -889,6 +906,8 @@ function Gallery(props: Props) {
           items={items}
           mode={viewMode === 'grid' ? 'grid' : 'masonry'}
           colWidth={props.colWidth}
+          /* 整块网格只留一个 Tab 停点，其余靠方向键走；否则几万张要按几万次 Tab */
+          roving
           onVisibleIds={warmVisible}
           renderItem={(item) => (
             <ImageCard
@@ -1096,6 +1115,8 @@ function Gallery(props: Props) {
         </div>
       )}
 
+      {/* 按需加载的重浮层：加载失败不该影响主格网，fallback 只留空白 */}
+      <React.Suspense fallback={null}>
       {/* 批量裁切：独立的全屏裁切台（每张一个框，可选比例/横竖/尺寸/自动焦点） */}
       {bulkEdit === 'crop' && (
         <BatchCropStudio
@@ -1212,6 +1233,7 @@ function Gallery(props: Props) {
         onChange={setBulkPinned}
         onClose={() => setTczOpen(false)}
       />
+      </React.Suspense>
 
 
       {/* 拖拽入库由 App 层 GlobalImport 统一接管：屏幕中央圆形靶盘，落点不在圈内不入库 */}

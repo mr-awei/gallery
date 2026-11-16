@@ -180,6 +180,7 @@ export default function DialogHost() {
                   本机：{hw.cpu.model}（{hw.cpu.cores} 核）· 内存 {fmtMB(hw.ram.totalMB)}
                   ，可用 {fmtMB(hw.ram.freeMB)} ·{' '}
                   {gpuNames.length ? `显卡 ${gpuNames.join(' / ')}` : '显卡 未读到'}
+                  {hw.ort ? ` · 推理 ${hw.ort.backend ? (hw.ort.backend === 'directml' ? 'DirectML（显卡）' : hw.ort.backend === 'cuda' ? 'CUDA（显卡）' : 'CPU') : hw.ort.note}` : ''}
                 </div>
               )}
               {feature.basis.length > 0 && (

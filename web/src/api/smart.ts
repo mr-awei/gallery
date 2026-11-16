@@ -7,6 +7,31 @@ import type { SmartFolder, VersionInfo, ActionStep, ActionConditions, ActionDef,
 import type { FaceStatus, FacePerson, ReverseEngine, ReverseNetwork, ReverseSearchResponse, StitchTemplate, StitchCrop, StitchPlan } from './models';
 import type { ImageItem } from '../types';
 
+/** AI 夜间批处理：配置 + 时段判断 + 待办 + 当前进度（服务端一次给全） */
+export interface NightBatchState {
+  enabled: boolean;
+  /** 当天分钟数（后端口径），前端展示用 startText/endText */
+  start: number;
+  end: number;
+  startText: string;
+  endText: string;
+  tasks: string[];
+  nowMin: number;
+  inWindow: boolean;
+  pending: { semantic: number; face: number; total: number };
+  running: boolean;
+  task: '' | 'semantic' | 'face';
+  jobId: number;
+  done: number;
+  total: number;
+  startedAt: string;
+  lastAt: string;
+  lastSummary: string;
+  lastError: string;
+  skipped: string;
+  stopRequested: boolean;
+}
+
 export const smartAPI = {
   // 智能文件夹
   smartFolders: () => request<SmartFolder[]>('/api/smart-folders'),
@@ -25,6 +50,16 @@ export const smartAPI = {
     }),
   deleteSmartFolder: (id: number) =>
     request<{ ok: boolean; folders: SmartFolder[] }>(`/api/smart-folders/${id}`, { method: 'DELETE' }),
+  // AI 夜间批处理：低峰时段补语义 / 人脸索引
+  nightBatch: () => request<NightBatchState>('/api/night-batch'),
+  saveNightBatch: (patch: { enabled?: boolean; start?: string; end?: string; tasks?: string[] }) =>
+    request<NightBatchState>('/api/night-batch', { method: 'POST', body: JSON.stringify(patch) }),
+  runNightBatch: () =>
+    request<{ ok: boolean; summary?: string; status: NightBatchState }>('/api/night-batch/run', { method: 'POST' }),
+  stopNightBatch: () =>
+    request<{ ok: boolean; message?: string; status: NightBatchState }>('/api/night-batch/stop', {
+      method: 'POST',
+    }),
   previewSmartFolder: (id: number, opts: { limit?: number; offset?: number } = {}) => {
     const q = new URLSearchParams();
     if (opts.limit) q.set('limit', String(opts.limit));

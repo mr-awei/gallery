@@ -40,6 +40,7 @@ import DebouncedInput from './settings/DebouncedInput';
 import WorkshopCard from './settings/WorkshopCard';
 import SyncCard from './settings/SyncCard';
 import AiSection from './settings/AiSection';
+import NightBatchCard from './settings/NightBatchCard';
 import { useSettingsForm, type SectionKey } from './settings/useSettingsForm';
 import ImportNameTemplateCard from './settings/ImportNameTemplateCard';
 import PluginMarket from './settings/PluginMarket';
@@ -443,7 +444,12 @@ export default function Settings({
           )}
 
           {/* ---------------------------- AI 接入（已拆分至 settings/AiSection.tsx） ---------------------------- */}
-          {section === 'ai' && <AiSection form={form} />}
+          {section === 'ai' && (
+            <>
+              <AiSection form={form} />
+              <NightBatchCard onToast={onToast} />
+            </>
+          )}
 
           {/* ------------------------------ 画质增强（已拆分至 settings/EnhanceSection.tsx） ------------------------------ */}
           {section === 'enhance' && <EnhanceSection settings={settings} patch={patch} onToast={onToast} />}

@@ -20,6 +20,7 @@
  */
 import os from 'node:os';
 import { execFile } from 'node:child_process';
+import { gpuStatus } from './onnx-device.js';
 
 const GB = 1024;
 const MB = 1048576;
@@ -221,6 +222,12 @@ export async function probeHardware(opts = {}) {
       /** 运行库自检记录（未装/未自检时 usable 为 null，不代表不可用） */
       selfTest: evidence,
     },
+    /**
+     * ONNX 推理实际跑在哪：readCpu/readRam 是静态信息，这一项是运行态——
+     * backend 为 null 表示还没跑过任何模型；用上 DirectML/CUDA 时为对应名字。
+     * 用户抱怨「说好的显卡加速呢」时需要在这里能看见答案。
+     */
+    ort: gpuStatus(),
     probedAt: new Date().toISOString(),
   };
   cacheAt = Date.now();
@@ -238,27 +245,27 @@ export const HARDWARE_FEATURES = [
   {
     id: 'matting',
     label: 'AI 抠图（去背景）',
-    engine: 'onnxruntime-node · CPU 推理',
+    engine: 'onnxruntime-node · 显卡优先（DirectML / CUDA），失败回退 CPU',
     models: 'U-2-Net 4.5MB / BiRefNet lite 224MB / BEN2 213MB，输入 1024×1024',
     min: { ramMB: 4096, cores: 2 },
     recommend: { ramMB: 8192, cores: 4 },
     basis: [
       'onnxruntime 官方兼容页只承诺 Windows 10 实测，不发布内存与 CPU 指令集下限',
       '内存门槛按「224MB 权重常驻 + 1024² 中间张量」的峰值估算（约 1.5GB），留一倍余量取 4GB',
-      '不需要显卡：三档模型都在 CPU 上推理，单张从毫秒级到数秒',
+      '有可用显卡时自动走 DirectML / CUDA（同一份权重实测 62ms → 11ms），没有则回退 CPU，单张从毫秒级到数秒',
     ],
   },
   {
     id: 'face',
     label: '人脸检测与聚类',
-    engine: 'onnxruntime-node · CPU 推理（SCRFD + ArcFace）',
+    engine: 'onnxruntime-node · 显卡优先（DirectML / CUDA），失败回退 CPU',
     models: 'det_10g 16.9MB + w600k_r50 174MB，检测 640×640、识别 112×112',
     min: { ramMB: 4096, cores: 2 },
     recommend: { ramMB: 8192, cores: 4 },
     basis: [
       'insightface buffalo_l 两套权重合计约 191MB，扫描时都要常驻内存',
       'onnxruntime 官方不发布内存下限；4GB 按「权重常驻 + 640² 检测批处理」的峰值（约 1.2GB）留余量估',
-      '不需要显卡：检测与特征都在 CPU 上跑，扫全库是逐张推理，核心少只影响速度',
+      '扫全库是逐张推理：显卡可用时自动上显卡，没有则回退 CPU，核心少只影响速度',
       '这一档是「扫一遍全库」的批量活，内存不足更容易在中途被系统结束',
     ],
   },
@@ -279,14 +286,14 @@ export const HARDWARE_FEATURES = [
   {
     id: 'upscale-onnx',
     label: 'AI 超分（Swin2SR / Transformer 档）',
-    engine: '@huggingface/transformers + onnxruntime-node（CPU）',
+    engine: '@huggingface/transformers + onnxruntime-node（显卡优先，失败回退 CPU）',
     models: 'Swin2SR compressed/realworld/classical/lightweight 四档',
     min: { ramMB: 8192, cores: 4 },
     recommend: { ramMB: 16384, cores: 8 },
     basis: [
       '窗口注意力（window=64）的中间张量比抠图大得多，内存门槛按 8GB 估',
       '官方同样不发布内存下限；这一档 CPU 单张就要数十秒，配置不足时体验极差',
-      '不需要显卡：transformers.js 在 onnxruntime 的 CPU 执行器上跑',
+      '显卡可用时由 transformers.js 挂在 DirectML / CUDA 上跑，没有则回退 CPU 执行器',
     ],
   },
   {
@@ -305,14 +312,14 @@ export const HARDWARE_FEATURES = [
   {
     id: 'semantic',
     label: '语义检索（CLIP）',
-    engine: '@huggingface/transformers（CPU）',
+    engine: '@huggingface/transformers（显卡优先，失败回退 CPU）',
     models: 'CLIP ViT-B/32 文本塔 + 图像塔',
     min: { ramMB: 4096, cores: 2 },
     recommend: { ramMB: 8192, cores: 4 },
     basis: [
       '文本塔单次编码几百毫秒，图像塔批量建索引时才会吃满 CPU',
       '权重约 85MB 常驻；4GB 内存在「建索引的同时开浏览器」这种常见组合下才够',
-      '不需要显卡',
+      '显卡可用时自动上显卡（建索引快数倍），没有则回退 CPU',
     ],
   },
 ];

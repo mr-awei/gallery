@@ -103,8 +103,14 @@ export async function sweepThumbTemp(thumbDir = getThumbDir()) {
 
 export function mediaPoolSize() {
   const cpus = os.availableParallelism ? os.availableParallelism() : os.cpus().length;
-  // 留一个核给 HTTP / SQLite；上限 8 是内存与磁盘 IO 的折中（libvips 每个 worker 自带缓存）
-  return Math.max(2, Math.min(8, cpus - 1));
+  /**
+   * 留一个核给 HTTP / SQLite；上限从 8 提到 12：第一次导入几千张时，
+   * 8 个 worker 在 16/24 核机器上根本喂不满，整个导入阶段 CPU 有三分之一在空转。
+   * 再加一道内存闸——每个 worker 峰值约 200MB（一次整图解码 + 编码 + pHash 灰度图），
+   * 可用内存不够时宁可少开，也不能打着导入了却触发系统换页。
+   */
+  const byMem = Math.floor(os.freemem() / (400 * 1024 * 1024));
+  return Math.max(2, Math.min(12, cpus - 1, Math.max(2, byMem)));
 }
 
 /* ----------------------------- worker 池 ----------------------------- */
@@ -507,11 +513,12 @@ export async function bulkImportLocal({
     // 0) 非图片素材（视频/音频/字体/PDF/Office/3D）不进 sharp 管线：
     //    直接登记，缩略图交给前端用 <video>/<audio>/@font-face 渲染
     const mediaFiles = chunk.filter((f) => isMediaPath(f));
-    // 并发 4：RAW 抠预览是「读文件 + 解一段 JPEG」，串行处理 1000 张 CR2 要十几分钟
-    await mapLimit(mediaFiles, 4, async (f) => {
+    // 并发 8：RAW 抠预览是「读文件 + 解一段 JPEG」，纯 IO 等待，4 路喂不满 NVMe
+    const mediaRowStmt = db.prepare('SELECT id, thumb FROM images WHERE abs_path = ?');
+    await mapLimit(mediaFiles, 8, async (f) => {
       result.total++;
       try {
-        const row = db.prepare('SELECT id, thumb FROM images WHERE abs_path = ?').get(f);
+        const row = mediaRowStmt.get(f);
         if (row) {
           // 已登记但没缩略图：RAW/PSD 早先没提取预览、或上次导入被中断。
           // 以前这里一律算「没变化」，于是这些图永远修不好（卡片一直显示「文件缺失」）。

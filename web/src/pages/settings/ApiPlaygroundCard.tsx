@@ -47,6 +47,7 @@ export default function ApiPlaygroundCard({ onToast }: { onToast: (msg: string, 
   const [body, setBody] = useState('{}');
   const [result, setResult] = useState<{ status: string; ms: number; text: string } | null>(null);
   const [busy, setBusy] = useState(false);
+  const [exampleTab, setExampleTab] = useState<'curl' | 'js' | 'py'>('curl');
 
   useEffect(() => {
     api
@@ -95,13 +96,55 @@ export default function ApiPlaygroundCard({ onToast }: { onToast: (msg: string, 
     }
   }, [current, isWrite, body, resolvedPath]);
 
-  const asCurl = useMemo(() => {
-    if (!current) return '';
+  /**
+   * 三份示例：curl / JavaScript / Python。
+   * 之前只有 curl 一份，写脚本的人还得自己翻译；口径与 /api/docs.md 里的一致
+   * （路径参数已换成 1，鉴权用 <token> 占位，不猜业务字段）。
+   */
+  const sampleCode = useMemo(() => {
+    if (!current) return { curl: '', js: '', py: '' };
     const origin = typeof window !== 'undefined' ? window.location.origin : 'http://127.0.0.1:3001';
-    const parts = [`curl -X ${current.method} "${origin}${resolvedPath}"`, '-H "Authorization: Bearer <token>"'];
-    if (current.method !== 'GET') parts.push(`-H "Content-Type: application/json" -d '${body.replace(/\n/g, ' ')}'`);
-    return parts.join(' \\\n  ');
+    const url = `${origin}${resolvedPath}`;
+    const isWrite = current.method !== 'GET';
+    const needAuth = current.auth !== '无';
+    const authValue = current.auth === '局域网令牌' ? 'Bearer <lan-token>' : 'Bearer <token>';
+    const hint = '{"": "按这个接口的实际字段填"}';
+
+    const curl = [
+      `curl -X ${current.method} "${url}"`,
+      ...(needAuth ? [`-H "Authorization: ${authValue}"`] : []),
+      ...(isWrite ? ['-H "Content-Type: application/json"', `-d '${body.replace(/\n/g, ' ')}'`] : []),
+    ].join(' \\\n  ');
+
+    const js = [
+      'const token = process.env.TUKU_TOKEN; // 数据目录下 .api-token',
+      `const res = await fetch('${url}', {`,
+      `  method: '${current.method}',`,
+      ...(needAuth
+        ? [`  headers: { Authorization: \`Bearer \${token}\`${isWrite ? ", 'Content-Type': 'application/json'" : ''} },`]
+        : []),
+      ...(isWrite ? [`  body: JSON.stringify(${body.replace(/\s+/g, ' ') || hint}),`] : []),
+      '});',
+      'console.log(res.status, await res.json());',
+    ].join('\n');
+
+    const py = [
+      'import os, requests',
+      '',
+      'token = os.environ.get("TUKU_TOKEN", "")',
+      `res = requests.${current.method.toLowerCase()}(`,
+      `    "${url}",`,
+      ...(needAuth ? ['    headers={"Authorization": f"Bearer {token}"},'] : []),
+      ...(isWrite ? [`    json=${body.replace(/\s+/g, ' ') || hint},`] : []),
+      '    timeout=30,',
+      ')',
+      'print(res.status_code, res.text[:200])',
+    ].join('\n');
+
+    return { curl, js, py };
   }, [current, resolvedPath, body]);
+
+  const asCurl = sampleCode.curl;
 
   /** Markdown 全文带令牌下载：直接 <a href> 拿不到 Authorization 头，所以走 api 层再落盘 */
   const downloadMarkdown = useCallback(async () => {
@@ -245,21 +288,55 @@ export default function ApiPlaygroundCard({ onToast }: { onToast: (msg: string, 
                 </div>
               )}
 
-              <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
+              <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap', marginBottom: 10 }}>
                 <button className="btn primary sm" disabled={busy} onClick={() => void send()}>
                   {busy ? '发送中…' : '发送请求'}
                 </button>
                 <button
                   className="btn sm"
                   onClick={() => {
-                    navigator.clipboard?.writeText(asCurl).then(
-                      () => onToast('已复制 curl'),
+                    navigator.clipboard?.writeText(sampleCode[exampleTab]).then(
+                      () => onToast(`已复制 ${exampleTab === 'curl' ? 'curl' : exampleTab === 'js' ? 'JavaScript' : 'Python'} 示例`),
                       () => onToast('复制失败，请手动选中', 'error')
                     );
                   }}
                 >
-                  复制 curl
+                  {`复制 ${exampleTab === 'curl' ? 'curl' : exampleTab === 'js' ? 'JavaScript' : 'Python'}`}
                 </button>
+              </div>
+
+              {/* 示例代码：写脚本的人直接从这里拿走，不用回去翻源码猜调用方式 */}
+              <div className="field">
+                <div style={{ display: 'flex', gap: 6, marginBottom: 6 }} role="tablist" aria-label="示例代码语言">
+                  {(['curl', 'js', 'py'] as const).map((k) => (
+                    <button
+                      key={k}
+                      role="tab"
+                      aria-selected={exampleTab === k}
+                      className={exampleTab === k ? 'btn primary sm' : 'btn sm'}
+                      onClick={() => setExampleTab(k)}
+                    >
+                      {k === 'curl' ? 'curl' : k === 'js' ? 'JavaScript' : 'Python'}
+                    </button>
+                  ))}
+                </div>
+                <pre
+                  style={{
+                    maxHeight: 220,
+                    overflow: 'auto',
+                    background: '#0f172a',
+                    color: '#d6e2f5',
+                    borderRadius: 10,
+                    padding: '10px 12px',
+                    fontSize: 12,
+                    lineHeight: 1.6,
+                    margin: 0,
+                    whiteSpace: 'pre-wrap',
+                    wordBreak: 'break-all',
+                  }}
+                >
+                  {sampleCode[exampleTab]}
+                </pre>
               </div>
             </>
           )}

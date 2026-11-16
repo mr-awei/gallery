@@ -60,6 +60,8 @@ import { register as registerTimeline } from './routes/timeline.js';
 import { register as registerModels } from './routes/models.js';
 import { register as registerReverse } from './routes/reverse.js';
 import { register as registerDocs } from './routes/docs.js';
+import { register as registerNightBatch } from './routes/night-batch.js';
+import { registerBusyProbe, startNightBatchSchedule } from './lib/night-batch.js';
 import { modelsSnapshot } from './lib/model-registry.js';
 import { capabilitiesFor, platformSummary } from './lib/platform.js';
 import { markInterruptedJobs, pruneJobs } from './jobs.js';
@@ -499,6 +501,7 @@ export function buildApp({ desktop = false } = {}) {
   registerTimeline(app, ctx);
   registerModels(app, ctx);
   registerReverse(app, ctx);
+  registerNightBatch(app, ctx);
   // 放在最后注册：/api/docs 要自省整个路由表，晚注册才不会漏掉别人的接口
   registerDocs(app, ctx);
 
@@ -970,6 +973,9 @@ export function startServer(port = PORT, options = {}) {
       auto.startScheduler();
       // 自动备份排程：手动备份按钮在设置页，但「记得点」不该是备份的前提
       startBackupSchedule();
+      // AI 夜间批处理：导入期间不能跑（会抢推理与写库），这里给调度器一个「此刻是否忙」的探针
+      registerBusyProbe(() => importState.running);
+      startNightBatchSchedule();
       resolve({ server, port: addr.port });
     });
     server.on('error', (err) => {

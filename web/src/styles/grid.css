@@ -11,6 +11,15 @@
   height: 100%;
   object-fit: cover;
 }
+/* 键盘走到哪张，就得看得见是哪张：方向键导航靠这个圈确认落点 */
+.masonry-js .m-cell:focus-within {
+  outline: 2px solid var(--accent, #4f46e5);
+  outline-offset: 2px;
+  border-radius: 10px;
+}
+.masonry-js .m-cell [data-image-id]:focus-visible {
+  outline: none;
+}
 
 .masonry {
   column-count: 4;

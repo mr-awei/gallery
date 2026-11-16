@@ -1637,6 +1637,24 @@ try {
       `${livePut.status} ${JSON.stringify(liveNext.pauseApps)}`
     );
 
+    // AI 夜间批处理：时段 / 任务勾选要能存能读，待办数量要如实报
+    const nb0Res = await fetch(`${BASE}/api/night-batch`, { headers: auth.headers });
+    const nb0 = nb0Res.ok ? await nb0Res.json() : {};
+    const nbPut = await fetch(`${BASE}/api/night-batch`, {
+      method: 'POST',
+      headers: { ...auth.headers, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ enabled: true, start: '02:00', end: '06:00', tasks: ['semantic'] }),
+    });
+    const nb1Res = await fetch(`${BASE}/api/night-batch`, { headers: auth.headers });
+    const nb1 = nb1Res.ok ? await nb1Res.json() : {};
+    check(
+      'AI 夜间批处理：时段与任务可保存读回',
+      nb0.enabled === false && nbPut.ok && nb1.enabled === true && nb1.startText === '02:00' &&
+        nb1.endText === '06:00' && nb1.tasks?.length === 1 && nb1.tasks[0] === 'semantic' &&
+        typeof nb1.pending?.semantic === 'number',
+      `${nb0Res.status}/${nbPut.status}/${nb1Res.status} ${JSON.stringify({ s: nb1.startText, e: nb1.endText, tasks: nb1.tasks })}`
+    );
+
     // 擦除修复：真实图片 + 真实 PNG 蒙版，走完整的写回 / 另存链路
     if (firstId) {
       const maskRaw = Buffer.alloc(64 * 64 * 3, 0);

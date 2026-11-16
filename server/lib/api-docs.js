@@ -190,6 +190,101 @@ export function authOf(path) {
 }
 
 /**
+ * 把路由里的参数占位换成能直接跑的值。
+ * `/api/images/:id/thumb` → `/api/images/1/thumb`，`*` 换成示例相对路径。
+ */
+export function samplePath(path) {
+  return String(path)
+    .replace(/:([A-Za-z0-9_]+)/g, (_m, name) => {
+      const n = String(name).toLowerCase();
+      if (n === 'name' || n === 'tag' || n === 'key' || n === 'q') return 'demo';
+      if (n === 'token') return '<lan-token>';
+      if (n === 'file' || n === 'filename' || n === 'path') return 'demo.jpg';
+      return '1';
+    })
+    .replace(/\*/g, 'demo.jpg');
+}
+
+/** 写操作给一个可解析的空对象，并提醒字段要按接口填 */
+const BODY_HINT = '{"": "按这个接口的实际字段填"}';
+
+/**
+ * 生成三条可直接复制的调用示例（curl / JavaScript / Python）。
+ * 之前在设置里只能复制 curl，写脚本的人还得自己翻译成 fetch 或 requests；
+ * 示例一律用「占位符 + 真实路径」，不猜业务字段（猜错比没有更误导）。
+ *
+ * @param {{ method: string, path: string, auth: string }} route
+ * @param {string} [baseUrl]
+ * @returns {{ path: string, curl: string, js: string, py: string }}
+ */
+export function examplesOf(route, baseUrl = 'http://127.0.0.1:3001') {
+  const url = `${baseUrl}${samplePath(route.path)}`;
+  const isWrite = route.method !== 'GET' && route.method !== 'HEAD';
+  const needAuth = route.auth !== '无';
+  const authLine = route.auth === '局域网令牌' ? 'Bearer <lan-token>' : 'Bearer <token>';
+
+  const curl = [
+    `curl -X ${route.method} "${url}"`,
+    ...(needAuth ? [`-H "Authorization: ${authLine}"`] : []),
+    ...(isWrite ? [`-H "Content-Type: application/json"`, `-d '${BODY_HINT}'`] : []),
+  ].join(' \\\n  ');
+
+  const js = [
+    `const token = process.env.TUKU_TOKEN; // 数据目录下 .api-token`,
+    `const res = await fetch('${url}', {`,
+    `  method: '${route.method}',`,
+    ...(needAuth ? [`  headers: { Authorization: \`Bearer \${token}\`${isWrite ? ', \'Content-Type\': \'application/json\'' : ''} },`] : []),
+    ...(isWrite ? [`  body: JSON.stringify(${BODY_HINT}),`] : []),
+    `});`,
+    `console.log(res.status, await res.json());`,
+  ].join('\n');
+
+  const py = [
+    `import os, requests`,
+    ``,
+    `token = os.environ.get("TUKU_TOKEN", "")`,
+    `res = requests.${route.method.toLowerCase()}(`,
+    `    "${url}",`,
+    ...(needAuth ? [`    headers={"Authorization": f"Bearer {token}"},`] : []),
+    ...(isWrite ? [`    json=${BODY_HINT},`] : []),
+    `    timeout=30,`,
+    `)`,
+    `print(res.status_code, res.text[:200])`,
+  ].join('\n');
+
+  return { path: samplePath(route.path), curl, js, py };
+}
+
+/**
+ * 每组挑三条「有代表性」的接口给完整示例：一条列表 GET、一条带路径参数的 GET、
+ * 一条写操作。405 条全给示例会让文档变成上万行噪音，人根本不会看。
+ *
+ * @param {{ method: string, path: string, auth: string }[]} list
+ * @param {string} [baseUrl]
+ */
+function groupExamples(list, baseUrl) {
+  const pickGet = list.find((r) => r.method === 'GET' && !r.path.includes(':') && !r.path.includes('*'));
+  const pickParam = list.find((r) => r.method === 'GET' && (r.path.includes(':') || r.path.includes('*')));
+  const pickWrite = list.find((r) => r.method !== 'GET');
+  const chosen = [pickGet, pickParam, pickWrite].filter(Boolean);
+  if (!chosen.length) return [];
+  const out = ['### 调用示例', ''];
+  for (const r of chosen) {
+    const ex = examplesOf(r, baseUrl);
+    out.push(`**${r.method} ${r.path}**`, '');
+    out.push('```bash');
+    out.push(ex.curl);
+    out.push('```', '');
+  }
+  out.push(
+    '> 令牌在数据目录的 `.api-token` 里（桌面版由界面自动带上，脚本里自己读一次塞进 `Authorization`）。',
+    '> 路径里的 `:id` 这类参数在示例中已换成 `1`，实际请求时替换成真实 id；请求体字段请对照该接口的实现或界面上的操作。',
+    ''
+  );
+  return out;
+}
+
+/**
  * 生成 Markdown 版参考。给「想存一份 / 贴进 issue / 离线看」的人，
  * 内容与 /api/docs 同源，不会出现「文档说有、接口已经删了」。
  *
@@ -208,6 +303,13 @@ export function renderMarkdown(routes, meta = {}) {
   lines.push('## 鉴权');
   lines.push('');
   lines.push('- 本机接口（`/api/*`）：请求头 `Authorization: Bearer <token>`，令牌见数据目录下的 `.api-token`。');
+  lines.push('');
+  lines.push('```bash');
+  lines.push('# 首次调用前把令牌读进环境变量（bash / zsh；PowerShell 用 $env:TUKU_TOKEN = Get-Content .api-token）');
+  lines.push('export TUKU_TOKEN=$(cat .api-token)');
+  lines.push('curl -H "Authorization: Bearer $TUKU_TOKEN" http://127.0.0.1:3001/api/health');
+  lines.push('```');
+  lines.push('');
   lines.push('- 局域网接口（`/api/lan/*`）：分享链接里的局域网令牌，`?token=` 只允许 `GET`。');
   lines.push('- 开放 API（`/api/v1/*`）：Bearer 令牌 + scope，完整 schema 见 `GET /api/v1/openapi.json`。');
   lines.push('');
@@ -229,6 +331,8 @@ export function renderMarkdown(routes, meta = {}) {
     lines.push('| 方法 | 路径 | 鉴权 |');
     lines.push('| --- | --- | --- |');
     for (const r of list) lines.push(`| ${r.method} | \`${r.path}\` | ${r.auth} |`);
+    lines.push('');
+    lines.push(...groupExamples(list, meta.baseUrl));
     lines.push('');
   }
   return lines.join('\n');

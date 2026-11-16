@@ -242,6 +242,16 @@ export interface HardwareInfo {
     vulkan: { capable: boolean | null; reason: string };
     selfTest: { usable: boolean | null; gpu: string | null; error: string } | null;
   };
+  /** ONNX 推理实际挂在哪个后端上；backend 为 null = 还没跑过模型 */
+  ort?: {
+    platform: string;
+    arch: string;
+    backend: 'directml' | 'cuda' | 'cpu' | null;
+    gpuUsable: boolean;
+    candidate: boolean;
+    disabledForSession: boolean;
+    note: string;
+  };
   probedAt: string;
 }
 

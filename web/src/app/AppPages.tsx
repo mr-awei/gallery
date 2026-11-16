@@ -4,7 +4,6 @@ import type { LightboxState } from '../hooks/useLightbox';
 import type { PendingCounts } from '../hooks/useStatsAndTags';
 import type { Filters, FolderNode, ImageItem, Stats, TagNode, View, ViewMode } from '../types';
 import ErrorBoundary from '../components/ErrorBoundary';
-import Dashboard from '../pages/Dashboard';
 import GalleryPage from '../pages/Gallery';
 import type { ImportProgress } from './useImportWatch';
 import type { Toast } from './types';
@@ -12,7 +11,9 @@ import type { Toast } from './types';
 const Crawl = lazy(() => import('../pages/Crawl'));
 const TimelinePage = lazy(() => import('../pages/Timeline').then((m) => ({ default: m.Timeline })));
 // 低频且体积大的页面按需加载：设置页（含各分区面板）与教程（150 条文案）
-// 不该拖进首包。仪表盘与图库保持静态导入，避免首屏闪骨架。
+// 不该拖进首包。只有图库保持静态导入——它是启动后的第一个视图，懒加载会闪骨架；
+// 仪表盘虽也是「首屏级」页面，但启动默认落在图库，切过去时再取即可。
+const Dashboard = lazy(() => import('../pages/Dashboard'));
 const SettingsPage = lazy(() => import('../pages/Settings'));
 const Knowledge = lazy(() => import('../pages/Knowledge'));
 const Playlists = lazy(() => import('../pages/Playlists'));
