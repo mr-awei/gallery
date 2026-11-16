@@ -18,7 +18,16 @@
  */
 import fs from 'node:fs';
 import path from 'node:path';
-import { APP_ROOT } from '../config.js';
+import { fileURLToPath } from 'node:url';
+
+/**
+ * 仓库/应用根目录。**不要**改成从 server/config.js 取 APP_ROOT：
+ * 本模块被 Electron 主进程静态引用（server-host.js → device-state），而主进程是
+ * 「先求值整张 import 图、再执行 main.js 函数体」，那时 TUKU_USER_DATA 还没注入。
+ * config.js 在被求值时就会 mkdirSync 建目录，于是打包版会拿 app.asar 当根目录,
+ * Windows 下直接 ENOTDIR、整个应用起不来（1.2.18 构建时的真实事故）。
+ */
+const APP_ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', '..');
 
 export const DEVICE_STATE_FILE = 'device-state.json';
 
@@ -72,7 +81,7 @@ export function appVersion() {
   return cachedVersion;
 }
 
-/** 默认的用户数据根目录（与 server/config.js 保持一致） */
+/** 默认的用户数据根目录（口径与 server/config.js 的 USER_ROOT 一致：环境变量优先） */
 export function defaultUserRoot(env = process.env) {
   return env.TUKU_USER_DATA || APP_ROOT;
 }

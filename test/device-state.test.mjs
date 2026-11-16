@@ -3,17 +3,21 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 import {
   DEVICE_STATE_FILE,
   appVersion,
   clearDeviceState,
   crashText,
+  defaultUserRoot,
   gpuForcedOff,
   isNativeCrashCode,
   readDeviceState,
   statePath,
   writeDeviceState,
 } from '../server/lib/device-state.js';
+
+const REPO_ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 
 const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'tuku-devstate-'));
 test.after(() => {
@@ -80,4 +84,51 @@ test('文件损坏不会永久禁用显卡（读回 null）', () => {
 
 test('版本号可用于升级后重试显卡', () => {
   assert.match(appVersion(), /^\d+\.\d+\.\d+/);
+});
+
+test('默认用户目录只认环境变量，不依赖 server/config.js', () => {
+  assert.equal(defaultUserRoot({ TUKU_USER_DATA: 'C:\\tmp\\x' }), 'C:\\tmp\\x');
+  // 没有环境变量时回到仓库根，且这一步不能碰 fs（打包版里 config.js 会 mkdir 失败）
+  const root = defaultUserRoot({});
+  assert.equal(path.basename(root), path.basename(REPO_ROOT));
+  assert.equal(root, REPO_ROOT);
+});
+
+/**
+ * 打包版启动闸：主进程是「先求值整张静态 import 图、再执行 main.js 函数体」，
+ * 而 TUKU_USER_DATA 是在函数体里注入的。只要静态图里出现 server/config.js，
+ * 它就会在环境变量到位前 mkdirSync 建目录 —— 应用根是只读的 app.asar 时
+ * Windows 直接 ENOTDIR，整个应用弹「A JavaScript error occurred in the main process」。
+ * 所以这里从 electron/main.js 出发走一遍静态 import 图，禁止走到的文件里有 config.js。
+ */
+test('主进程静态 import 图不得包含 server/config.js（否则打包版启动即崩）', () => {
+  const STATIC_IMPORT = /(?:^|\n)\s*(?:import\s+(?:[^'"]*?\sfrom\s+)?|export\s+[^'"]*?\sfrom\s+)['"]([^'"]+)['"]/g;
+  const forbidden = path.join(REPO_ROOT, 'server', 'config.js');
+  const seen = new Set();
+  const stack = [path.join(REPO_ROOT, 'electron', 'main.js')];
+  const offenders = [];
+  while (stack.length) {
+    const file = stack.pop();
+    if (seen.has(file)) continue;
+    seen.add(file);
+    if (file === forbidden) {
+      offenders.push(file);
+      continue;
+    }
+    let src;
+    try {
+      src = fs.readFileSync(file, 'utf8');
+    } catch {
+      continue;
+    }
+    for (const m of src.matchAll(STATIC_IMPORT)) {
+      const spec = m[1];
+      if (!spec.startsWith('.')) continue; // 裸模块（electron / node: 内置）不归这里管
+      const resolved = path.resolve(path.dirname(file), spec);
+      if (!resolved.startsWith(REPO_ROOT)) continue;
+      stack.push(resolved);
+    }
+  }
+  assert.deepEqual(offenders, [], '主进程静态依赖链里出现了 server/config.js');
+  assert.ok(seen.size > 5, '静态 import 图没走通');
 });
