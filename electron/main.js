@@ -48,6 +48,7 @@ import {
   wireUpdateReady,
 } from './main/updates.js';
 import { createWindow, importPathsFromShell, pickImagePathsFromArgv, showMainWindow } from './main/windows.js';
+import { createDownloadDedupe } from './lib/download-dedupe.js';
 
 // 兼容旧出口：以前这两个常量直接写在 main.js 顶部
 export { APP_ICON, APP_NAME } from './main/constants.js';
@@ -129,13 +130,28 @@ app
     /* -------- 这些监听只能注册一次（以前写在 createWindow 里） --------
        session 级 / app 级监听挂在 createWindow 内部时，主窗口每被托盘、快捷键或
        activate 重建一次就多挂一份 —— 一次下载会连续弹出 N 个「另存为」框。 */
+    /* 同一个 URL 的重复下载只留第一个：连点「下载」按钮、或渲染层一次事件被触发两次时，
+       每来一次就多建一个下载项，于是叠出好几个「另存为」框（用户只能一个个点取消）。 */
+    const downloadDedupe = createDownloadDedupe(1500);
     session.defaultSession.on('will-download', async (_e, item) => {
       const win = BrowserWindow.getFocusedWindow() || ctx.mainWindow;
       let name = 'download';
+      let url = '';
       try {
         name = item.getFilename() || name;
+        url = item.getURL() || '';
       } catch {
         /* 窗口已销毁或正在退出，这类清理失败无需处理 */
+      }
+      console.info('[dl] will-download:', name, url.slice(0, 120));
+      if (!downloadDedupe.accept(url)) {
+        console.info('[dl] 忽略重复的下载请求：', name);
+        try {
+          item.cancel();
+        } catch {
+          /* 已经取消/销毁，重复取消无需处理 */
+        }
+        return;
       }
       // 先暂停：Electron 要求尽早 setSavePath，否则数据已经在临时目录里跑了；
       // 暂停后等对话框结果，取消就整个撤销，不会留下半截文件。

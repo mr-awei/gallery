@@ -92,6 +92,8 @@ export default function StitchDialog({ items, onClose, onToast }: Props) {
   const [planErr, setPlanErr] = useState('');
   // 上一次重排构图用的「模板|版式|张数」，一样就不再动用户调好的每格
   const resetKey = useRef('');
+  // 下载按钮的重入保护：连点两下会建两个下载项，叠出两个「另存为」框
+  const saveRef = useRef(0);
 
   // 装饰项留空 = 跟模板默认值；用户动过才覆盖，切模板时清回去
   const [radiusOv, setRadiusOv] = useState<number | null>(null);
@@ -942,7 +944,11 @@ export default function StitchDialog({ items, onClose, onToast }: Props) {
             className="btn primary"
             disabled={!ids.length}
             onClick={() => {
-              downloadFile(url);
+              const now = Date.now();
+              // 保存框是异步弹的，连点会在它出现前又触发一次，于是叠出两个框
+              if (now - saveRef.current < 1200) return;
+              saveRef.current = now;
+              void downloadFile(url);
               onToast?.('已开始下载拼接图');
             }}
           >

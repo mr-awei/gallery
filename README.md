@@ -1,6 +1,6 @@
 # 图库 TuKu
 
-[![版本](https://img.shields.io/badge/version-1.2.21-2563eb.svg)](https://github.com/mr-awei/gallery/releases/latest)
+[![版本](https://img.shields.io/badge/version-1.2.22-2563eb.svg)](https://github.com/mr-awei/gallery/releases/latest)
 [![平台](https://img.shields.io/badge/platform-Windows%2010%2F11-5b6472.svg)](#1-它是什么)
 [![Electron](https://img.shields.io/badge/Electron-44.4.5-47848f.svg)](#4-架构与数据流)
 [![Node](https://img.shields.io/badge/Node-%E2%89%A522.5-339933.svg)](#11-从源码运行)
@@ -20,7 +20,7 @@
 | 指标 | 数值 | 说明 |
 | --- | --- | --- |
 | 设计规模 | 百万级 | worker 池 + 批量事务 + 单次解码 + 增量扫描 |
-| 验证覆盖 | 单测 563 · 冒烟 143/143 · 基准 15/15 · 四闸类型 | `npm run verify` 一条命令跑完，CI 同款 |
+| 验证覆盖 | 单测 568 · 冒烟 143/143 · 基准 15/15 · 四闸类型 | `npm run verify` 一条命令跑完，CI 同款 |
 | 已知缺口 | P1 2 · P2 1 · P3 1（另 6 条已修） | 逐条列在文档 06 节，含代码位置 / 影响 / 成本 |
 | 竞品对标 | 单机 90.9 / 远期 87.1 | 13 维第 1（8 竞品）；17 维按目标值 87.1 第 1、按当前进度 71.2 第 3；Eagle 为 82.1 / 71.8 |
 | 类型检查 | electron + server + routes + server-lib 全覆盖 | 逐文件 `@ts-check`，由 lint 强制守门 |
@@ -338,7 +338,7 @@ flowchart TB
 | 桌面与系统集成 | 7 | 93 | 80 | 30 | 热键 / 托盘 / 动态壁纸 / 拖出，最大优势 |
 | 性能与规模 | 9 | 88 | 88 | 85 | API p95 个位数毫秒，DOM 与布局计算都不随库增长；百万级未验收 |
 | 数据安全与可恢复 | 8 | 90 | 80 | 85 | 备份校验 + 双栈撤销 + 外键 + 完整性自检 |
-| 稳定性与工程质量 | 7 | 89 | 82 | 85 | 契约 45/52 + 563 单测 + 143 冒烟 |
+| 稳定性与工程质量 | 7 | 89 | 82 | 85 | 契约 45/52 + 568 单测 + 143 冒烟 |
 | 易用性与界面 | 5 | 85 | 92 | 75 | 25 个弹窗统一焦点陷阱与 aria；主网格 roving tabindex + 方向键已补 |
 | 文档与交付 | 3 | 85 | 85 | 75 | 173 条内置教程 + `/api/docs` 自动生成，但安装包仍未签名 |
 
@@ -489,7 +489,7 @@ docs/              评测与路线图.html（评分 / 缺点 / 交付顺序）�
 | `npm run build` | 构建前端到 `dist/web` |
 | `npm run typecheck` | 四段 tsconfig 全量类型检查（Web / Node / 纯函数库 / server-lib） |
 | `npm run lint` | ESLint + 自定义语法检查 + 类型闸 pragma 校验 |
-| `npm run unit` | Node 原生 test runner，563 例 |
+| `npm run unit` | Node 原生 test runner，568 例 |
 | `npm run smoke` | 接口冒烟（会起临时服务），143 项 |
 | `npm run bench` | 性能基准：临时库灌 20 万行，打真实接口取 p50 / p95；另含调色预览与 CLIP |
 | `npm run bench:quick` | 2 万行快速版（约 7 秒，已接入 `verify`） |
