@@ -14,6 +14,15 @@ import { EventEmitter } from 'node:events';
 import { spawn } from 'node:child_process';
 import { restartDelay } from './lib/pure.js';
 import { cleanupStaleService, writePidRecord, removePidRecord } from './lib/stale-process.js';
+import {
+  appVersion,
+  crashText,
+  defaultUserRoot,
+  gpuForcedOff,
+  isNativeCrashCode,
+  statePath,
+  writeDeviceState,
+} from '../server/lib/device-state.js';
 
 const READY_TIMEOUT = 30_000;
 const PING_TIMEOUT = 8_000;
@@ -34,6 +43,7 @@ export class ServerHost extends EventEmitter {
     this.desktop = desktop;
     this.env = env;
     this.child = null;
+    this.startedAt = 0;
     this.port = 0;
     this.token = '';
     this.storageDir = '';
@@ -99,6 +109,8 @@ export class ServerHost extends EventEmitter {
       },
     });
     this.child = child;
+    /** 本次子进程的拉起时刻：崩溃时用来区分「启动即崩」与「跑了一阵才崩」 */
+    this.startedAt = Date.now();
     writePidRecord(userDataDir, {
       pid: child.pid,
       startedAt: new Date().toISOString(),
@@ -192,8 +204,38 @@ export class ServerHost extends EventEmitter {
     const wasStopping = this.stopping;
     this.child = null;
     if (wasStopping) return;
+    const uptime = this.startedAt ? Math.round((Date.now() - this.startedAt) / 1000) : null;
     console.error(`[api] 服务进程意外退出（code ${code}），准备重启`);
+    this._degradeGpuOnCrash(code, uptime);
     this._restart(`exit ${code}`);
+  }
+
+  /**
+   * 原生崩溃（0xC0000005 等）几乎都是显卡执行器把进程打死：JS 层连 catch 的机会都没有，
+   * 服务端自己写不了「别再用显卡」。只能由这里——看得见退出码的人——落一份记录，
+   * 让重启（以及之后每次启动）直接走 CPU。否则就是「启动即崩 → 重启 → 又崩」的死循环，
+   * 用户看到的正是「图库启动失败 / ERR_CONNECTION_RESET」。
+   *
+   * 记录里带版本号：升级后 server/lib/onnx-device.js 会自动作废它并重试显卡。
+   * @param {number} code 子进程退出码
+   * @param {number | null} uptimeSec 存活秒数（写进原因，便于判断是启动期还是推理期崩的）
+   */
+  _degradeGpuOnCrash(code, uptimeSec = null) {
+    if (!isNativeCrashCode(code)) return;
+    if (gpuForcedOff(this.env) || gpuForcedOff()) return;
+    const userRoot = process.env.TUKU_USER_DATA || defaultUserRoot();
+    const reason = `上次以 ${crashText(code)} 退出${uptimeSec === null ? '' : `（运行 ${uptimeSec}s）`}，多半是显卡后端`;
+    this.env = { ...this.env, TUKU_FORCE_CPU: '1' };
+    writeDeviceState(userRoot, {
+      gpuDisabled: true,
+      reason,
+      at: new Date().toISOString(),
+      code,
+      version: appVersion(),
+    });
+    console.error(
+      `[api] 判定为显卡后端原生崩溃，本次会话改用 CPU 重启；记录：${statePath(userRoot)}（若确认与显卡无关，删掉该文件即可恢复）`
+    );
   }
 
   /** 崩溃重启：退避 + 时间窗内次数上限；成功后广播新端口（可能变了） */

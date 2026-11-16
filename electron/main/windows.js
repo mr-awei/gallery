@@ -150,6 +150,34 @@ export async function importPathsFromShell(files) {
 }
 
 /**
+ * 加载主页面，失败时等本地服务自愈再重试。
+ *
+ * 以前只 loadURL 一次：服务子进程恰好在首屏请求发出时崩掉（例如显卡执行器原生崩溃），
+ * 这一次加载就必然失败 —— 尽管 server-host 一秒后就把服务重启好了，用户看到的却是
+ * 「图库启动失败 / ERR_CONNECTION_RESET」并被直接退出。端口在重启后还会变，
+ * 所以每轮都重新取 ctx.serverPort，而不是重试同一个 URL。
+ */
+async function loadMainUrlWithRetry() {
+  const deadline = Date.now() + 30_000;
+  let lastErr = null;
+  for (let attempt = 0; Date.now() < deadline; attempt++) {
+    const target = devServerUrl() || `http://127.0.0.1:${ctx.serverPort}`;
+    try {
+      await ctx.mainWindow.loadURL(target);
+      return;
+    } catch (err) {
+      lastErr = err;
+      console.warn(
+        `[desktop] 页面加载失败（第 ${attempt + 1} 次），等待本地服务：`,
+        err instanceof Error ? err.message : err
+      );
+      await new Promise((r) => setTimeout(r, Math.min(400 + attempt * 200, 1200)));
+    }
+  }
+  throw lastErr || new Error('主页面加载超时');
+}
+
+/**
  * 主窗口：托盘常驻、忙碌确认退出、崩溃兜底都只属于这一个窗口。
  */
 export async function createWindow() {
@@ -261,7 +289,7 @@ export async function createWindow() {
       await ctx.mainWindow.loadURL(`http://127.0.0.1:${ctx.serverPort}`).catch(() => {});
     }
   } else {
-    await ctx.mainWindow.loadURL(url);
+    await loadMainUrlWithRetry();
   }
   if (START_HIDDEN) {
     // 开机自启：界面已经加载好但先不显示，用户点托盘/快捷键再露出来

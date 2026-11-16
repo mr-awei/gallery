@@ -176,15 +176,15 @@
   <div class="kicker"><span class="dot"></span>深度代码审计 · 单机基准 + 四项远期目标</div>
   <h1>图库 TuKu：<span class="g">本地素材管理器</span>的真实水平</h1>
   <p class="lede">
-    这不是功能宣传页，而是一次把 13.5 万行代码逐层翻过之后的计分：17 个维度、8 个竞品、
+    这不是功能宣传页，而是一次把 13.7 万行代码逐层翻过之后的计分：17 个维度、8 个竞品、
     每条结论都能落到文件与函数上。结论先说——<b>只做本地管理器，它是这一档的第一（90.9 / 100）</b>；
     云与多端、协作社区、多语言、跨平台这四项<b>不是不做，而是排在后面的远期目标</b>，
     同一 17 维口径下按今天的进度是 <b>71.2</b>（第 3），按目标值计分可到 <b>87.1</b>（第 1）。三个数都对，区别只在"算哪一天"。
   </p>
   <div class="chips">
     <span class="chip">审计日期 <b>2026-11-16</b></span>
-    <span class="chip">代码版本 <b>1.2.17</b></span>
-    <span class="chip">规模 <b>561 文件 / 135,640 行</b></span>
+    <span class="chip">代码版本 <b>1.2.18</b></span>
+    <span class="chip">规模 <b>563 文件 / 136,558 行</b></span>
     <span class="chip">方法 <b>代码审计 + 实跑基准 + 8 竞品对标</b></span>
     <span class="chip">配套文档 <b><a href="./产品介绍.html">功能资料（面向普通用户）</a></b></span>
   </div>
@@ -581,7 +581,7 @@
     </div>
     <div class="card">
       <h3><span class="n">09</span>有真正的质量闸门</h3>
-      <p>DTO 契约 45/52 一致、单测 <span data-stat="unit">512 / 512</span>、冒烟 <span data-stat="smoke">143 / 143</span>、基准 <span data-stat="bench">15 / 15</span>，外加四道 typecheck 与一套 lint；<code>npm run verify</code> 一条命令跑完。</p>
+      <p>DTO 契约 45/52 一致、单测 <span data-stat="unit">518 / 518</span>、冒烟 <span data-stat="smoke">143 / 143</span>、基准 <span data-stat="bench">15 / 15</span>，外加四道 typecheck 与一套 lint；<code>npm run verify</code> 一条命令跑完。</p>
       <div class="ev">证据：<code>package.json</code> scripts · <code>scripts/verify*</code> · CI 与发版流程同源</div>
     </div>
     <div class="card">
@@ -682,7 +682,8 @@
   <div class="callout" style="margin-top:18px">
     <b>现在只剩两堵墙：</b>① 买证书签名（决定"能不能发给别人用"）；
     ② mac / Linux 真机验收（不验收就别宣称支持）。剩下的都是打磨，可以慢慢来。
-    本版（1.2.17）清掉的是：网格布局的 O(n) 全量重算（改成增量追加 + 底边分桶）、AI 夜间批处理队列；
+    本版（1.2.18）清掉的是：显卡后端在个别驱动组合上直接把服务进程打死（DML 原生崩溃）导致的「启动即失败」——崩溃会被主进程记进 <span class="mono">device-state.json</span>，下次启动自动走 CPU，页面加载也改为等服务恢复而不是直接判死；
+    上一版（1.2.17）清掉的是：网格布局的 O(n) 全量重算（改成增量追加 + 底边分桶）、AI 夜间批处理队列；
     v1.2.16 清掉的是：主网格虚拟滚动与 roving tabindex、首屏与包体、首次导入吞吐、接口示例代码、单机算力天花板、外键与 API 参考。
   </div>
 </section>
@@ -693,10 +694,10 @@
   </p>
 
   <div class="grid4">
-    <div class="tile"><div class="v">135,640</div><div class="k">行代码 / 561 个文件</div><div class="s">web 67,441 · server 48,379 · test 8,956</div></div>
+    <div class="tile"><div class="v">136,558</div><div class="k">行代码 / 563 个文件</div><div class="s">web 67,662 · server 48,781 · test 9,120</div></div>
     <div class="tile"><div class="v">409</div><div class="k">HTTP 端点 / 34 个路由模块</div><div class="s">统一错误信封 + 输入白名单（数字取自 <span class="mono">/api/docs</span> 自省）</div></div>
     <div class="tile"><div class="v">40</div><div class="k">数据表 / 15 触发器 / 37 索引</div><div class="s">外键已开，FTS5 trigram 全文索引</div></div>
-    <div class="tile"><div class="v" data-stat="summary" style="font-size:17px">249 · 512 · 143 · 15</div><div class="k">lint 文件 · 单测 · 冒烟 · 基准（verify 实跑回写）</div><div class="s"><span data-stat="testFiles">78</span> 个 .test.mjs 文件 · 一条命令跑完</div></div>
+    <div class="tile"><div class="v" data-stat="summary" style="font-size:17px">250 · 518 · 143 · 15</div><div class="k">lint 文件 · 单测 · 冒烟 · 基准（verify 实跑回写）</div><div class="s"><span data-stat="testFiles">79</span> 个 .test.mjs 文件 · 一条命令跑完</div></div>
     <div class="tile"><div class="v">15 + 25</div><div class="k">页面 + 设置分区</div><div class="s">72 组件 · 25 弹窗 · 172 条教程</div></div>
     <div class="tile"><div class="v">11</div><div class="k">设计稿格式 / RAW 40+ / 三维 9</div><div class="s">视频 8 · 音频 8 · PDF · Office · 字体 · EPUB</div></div>
     <div class="tile"><div class="v">10 + 11</div><div class="k">采集源 + MCP 工具</div><div class="s">插件 5 类权限位、node:vm 沙箱</div></div>
@@ -710,12 +711,12 @@
         <table style="min-width:0">
           <thead><tr><th>目录</th><th>文件</th><th>行数</th><th>占比</th></tr></thead>
           <tbody>
-            <tr><td>web/src（前端）</td><td class="num">222</td><td class="num">67,441</td><td class="num">49.7%</td></tr>
-            <tr><td>server（后端）</td><td class="num">198</td><td class="num">48,379</td><td class="num">35.7%</td></tr>
-            <tr><td>test（测试）</td><td class="num">80</td><td class="num">8,956</td><td class="num">6.6%</td></tr>
-            <tr><td>electron（桌面）</td><td class="num">29</td><td class="num">5,086</td><td class="num">3.7%</td></tr>
-            <tr><td>scripts（工具）</td><td class="num">26</td><td class="num">4,502</td><td class="num">3.3%</td></tr>
-            <tr><td>extension（扩展）</td><td class="num">6</td><td class="num">1,276</td><td class="num">0.9%</td></tr>
+            <tr><td>web/src（前端）</td><td class="num">222</td><td class="num">67,662</td><td class="num">49.5%</td></tr>
+            <tr><td>server（后端）</td><td class="num">199</td><td class="num">48,781</td><td class="num">35.7%</td></tr>
+            <tr><td>test（测试）</td><td class="num">81</td><td class="num">9,120</td><td class="num">6.7%</td></tr>
+            <tr><td>electron（桌面）</td><td class="num">29</td><td class="num">5,185</td><td class="num">3.8%</td></tr>
+            <tr><td>scripts（工具）</td><td class="num">26</td><td class="num">4,528</td><td class="num">3.3%</td></tr>
+            <tr><td>extension（扩展）</td><td class="num">6</td><td class="num">1,282</td><td class="num">0.9%</td></tr>
           </tbody>
         </table>
       </div>
@@ -930,7 +931,7 @@
     <div class="panel">
       <h3 style="margin:0 0 8px;font-size:14.6px">这次审计做了什么</h3>
       <ul class="plain">
-        <li>通读六个目录共 561 文件：路由与数据层、前端交互、桌面与自动化、测试与交付。</li>
+        <li>通读六个目录共 563 文件：路由与数据层、前端交互、桌面与自动化、测试与交付。</li>
         <li>用脚本统计规模、表结构、索引、触发器、依赖、包体、格式覆盖与测试数量，避免"凭感觉"。 </li>
         <li>实跑 <span class="mono">bench:quick</span> 取 p95；实跑 typecheck / lint / unit / smoke 确认结论成立。</li>
         <li>三个分域深审并行（后端、前端、桌面与工程），交叉核对后才写进报告。</li>
@@ -959,7 +960,7 @@
 </section>
 
 <div class="foot">
-  报告生成于 2026-11-16 · 代码版本 1.2.17（Node ≥22.5）· 统计口径：仓库内 <span class="mono">web/src</span>、<span class="mono">server</span>、<span class="mono">electron</span>、<span class="mono">test</span>、<span class="mono">scripts</span>、<span class="mono">extension</span> 六个目录，共 561 文件 / 135,640 行。<br>
+  报告生成于 2026-11-16 · 代码版本 1.2.18（Node ≥22.5）· 统计口径：仓库内 <span class="mono">web/src</span>、<span class="mono">server</span>、<span class="mono">electron</span>、<span class="mono">test</span>、<span class="mono">scripts</span>、<span class="mono">extension</span> 六个目录，共 563 文件 / 136,558 行。<br>
   分数口径（全部百分制）：单机基准 <b>90.9</b>（13 维，已实现）· 17 维当前分 <b>71.2</b>（第 3）· 中期目标 <b>76.4</b>（第 2）· 远期目标 <b>87.1</b>（第 1）。同一口径下远期高于现在，三档换算见第 01、09 节。<br>
   竞品分数为本报告评分框架下的<b>估算</b>（依据公开功能面），不是厂商官方评分，也不构成购买建议；TuKu 的分数全部可由仓库代码与实跑基准复核。上一版 90.0 已由本版 90.9 取代。<br>
   配套文档：<a href="./产品介绍.html">产品介绍（面向普通用户，不含评分方法）</a>
