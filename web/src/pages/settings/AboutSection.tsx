@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { desktop, getAppInfo, quiet } from '../../api';
-import type { AppInfo, UpdateState } from '../../api';
+import type { AppInfo, HotfixState, UpdateState } from '../../api';
 import type { Settings as SettingsType } from '../../types';
 import Card from './Card';
 
@@ -75,11 +75,16 @@ export default function AboutSection({ settings, patch, onToast, onOpenTutorial 
   const [msg, setMsg] = useState('');
   /** 网页兜底检查（开发态/浏览器预览）发现的发布页地址 */
   const [webUrl, setWebUrl] = useState('');
+  /** 热更状态：反映本机事实（生效序号 / 待生效序号 / 是否停用） */
+  const [hot, setHot] = useState<HotfixState | null>(null);
+  const [hotBusy, setHotBusy] = useState(false);
+  const [hotMsg, setHotMsg] = useState('');
 
   useEffect(() => {
     getAppInfo().then(setInfo).catch(quiet);
     desktop?.getAutoLaunch?.().then(setAutoLaunch).catch(quiet);
     desktop?.updateState?.().then(setUp).catch(quiet);
+    desktop?.hotfixState?.().then(setHot).catch(quiet);
     // 下载进度由主进程广播，这里只订阅，不做轮询
     return desktop?.onUpdateState?.((s) => setUp(s));
   }, []);
@@ -90,6 +95,51 @@ export default function AboutSection({ settings, patch, onToast, onOpenTutorial 
   const supported = !!up.supported;
   /** 只有安装版能就地升级；绿色版/开发态只能把人送到发布页 */
   const canSelfUpdate = supported;
+
+  const applyMode = settings.hotfixApply || 'next';
+  const applyLabel = applyMode === 'now' ? '下载完立刻生效' : applyMode === 'manual' ? '只手动下载' : '下次启动生效';
+
+  const refreshHot = () => desktop?.hotfixState?.().then(setHot).catch(quiet);
+
+  const checkHotfix = async () => {
+    setHotBusy(true);
+    setHotMsg('');
+    try {
+      const r = await desktop?.hotfixCheck?.();
+      if (!r) setHotMsg('浏览器预览模式不支持热更，请在安装版里使用');
+      else if (!r.ok) setHotMsg(r.error || '检查失败，请检查网络或代理设置');
+      else setHotMsg(`热更 #${r.seq} 已下载${r.notes ? `：${r.notes}` : ''}，${applyLabel}`);
+      await refreshHot();
+    } finally {
+      setHotBusy(false);
+    }
+  };
+
+  const applyHotfix = async () => {
+    setHotBusy(true);
+    setHotMsg('正在换入热更并重启本地服务…');
+    try {
+      const r = await desktop?.hotfixApply?.();
+      // 成功时主进程会重载所有窗口，这里的提示只是刷新失败时的兜底
+      setHotMsg(r?.applied ? `热更 #${r.seq} 已生效` : r?.error || '没有待生效的热更包');
+      await refreshHot();
+    } finally {
+      setHotBusy(false);
+    }
+  };
+
+  const importHotfix = async () => {
+    setHotBusy(true);
+    setHotMsg('');
+    try {
+      const r = await desktop?.hotfixImport?.();
+      if (r?.ok) setHotMsg(`已导入热更 #${r.seq}${r.notes ? `：${r.notes}` : ''}，${applyLabel}`);
+      else setHotMsg(r?.error || '导入失败');
+      await refreshHot();
+    } finally {
+      setHotBusy(false);
+    }
+  };
 
   const check = async () => {
     setBusy(true);
@@ -297,6 +347,66 @@ export default function AboutSection({ settings, patch, onToast, onOpenTutorial 
             onChange={(e) => patch({ autoUpdateCheck: e.target.checked })}
           />
         </div>
+        <div className="switch-row">
+          <span>
+            {'热更生效时机'}
+            <span className="hint">　{'只替换界面与服务端脚本，不用重装安装包'}</span>
+          </span>
+          <select
+            className="input"
+            style={{ flex: '0 0 auto', minWidth: 150 }}
+            value={settings.hotfixApply || 'next'}
+            onChange={(e) => patch({ hotfixApply: e.target.value as 'next' | 'now' | 'manual' })}
+            aria-label="热更生效时机"
+          >
+            <option value="next">{'下次启动生效'}</option>
+            <option value="now">{'下载完立刻生效'}</option>
+            <option value="manual">{'只手动下载'}</option>
+          </select>
+        </div>
+      </Card>
+
+      <Card
+        title={'热更'}
+        desc={
+          '界面、文案、服务端脚本这类小改动走热更直接替换文件，不用每次重新装安装包；' +
+          '涉及外壳与原生模块的改动仍然只能装安装包。'
+        }
+      >
+        <div className="about-grid">
+          <Row
+            label={'当前生效'}
+            value={
+              !hot
+                ? '—'
+                : hot.activeSeq
+                  ? `${version ? `v${version}` : ''} + 热更 #${hot.activeSeq}`
+                  : `${version ? `v${version}` : ''}（仅安装包）`
+            }
+          />
+          <Row
+            label={'待生效'}
+            value={hot?.pendingSeq ? `#${hot.pendingSeq}${hot.pendingNotes ? ` · ${hot.pendingNotes}` : ''}` : '无'}
+          />
+          <Row label={'生效方式'} value={!hot?.enabled ? '未启用（缺少公钥）' : applyLabel} />
+        </div>
+        <div className="about-actions">
+          <button className="btn" onClick={checkHotfix} disabled={hotBusy || !hot?.enabled}>
+            {'检查热更'}
+          </button>
+          <button
+            className="btn primary"
+            onClick={applyHotfix}
+            disabled={hotBusy || !hot?.pendingSeq}
+            title={hot?.pendingSeq ? '停掉本地服务、换入热更包并刷新界面' : '没有待生效的热更包'}
+          >
+            {'现在生效'}
+          </button>
+          <button className="btn" onClick={importHotfix} disabled={hotBusy || !hot?.enabled}>
+            {'从文件导入…'}
+          </button>
+        </div>
+        {hotMsg ? <div className="hint" style={{ marginTop: 8 }}>{hotMsg}</div> : null}
       </Card>
 
       <Card

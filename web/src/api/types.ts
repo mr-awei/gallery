@@ -110,9 +110,28 @@ export interface AppInfo {
   officialRepo?: string;
 }
 
+/** 热更状态：只反映本机事实（生效序号 / 待生效序号 / 已隔离的坏包） */
+export interface HotfixState {
+  enabled: boolean;
+  /** 当前生效的热更序号（0 = 纯安装包） */
+  activeSeq: number;
+  /** 已下载、尚未生效的序号（0 = 没有） */
+  pendingSeq: number;
+  pendingNotes: string;
+  lastSeq: number;
+  badSeqs: number[];
+  /** 生效时机（来自设置快照，主进程读的是同一份） */
+  apply: 'next' | 'now' | 'manual';
+}
+
 export interface DesktopAPI {
   isDesktop: boolean;
   pickFolder: () => Promise<string | null>;
+  /** 热更：状态 / 手动检查 / 立即生效 / 离线导入 zip */
+  hotfixState?: () => Promise<HotfixState>;
+  hotfixCheck?: () => Promise<{ ok: boolean; updated: boolean; seq?: number; notes?: string; error?: string }>;
+  hotfixApply?: () => Promise<{ applied: boolean; seq?: number; error?: string }>;
+  hotfixImport?: () => Promise<{ ok: boolean; seq?: number; notes?: string; error?: string }>;
   openFolder: (path: string) => Promise<string | null>;
   /** 打开崩溃转储目录（桌面端） */
   openCrashDir?: () => Promise<string>;

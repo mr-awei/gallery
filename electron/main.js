@@ -40,6 +40,7 @@ import { registerGlobalShortcuts, unregisterGlobalShortcuts } from './main/short
 import { showSplash, closeSplash } from './main/splash.js';
 import { closeToast, showToastBanner } from './main/toast.js';
 import { createTray, stopTrayTimer } from './main/tray.js';
+import { registerHotfixIpc, startHotfixCheck, stopHotfixCheck } from './main/hotfix-ipc.js';
 import {
   registerUpdateIpc,
   startBackgroundUpdateCheck,
@@ -197,6 +198,7 @@ app
     registerAppIpc();
     registerLiveIpc();
     registerUpdateIpc();
+    registerHotfixIpc();
 
     wireUpdateLifecycle();
 
@@ -221,6 +223,8 @@ app
     // 后台静默检查更新：确认有新版就顺手下载，下载期间界面照常可用；
     // 只有包已经落到本地、能立刻安装时才会弹提示
     startBackgroundUpdateCheck();
+    // 热更：只下载不打扰，生效时机由设置决定（默认下次启动）
+    startHotfixCheck();
 
     // 托盘创建失败 + 以 --hidden 启动 = 用户完全没有入口，兜底把窗口显示出来
     if (START_HIDDEN && !ctx.tray) {
@@ -259,6 +263,7 @@ app.on('will-quit', (e) => {
   e.preventDefault();
   unregisterGlobalShortcuts();
   stopTrayTimer();
+  stopHotfixCheck();
   destroyLiveWindow();
   stopScreensaverWatch();
   closeToast();

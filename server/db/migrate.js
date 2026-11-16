@@ -1,6 +1,7 @@
 import fs from 'node:fs';
 import { repairTakenAt } from '../lib/timeline-repair.js';
 import { installLibrarySchema } from './schema.js';
+import { SCHEMA_VERSION } from './schema-version.js';
 import { noteSchemaWarning, resetSchemaWarnings } from './state.js';
 
 /**
@@ -56,7 +57,12 @@ const MIGRATIONS = [
   },
 ];
 
-const SCHEMA_VERSION = MIGRATIONS[MIGRATIONS.length - 1].version;
+// 版本号是「热更包能不能装」的闸门之一（见 electron/main/hotfix.js），
+// 所以由 schema-version.js 单独对外，这里只做一致性断言：两边不同步立刻炸，别悄悄放过。
+const LATEST_MIGRATION = MIGRATIONS[MIGRATIONS.length - 1]?.version || 0;
+if (LATEST_MIGRATION !== SCHEMA_VERSION) {
+  throw new Error(`SCHEMA_VERSION(${SCHEMA_VERSION}) 与迁移表最新版本(${LATEST_MIGRATION}) 不一致`);
+}
 
 /**
  * 升级前留一份一致性快照：VACUUM INTO 会带上 WAL 里已提交但还没合并的数据。

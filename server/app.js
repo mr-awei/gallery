@@ -1,7 +1,7 @@
 import express from 'express';
 import fs from 'node:fs';
 import path from 'node:path';
-import { PORT, WEB_DIST } from './config.js';
+import { PORT, WEB_DIST, WEB_OVERLAY } from './config.js';
 import { db, getSettings } from './db.js';
 import { logOp } from './oplog.js';
 import * as lib from './library.js';
@@ -918,20 +918,28 @@ export function buildApp({ desktop = false } = {}) {
   const htmlCsp =
     "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; media-src 'self' data: blob:; font-src 'self' data:; connect-src 'self' data: blob:; object-src 'none'; base-uri 'self'; form-action 'self'";
 
-  if (fs.existsSync(WEB_DIST)) {
-    app.use(
-      express.static(WEB_DIST, {
-        maxAge: '1h',
-        setHeaders: (res, filePath) => {
-          if (String(filePath).endsWith('.html')) res.setHeader('Content-Security-Policy', htmlCsp);
-        },
-      })
-    );
+  // 前端托管分层：热更增量目录 → 内置 dist/web → index.html 兜底。
+  // express.static 未命中会自行 next()，所以天然是「叠加」语义，不用合并目录：
+  // 热更包只带改动的那几个文件和 index.html，其余照旧从 asar 里出。
+  const webRoots = [WEB_OVERLAY, WEB_DIST].filter((dir) => dir && fs.existsSync(dir));
+  const indexHtml = webRoots.map((dir) => path.join(dir, 'index.html')).find((file) => fs.existsSync(file));
+  if (indexHtml) {
+    // 资源文件名带内容哈希，装新版本 / 换热更包后旧 HTML 会指向已删除的 js → 白屏。
+    // 所以 HTML 一律 no-cache（ETag 命中还是 304），只在命中 .html 时才改这两个头。
+    const serveOptions = {
+      maxAge: '1h',
+      setHeaders: (res, filePath) => {
+        if (!String(filePath).endsWith('.html')) return;
+        res.setHeader('Content-Security-Policy', htmlCsp);
+        res.setHeader('Cache-Control', 'no-cache');
+      },
+    };
+    for (const root of webRoots) app.use(express.static(root, serveOptions));
     app.use((req, res, next) => {
       if (req.path.startsWith('/api')) return next();
       // 生产托管的 HTML 叠加更严格的 CSP 响应头
       res.setHeader('Content-Security-Policy', htmlCsp);
-      res.sendFile(path.join(WEB_DIST, 'index.html'));
+      res.sendFile(indexHtml);
     });
   } else {
     app.get('/', (_req, res) => {

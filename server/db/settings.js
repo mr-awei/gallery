@@ -27,6 +27,8 @@ const GLOBAL_SETTING_KEYS = new Set([
   'updateRepo',
   'autoLaunch',
   'autoUpdateCheck',
+  // 热更生效时机是应用级偏好：不该每个资源库各配一遍
+  'hotfixApply',
   'weiboCookie',
   'weiboUserAgent',
   'network',
@@ -97,6 +99,9 @@ export const DEFAULT_SETTINGS = {
   autoLaunch: false,
   // 启动时自动检查更新（桌面安装版）：关掉后只在「设置 → 关于」手动检查
   autoUpdateCheck: true,
+  // 热更（只换 web/ 与 server/，不含安装包）的生效时机：
+  //   next = 下载好等下次启动 / now = 下载完立刻重启本地服务 / manual = 只在我点检查时下载
+  hotfixApply: 'next',
   // 关窗行为（桌面端）：true = 收到托盘继续后台跑；false = 关窗即退出
   closeToTray: true,
   // 微博登录 Cookie（微博接口已关闭游客访问，填了才能用微博源）

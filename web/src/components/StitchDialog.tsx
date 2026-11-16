@@ -1,8 +1,10 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import type { PointerEvent as ReactPointerEvent } from 'react';
 import { api, downloadFile, formatSize } from '../api';
 import type { StitchCrop, StitchPlan, StitchTemplate } from '../api';
 import type { ImageItem } from '../types';
 import { IconClose, IconDownload } from './Icons';
+import { applyOrder, normalizeOrder, swapAt } from '../lib/stitchOrder';
 import StitchCropEditor from './StitchCropEditor';
 
 interface Props {
@@ -106,6 +108,20 @@ export default function StitchDialog({ items, onClose, onToast }: Props) {
   const imgRef = useRef<HTMLImageElement | null>(null);
 
   const ids = useMemo(() => items.map((i) => i.id), [items]);
+  const idsKey = ids.join(',');
+  // 「哪张图放哪一格」：order[槽位] = 选图下标。以前顺序是写死的（第 i 张进第 i 格），
+  // 想让竖构图占左大图只能重选素材；现在随时能换位，换布局也不丢
+  const [order, setOrder] = useState<number[]>(() => items.map((_, i) => i));
+  // 重新选了一批素材（ids 变了）就回到顺序摆放，别把上一批的对应关系带过来
+  useEffect(() => {
+    setOrder((prev) => {
+      const next = normalizeOrder([], items.length);
+      return prev.length === next.length && prev.every((v, i) => v === next[i]) ? prev : next;
+    });
+  }, [idsKey, items.length]);
+  /** 按当前顺序拍好的素材：槽位 i 就是 orderedItems[i] */
+  const orderedItems = useMemo(() => applyOrder(items, order), [items, order]);
+  const orderedIds = useMemo(() => orderedItems.map((i) => i.id), [orderedItems]);
   const tpl = useMemo(() => tplList?.find((t) => t.id === tplId) || null, [tplList, tplId]);
   const availTemplates = useMemo(
     () => (tplList || []).filter((t) => items.length >= t.min && items.length <= t.max),
@@ -132,7 +148,7 @@ export default function StitchDialog({ items, onClose, onToast }: Props) {
     let alive = true;
     const t = setTimeout(() => {
       api
-        .stitchPlan(ids, {
+        .stitchPlan(orderedIds, {
           template: tplId || undefined,
           layout: tplId ? undefined : layout,
           ratio: tplId ? undefined : ratio,
@@ -168,7 +184,7 @@ export default function StitchDialog({ items, onClose, onToast }: Props) {
       alive = false;
       clearTimeout(t);
     };
-  }, [ids, tplId, layout, ratio, outWidth, columns, cell, gapParam, seamless, items.length]);
+  }, [orderedIds, tplId, layout, ratio, outWidth, columns, cell, gapParam, seamless, items.length]);
 
   /** 构图台的格子：按 idx 归位后的坐标 + 缩放下限（缺一格就不画，免得框和图错位） */
   const cells = useMemo(() => alignPlan(plan, items.length), [plan, items.length]);
@@ -191,7 +207,7 @@ export default function StitchDialog({ items, onClose, onToast }: Props) {
 
   const url = useMemo(
     () =>
-      api.stitchUrl(ids, {
+      api.stitchUrl(orderedIds, {
         template: tplId || undefined,
         // 两种版式都带上 crops：算法版式也要能逐格调（不带就是服务端的默认铺法）
         crops: cropsParam,
@@ -218,7 +234,7 @@ export default function StitchDialog({ items, onClose, onToast }: Props) {
         file: fileName.trim() || undefined,
       }),
     [
-      ids, tplId, cropsParam, layout, ratio, outWidth, columns, gapParam, bg, cell,
+      orderedIds, tplId, cropsParam, layout, ratio, outWidth, columns, gapParam, bg, cell,
       radius, shadow, border, backdrop, seamless, format, quality, title, subtitle, billing,
       font, titleScale, titleColor, fileName,
     ]
@@ -317,8 +333,8 @@ export default function StitchDialog({ items, onClose, onToast }: Props) {
     if (!tpl) return;
     setAutoBusy(true);
     try {
-      const r = await api.stitchAutoCrops(ids, tpl.id);
-      setCrops(items.map((_, i) => r.crops[i] || centerCrop()));
+      const r = await api.stitchAutoCrops(orderedIds, tpl.id);
+      setCrops(orderedItems.map((_, i) => r.crops[i] || centerCrop()));
       onToast?.('已按主体位置自动构图，可继续手调');
     } catch (e: any) {
       onToast?.(e?.message || '自动构图失败', 'error');
@@ -326,6 +342,74 @@ export default function StitchDialog({ items, onClose, onToast }: Props) {
       setAutoBusy(false);
     }
   };
+
+  /**
+   * 互换两格的图：只换映射，不动素材本身。
+   * 构图（crops）跟着图走 —— 用户调好的「这张图露哪块」不该留在原来的格子里。
+   */
+  const swapSlots = useCallback((a: number, b: number) => {
+    setOrder((prev) => swapAt(prev, a, b));
+    setCrops((prev) => swapAt(prev, a, b));
+  }, []);
+
+  // 换位的拖拽：从缩略图条或格子左上角的编号拖到另一格，松手即互换。
+  // 用 pointer 事件而不是 HTML5 drag：桌面端（Electron）一样能用，还能用真实鼠标序列做回归测试
+  const dragFrom = useRef<{ slot: number; x: number; y: number; moved: boolean; thumb: string } | null>(null);
+  const [dragThumb, setDragThumb] = useState('');
+  const ghostRef = useRef<HTMLDivElement | null>(null);
+  // 刚拖完的那一下会顺手生成一个 click：拖到对话框外面松手不该顺带把窗口关掉
+  const dragEndRef = useRef(0);
+
+  const beginSlotDrag = useCallback(
+    (e: ReactPointerEvent, slot: number) => {
+      if (e.button !== 0) return;
+      const it = orderedItems[slot];
+      if (!it) return;
+      e.preventDefault(); // 别让浏览器顺手开始选字 / 拖原生图片
+      dragFrom.current = { slot, x: e.clientX, y: e.clientY, moved: false, thumb: it.thumbUrl };
+    },
+    [orderedItems]
+  );
+
+  useEffect(() => {
+    const place = (x: number, y: number) => {
+      const el = ghostRef.current;
+      // 用 fixed + translate 直接改样式：每帧只动一个合成层，不带着整个对话框重渲染
+      if (el) el.style.transform = `translate(${x}px, ${y}px) translate(-50%, -50%)`;
+    };
+    const onMove = (e: PointerEvent) => {
+      const d = dragFrom.current;
+      if (!d) return;
+      if (!d.moved) {
+        if (Math.abs(e.clientX - d.x) + Math.abs(e.clientY - d.y) < 6) return;
+        d.moved = true;
+        setDragThumb(d.thumb);
+        requestAnimationFrame(() => place(e.clientX, e.clientY));
+        return;
+      }
+      place(e.clientX, e.clientY);
+    };
+    const onUp = (e: PointerEvent) => {
+      const d = dragFrom.current;
+      dragFrom.current = null;
+      setDragThumb('');
+      if (!d || !d.moved) return;
+      dragEndRef.current = Date.now();
+      // 落点命中格子（data-cell）或缩略图（data-slot）就互换；落在别处等于取消
+      const el = document.elementFromPoint(e.clientX, e.clientY) as HTMLElement | null;
+      const holder = el?.closest<HTMLElement>('[data-cell], [data-slot]');
+      const to = Number(holder?.dataset.cell ?? holder?.dataset.slot);
+      if (Number.isInteger(to) && to !== d.slot) swapSlots(d.slot, to);
+    };
+    window.addEventListener('pointermove', onMove);
+    window.addEventListener('pointerup', onUp);
+    window.addEventListener('pointercancel', onUp);
+    return () => {
+      window.removeEventListener('pointermove', onMove);
+      window.removeEventListener('pointerup', onUp);
+      window.removeEventListener('pointercancel', onUp);
+    };
+  }, [swapSlots]);
 
   const totalBytes = items.reduce((n, i) => n + (i.sizeBytes || 0), 0);
   const hasText = Boolean(tpl && (tpl.title || tpl.masthead || tpl.sub || tpl.billing));
@@ -337,8 +421,14 @@ export default function StitchDialog({ items, onClose, onToast }: Props) {
   }, [items.length]);
 
   return (
-    <div className="modal-backdrop tk-backdrop" onClick={onClose}>
-      <div className="modal-card st-card" onClick={(e) => e.stopPropagation()}>
+    <div
+      className="modal-backdrop tk-backdrop"
+      onClick={() => {
+        if (Date.now() - dragEndRef.current < 300) return; // 拖拽换位的落点在外面＝取消，别关窗
+        onClose();
+      }}
+    >
+      <div className={`modal-card st-card${dragThumb ? ' st-dragging' : ''}`} onClick={(e) => e.stopPropagation()}>
         <div className="modal-head">
           <b>{'拼图 / 版面'}</b>
           <span className="tk-title">
@@ -363,12 +453,13 @@ export default function StitchDialog({ items, onClose, onToast }: Props) {
                     large
                     boxes={cells.boxes}
                     ratio={cells.ratio}
-                    items={items}
+                    items={orderedItems}
                     crops={crops}
                     onChange={setCrops}
                     zMin={cells.zMin}
                     defaultZ={!tplId && layout === 'grid' ? cells.zMin : undefined}
                     resultUrl={previewUrl || undefined}
+                    onSlotDrag={beginSlotDrag}
                   />
                 ) : (
                   <img
@@ -398,21 +489,33 @@ export default function StitchDialog({ items, onClose, onToast }: Props) {
                 <span>{`${items.length} 张`}</span>
                 <span>{`原图 ${formatSize(totalBytes)}`}</span>
                 {size && <span className="st-meta-out">{`成品 ${size}`}</span>}
-                <span className="st-meta-tip">{cells ? '左图可直接拖动构图' : '预览即导出结果'}</span>
+                <span className="st-meta-tip">
+                  {cells ? '左图可拖动构图 · 拖角标或缩略图到别格＝换位置' : '预览即导出结果'}
+                </span>
               </div>
               {planErr && (
                 <div className="st-warnline">{`读不到版面坐标（${planErr}），暂时只能按整图预览；刷新页面再试逐格构图。`}</div>
               )}
               <div className="st-order">
-                <span className="st-order-label">{'顺序'}</span>
+                <span className="st-order-label" title={'拖动缩略图（或左图各格左上角的编号）到别的格子上，松手即互换'}>
+                  {'顺序'}
+                </span>
                 <div className="st-picked">
-                  {items.slice(0, 24).map((it, i) => (
-                    <span className="st-pick" key={it.id} title={it.title}>
-                      <img src={it.thumbUrl} alt="" loading="lazy" decoding="async" />
+                  {orderedItems.slice(0, 24).map((it, i) => (
+                    <span
+                      className="st-pick"
+                      key={it.id}
+                      data-slot={i}
+                      title={`第 ${i + 1} 格${it.title ? ` · ${it.title}` : ''}｜拖动可换位置`}
+                      onPointerDown={(e) => beginSlotDrag(e, i)}
+                    >
+                      <img src={it.thumbUrl} alt="" loading="lazy" decoding="async" draggable={false} />
                       <i>{i + 1}</i>
                     </span>
                   ))}
-                  {items.length > 24 && <span className="tk-hint">{`还有 ${items.length - 24} 张…`}</span>}
+                  {orderedItems.length > 24 && (
+                    <span className="tk-hint">{`还有 ${orderedItems.length - 24} 张…`}</span>
+                  )}
                 </div>
               </div>
             </div>
@@ -461,8 +564,8 @@ export default function StitchDialog({ items, onClose, onToast }: Props) {
                                 height: `${s[3] * 100}%`,
                               }}
                             >
-                              {items[i] ? (
-                                <img src={items[i].thumbUrl} alt="" loading="lazy" decoding="async" />
+                              {orderedItems[i] ? (
+                                <img src={orderedItems[i].thumbUrl} alt="" loading="lazy" decoding="async" />
                               ) : null}
                             </span>
                           ))}
@@ -846,6 +949,12 @@ export default function StitchDialog({ items, onClose, onToast }: Props) {
             <IconDownload /> {'下载拼图'}
           </button>
         </div>
+        {/* 拖动换位时跟着光标的缩略图：位置用 transform 直接改，不参与 React 重渲染 */}
+        {dragThumb && (
+          <div ref={ghostRef} className="st-drag-ghost" aria-hidden>
+            <img src={dragThumb} alt="" draggable={false} />
+          </div>
+        )}
       </div>
     </div>
   );

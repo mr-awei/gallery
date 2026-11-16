@@ -60,6 +60,11 @@ contextBridge.exposeInMainWorld('desktopAPI', {
   setAutoLaunch: (enabled) => ipcRenderer.invoke('set-auto-launch', enabled),
   // 检查更新：{ ok, hasUpdate, latest, current, url } 或 { ok: false, msg }
   checkForUpdates: () => ipcRenderer.invoke('check-for-updates'),
+  // 热更（不重装安装包的小补丁）：状态 / 手动检查 / 立即生效 / 离线导入
+  hotfixState: () => ipcRenderer.invoke('hotfix-state'),
+  hotfixCheck: () => ipcRenderer.invoke('hotfix-check'),
+  hotfixApply: () => ipcRenderer.invoke('hotfix-apply'),
+  hotfixImport: () => ipcRenderer.invoke('hotfix-import'),
   // 应用内更新（electron-updater，仅安装版可用）
   updateCheck: () => ipcRenderer.invoke('update-check'),
   updateDownload: () => ipcRenderer.invoke('update-download'),

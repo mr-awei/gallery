@@ -1,6 +1,6 @@
 # 图库 TuKu
 
-[![版本](https://img.shields.io/badge/version-1.2.20-2563eb.svg)](https://github.com/mr-awei/gallery/releases/latest)
+[![版本](https://img.shields.io/badge/version-1.2.21-2563eb.svg)](https://github.com/mr-awei/gallery/releases/latest)
 [![平台](https://img.shields.io/badge/platform-Windows%2010%2F11-5b6472.svg)](#1-它是什么)
 [![Electron](https://img.shields.io/badge/Electron-44.4.5-47848f.svg)](#4-架构与数据流)
 [![Node](https://img.shields.io/badge/Node-%E2%89%A522.5-339933.svg)](#11-从源码运行)
@@ -9,7 +9,7 @@
 
 **本地优先的图片 / 素材管理工具。** 原图留在你自己的硬盘上，索引、标签、评分、笔记、人脸特征全部存在本地；不注册账号、不上传云端、断网照样能用。
 
-> 仓库同时镜像在 [GitHub](https://github.com/mr-awei/gallery) 与 [Gitee](https://gitee.com/mr-awei/gallery)。自动更新只读 GitHub Releases，Gitee 仅作代码镜像。
+> 仓库同时镜像在 [GitHub](https://github.com/mr-awei/gallery) 与 [Gitee](https://gitee.com/mr-awei/gallery)。整包自动更新只读 GitHub Releases（Gitee 仅作代码镜像）；`server/` 与 `web/` 的小修走热更通道，Gitee 镜像优先（见 [热更](#热更不发安装包也能修-bug)）。
 >
 > **现状 / 评分（百分制：单机 90.9 · 远期目标 87.1 · 当前 17 维 71.2）/ 缺点清单 / 交付顺序见 [`docs/评测与路线图.html`](docs/评测与路线图.html)**；不关心评分、只想知道它能不能用的，看 [`docs/产品介绍.html`](docs/产品介绍.html)。GitHub / Gitee 上请点 **Raw** 或下载到本地用浏览器打开。
 
@@ -20,7 +20,7 @@
 | 指标 | 数值 | 说明 |
 | --- | --- | --- |
 | 设计规模 | 百万级 | worker 池 + 批量事务 + 单次解码 + 增量扫描 |
-| 验证覆盖 | 单测 512 · 冒烟 143/143 · 基准 15/15 · 四闸类型 | `npm run verify` 一条命令跑完，CI 同款 |
+| 验证覆盖 | 单测 563 · 冒烟 143/143 · 基准 15/15 · 四闸类型 | `npm run verify` 一条命令跑完，CI 同款 |
 | 已知缺口 | P1 2 · P2 1 · P3 1（另 6 条已修） | 逐条列在文档 06 节，含代码位置 / 影响 / 成本 |
 | 竞品对标 | 单机 90.9 / 远期 87.1 | 13 维第 1（8 竞品）；17 维按目标值 87.1 第 1、按当前进度 71.2 第 3；Eagle 为 82.1 / 71.8 |
 | 类型检查 | electron + server + routes + server-lib 全覆盖 | 逐文件 `@ts-check`，由 lint 强制守门 |
@@ -338,7 +338,7 @@ flowchart TB
 | 桌面与系统集成 | 7 | 93 | 80 | 30 | 热键 / 托盘 / 动态壁纸 / 拖出，最大优势 |
 | 性能与规模 | 9 | 88 | 88 | 85 | API p95 个位数毫秒，DOM 与布局计算都不随库增长；百万级未验收 |
 | 数据安全与可恢复 | 8 | 90 | 80 | 85 | 备份校验 + 双栈撤销 + 外键 + 完整性自检 |
-| 稳定性与工程质量 | 7 | 89 | 82 | 85 | 契约 45/52 + 512 单测 + 143 冒烟 |
+| 稳定性与工程质量 | 7 | 89 | 82 | 85 | 契约 45/52 + 563 单测 + 143 冒烟 |
 | 易用性与界面 | 5 | 85 | 92 | 75 | 25 个弹窗统一焦点陷阱与 aria；主网格 roving tabindex + 方向键已补 |
 | 文档与交付 | 3 | 85 | 85 | 75 | 173 条内置教程 + `/api/docs` 自动生成，但安装包仍未签名 |
 
@@ -489,15 +489,18 @@ docs/              评测与路线图.html（评分 / 缺点 / 交付顺序）�
 | `npm run build` | 构建前端到 `dist/web` |
 | `npm run typecheck` | 四段 tsconfig 全量类型检查（Web / Node / 纯函数库 / server-lib） |
 | `npm run lint` | ESLint + 自定义语法检查 + 类型闸 pragma 校验 |
-| `npm run unit` | Node 原生 test runner，512 例 |
+| `npm run unit` | Node 原生 test runner，563 例 |
 | `npm run smoke` | 接口冒烟（会起临时服务），143 项 |
 | `npm run bench` | 性能基准：临时库灌 20 万行，打真实接口取 p50 / p95；另含调色预览与 CLIP |
 | `npm run bench:quick` | 2 万行快速版（约 7 秒，已接入 `verify`） |
 | `npm run verify` | lint + typecheck + unit + smoke + bench:quick + 手动脚本登记检查（CI 同款） |
 | `npm run dist` | 构建并打 Windows 安装包（`release-build/`） |
+| `node scripts/make-hotfix.mjs --notes "..."` | 打热更包（`server/` + `dist/web/`，签名后输出到 `release-build/hotfix/`） |
 | `npm run mcp` | 启动 MCP stdio 服务 |
 | `npm run import` | 命令行导入本地目录 |
 | `npm run pin-models` | 把已验证的模型 / 运行库哈希写进 `model-pins.json` |
+
+显卡后端排查：`TUKU_FORCE_CPU=1` 可强制 CPU 推理。DirectML 在个别驱动组合上不是抛异常，而是直接把进程打成 `0xC0000005`（`npm run dev` 里表现为「服务起来后几秒内无输出退出」）。服务在建显卡会话前会先落一个 `probing` 标记，崩溃后下次启动据此自动降级 CPU 并把结论写进 `data/ai/device-state.json`；升级显卡驱动后删掉该文件即可重试。
 
 ---
 
@@ -584,9 +587,32 @@ npm run dist -- --publish never
 >
 > **本地打包环境**：先删净整个 `release-build/` 输出目录（避免 builder 内部 rm 被安全软件或删除守卫拦截）；国内网络设 `ELECTRON_MIRROR=https://npmmirror.com/mirrors/electron/`；360「主动防御」服务（`ZhuDongFangYu`）可能锁住 `default_app.asar`，出现 `EBUSY` / `EPERM` 时再关闭它。CI 打包必须显式 `--publish never`。
 
+### 热更（不发安装包也能修 Bug）
+
+改的是 `server/**` 或前端产物时，不必走一遍 NSIS 覆盖安装：打一个签名过的小包，客户端叠在安装包**之上**运行。
+
+| 能热更 | 不能热更（必须发安装包） |
+| --- | --- |
+| `server/**`（接口、采集、导出、AI 调度） | `electron/**`（主进程、preload、窗口） |
+| `web/**`（前端产物，含增量资源） | `package.json`、原生模块（`*.node`）、`plugins/` 的二进制依赖 |
+| 文案、样式、图标等静态资源 | 需要新数据库迁移的改动（`schemaVersion` 对不上会被拒装） |
+
+```bash
+npm run build                                        # 前端产物必须是最新的
+node scripts/make-hotfix.mjs --notes "修拼图首帧闪回"  # → release-build/hotfix/{pack-<seq>.zip, manifest.json}
+# 或走 CI：Actions → hotfix → Run workflow（notes 必填；since 留空即全量）
+```
+
+- **分发地址**：GitHub `releases/download/hotfix/manifest.json`（资产名固定，重传即时生效）+ Gitee `raw/hotfix/`（镜像分支 `hotfix`，允许分钟级延迟）。Gitee 优先试，旧清单位于 `seq` 闸门之前会被拒，自然落到下一个地址
+- **安全边界**：清单用 Ed25519 签名，公钥写死进壳（`electron/hotfix-public.pem`），私钥只在 CI secret `HOTFIX_PRIVATE_KEY` 与本机 `.hotfix-private.pem`。镜像被篡改最坏是「装不上」，不会执行陌生代码
+- **防降级**：`seq` 严格递增、`shellVersion` 必须等于当前壳版本、`schemaVersion` 必须等于库迁移版本；客户端记住 `lastSeq`，旧包重放装不上
+- **生效时机**：设置 → 关于 → 生效时机（下次启动 / 立刻生效 / 只手动下载）。`立刻生效` 会停服 → 换入 → 起服 → 所有窗口换 origin
+- **坏包自愈**：启动时先用新包起服务，就绪才销账；连续两次没就绪就隔离到 `broken-<时间戳>-<seq>` 并退回内置版本。断网时可用「从文件导入」安装别人给的 zip（同样验签）
+- **首次可用版本**：壳里必须带 `hotfix-entry.js` / `hotfix-loader.mjs` / `hotfix-public.pem` 才认这套通道（本改动之后的安装包，即 1.2.21 起）；已装出去的旧版本只能走安装包，且清单里的 `shellVersion` 必须等于那个安装包的版本号
+
 ### 产物核验清单
 
-1. `app.asar` 顶层含 `express` / `call-bind-apply-helpers` / `server` / `electron` / `plugins` / `dist`，无 react 三件套
+1. `app.asar` 顶层含 `express` / `call-bind-apply-helpers` / `server` / `electron` / `plugins` / `dist`，无 react 三件套；`electron/hotfix-public.pem` 与 `server/hotfix-entry.js`、`server/hotfix-loader.mjs` 也在包内（缺任何一个，热更整体失效）
 2. `app.asar.unpacked` 含 onnxruntime-node / onnxruntime-common / sharp 的原生二进制
 3. `ELECTRON_RUN_AS_NODE=1 TuKu.exe -e "require(...)"` 实测原生模块可加载
 4. 隔离 `userData` 启动，日志出现 `[desktop] 加载 http://127.0.0.1:<port>` 与托盘就绪

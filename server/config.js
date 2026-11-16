@@ -5,7 +5,13 @@ import { fileURLToPath } from 'node:url';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
-export const APP_ROOT = path.resolve(__dirname, '..');
+/**
+ * 应用根目录（server/ 的上一级）。
+ * 打包后是 app.asar，热更正跑在 %APPDATA%/TuKu/hotfix/current 下，
+ * 那时这里的 __dirname 会指向可写目录 —— 但 plugins/、dist/web、build/icon.ico
+ * 都还在 asar 里，所以主进程会注入 TUKU_APP_ROOT 把根目录钉回真实位置。
+ */
+export const APP_ROOT = process.env.TUKU_APP_ROOT || path.resolve(__dirname, '..');
 
 /**
  * 打包后的应用代码位于只读的 app.asar 内，数据库 / 缩略图 / 下载的 AI 运行库
@@ -25,7 +31,14 @@ export const STORAGE_DIR = path.join(USER_ROOT, 'storage');
 export const IMAGE_DIR = path.join(STORAGE_DIR, 'images');
 export const THUMB_DIR = path.join(STORAGE_DIR, 'thumbs');
 export const TRASH_DIR = path.join(STORAGE_DIR, 'trash');
+/** 内置前端产物（随安装包，只读） */
 export const WEB_DIST = path.join(APP_ROOT, 'dist', 'web');
+/**
+ * 热更的 web 增量目录（可写，可能不存在）。
+ * 挂在内置 dist/web 之前：命中的用热更版本，没带的文件自动回落到内置产物 ——
+ * 所以一个只改了 3 个文件的包不需要把整份前端一起重发。
+ */
+export const WEB_OVERLAY = process.env.TUKU_WEB_OVERLAY || '';
 
 /** 首次运行时图片的默认保存位置（由主进程注入；用户可在设置页改成任意文件夹，不再写死） */
 export const DEFAULT_STORAGE_DIR = process.env.TUKU_DEFAULT_STORAGE_DIR || IMAGE_DIR;

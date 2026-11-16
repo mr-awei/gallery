@@ -8,13 +8,16 @@ import {
   DEVICE_STATE_FILE,
   appVersion,
   clearDeviceState,
+  clearGpuProbe,
   crashText,
   defaultUserRoot,
   gpuForcedOff,
+  gpuProbeCrashed,
   isNativeCrashCode,
   readDeviceState,
   statePath,
   writeDeviceState,
+  writeGpuProbe,
 } from '../server/lib/device-state.js';
 
 const REPO_ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
@@ -71,6 +74,34 @@ test('结论落盘、读回、可清除', () => {
   assert.equal(merged.version, '1.2.18');
 
   clearDeviceState(tmp);
+  assert.equal(readDeviceState(tmp), null);
+});
+
+test('显卡探针：纸条落盘、建成后撤掉、只有 probing=true 才算崩过', () => {
+  assert.equal(gpuProbeCrashed(null), false);
+  assert.equal(gpuProbeCrashed({}), false);
+  assert.equal(gpuProbeCrashed({ gpuDisabled: true }), false);
+  assert.equal(gpuProbeCrashed({ probing: false }), false);
+  assert.equal(gpuProbeCrashed({ probing: 'true' }), false, '字符串不算，避免脏文件误判');
+  assert.equal(gpuProbeCrashed({ probing: true }), true);
+
+  clearDeviceState(tmp);
+  assert.equal(writeGpuProbe(tmp), true);
+  const st = readDeviceState(tmp);
+  assert.equal(gpuProbeCrashed(st), true);
+  assert.match(String(st.version), /^\d+\.\d+\.\d+/, '纸条要带版本，方便排查是哪个版本崩的');
+
+  // 建成会话 → 撤纸条，但不能顺手把别的结论删掉
+  writeDeviceState(tmp, { note: 'keep-me' });
+  clearGpuProbe(tmp);
+  const after = readDeviceState(tmp);
+  assert.equal(after.probing, false);
+  assert.equal(after.note, 'keep-me');
+  assert.equal(gpuProbeCrashed(after), false);
+
+  // 没有纸条时清除是空操作，不能凭空造出文件
+  clearDeviceState(tmp);
+  assert.equal(clearGpuProbe(tmp), false);
   assert.equal(readDeviceState(tmp), null);
 });
 

@@ -183,8 +183,8 @@
   </p>
   <div class="chips">
     <span class="chip">审计日期 <b>2026-11-16</b></span>
-    <span class="chip">代码版本 <b>1.2.20</b></span>
-    <span class="chip">规模 <b>563 文件 / 136,623 行</b></span>
+    <span class="chip">代码版本 <b>1.2.21</b></span>
+    <span class="chip">规模 <b>579 文件 / 139,118 行</b></span>
     <span class="chip">方法 <b>代码审计 + 实跑基准 + 8 竞品对标</b></span>
     <span class="chip">配套文档 <b><a href="./产品介绍.html">功能资料（面向普通用户）</a></b></span>
   </div>
@@ -487,7 +487,7 @@
       <div class="dimcell"><small class="s8">82</small><div class="mini"><i style="width:82%;background:#60a5fa"></i></div></div>
       <div class="dimcell"><small class="s8">85</small><div class="mini"><i style="width:85%;background:#60a5fa"></i></div></div>
       <div class="dimcell"><small class="s8">80</small><div class="mini"><i style="width:80%;background:#60a5fa"></i></div></div>
-      <span class="cmt">契约 45/52 一致、512 单测、143 冒烟、15 基准，一条 verify 跑完</span></div>
+      <span class="cmt">契约 45/52 一致、563 单测、143 冒烟、15 基准，一条 verify 跑完</span></div>
     <div class="dimrow"><span class="dname">易用与可访问</span>
       <div class="dimcell"><small class="s8">85</small><div class="mini"><i style="width:85%;background:#60a5fa"></i></div></div>
       <div class="dimcell"><small class="s9">92</small><div class="mini"><i style="width:92%;background:#34d399"></i></div></div>
@@ -581,7 +581,7 @@
     </div>
     <div class="card">
       <h3><span class="n">09</span>有真正的质量闸门</h3>
-      <p>DTO 契约 45/52 一致、单测 <span data-stat="unit">520 / 520</span>、冒烟 <span data-stat="smoke">143 / 143</span>、基准 <span data-stat="bench">15 / 15</span>，外加四道 typecheck 与一套 lint；<code>npm run verify</code> 一条命令跑完。</p>
+      <p>DTO 契约 45/52 一致、单测 <span data-stat="unit">563 / 563</span>、冒烟 <span data-stat="smoke">143 / 143</span>、基准 <span data-stat="bench">15 / 15</span>，外加四道 typecheck 与一套 lint；<code>npm run verify</code> 一条命令跑完。</p>
       <div class="ev">证据：<code>package.json</code> scripts · <code>scripts/verify*</code> · CI 与发版流程同源</div>
     </div>
     <div class="card">
@@ -682,7 +682,8 @@
   <div class="callout" style="margin-top:18px">
     <b>现在只剩两堵墙：</b>① 买证书签名（决定"能不能发给别人用"）；
     ② mac / Linux 真机验收（不验收就别宣称支持）。剩下的都是打磨，可以慢慢来。
-    本版（1.2.20）修的是拼图构图台的一个样式塌陷：成品覆盖层 <span class="mono">.st-edit-result</span> 的宽度被 <span class="mono">modal.css</span> 里给普通对话框缩略图写的 <span class="mono">.modal-body img{width:150px;object-fit:cover}</span> 压掉（特定度 0,1,1 &gt; 0,1,0），预览只剩左边窄窄一条成品、右边露出底下的实时格子，看上去就是「画面撕裂、重复」。现已把选择器抬到 <span class="mono">.st-edit-canvas .st-edit-result</span> 并压掉描边与 align-self；导出文件本身一直是服务端合成的，未受影响。
+    本版（1.2.21）加了「热更」通道：<span class="mono">server/**</span> 与前端产物的修补可以打一个签名过的小包，客户端叠在安装包之上运行，不必再下整包覆盖安装——清单用 Ed25519 签名、<span class="mono">seq</span> 严格递增防降级、<span class="mono">shellVersion</span> 与 <span class="mono">schemaVersion</span> 双闸门，新包起不来会自动隔离并退回内置版本。同一版里拼图有两处改动：任意布局（模板与算法版式）都能逐格拖动 / 滚轮缩放构图，各格的图还可以互相拖拽换位（构图跟着图走，不是跟着格子走）；顺带修掉构图台「一拖就跳到最边、再也拖不动」的像素与比例混算。
+    上一版（1.2.20）修的是拼图构图台的一个样式塌陷：成品覆盖层 <span class="mono">.st-edit-result</span> 的宽度被 <span class="mono">modal.css</span> 里给普通对话框缩略图写的 <span class="mono">.modal-body img{width:150px;object-fit:cover}</span> 压掉（特定度 0,1,1 &gt; 0,1,0），预览只剩左边窄窄一条成品、右边露出底下的实时格子，看上去就是「画面撕裂、重复」。现已把选择器抬到 <span class="mono">.st-edit-canvas .st-edit-result</span> 并压掉描边与 align-self；导出文件本身一直是服务端合成的，未受影响。
     上一版（1.2.19）清掉的是两件事：显卡后端在个别驱动组合上直接把服务进程打死（DML 原生崩溃）导致的「启动即失败」——崩溃会被主进程记进 <span class="mono">device-state.json</span>，下次启动自动走 CPU，页面加载也改为等服务恢复而不是直接判死；以及 1.2.18 安装包「启动就弹 A JavaScript error」的回归——新加的显卡状态模块在模块求值期依赖 <span class="mono">server/config.js</span>，而主进程是先求值 import 图再注入用户目录，于是 <span class="mono">mkdirSync</span> 打到了只读的 <span class="mono">app.asar</span> 里（Windows 报 ENOTDIR），现已改为自己推算根目录，并加了一条静态依赖图单测守住；
     上一版（1.2.17）清掉的是：网格布局的 O(n) 全量重算（改成增量追加 + 底边分桶）、AI 夜间批处理队列；
     v1.2.16 清掉的是：主网格虚拟滚动与 roving tabindex、首屏与包体、首次导入吞吐、接口示例代码、单机算力天花板、外键与 API 参考。
@@ -695,10 +696,10 @@
   </p>
 
   <div class="grid4">
-    <div class="tile"><div class="v">136,623</div><div class="k">行代码 / 563 个文件</div><div class="s">web 67,667 · server 48,790 · test 9,171</div></div>
+    <div class="tile"><div class="v">139,118</div><div class="k">行代码 / 579 个文件</div><div class="s">web 68,248 · server 49,029 · test 9,800</div></div>
     <div class="tile"><div class="v">409</div><div class="k">HTTP 端点 / 34 个路由模块</div><div class="s">统一错误信封 + 输入白名单（数字取自 <span class="mono">/api/docs</span> 自省）</div></div>
     <div class="tile"><div class="v">40</div><div class="k">数据表 / 15 触发器 / 37 索引</div><div class="s">外键已开，FTS5 trigram 全文索引</div></div>
-    <div class="tile"><div class="v" data-stat="summary" style="font-size:17px">250 · 520 · 143 · 15</div><div class="k">lint 文件 · 单测 · 冒烟 · 基准（verify 实跑回写）</div><div class="s"><span data-stat="testFiles">79</span> 个 .test.mjs 文件 · 一条命令跑完</div></div>
+    <div class="tile"><div class="v" data-stat="summary" style="font-size:17px">259 · 563 · 143 · 15</div><div class="k">lint 文件 · 单测 · 冒烟 · 基准（verify 实跑回写）</div><div class="s"><span data-stat="testFiles">83</span> 个 .test.mjs 文件 · 一条命令跑完</div></div>
     <div class="tile"><div class="v">15 + 25</div><div class="k">页面 + 设置分区</div><div class="s">72 组件 · 25 弹窗 · 172 条教程</div></div>
     <div class="tile"><div class="v">11</div><div class="k">设计稿格式 / RAW 40+ / 三维 9</div><div class="s">视频 8 · 音频 8 · PDF · Office · 字体 · EPUB</div></div>
     <div class="tile"><div class="v">10 + 11</div><div class="k">采集源 + MCP 工具</div><div class="s">插件 5 类权限位、node:vm 沙箱</div></div>
@@ -932,7 +933,7 @@
     <div class="panel">
       <h3 style="margin:0 0 8px;font-size:14.6px">这次审计做了什么</h3>
       <ul class="plain">
-        <li>通读六个目录共 563 文件：路由与数据层、前端交互、桌面与自动化、测试与交付。</li>
+        <li>通读六个目录共 579 文件：路由与数据层、前端交互、桌面与自动化、测试与交付。</li>
         <li>用脚本统计规模、表结构、索引、触发器、依赖、包体、格式覆盖与测试数量，避免"凭感觉"。 </li>
         <li>实跑 <span class="mono">bench:quick</span> 取 p95；实跑 typecheck / lint / unit / smoke 确认结论成立。</li>
         <li>三个分域深审并行（后端、前端、桌面与工程），交叉核对后才写进报告。</li>
@@ -961,7 +962,7 @@
 </section>
 
 <div class="foot">
-  报告生成于 2026-11-16 · 代码版本 1.2.20（Node ≥22.5）· 统计口径：仓库内 <span class="mono">web/src</span>、<span class="mono">server</span>、<span class="mono">electron</span>、<span class="mono">test</span>、<span class="mono">scripts</span>、<span class="mono">extension</span> 六个目录，共 563 文件 / 136,623 行。<br>
+  报告生成于 2026-11-16 · 代码版本 1.2.21（Node ≥22.5）· 统计口径：仓库内 <span class="mono">web/src</span>、<span class="mono">server</span>、<span class="mono">electron</span>、<span class="mono">test</span>、<span class="mono">scripts</span>、<span class="mono">extension</span> 六个目录，共 579 文件 / 139,118 行。<br>
   分数口径（全部百分制）：单机基准 <b>90.9</b>（13 维，已实现）· 17 维当前分 <b>71.2</b>（第 3）· 中期目标 <b>76.4</b>（第 2）· 远期目标 <b>87.1</b>（第 1）。同一口径下远期高于现在，三档换算见第 01、09 节。<br>
   竞品分数为本报告评分框架下的<b>估算</b>（依据公开功能面），不是厂商官方评分，也不构成购买建议；TuKu 的分数全部可由仓库代码与实跑基准复核。上一版 90.0 已由本版 90.9 取代。<br>
   配套文档：<a href="./产品介绍.html">产品介绍（面向普通用户，不含评分方法）</a>

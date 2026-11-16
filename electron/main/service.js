@@ -6,10 +6,10 @@
  * 绝不 import server/db.js —— SQLite 只能有一个属主进程。
  */
 import { BrowserWindow, app, dialog } from 'electron';
-import path from 'node:path';
 import { ServerHost } from '../server-host.js';
 import { setSettingsCache, getSettingsSnapshot as getSettings } from '../settings-cache.js';
-import { APP_ROOT_DIR, devServerUrl } from './constants.js';
+import { devServerUrl } from './constants.js';
+import { hotfix } from './hotfix-runtime.js';
 import { ctx } from './context.js';
 import { failSplash } from './splash.js';
 import { refreshGlobalShortcuts } from './shortcuts.js';
@@ -146,11 +146,68 @@ export async function bootService() {
     return true;
   }
 
+  // 启动前先问热更层：用内置版本，还是用 %APPDATA% 下的叠加层
+  const decision = hotfix().boot();
+  if (decision.note) console.warn('[hotfix]', decision.note);
+  if (decision.mode === 'overlay') {
+    const parts = [decision.webOverlay ? 'web' : '', decision.env.TUKU_HOTFIX_ENTRY ? 'server' : ''].filter(Boolean);
+    console.info(`[hotfix] 启用热更 #${decision.seq}（${parts.join(' + ') || '仅清单'}）`);
+  }
+
+  try {
+    const info = await startHost(decision);
+    hotfix().markReady(); // 服务真就绪了才销账，启动期看门狗靠这个判断包好坏
+    console.info('[desktop] 服务进程就绪，端口', ctx.serverPort, 'pid', info.pid);
+    return true;
+  } catch (err) {
+    // 热更包起不来：隔离它，就地退回内置版本再试一次。
+    // 不能让用户对着「启动失败」自己去重开应用 —— 那一刻他还不知道自己被热更坑了。
+    if (decision.mode === 'overlay') {
+      console.error('[desktop] 热更版本启动失败，退回内置版本重试：', err?.message || err);
+      try {
+        const info = await startHost(hotfix().fallbackToBuiltin(err?.message || String(err)));
+        hotfix().markReady();
+        console.info('[desktop] 已用内置版本启动，端口', ctx.serverPort, 'pid', info.pid);
+        return true;
+      } catch (err2) {
+        console.error('[desktop] 内置版本也未能启动:', err2);
+        await failSplash(
+          `本地服务未能启动：${err2?.message || err2}\n若反复出现，请检查防火墙或安全软件是否拦截了本机监听。`
+        );
+        return false;
+      }
+    }
+    console.error('[desktop] 服务进程启动失败:', err);
+    await failSplash(
+      `本地服务未能启动：${err?.message || err}\n若反复出现，请检查防火墙或安全软件是否拦截了本机监听。`
+    );
+    return false;
+  }
+}
+
+/**
+ * 按启动决策拉起服务。
+ * 热更生效时决策里给的是 server/hotfix-entry.js（asar 内 shim）+ overlay 环境变量；
+ * 否则就是内置的 server/standalone.js。
+ * @param {{serverEntry: string, env: Record<string, string>}} decision
+ */
+async function startHost(decision) {
   const serverHost = new ServerHost({
-    entry: path.join(APP_ROOT_DIR, 'server', 'standalone.js'),
+    entry: decision.serverEntry,
+    env: decision.env,
     desktop: true,
   });
   ctx.serverHost = serverHost;
+  attachHostEvents(serverHost);
+  const info = await serverHost.start();
+  ctx.serverPort = info.port;
+  ctx.apiToken = info.token || ctx.apiToken;
+  setSettingsCache(info.settings || {});
+  return info;
+}
+
+/** 服务进程的事件挂载：首次启动、崩溃重启、热更换入都复用这一份，避免两套回调打架 */
+function attachHostEvents(serverHost) {
   // 设置变了：快照更新 + 本地能力跟着生效（代理立即重应用、自启立即同步）
   serverHost.on('settings', (next) => {
     const prev = getSettings();
@@ -205,19 +262,47 @@ export async function bootService() {
       })
       .catch((err) => console.error('[desktop] 服务不可用提示失败：', err?.message || err));
   });
+}
 
+/**
+ * 立即生效：停服 → 换入待生效包 → 用新的启动决策重启 → 所有窗口换 origin。
+ * 用户在设置里选「下载完立刻生效」，或点了「现在生效」按钮时走这里。
+ * @returns {Promise<{applied: boolean, seq?: number, error?: string, port?: number}>}
+ */
+export async function applyHotfixNow() {
+  if (ctx.restartingServer) return { applied: false, error: '服务正在重启，请稍后再试' };
+  if (!ctx.serverHost) return { applied: false, error: '开发模式下服务不在应用内，无法热切换' };
+  if (!hotfix().state().pendingSeq) return { applied: false, error: '没有待生效的热更包' };
+  ctx.restartingServer = true;
+  broadcastServiceState({ restarting: true });
   try {
-    const info = await serverHost.start();
-    ctx.serverPort = info.port;
-    ctx.apiToken = info.token || ctx.apiToken;
-    setSettingsCache(info.settings || {});
-    console.info('[desktop] 服务进程就绪，端口', ctx.serverPort, 'pid', info.pid);
-    return true;
+    // 顺序不能换：先停服再改目录。Windows 上进程正跑着的文件会被锁住，
+    // 先 rename 再停服会 EBUSY，最后表现成「点了没反应」。
+    await ctx.serverHost.stop().catch(() => {});
+    const swap = hotfix().applyPending();
+    const decision = hotfix().boot();
+    if (swap.applied && decision.mode !== 'overlay') throw new Error(decision.note || '换入后校验未通过');
+    const info = await startHost(decision);
+    hotfix().markReady();
+    broadcastServiceState({ restarting: false, dead: false, port: ctx.serverPort });
+    reloadAllAppWindows();
+    if (!swap.applied) return { applied: false, error: '换入失败，已继续使用当前版本', port: info.port };
+    return { applied: true, seq: swap.seq, port: info.port };
   } catch (err) {
-    console.error('[desktop] 服务进程启动失败:', err);
-    await failSplash(
-      `本地服务未能启动：${err?.message || err}\n若反复出现，请检查防火墙或安全软件是否拦截了本机监听。`
-    );
-    return false;
+    // 换上去起不来：立刻隔离并退回内置版本，别把用户晾在「重启失败」对话框前
+    console.error('[hotfix] 立即生效失败，退回内置版本：', err?.message || err);
+    try {
+      const info = await startHost(hotfix().fallbackToBuiltin(err?.message || String(err)));
+      hotfix().markReady();
+      broadcastServiceState({ restarting: false, dead: false, port: ctx.serverPort });
+      reloadAllAppWindows();
+      return { applied: false, error: `热更包无法启动，已退回内置版本：${err?.message || err}`, port: info.port };
+    } catch (err2) {
+      broadcastServiceState({ restarting: false, dead: true, error: String(err2?.message || err2) });
+      dialog.showErrorBox('热更生效失败', `${err2?.message || err2}\n\n请完全退出应用后重新打开。`);
+      return { applied: false, error: String(err2?.message || err2) };
+    }
+  } finally {
+    ctx.restartingServer = false;
   }
 }

@@ -22,11 +22,14 @@ import process from 'node:process';
 import {
   appVersion,
   clearDeviceState,
+  clearGpuProbe,
   defaultUserRoot,
   gpuForcedOff,
+  gpuProbeCrashed,
   readDeviceState,
   statePath,
   writeDeviceState,
+  writeGpuProbe,
 } from './device-state.js';
 
 let gpuDisabled = false; // 本进程内已经确认显卡后端用不了
@@ -48,6 +51,22 @@ function resolvePersistedState() {
     return;
   }
   const st = readDeviceState(userRoot);
+  if (gpuProbeCrashed(st)) {
+    // 上次死在「正试显卡」这一步。原生崩溃 catch 不到，只能靠这张纸条。
+    // 注意别在这里调用 markBroken：它会把 version 写成当前版本，等于每次升级
+    // 都把「崩溃过」这件事忘掉，而这次崩溃跟版本无关。
+    blockedReason = '上次尝试显卡后端时进程未正常结束（原生崩溃或被强杀）';
+    gpuDisabled = true;
+    writeDeviceState(userRoot, {
+      gpuDisabled: true,
+      probing: false,
+      reason: blockedReason,
+      at: new Date().toISOString(),
+      version: appVersion(),
+    });
+    console.warn(`[gpu] ${blockedReason}，本次改用 CPU（恢复：删除 ${statePath(userRoot)}）`);
+    return;
+  }
   if (!st?.gpuDisabled) {
     if (st?.gpuDisabled === false) clearDeviceState(userRoot); // 正常记录，不需要留着
     return;
@@ -68,6 +87,7 @@ function markBroken(reason, extra = {}) {
   blockedReason = reason;
   writeDeviceState(userRoot, {
     gpuDisabled: true,
+    probing: false,
     reason,
     at: new Date().toISOString(),
     version: appVersion(),
@@ -140,9 +160,12 @@ export function gpuStatus() {
  */
 export async function createOrtSession(ort, file, label = '') {
   if (gpuCandidate()) {
+    console.info(`[gpu] 正在用${fallbackLabel()}建会话${label ? `（${label}）` : ''}；若这行之后进程直接消失，就是显卡后端原生崩溃`);
+    writeGpuProbe(userRoot);
     try {
       const session = await ort.InferenceSession.create(file, { executionProviders: ortProviders() });
       noteBackend(process.platform === 'win32' ? 'directml' : 'cuda');
+      clearGpuProbe(userRoot);
       return session;
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
@@ -163,9 +186,12 @@ export async function createOrtSession(ort, file, label = '') {
  */
 export async function withDevicePreference(create, label = '') {
   if (gpuCandidate()) {
+    console.info(`[gpu] 正在用${fallbackLabel()}加载模型${label ? `（${label}）` : ''}；若这行之后进程直接消失，就是显卡后端原生崩溃`);
+    writeGpuProbe(userRoot);
     try {
       const out = await create(preferredDevice());
       noteBackend(process.platform === 'win32' ? 'directml' : 'cuda');
+      clearGpuProbe(userRoot);
       return out;
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);

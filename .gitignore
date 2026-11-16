@@ -16,6 +16,8 @@ storage/
 .port
 *.pid
 e_pid.txt
+# 热更签名私钥：只在本机与 CI secret 里，绝不进仓库
+.hotfix-private.pem
 
 # 日志与临时输出
 logs/

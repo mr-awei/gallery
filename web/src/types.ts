@@ -854,6 +854,11 @@ export interface Settings {
   autoUpdateCheck?: boolean;
   /** 检查更新用的 GitHub 仓库（owner/repo，空则用内置默认） */
   updateRepo?: string;
+  /**
+   * 热更生效时机：next = 下次启动 / now = 下载完立刻生效 / manual = 只手动下载。
+   * 热更只替换 web 与 server 的 JS，不动安装包本身。
+   */
+  hotfixApply?: 'next' | 'now' | 'manual';
 }
 
 export interface EnhanceConfig {
