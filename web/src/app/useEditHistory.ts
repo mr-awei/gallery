@@ -4,15 +4,16 @@ import { api } from '../api';
 import type { LightboxState } from '../hooks/useLightbox';
 import type { ImageItem } from '../types';
 import type { LoadGallery, Toast } from './types';
+import i18n from '../i18n';
 
 /** 覆盖写回的操作名 → 提示语（撤销/重做共用）；文案要跟语言走，t 由调用点传入 */
 function editKindLabel(kind: string): string {
   switch (kind) {
-    case 'rotate': return '旋转';
-    case 'crop': return '裁切';
-    case 'color': return '调色';
-    case 'enhance': return '增强';
-    default: return '编辑';
+    case 'rotate': return i18n.t('k79b5a656');
+    case 'crop': return i18n.t('k096cbe88');
+    case 'color': return i18n.t('k9e368d03');
+    case 'enhance': return i18n.t('k9a5e2729');
+    default: return i18n.t('k95b351c8');
   }
 }
 
@@ -53,11 +54,11 @@ export function useEditHistory({ setItems, setLb, load, refreshStats, reloadTags
     async (item: ImageItem, tag: string) => {
       const tagName = String(tag || '').trim();
       if (!tagName) return;
-      if ((item.tags || []).includes(tagName)) return showToast(`「${tagName}」已经在这张图的标签里了`);
+      if ((item.tags || []).includes(tagName)) return showToast(i18n.t('k9c349926', { p0: tagName }));
       try {
         const updated = await api.patch(item.id, { tags: [...(item.tags || []), tagName] });
         patchItem(updated);
-        showToast(`已给「${item.title}」打上 #${tagName}`);
+        showToast(i18n.t('k95f7f2d8', { p0: item.title, p1: tagName }));
         reloadTags();
       } catch (err) {
         showToast((err as Error).message);
@@ -76,7 +77,7 @@ export function useEditHistory({ setItems, setLb, load, refreshStats, reloadTags
     try {
       const st = await api.lastUndo();
       if (!st.canUndo || !st.last) {
-        showToast('没有可撤销的编辑');
+        showToast(i18n.t('kd9e078d5'));
         return;
       }
       const res = await api.undo(st.last.imageId);
@@ -84,12 +85,12 @@ export function useEditHistory({ setItems, setLb, load, refreshStats, reloadTags
       else load(1, true);
       const label = editKindLabel(res.kind, );
       const more = res.canUndo
-        ? `（还可撤销 ${res.canUndo} 步）`
-        : '（已回到最早状态）';
-      showToast(`已撤销${label}${more}${res.canRedo ? '，Ctrl+Shift+Z 可重做' : ''}`);
+        ? i18n.t('kf7f4bea2', { p0: res.canUndo })
+        : i18n.t('k1860ab45');
+      showToast(i18n.t('k069f0b3f', { p0: label, p1: more, p2: res.canRedo ? i18n.t('ke88e0bf5') : '' }));
       refreshStats();
     } catch (err) {
-      showToast(`撤销失败：${(err as Error).message}`);
+      showToast(i18n.t('k5b0be54d', { p0: (err as Error).message }));
     }
   }, [load, patchItem, refreshStats, showToast]);
 
@@ -98,16 +99,16 @@ export function useEditHistory({ setItems, setLb, load, refreshStats, reloadTags
     try {
       const st = await api.lastUndo();
       if (!st.canRedo) {
-        showToast('没有可重做的编辑');
+        showToast(i18n.t('k8ab7bb6e'));
         return;
       }
       const res = await api.redo();
       if (res.item) patchItem(res.item);
       else load(1, true);
-      showToast(`已重做${editKindLabel(res.kind, )}${res.canRedo ? `（还可重做 ${res.canRedo} 步）` : ''}`);
+      showToast(i18n.t('k9b963315', { p0: editKindLabel(res.kind, ), p1: res.canRedo ? i18n.t('kcc545933', { p0: res.canRedo }) : '' }));
       refreshStats();
     } catch (err) {
-      showToast(`重做失败：${(err as Error).message}`);
+      showToast(i18n.t('k2d7db579', { p0: (err as Error).message }));
     }
   }, [load, patchItem, refreshStats, showToast]);
 

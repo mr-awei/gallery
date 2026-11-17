@@ -3,6 +3,7 @@ import { api, copyText } from '../api';
 import type { ImageItem } from '../types';
 import { IconCopy } from './Icons';
 import '../styles/epub.css';
+import i18n from '../i18n';
 
 type Outline = Awaited<ReturnType<typeof api.epubOutline>>;
 type Chapter = Awaited<ReturnType<typeof api.epubChapter>>;
@@ -60,7 +61,7 @@ export default function EpubViewer({ item, onToast }: Props) {
         writeProgress(item.id, n);
         scrollRef.current?.scrollTo({ top: 0 });
       } catch (err) {
-        setError(`这一章读不出来：${(err as Error).message}`);
+        setError(i18n.t('k9c09d27c', { p0: (err as Error).message }));
       } finally {
         setLoading(false);
       }
@@ -76,7 +77,7 @@ export default function EpubViewer({ item, onToast }: Props) {
         if (!alive) return;
         setOutline(data);
         if (!data.chapters.length) {
-          setError('这本书没有可读的章节');
+          setError(i18n.t('kf90e9975'));
           setLoading(false);
           return;
         }
@@ -84,7 +85,7 @@ export default function EpubViewer({ item, onToast }: Props) {
       })
       .catch((err: Error) => {
         if (!alive) return;
-        setError(`解析 EPUB 失败：${err.message}`);
+        setError(i18n.t('k72685dbf', { p0: err.message }));
         setLoading(false);
       });
     return () => {
@@ -105,7 +106,7 @@ export default function EpubViewer({ item, onToast }: Props) {
 
   const copyTitle = async () => {
     const ok = await copyText(outline?.title || item.title);
-    onToast?.(ok ? '书名已复制' : '复制失败，请手动选中书名');
+    onToast?.(ok ? i18n.t('kd5cd7e6f') : i18n.t('k5524c193'));
   };
 
   /* 阅读器自己的方向键：翻章而不是切图（阻止冒泡，灯箱的方向键切图在这里让位） */
@@ -123,17 +124,17 @@ export default function EpubViewer({ item, onToast }: Props) {
 
   return (
     <div className="epub" ref={rootRef} onKeyDown={onKeyDown} tabIndex={-1}>
-      <aside className={`epub-toc${tocOpen ? '' : ' collapsed'}`} aria-label="目录">
+      <aside className={`epub-toc${tocOpen ? '' : ' collapsed'}`} aria-label={i18n.t('k767fa455')}>
         <div className="epub-toc-head">
           <button
             className="btn sm ghost"
             onClick={() => setTocOpen((v) => !v)}
             aria-expanded={tocOpen}
-            title={tocOpen ? '收起目录' : '展开目录'}
+            title={tocOpen ? i18n.t('k609e5458') : i18n.t('k589a5bea')}
           >
             {tocOpen ? '‹' : '›'}
           </button>
-          {tocOpen && <strong>目录</strong>}
+          {tocOpen && <strong>{i18n.t('k767fa455')}</strong>}
         </div>
         {tocOpen && (
           <ol className="epub-toc-list">
@@ -161,19 +162,19 @@ export default function EpubViewer({ item, onToast }: Props) {
           </div>
           <div className="epub-nav">
             <button className="btn sm" disabled={index <= 0 || loading} onClick={() => go(index - 1)}>
-              上一章
+              {i18n.t('kfc6bbbac')}
             </button>
             <span className="epub-count">
               {total ? `${index + 1} / ${total}` : '—'}
             </span>
             <button className="btn sm" disabled={index >= total - 1 || loading} onClick={() => go(index + 1)}>
-              下一章
+              {i18n.t('k981cc1b3')}
             </button>
           </div>
         </header>
 
         <div className="epub-body" ref={scrollRef}>
-          {loading && !chapter && <div className="epub-tip">正在解析 EPUB…</div>}
+          {loading && !chapter && <div className="epub-tip">{i18n.t('k6adacea3')}</div>}
           {error && <div className="epub-tip epub-error">{error}</div>}
           {chapter && (
             <article>
@@ -187,7 +188,7 @@ export default function EpubViewer({ item, onToast }: Props) {
                   <img key={i} className="epub-img" src={b.src} alt="" loading="lazy" />
                 )
               )}
-              {!chapter.blocks.length && <div className="epub-tip">这一章没有文字内容</div>}
+              {!chapter.blocks.length && <div className="epub-tip">{i18n.t('kffc81a1b')}</div>}
             </article>
           )}
         </div>
@@ -196,12 +197,12 @@ export default function EpubViewer({ item, onToast }: Props) {
           <button
             className="btn sm ghost"
             onClick={() => void copyTitle()}
-            title="复制书名"
-            aria-label="复制书名"
+            title={i18n.t('kb154b3a3')}
+            aria-label={i18n.t('kb154b3a3')}
           >
             <IconCopy size={14} />
           </button>
-          <span className="epub-tip-inline">方向键 ← → 翻章</span>
+          <span className="epub-tip-inline">{i18n.t('k2ff533b5')}</span>
         </footer>
       </div>
     </div>

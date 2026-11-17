@@ -1,0 +1,566 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>TuKu · Local Asset Manager (Product Overview)</title>
+<style>
+  :root{
+    --bg:#f7f9fc;--line:#e4e9f2;--text:#0f172a;--muted:#475569;--dim:#64748b;
+    --indigo:#4f46e5;--cyan:#0891b2;--emerald:#059669;--rose:#e11d48;
+    --grad:linear-gradient(120deg,#4f46e5,#0891b2 55%,#059669);
+    --shadow:0 2px 6px rgba(15,23,42,.04),0 18px 42px -32px rgba(15,23,42,.35);
+  }
+  *{box-sizing:border-box}
+  html{scroll-behavior:smooth;scroll-padding-top:84px}
+  body{margin:0;background:var(--bg);color:var(--text);line-height:1.75;font-size:15.5px;
+    font-family:"Noto Sans SC","PingFang SC","Microsoft YaHei",system-ui,-apple-system,"Segoe UI",sans-serif}
+  .wrap{max-width:1120px;margin:0 auto;padding:0 22px 88px}
+  a{color:#0e7490;text-decoration:none}
+  a:hover{text-decoration:underline}
+  .mono{font-family:ui-monospace,Consolas,monospace;font-size:12.6px}
+  .nav{position:sticky;top:0;z-index:50;background:rgba(255,255,255,.88);
+    backdrop-filter:saturate(160%) blur(12px);border-bottom:1px solid var(--line)}
+  .nav-in{max-width:1120px;margin:0 auto;padding:11px 22px;display:flex;align-items:center;gap:18px}
+  .brand{display:flex;align-items:center;gap:10px;font-weight:700}
+  .mark{width:28px;height:28px;border-radius:9px;background:var(--grad);display:inline-flex;
+    align-items:center;justify-content:center}
+  .brand small{display:block;font-size:11.4px;color:var(--dim);font-weight:400}
+  .nav-links{display:flex;gap:2px;margin-left:auto;flex-wrap:wrap}
+  .nav-links a{font-size:13.4px;color:var(--muted);padding:6px 10px;border-radius:8px}
+  .nav-links a:hover{background:#f1f5f9;color:var(--text);text-decoration:none}
+  .nav-links a.net{color:var(--indigo);font-weight:600}
+  .hero{overflow:hidden;border-bottom:1px solid var(--line);background:
+      radial-gradient(760px 420px at 8% -10%,rgba(79,70,229,.13),transparent 62%),
+      radial-gradient(700px 420px at 88% 0%,rgba(8,145,178,.11),transparent 60%),#fff}
+  .hero-in{max-width:1120px;margin:0 auto;padding:60px 22px 52px;display:grid;
+    grid-template-columns:1.15fr .85fr;gap:44px;align-items:center}
+  .kicker{display:inline-flex;align-items:center;gap:8px;font-size:12.4px;letter-spacing:.1em;
+    color:#0e7490;background:rgba(8,145,178,.07);border:1px solid rgba(8,145,178,.2);
+    padding:5px 11px;border-radius:999px}
+  h1{font-size:clamp(28px,4.1vw,43px);line-height:1.24;letter-spacing:-.02em;margin:16px 0 14px}
+  h1 em{font-style:normal;background:var(--grad);-webkit-background-clip:text;background-clip:text;color:transparent}
+  .lede{color:var(--muted);font-size:16.2px;max-width:620px;margin:0}
+  .lede b{color:var(--text)}
+  .cta{display:flex;gap:10px;flex-wrap:wrap;margin-top:26px}
+  .btn{display:inline-flex;align-items:center;gap:8px;font-size:14px;font-weight:600;
+    padding:10px 18px;border-radius:11px;border:1px solid var(--line);background:#fff;color:var(--text)}
+  .btn:hover{text-decoration:none;border-color:#cbd5e1}
+  .btn.primary{background:var(--indigo);border-color:var(--indigo);color:#fff;
+    box-shadow:0 10px 22px -14px rgba(79,70,229,.9)}
+  .btn.primary:hover{background:#4338ca}
+  .scorebox{background:#fff;border:1px solid var(--line);border-radius:20px;padding:24px;box-shadow:var(--shadow)}
+  .score-row{display:flex;align-items:flex-end;gap:12px}
+  .score-big{font-size:52px;font-weight:800;letter-spacing:-.03em;line-height:1;
+    background:var(--grad);-webkit-background-clip:text;background-clip:text;color:transparent}
+  .score-meta{font-size:12.6px;color:var(--muted);padding-bottom:5px}
+  .score-meta b{display:block;color:var(--text);font-size:13.4px}
+  .score-note{font-size:12.6px;color:var(--dim);margin:12px 0 0;padding-top:12px;border-top:1px dashed var(--line)}
+  .minis{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:14px}
+  .mini-stat{border:1px solid #eef2f8;border-radius:11px;padding:9px 11px;background:#fcfdff}
+  .mini-stat b{display:block;font-size:17px;font-variant-numeric:tabular-nums}
+  .mini-stat span{font-size:11.6px;color:var(--dim)}
+  section{margin-top:64px}
+  .sec-no{display:inline-block;font-size:11.6px;letter-spacing:.16em;color:#0e7490;
+    border:1px solid rgba(8,145,178,.22);background:rgba(8,145,178,.06);
+    padding:2px 9px;border-radius:6px;margin-bottom:10px}
+  h2{font-size:clamp(21px,2.7vw,29px);letter-spacing:-.01em;margin:0 0 8px;line-height:1.3}
+  .sec-sub{color:var(--muted);max-width:820px;margin:0 0 24px;font-size:15px}
+  .pains{display:grid;grid-template-columns:repeat(3,1fr);gap:14px}
+  .pain{background:#fff;border:1px solid var(--line);border-radius:14px;padding:18px}
+  .pain h3{margin:0 0 6px;font-size:14.8px;line-height:1.45}
+  .pain p{margin:0;color:var(--muted);font-size:13.3px}
+  .pain .q{font-size:11.6px;color:var(--rose);font-weight:700;letter-spacing:.06em;margin-bottom:7px;display:block}
+  .cats,.spots,.fit{display:grid;grid-template-columns:1fr 1fr;gap:16px;align-items:start}
+  .cat{background:#fff;border:1px solid var(--line);border-radius:16px;padding:20px 22px}
+  .cat h3{margin:0 0 4px;font-size:16.4px;display:flex;align-items:center;gap:10px}
+  .tag{font-size:11px;font-weight:600;color:var(--indigo);background:rgba(79,70,229,.07);
+    border:1px solid rgba(79,70,229,.16);border-radius:6px;padding:1px 7px}
+  .cat .sub{font-size:12.8px;color:var(--dim);margin:0 0 12px}
+  .cat ul{margin:0;padding-left:18px;color:var(--muted);font-size:13.4px}
+  .cat li{margin:5px 0}
+  .cat li b{color:var(--text)}
+  .cat .foot{margin:12px 0 0;padding-top:10px;border-top:1px dashed var(--line);font-size:12.3px;color:var(--dim)}
+  .spot{position:relative;background:#fff;border:1px solid var(--line);border-radius:16px;padding:20px 22px 18px;overflow:hidden}
+  .spot:after{content:"";position:absolute;left:0;top:0;width:100%;height:3px;background:var(--grad);opacity:.8}
+  .spot .no{font-size:11.6px;letter-spacing:.14em;color:var(--dim);font-weight:700}
+  .spot h3{margin:5px 0 7px;font-size:16.6px;line-height:1.4}
+  .spot p{margin:0;color:var(--muted);font-size:13.5px}
+  .spot .why{margin-top:11px;padding-top:10px;border-top:1px dashed var(--line);font-size:12.4px;color:var(--dim)}
+  .spot .why b{color:var(--text)}
+  .tbl-wrap{overflow:auto;border:1px solid var(--line);border-radius:14px;background:#fff}
+  table{width:100%;border-collapse:collapse;font-size:13.6px}
+  thead th{background:#f1f5f9;color:var(--muted);font-weight:600;text-align:left;
+    padding:10px 12px;border-bottom:1px solid var(--line);white-space:nowrap}
+  tbody td{padding:10px 12px;border-bottom:1px solid rgba(15,23,42,.06);vertical-align:top;color:var(--muted)}
+  tbody td:first-child{color:var(--text)}
+  tbody tr:last-child td{border-bottom:none}
+  .num{font-variant-numeric:tabular-nums;font-weight:700;color:#0f172a!important}
+  .steps{display:grid;grid-template-columns:repeat(3,1fr);gap:14px}
+  .step{background:#fff;border:1px solid var(--line);border-radius:14px;padding:18px}
+  .step .n{width:28px;height:28px;border-radius:9px;display:flex;align-items:center;justify-content:center;
+    background:rgba(79,70,229,.08);color:var(--indigo);font-weight:800;font-size:13px;margin-bottom:10px}
+  .step h3{margin:0 0 5px;font-size:14.8px}
+  .step p{margin:0;color:var(--muted);font-size:13.2px}
+  .tips{margin-top:16px;background:linear-gradient(120deg,rgba(8,145,178,.05),rgba(79,70,229,.04));
+    border:1px solid rgba(8,145,178,.16);border-radius:14px;padding:16px 20px}
+  .tips ul{margin:8px 0 0;padding-left:18px;color:var(--muted);font-size:13.3px}
+  .fit .box{background:#fff;border:1px solid var(--line);border-radius:16px;padding:20px 22px}
+  .fit .box h3{margin:0 0 10px;font-size:15.6px}
+  .fit .box.yes h3{color:var(--emerald)}
+  .fit .box.no h3{color:var(--rose)}
+  .fit ul{margin:0;padding-left:18px;color:var(--muted);font-size:13.4px}
+  .fit li{margin:6px 0}
+  .fit .tail{margin:12px 0 0;padding-top:10px;border-top:1px dashed var(--line);font-size:12.4px;color:var(--dim)}
+  .honest{background:#fff;border:1px solid var(--line);border-radius:16px;padding:22px 24px}
+  .honest h3{margin:0 0 12px;font-size:16px;color:var(--rose)}
+  .honest ul{margin:0;padding-left:18px;color:var(--muted);font-size:13.6px}
+  .honest li{margin:7px 0}
+  .honest li b{color:var(--text)}
+  .reason{margin-top:16px;padding:14px 16px;border-radius:12px;background:#fcfdff;
+    border:1px dashed #dbe3ef;font-size:13.4px;color:var(--muted)}
+  .reason b{color:var(--text)}
+  .cta-box{margin-top:54px;border-radius:20px;padding:34px;color:#fff;overflow:hidden;
+    background:linear-gradient(135deg,#4f46e5,#0e7490 62%,#047857)}
+  .cta-box h2{font-size:clamp(20px,2.6vw,27px);margin:0 0 8px;color:#fff}
+  .cta-box p{margin:0;color:rgba(255,255,255,.88);font-size:14.6px;max-width:660px}
+  .cta-box .btns{display:flex;gap:10px;flex-wrap:wrap;margin-top:20px}
+  .cta-box .btn{background:rgba(255,255,255,.12);border-color:rgba(255,255,255,.32);color:#fff}
+  .cta-box .btn.solid{background:#fff;color:#1e293b;border-color:#fff;font-weight:700}
+  .foot{margin-top:46px;padding-top:18px;border-top:1px solid var(--line);color:var(--dim);font-size:12.4px}
+  @media(max-width:900px){
+    .hero-in,.cats,.spots,.fit{grid-template-columns:1fr}
+    .pains,.steps{grid-template-columns:1fr}
+    .nav-links{display:none}
+  }
+  @media print{.nav,.cta-box{display:none}body{background:#fff}.wrap{padding-bottom:0}}
+</style>
+</head>
+<body>
+
+<div class="nav">
+  <div class="nav-in">
+    <div class="brand">
+      <span class="mark">
+        <svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="16" height="16">
+          <rect x="3" y="4" width="18" height="16" rx="3"/><circle cx="8.5" cy="9.5" r="1.6"/><path d="M4 17l5-4 4 3 3-2 4 3"/>
+        </svg>
+      </span>
+      <span>TuKu<small>Local Asset Manager · Windows</small></span>
+    </div>
+    <div class="nav-links">
+      <a href="#features">Features</a><a href="#spot">Highlights</a><a href="#stats">Benchmarks</a>
+      <a href="#start">Get started</a><a href="#fit">Who it's for</a><a href="#honest">Limitations</a>
+      <a href="./评测与路线图.en.html" class="net">Full review →</a>
+    </div>
+  </div>
+</div>
+
+<header class="hero">
+  <div class="hero-in">
+    <div>
+      <span class="kicker">Your assets never leave your drive · no account required</span>
+      <h1>Gather assets scattered across everywhere<br>into one library <em>you can always find your way back to</em></h1>
+      <p class="lede">
+        Design files, RAW photos, videos, 3D models, fonts, PDFs—drop them into TuKu and you can view, search, edit, and drag them straight out.
+        <b>Everything happens on your machine</b>: no uploads, and it works just as well offline.
+      </p>
+      <div class="cta">
+        <a class="btn primary" href="#features">See what it can actually do →</a>
+        <a class="btn" href="#honest">First, see where it falls short</a>
+      </div>
+    </div>
+    <aside class="scorebox">
+      <div class="score-row">
+        <div class="score-big">90.9</div>
+        <div class="score-meta"><b>Local-only scenario score</b>13 criteria · 100-point scale</div>
+      </div>
+      <p class="score-note">
+        In a head-to-head review of 8 similar products, it ranks 1st for local-only use (90.9 out of 100; Eagle in second place at 82.1).
+        The basis is an audit of 137,000 lines of code plus reproducible benchmark data.
+      </p>
+      <div class="minis">
+        <div class="mini-stat"><b>10</b><span>capture entry points</span></div>
+        <div class="mini-stat"><b>40+</b><span>RAW formats</span></div>
+        <div class="mini-stat"><b>11</b><span>design file formats</span></div>
+        <div class="mini-stat"><b>47 ms</b><span>to find a "scene" among 20,000 images</span></div>
+      </div>
+    </aside>
+  </div>
+</header>
+
+<div class="wrap">
+
+<section id="pains">
+  <div class="sec-head">
+    <span class="sec-no">01</span>
+    <h2>It solves these very concrete, everyday annoyances</h2>
+    <p class="sec-sub">No talk of "empowerment" or "ecosystems"—just the little stalls you hit every day.</p>
+  </div>
+  <div class="pains">
+    <div class="pain"><span class="q">Find</span><h3>You dug through six folders to find one reference image</h3>
+      <p>Assets are scattered across Downloads, the desktop, WeChat, cloud drives, and external disks, so in the end you rummage around thinking "I'm sure I saved it last week."</p></div>
+    <div class="pain"><span class="q">Duplicates</span><h3>The same image exists in three copies; you edit one and forget the other two</h3>
+      <p>Without a library there's no single copy of record, and after an edit you can't tell which file is current.</p></div>
+    <div class="pain"><span class="q">Preview</span><h3>PSDs, RAWs, and 3D files all show up as blank icons</h3>
+      <p>You can only guess the contents from the file name; opening one takes a dozen seconds, and after ten you've lost patience.</p></div>
+    <div class="pain"><span class="q">Batch</span><h3>A hundred images need resizing and watermarking—one at a time</h3>
+      <p>Batch work risks overwriting the originals, and if you get it wrong there's no way to roll back.</p></div>
+    <div class="pain"><span class="q">Memory</span><h3>You remember "blue hour, seaside, backlit"—but not the file name</h3>
+      <p>The file is IMG_4821 and the folder is "New folder (2)"; keyword search finds nothing.</p></div>
+    <div class="pain"><span class="q">Delivery</span><h3>A client wants to see the proposal, so you send a ZIP</h3>
+      <p>They unzip a pile of loose images with no order, no notes, and no clue what you're presenting.</p></div>
+  </div>
+</section>
+
+<section id="features">
+  <div class="sec-head">
+    <span class="sec-no">02</span>
+    <h2>Eight areas of features, ordered the way you actually work</h2>
+    <p class="sec-sub">Every item below already ships in the installer—none is "planned." As you read, compare it against your own workflow.</p>
+  </div>
+
+  <div class="cats">
+    <div class="cat">
+      <h3>Collect <span class="tag">from anywhere</span></h3>
+      <p class="sub">How assets get in decides whether you'll really use it.</p>
+      <ul>
+        <li><b>Right-click to save in the browser</b>: right-click a good image and it's in the library—no downloading first, then importing.</li>
+        <li><b>Drag / paste</b>: drag files into the window; press Ctrl+V to add a screenshot.</li>
+        <li><b>Watched folders</b>: point it at a few folders and anything dropped in is added automatically.</li>
+        <li><b>ZIP import</b>: no need to unzip a shared asset pack before picking through it.</li>
+        <li><b>10 web capture sources</b>: batch-grab by keyword or URL, and resume after an interruption.</li>
+        <li><b>Phone upload via web page</b>: send images from a phone browser on the same LAN, no app required.</li>
+      </ul>
+      <p class="foot">Duplicate files are skipped automatically; rescanning a large library only processes what's new.</p>
+    </div>
+
+    <div class="cat">
+      <h3>Organize <span class="tag">build a system on your own</span></h3>
+      <p class="sub">You don't have to work out the categories up front—bring things in first, sort them later.</p>
+      <ul>
+        <li><b>Nested folders</b> plus <b>multiple libraries</b>: one library per project, no images bleeding between them, switch anytime.</li>
+        <li><b>Tag tree / collections / bookmarks / ratings / color labels</b>: an image can belong to several categories at once, with no file copies.</li>
+        <li><b>Automatic face clustering</b>: portraits are grouped for you; you name the groups.</li>
+        <li><b>Places and map</b>: photos with GPS are shown on a map; you can also pick country/province/city manually.</li>
+        <li><b>Day-by-day timeline</b>: click a day on the left and that day's assets appear on the right.</li>
+        <li><b>Custom fields</b>: client name, project number, license expiry—add whatever you need to track.</li>
+        <li><b>Automatic deduplication</b>: content hashes plus visual hashes, so even renamed files are recognized.</li>
+      </ul>
+      <p class="foot">Metadata can be written into XMP, so tags and ratings travel with the file if you switch tools.</p>
+    </div>
+
+    <div class="cat">
+      <h3>Find <span class="tag">four search methods that stack</span></h3>
+      <p class="sub">"I know which image I want" should take two seconds.</p>
+      <ul>
+        <li><b>Substring search, Chinese included</b>: no word segmentation—type two characters and match anywhere in titles, tags, or descriptions.</li>
+        <li><b>Semantic search</b>: describe the scene directly ("seaside sunset backlit") instead of guessing the file name.</li>
+        <li><b>By color / by similar image</b>: give it a reference image and find visually close matches.</li>
+        <li><b>Combined filters</b>: folder + tag + rating + format + date, stacked to narrow things down.</li>
+      </ul>
+      <p class="foot">Measured on a 20,000-image library: 13 ms for keyword, 12 ms by tag—far quicker than a blink.</p>
+    </div>
+
+    <div class="cat">
+      <h3>View <span class="tag">without launching another app</span></h3>
+      <p class="sub">Preview right inside the library; don't fire up Photoshop just to take a look.</p>
+      <ul>
+        <li><b>40+ RAW formats</b>: thumbnails, EXIF, and shooting parameters included.</li>
+        <li><b>11 design formats</b>: previews rendered directly for PSD / AI / XD / Figma / Sketch and more.</li>
+        <li><b>9 3D model formats</b>, 8 video formats, 8 audio formats.</li>
+        <li><b>PDF / Office / font files</b>: preview and filter.</li>
+        <li><b>EPUB ebooks</b>: read the table of contents, the text, and illustrations right here, and pick up at the same chapter next time—no separate reader needed.</li>
+        <li><b>Masonry / large view / fullscreen lightbox</b>: browse an entire library with the arrow keys.</li>
+      </ul>
+      <p class="foot">Video covers and durations are extracted automatically—no extra codec pack to install.</p>
+    </div>
+
+    <div class="cat">
+      <h3>Edit <span class="tag">one step back when you break something</span></h3>
+      <p class="sub">A library shouldn't be a read-only album; everyday edits should happen in place.</p>
+      <ul>
+        <li><b>Crop / rotate / color adjust / erase / upscale / watermark / frame / collage</b>.</li>
+        <li><b>Non-destructive editing</b>: the original is untouched; what you change is the operation log, which you can revert anytime.</li>
+        <li><b>Undo / redo</b>: 200 steps and 2 GB of history, so mistakes don't hurt.</li>
+        <li><b>Batch processing</b>: change a whole batch at once with consistent parameters.</li>
+        <li><b>Auto composition</b>: cropping finds the subject automatically (faces are a bonus signal, not the only criterion).</li>
+        <li><b>Cell-by-cell collage composition</b>: three-panel posters, contact sheets, and full-bleed collages can each be tuned cell by cell for focus and zoom; poster text supports font, size, and color, and collages use the original images at quality up to 100.</li>
+      </ul>
+      <p class="foot">23 watermarks and 20 frames, plus a phone-model library of nearly a thousand entries refreshed quarterly.</p>
+    </div>
+
+    <div class="cat">
+      <h3>Use <span class="tag">woven into the system</span></h3>
+      <p class="sub">Assets always end up being taken out and used—that step shouldn't require exporting.</p>
+      <ul>
+        <li><b>Drag straight out</b>: drop into Photoshop, Figma, WeChat, or File Explorer and it works.</li>
+        <li><b>Tray resident + global hotkey</b>: summon it anytime without hunting for the window.</li>
+        <li><b>Windows live wallpaper</b>: set images from your library as the desktop directly.</li>
+        <li><b>Read-only LAN sharing</b>: give a colleague a link to view images, with options for a password, expiry, and blocking downloads.</li>
+        <li><b>Export an HTML gallery</b>: send clients a single file that opens on double-click, with your own layout intact.</li>
+      </ul>
+      <p class="foot">File associations are set up automatically, and asset folders changed outside the app refresh automatically.</p>
+    </div>
+
+    <div class="cat">
+      <h3>Automate <span class="tag">callable by scripts and AI</span></h3>
+      <p class="sub">This is something many commercial libraries won't give you: your library should be usable by programs.</p>
+      <ul>
+        <li><b>Local API</b>: token-protected with permission scopes, so scripts can batch create, read, update, and delete.</li>
+        <li><b>11 MCP tools</b>: let AI clients like Claude read and write your asset library directly.</li>
+        <li><b>Plugin sandbox</b>: five permission classes—what a plugin can do is stated plainly, and it can't rummage through your files.</li>
+      </ul>
+      <p class="foot">Good for bulk organizing, automatic archiving, and plugging into your company's internal workflows.</p>
+    </div>
+
+    <div class="cat">
+      <h3>Data <span class="tag">yours to take anytime</span></h3>
+      <p class="sub">The longer you use it, the more you should care about "what if it's gone someday."</p>
+      <ul>
+        <li><b>Two-way XMP</b>: tags and ratings are written into the files and survive a change of tools.</li>
+        <li><b>CSV / JSON / HTML export</b>: your library's information is never locked in.</li>
+        <li><b>Verified backups</b>: schedulable, and corruption can be detected.</li>
+        <li><b>Recycle bin + library lock</b>: deleted items can be recovered, and opening a library can require a password—it stops someone casually browsing your library (note: this is not disk encryption).</li>
+      </ul>
+      <p class="foot">17 data operations are guarded by smoke tests, so breakage gets caught by the pipeline.</p>
+    </div>
+  </div>
+</section>
+
+<section id="spot">
+  <div class="sec-head">
+    <span class="sec-no">03</span>
+    <h2>Eight things other products don't have, or don't do well</h2>
+    <p class="sec-sub">These are what really set it apart from an ordinary image viewer—and why it's worth installing on its own.</p>
+  </div>
+  <div class="spots">
+    <div class="spot">
+      <span class="no">01</span>
+      <h3>Chinese substring search: type two characters and it's there</h3>
+      <p>Keyword search in most libraries requires complete words or word segmentation; type "seaside su" and "seaside sunset backlit" won't be found. This uses a character-level index that matches at any position, which matters most for Chinese.</p>
+      <p class="why"><b>Why it's rare:</b> staying fast without word segmentation for Chinese takes a lot of extra work on the index, and most products simply give up on it.</p>
+    </div>
+    <div class="spot">
+      <span class="no">02</span>
+      <h3>Find it by what you remember seeing: on-device semantic search</h3>
+      <p>You've forgotten the file name, the tags, even the year, but you remember "that blue-toned one, someone standing by a window." Search with a single description and get results in 47 ms across a 20,000-image library.</p>
+      <p class="why"><b>Why it's rare:</b> the model runs on your own machine—no image uploads, and no cloud quota burned.</p>
+    </div>
+    <div class="spot">
+      <span class="no">03</span>
+      <h3>Drag it out ready to use: a direct line to design software</h3>
+      <p>Select an asset and drag it onto a Photoshop canvas or into Figma; it lands as an image. No "export to the desktop, then drag it again."</p>
+      <p class="why"><b>Why it's rare:</b> browser-based products structurally can't do this, and desktop products that could usually don't bother.</p>
+    </div>
+    <div class="spot">
+      <span class="no">04</span>
+      <h3>Turn your library into a Windows live wallpaper</h3>
+      <p>Rotate images from a chosen folder on your desktop, with configurable interval and order. Designers and content creators clearly feel their assets come alive.</p>
+      <p class="why"><b>Why it's rare:</b> it means drawing into the system's desktop layer—a classic "works, but is a pain" feature.</p>
+    </div>
+    <div class="spot">
+      <span class="no">05</span>
+      <h3>Show colleagues your images without the cloud</h3>
+      <p>Read-only LAN sharing: generate a link and anyone on the same network can browse your selection in a browser, with a password, an optional expiry, and downloads that can be blocked.</p>
+      <p class="why"><b>Why it's rare:</b> most products turn sharing into a doorway to their cloud service, and local-first products often skip it entirely.</p>
+    </div>
+    <div class="spot">
+      <span class="no">06</span>
+      <h3>Edit images without destroying originals: operation log + dual-stack undo</h3>
+      <p>Crops, color adjustments, and watermarks are all "recorded entries"; the original file stays byte-for-byte intact. If you don't like the result, undo all the way back—and redo again.</p>
+      <p class="why"><b>Why it's rare:</b> true non-destructive editing means changing the whole storage model, and many products just "auto-back up a copy, then overwrite."</p>
+    </div>
+    <div class="spot">
+      <span class="no">07</span>
+      <h3>Let your AI assistant read your asset library directly</h3>
+      <p>11 built-in MCP tools let AI clients search, tag, and archive on your instructions—not just chat about it, but actually do it.</p>
+      <p class="why"><b>Why it's rare:</b> it amounts to opening up your own data interface, which most commercial products aren't willing to do.</p>
+    </div>
+    <div class="spot">
+      <span class="no">08</span>
+      <h3>A 20,000-image library that still scrolls smoothly</h3>
+      <p>Scrolling isn't "load everything at once": pages use keyset cursors, the index uses SQLite full-text, and thumbnails are cached. 7 ms for the list, 11 ms for deep pages.</p>
+      <p class="why"><b>Why it's rare:</b> most similar products start spinning at the 20,000-image mark.</p>
+    </div>
+  </div>
+</section>
+
+<section id="stats">
+  <div class="sec-head">
+    <span class="sec-no">04</span>
+    <h2>Is it fast? These numbers say enough</h2>
+    <p class="sec-sub">All measured (Windows, a 20,000-asset library), not theoretical. Lower is better.</p>
+  </div>
+  <div class="tbl-wrap">
+    <table>
+      <thead><tr><th>The scenario you care about</th><th style="width:120px">Measured</th><th>What it feels like</th></tr></thead>
+      <tbody>
+        <tr><td>Importing 10,000 files</td><td class="num">6,154 rows/sec</td><td>Building a library is "pour it in and wait a bit," not waiting all night</td></tr>
+        <tr><td>Opening the asset list</td><td class="num">7 ms</td><td>There on click—no spinner in sight</td></tr>
+        <tr><td>Jumping to a far-off page</td><td class="num">11 ms</td><td>Later pages aren't any slower</td></tr>
+        <tr><td>Keyword search</td><td class="num">13 ms</td><td>Results appear as you type</td></tr>
+        <tr><td>Filtering by tag</td><td class="num">12 ms</td><td>Stacking filters doesn't stutter</td></tr>
+        <tr><td>Semantic search (20,000 images)</td><td class="num">47 ms</td><td>Describe the scene in one sentence; results within a blink</td></tr>
+        <tr><td>Live color preview (720p)</td><td class="num">23 ms</td><td>The slider follows your hand</td></tr>
+        <tr><td>Live color preview (1600px)</td><td class="num">71 ms</td><td>Color editing on large images still works, no freeze</td></tr>
+      </tbody>
+    </table>
+  </div>
+  <p class="sec-sub" style="margin:12px 0 0;font-size:12.8px;color:var(--dim)">
+    For reference, a human blink is roughly 100–400 ms. The figures above are medians from the audited environment; million-scale libraries are not yet validated—see "Limitations" in the next section.
+  </p>
+</section>
+
+<section id="start">
+  <div class="sec-head">
+    <span class="sec-no">05</span>
+    <h2>Up and running in three steps</h2>
+    <p class="sec-sub">No manual to read first, and no need to organize your assets before starting—its design premise is "collect it messy first, sort it later."</p>
+  </div>
+  <div class="steps">
+    <div class="step"><div class="n">1</div><h3>Install</h3>
+      <p>Download the Windows installer from the release page and double-click to install. If Windows shows "Unknown publisher" on first run, click "More info → Run anyway."</p></div>
+    <div class="step"><div class="n">2</div><h3>Create a library</h3>
+      <p>Pick an empty folder as your asset library. A local disk with plenty of space is recommended; avoid cloud-sync folders—sync software makes the library rescan over and over.</p></div>
+    <div class="step"><div class="n">3</div><h3>Drag things in</h3>
+      <p>Drag files or whole folders into the window, or let it watch your Downloads folder. Once thumbnails finish, you can search, filter, and drag assets out.</p></div>
+  </div>
+  <div class="tips">
+    <b>A few time-saving tips</b>
+    <ul>
+      <li><b>Space</b> for a quick preview without double-clicking; <b>Ctrl+F</b> to search, <b>Ctrl+Z</b> to undo (up to 200 steps).</li>
+      <li>Let thumbnails finish before starting AI analysis; the two queues run separately so they don't fight over the CPU.</li>
+      <li>173 built-in onboarding tutorials; the first launch guides you automatically, and you can turn them off anytime.</li>
+      <li>The library lock only guards "opening this library"; it doesn't encrypt files on disk—treat it as a door badge, not a safe.</li>
+    </ul>
+  </div>
+</section>
+
+<section id="fit">
+  <div class="sec-head">
+    <span class="sec-no">06</span>
+    <h2>Who it suits, and who it doesn't</h2>
+    <p class="sec-sub">One paragraph to decide is more useful than ten screenshots.</p>
+  </div>
+  <div class="fit">
+    <div class="box yes">
+      <h3>It will feel natural if</h3>
+      <ul>
+        <li>You do design / photography / content work solo on one Windows PC.</li>
+        <li>You have tens of thousands to hundreds of thousands of assets, mostly on local or external disks.</li>
+        <li>You need bulk organizing, batch processing, and packaged delivery.</li>
+        <li>You want scripts or AI clients to work directly with your asset library.</li>
+        <li>You care about assets not being uploaded and formats not being held hostage.</li>
+      </ul>
+      <p class="tail">Typical users: freelance designers, editors running their own channels, and photography enthusiasts who manage a reference library.</p>
+    </div>
+    <div class="box no">
+      <h3>It genuinely doesn't fit yet if</h3>
+      <ul>
+        <li>A team shares one asset collection and needs permissions and approvals.</li>
+        <li>Your main machine is a mac or Linux.</li>
+        <li>You need to browse the library from a phone anywhere, or want automatic cloud sync.</li>
+        <li>You need an English interface for overseas colleagues.</li>
+        <li>You need to manage a million-scale library out of the box.</li>
+      </ul>
+      <p class="tail">These five aren't "we'll make do for now" cases—they genuinely aren't possible at this stage, and all are listed under "Limitations" in the next section.</p>
+    </div>
+  </div>
+</section>
+
+<section id="honest">
+  <div class="sec-head">
+    <span class="sec-no">07</span>
+    <h2>Let's be clear first about where it still falls short</h2>
+    <p class="sec-sub">An introduction that only lists strengths isn't much use. Here are its real current weak spots, and why they exist.</p>
+  </div>
+  <div class="honest">
+    <h3>Seven known weak spots</h3>
+    <ul>
+      <li><b>Windows only.</b> There are build scripts for mac / Linux, but no real-device validation, so support isn't claimed.</li>
+      <li><b>No cloud sync, no mobile app.</b> The closest substitute is read-only LAN sharing—view images on the same network, but not beyond it.</li>
+      <li><b>No multi-person collaboration.</b> No accounts, member permissions, or approval flows; the workaround is an export package plus read-only links.</li>
+      <li><b>The English interface still has blind spots.</b>The interface, tutorials, and docs are bilingual, but configuration display names (AI provider / model / capture source) are still in Chinese.</li>
+      <li><b>Validated at 20,000 images; million-scale is untested.</b> The timeline, list, people view, and main library grid all render windowed, and layout calculation now appends incrementally—scrolling no longer slows as the library grows; but a million assets is a target, not a promise.</li>
+      <li><b>The first import with AI enabled is slow.</b> The model runs on your local CPU, and the model files must be downloaded the first time; semantic and face indexing that can't finish during the day can be handled by "overnight batch processing" during idle hours, but the first night still means waiting.</li>
+      <li><b>The installer is large and has no code signing.</b> v1.2.16 trimmed about 200MB of unused cross-platform inference libraries, but it's still large overall; the first run gets flagged by Windows SmartScreen and needs manual approval.</li>
+    </ul>
+
+    <div class="reason">
+      <b>Why do these gaps exist?</b>
+      This is a <b>one-person project</b>: there's no server budget and no second person's time.
+      Cloud sync and multi-person collaboration aren't "impossible to write"—but once built, <b>you'd be on the hook every month for storage, bandwidth, backups, and outages</b>—
+      that's an ongoing expense, not a feature in a release. So they're scheduled as long-term goals, not marketing lines.
+    </div>
+
+    <div class="targets">
+      <p class="t-head">The order of the next three items (multilingual is delivered; do the work that costs nothing first, then let revenue decide how far the cloud goes):</p>
+      <div class="tbl-wrap">
+        <table>
+          <thead><tr><th>Long-term goal</th><th style="width:92px">Now</th><th style="width:92px">Target</th><th>Delivery order</th></tr></thead>
+          <tbody>
+            <tr><td>Multilingual interface</td><td class="num">90</td><td class="num">90</td><td>Done (1.2.23): interface / tutorials / docs bilingual in Chinese and English, switchable in one click, with the tray and native dialogs in sync</td></tr>
+            <tr><td>Cross-platform (mac first)</td><td class="num">20</td><td class="num">85</td><td>Next: smoke test on real hardware → installers → platform difference list; Linux is deferred</td></tr>
+            <tr><td>Cloud and multi-device</td><td class="num">15</td><td class="num">80</td><td>Then: read-only multi-device → accounts and incremental sync → conflict merging</td></tr>
+            <tr><td>Collaboration and community</td><td class="num">20</td><td class="num">60</td><td>Last: annotations → member permissions → approval workflows (the plugin marketplace is not promised)</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <p class="sec-sub" style="margin:12px 0 0;font-size:13px">
+        Counting these four items in the score, the 17-item result is <b>75.5</b>, ranking 3rd among 8 products (1st in the standalone scenario).
+        With all four at their target values it is <b>87.1</b>. The numbers and the algorithm are in the
+        <a href="./评测与路线图.en.html">full review report</a> and can be checked item by item.
+      </p>
+    </div>
+  </div>
+</section>
+
+<div class="cta-box">
+  <h2>It may be exactly right for you—or completely wrong</h2>
+  <p>
+    If you nod at more than three lines in the "it fits" column, it's worth installing and trying—your assets stay on your own disk,
+    and uninstalling the software won't remove or damage your files.
+    If any line in the "doesn't fit" column applies to you, don't force it: the review also lists what each of the other 7 products is suited for.
+  </p>
+  <div class="btns">
+    <a class="btn solid" href="./评测与路线图.en.html">Read the full review and roadmap</a>
+    <a class="btn" href="#features">Back to the feature list</a>
+  </div>
+</div>
+
+<div class="foot">
+  TuKu 1.2.23 · Docs updated 2026-11-17 · Scores and measured data come from "Review and Roadmap"; testing was done on Windows with a 20,000-item library.<br>
+  Competitor scores are estimates under the same framework (based on public feature sets) and are not purchase advice; this page covers only standalone results. The 17-item basis and the three remaining long-term goals are in sections 01 and 09 of the review report.
+</div>
+
+</div>
+
+
+
+
+
+
+
+
+
+<div class="doc-lang-switch" style="position:fixed;right:18px;bottom:18px;z-index:9999;display:flex;gap:2px;padding:4px;border-radius:999px;background:rgba(255,255,255,.92);border:1px solid #e4e9f2;box-shadow:0 6px 18px -10px rgba(15,23,42,.45);font:12.5px/1 system-ui,-apple-system,'Segoe UI',sans-serif">
+  <a href="产品介绍.html" data-doc-lang="zh" style="padding:6px 11px;border-radius:999px;text-decoration:none;color:#475569">中文</a>
+  <a href="产品介绍.en.html" data-doc-lang="en" style="padding:6px 11px;border-radius:999px;text-decoration:none;color:#fff;background:#4f46e5;font-weight:600">English</a>
+</div>
+<script>
+(function(){
+  var KEY='doc-scroll-y';
+  function save(){ try{ sessionStorage.setItem(KEY, String(window.scrollY||0)); }catch(e){ /* storage disabled in private mode; ignore */ } }
+  document.querySelectorAll('[data-doc-lang]').forEach(function(a){ a.addEventListener('click', save); });
+  try{
+    var y=sessionStorage.getItem(KEY);
+    if(y!==null){ sessionStorage.removeItem(KEY);
+      window.addEventListener('load', function(){ window.scrollTo(0, Number(y)||0); });
+    }
+  }catch(e){ /* storage disabled in private mode; ignore */ }
+})();
+</script>
+
+</body>
+</html>

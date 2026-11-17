@@ -12,6 +12,7 @@ import SavedFilterList from '../components/SavedFilterList';
 import TagPanel from '../components/TagPanel';
 import { MORE_NAV, PENDING_ITEMS, PRIMARY_NAV, navLabel } from './nav';
 import { SideSection, useSideSections } from './SideSection';
+import i18n from '../i18n';
 
 interface Props {
   libraries: Library[];
@@ -143,15 +144,15 @@ export default function Sidebar({
   return (
     <aside className="sidebar" data-tour="sidebar" style={{ '--sidebar-w': `${width}px` } as CSSProperties}>
       <div className="side-head">
-        <span className="side-head-title">{'资源库'}</span>
+        <span className="side-head-title">{i18n.t('kc99f5cf1')}</span>
         <button
           type="button"
           className="side-head-all"
           onClick={() => setAllSections(!allOpen)}
-          title={allOpen ? '收起全部侧栏分区' : '展开全部侧栏分区'}
+          title={allOpen ? i18n.t('k45d77597') : i18n.t('k36c263ed')}
           aria-expanded={allOpen}
         >
-          {allOpen ? '收起全部' : '展开全部'}
+          {allOpen ? i18n.t('k715dea3c') : i18n.t('ka47b2cb1')}
         </button>
       </div>
 
@@ -166,7 +167,7 @@ export default function Sidebar({
       />
 
       {/* 仪表盘 / 图库是天天要点的常用功能，常驻顶部，不参与任何折叠收纳 */}
-      <nav className="side-primary-nav" aria-label={'常用导航'}>
+      <nav className="side-primary-nav" aria-label={i18n.t('ka5fc35f0')}>
         {PRIMARY_NAV.map((n) => (
           <button
             key={n.key}
@@ -184,7 +185,7 @@ export default function Sidebar({
       </nav>
 
       {/* 四个低频入口常驻：图标 + 文字都要，默认就能看见，也不会被「收起全部」藏起来 */}
-      <nav className="nav-grid side-more-nav" aria-label={'更多导航'}>
+      <nav className="nav-grid side-more-nav" aria-label={i18n.t('k156f092f')}>
         {MORE_NAV.map((n) => (
           <button
             key={n.key}
@@ -202,10 +203,10 @@ export default function Sidebar({
       </nav>
 
       <SideSection
-        title={'待整理'}
+        title={i18n.t('ke723910f')}
         open={sections.pending}
         onToggle={() => toggleSection('pending')}
-        summary={pendingTotal ? `${pendingTotal} 项待处理` : '未分类 / 无标签 / 未评分'}
+        summary={pendingTotal ? i18n.t('k9706ceac', { p0: pendingTotal }) : i18n.t('kf16d3dec')}
       >
         {PENDING_ITEMS.map((p) => (
           <button
@@ -222,12 +223,12 @@ export default function Sidebar({
       </SideSection>
 
       <SideSection
-        title={'保存的筛选'}
+        title={i18n.t('k7cdd7d9a')}
         open={sections.saved}
         onToggle={() => toggleSection('saved')}
-        summary={`${savedFilters.length} 条`}
+        summary={i18n.t('kc2234681', { p0: savedFilters.length })}
         actions={
-          <button className="folder-add-btn" title={'把当前筛选条件保存下来'} onClick={onSaveCurrentFilter}>
+          <button className="folder-add-btn" title={i18n.t('kf251081d')} onClick={onSaveCurrentFilter}>
             ＋
           </button>
         }
@@ -245,13 +246,13 @@ export default function Sidebar({
       </SideSection>
 
       <SideSection
-        title={'标签'}
+        title={i18n.t('k14d34236')}
         open={sections.tags}
         onToggle={() => toggleSection('tags')}
-        summary={tags.length ? `${tags.length} 个` : '按标签筛选'}
+        summary={tags.length ? i18n.t('k9808ed1e', { p0: tags.length }) : i18n.t('k6d0ce360')}
         actions={
           onBatchCreateTag && (
-            <button className="folder-add-btn" title={'批量新建标签'} onClick={onBatchCreateTag}>
+            <button className="folder-add-btn" title={i18n.t('k5a911120')} onClick={onBatchCreateTag}>
               ＋
             </button>
           )
@@ -294,7 +295,7 @@ export default function Sidebar({
       </div>
       <div
         className="sidebar-resizer"
-        title={'拖动调整侧栏宽度 · 双击恢复默认'}
+        title={i18n.t('k6d3e1b64')}
         onPointerDown={onResizeDown}
         onPointerMove={onResizeMove}
         onPointerUp={onResizeUp}

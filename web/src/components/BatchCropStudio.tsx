@@ -8,6 +8,7 @@ import CropSettings, { cropOutputSize, cropRatioStr, defaultCropControls, ratioW
 import SaveModeBlock, { SAVE_MODE_DEFAULT, type SaveModeState } from './SaveModeBlock';
 import { IconClose, IconExpand } from './Icons';
 import { confirmDialog } from './Dialogs';
+import i18n from '../i18n';
 
 /** 裁切台要用的最小图片信息（来自当前页选中项） */
 export interface CropItem {
@@ -21,11 +22,11 @@ export interface CropItem {
 
 /** 五档预览尺寸；默认「中小」，最小 140、最大 760 之间可无级拖动 */
 const CELL_PRESETS = [
-  { key: 180, label: '小' },
-  { key: 300, label: '中小' },
-  { key: 420, label: '中' },
-  { key: 560, label: '中大' },
-  { key: 720, label: '大' },
+  { key: 180, label: i18n.t('k391b8fa9') },
+  { key: 300, label: i18n.t('k412419fc') },
+  { key: 420, label: i18n.t('kaed1dfbc') },
+  { key: 560, label: i18n.t('k6bed0cda') },
+  { key: 720, label: i18n.t('kab18e30c') },
 ];
 const CELL_MIN = 140;
 const CELL_MAX = 760;
@@ -86,7 +87,7 @@ function CropCell({
         </span>
         <button
           className={`cs-focus-btn${autoFocus ? ' on' : ''}`}
-          title="按焦点重新取景这张"
+          title={i18n.t('k9db2c088')}
           onClick={onFocus}
           type="button"
         >
@@ -196,8 +197,8 @@ export default function BatchCropStudio({ items, onClose, onToast, onDone }: Pro
         onDone?.();
         onToast?.(
           s.cancelled
-            ? `批量裁切已取消（完成 ${s.done} 张，失败 ${s.failed} 张）`
-            : `批量裁切完成：成功 ${s.done} 张${s.failed ? `，失败 ${s.failed} 张` : ''}`
+            ? i18n.t('k6281234f', { p0: s.done, p1: s.failed })
+            : i18n.t('kff0fde31', { p0: s.done, p1: s.failed ? i18n.t('kfb601e6f', { p0: s.failed }) : '' })
         );
       }
     },
@@ -209,7 +210,7 @@ export default function BatchCropStudio({ items, onClose, onToast, onDone }: Pro
       applyStatus(await api.editJob());
     } catch (err) {
       errCount.current += 1;
-      if (errCount.current >= 3) setPollErr((err as Error).message || '无法连接服务');
+      if (errCount.current >= 3) setPollErr((err as Error).message || i18n.t('ke033d67c'));
     }
   }, [applyStatus]);
 
@@ -245,7 +246,7 @@ export default function BatchCropStudio({ items, onClose, onToast, onDone }: Pro
     try {
       // 批量覆盖原图：一次点错就是 N 个文件被重写，必须先确认
       if (save.saveMode === 'overwrite') {
-        const ok = await confirmDialog(`将覆盖 ${ids.length} 张图片的原文件（可用 Ctrl+Z 逐张撤销）。继续？`);
+        const ok = await confirmDialog(i18n.t('kded21324', { p0: ids.length }));
         if (!ok) return;
       }
       const r = await api.batchEdit(ids, 'crop', {
@@ -260,7 +261,7 @@ export default function BatchCropStudio({ items, onClose, onToast, onDone }: Pro
       setJob(r.job);
       startedRef.current = true;
     } catch (err) {
-      onToast?.((err as Error).message || '批量裁切启动失败');
+      onToast?.((err as Error).message || i18n.t('k551ac61d'));
     } finally {
       startLock.current = false;
       setStarting(false);
@@ -281,14 +282,14 @@ export default function BatchCropStudio({ items, onClose, onToast, onDone }: Pro
     <div className="crop-studio">
       <div className="cs-bar">
         <IconExpand />
-        <b>批量裁切</b>
+        <b>{i18n.t('k46641593')}</b>
         <span className="cs-count">已选 {ids.length} 张</span>
         {focusBusy ? (
           <span className="cs-focus-state">
             <span className="spinner" /> 检测焦点 {focusDone}/{ids.length}
           </span>
         ) : (
-          <span className="cs-hint">每张可独立拖动/缩放方框，只保留框内区域</span>
+          <span className="cs-hint">{i18n.t('k51f909aa')}</span>
         )}
         <div className="cs-zoom">
           {/* 无级缩放：直接在滑块上拖，五档只是「常用位置」的快捷按钮 */}
@@ -300,21 +301,21 @@ export default function BatchCropStudio({ items, onClose, onToast, onDone }: Pro
             step={CELL_STEP}
             value={cell}
             onChange={(e) => setCell(Number(e.target.value))}
-            title={`预览大小 ${cell}px（可无级拖动）`}
-            aria-label="预览大小"
+            title={i18n.t('k067ab9fa', { p0: cell })}
+            aria-label={i18n.t('k93e9e235')}
           />
           {CELL_PRESETS.map((s) => (
             <button
               key={s.key}
               className={`btn sm${cell === s.key ? ' primary' : ''}`}
               onClick={() => setCell(s.key)}
-              title={`预览${s.label}（${s.key}px）`}
+              title={i18n.t('k0a3fe6f1', { p0: s.label, p1: s.key })}
             >
               {s.label}
             </button>
           ))}
         </div>
-        <button className="btn sm ghost cs-close" onClick={onClose} disabled={running} title="关闭（Esc）">
+        <button className="btn sm ghost cs-close" onClick={onClose} disabled={running} title={i18n.t('k01aadfea')}>
           <IconClose />
         </button>
       </div>
@@ -335,7 +336,7 @@ export default function BatchCropStudio({ items, onClose, onToast, onDone }: Pro
                 onFocus={() => void runFocus([it], ratio.w, ratio.h)}
               />
             ))}
-            {items.length === 0 && <p className="cs-empty">选中的项目里没有可裁切的图片。</p>}
+            {items.length === 0 && <p className="cs-empty">{i18n.t('k1e646b81')}</p>}
           </div>
         </div>
 
@@ -353,13 +354,13 @@ export default function BatchCropStudio({ items, onClose, onToast, onDone }: Pro
           />
 
           <div className="cs-sec">
-            <div className="cs-sec-title">保存方式</div>
+            <div className="cs-sec-title">{i18n.t('k9b15e2d9')}</div>
             <SaveModeBlock
               value={save}
               onChange={(p) => setSave((s) => ({ ...s, ...p }))}
               disabled={running}
               count={ids.length}
-              overwriteHint={`直接覆盖 ${ids.length} 张原图，裁切掉的部分无法恢复（设置里开了「非破坏性编辑」时只记操作链，不覆盖原图）。`}
+              overwriteHint={i18n.t('k075c1f81', { p0: ids.length })}
             />
           </div>
 
@@ -369,10 +370,10 @@ export default function BatchCropStudio({ items, onClose, onToast, onDone }: Pro
               <span>
                 {job.running
                   ? `${job.label} · ${job.currentTitle || ''}`
-                  : `${job.label}${job.cancelled ? ' · 已取消' : ' · 已完成'}`}
+                  : `${job.label}${job.cancelled ? i18n.t('k37f7c09e') : i18n.t('kf64a9820')}`}
               </span>
               <span className="job-meta">
-                {job.done + job.failed} / {job.total}（{pct}%）{job.failed ? ` · 失败 ${job.failed}` : ''}
+                {job.done + job.failed} / {job.total}（{pct}%）{job.failed ? i18n.t('k1b84532a', { p0: job.failed }) : ''}
               </span>
             </div>
           )}
@@ -385,19 +386,19 @@ export default function BatchCropStudio({ items, onClose, onToast, onDone }: Pro
 
           <div className="cs-foot">
             <button className="btn sm ghost" onClick={onClose} disabled={running}>
-              {running ? '后台执行中…' : '关闭'}
+              {running ? i18n.t('k5e59fed7') : i18n.t('kb15d9127')}
             </button>
             {running ? (
               <button className="btn sm danger" onClick={cancel}>
-                停止
+                {i18n.t('k095e938e')}
               </button>
             ) : (
               <button className="btn sm primary" disabled={starting || !ids.length} onClick={start}>
                 {starting
-                  ? '启动中…'
+                  ? i18n.t('kf6196bb1')
                   : save.saveMode === 'copy'
-                    ? `另存 ${ids.length} 张副本`
-                    : `裁切 ${ids.length} 张`}
+                    ? i18n.t('k36bd39f5', { p0: ids.length })
+                    : i18n.t('k12f2d5c1', { p0: ids.length })}
               </button>
             )}
           </div>

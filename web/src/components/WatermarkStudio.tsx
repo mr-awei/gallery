@@ -9,6 +9,7 @@ import SaveModeBlock, { SAVE_MODE_DEFAULT, type SaveModeState } from './SaveMode
 import { downloadBlob } from '../lib/palette';
 import { EMPTY_PLACE, cachedGeoRegions, composeLocation, guessPlace, loadGeoRegions, type Place } from '../lib/geo';
 import { makePreset, mergePresets, parsePresetFile, presetFileText, sanitizePreset } from '../lib/watermark-preset';
+import i18n from '../i18n';
 
 type Props = {
   open: boolean;
@@ -26,18 +27,18 @@ type Props = {
  * 的值必须是合法十六进制，不能写 rgba() 或颜色名。
  */
 const COLOR_OPTS = [
-  { value: 'auto', label: '跟随样式（自动反差）', group: '智能' },
-  { value: 'light', label: '白色文字', group: '智能' },
-  { value: 'dark', label: '深色文字', group: '智能' },
-  { value: '#ffffff', label: '纯白', group: '常用色' },
-  { value: '#f2f2f2', label: '浅灰', group: '常用色' },
-  { value: '#9e9e9e', label: '中灰', group: '常用色' },
-  { value: '#141414', label: '纯黑', group: '常用色' },
-  { value: '#d4af37', label: '香槟金', group: '常用色' },
-  { value: '#e8c37a', label: '浅金', group: '常用色' },
-  { value: '#c0c8d0', label: '银灰', group: '常用色' },
-  { value: '#ff5a5f', label: '珊瑚红', group: '常用色' },
-  { value: '#4da3ff', label: '天蓝', group: '常用色' },
+  { value: 'auto', label: i18n.t('k78a45b3a'), group: i18n.t('k96658cef') },
+  { value: 'light', label: i18n.t('k5eb8690a'), group: i18n.t('k96658cef') },
+  { value: 'dark', label: i18n.t('kd3d162ea'), group: i18n.t('k96658cef') },
+  { value: '#ffffff', label: i18n.t('k5597d763'), group: i18n.t('k1829e78d') },
+  { value: '#f2f2f2', label: i18n.t('k536a2ae0'), group: i18n.t('k1829e78d') },
+  { value: '#9e9e9e', label: i18n.t('k78cf0c6b'), group: i18n.t('k1829e78d') },
+  { value: '#141414', label: i18n.t('k3a5c90c2'), group: i18n.t('k1829e78d') },
+  { value: '#d4af37', label: i18n.t('k6986b308'), group: i18n.t('k1829e78d') },
+  { value: '#e8c37a', label: i18n.t('k3b5cb3d4'), group: i18n.t('k1829e78d') },
+  { value: '#c0c8d0', label: i18n.t('k1537d809'), group: i18n.t('k1829e78d') },
+  { value: '#ff5a5f', label: i18n.t('k4f670ea2'), group: i18n.t('k1829e78d') },
+  { value: '#4da3ff', label: i18n.t('ke3f782fb'), group: i18n.t('k1829e78d') },
 ];
 
 /** 型号下拉里的「自定义」哨兵值：选中它就把下拉换成输入框 */
@@ -184,7 +185,7 @@ export default function WatermarkStudio({ open, ids, onClose, onToast, onDone }:
         await api.saveSettings({ watermarkPresets: next });
       } catch (e) {
         setPresets(prev);
-        onToast?.(`预设保存失败：${(e as Error).message || '未知错误'}`);
+        onToast?.(i18n.t('k934f44b0', { p0: (e as Error).message || i18n.t('k974e7484') }));
       }
     },
     [presets, onToast]
@@ -221,19 +222,19 @@ export default function WatermarkStudio({ open, ids, onClose, onToast, onDone }:
   const commitPreset = () => {
     const name = (savingName || '').trim();
     if (!name) {
-      onToast?.('给预设起个名字');
+      onToast?.(i18n.t('kc0a8ba5e'));
       return;
     }
     const made = makePreset(name, params);
     if (!made) {
-      onToast?.('当前参数存不成预设（至少选一个水印或相框样式）');
+      onToast?.(i18n.t('kfb7914d2'));
       return;
     }
     const same = presets.findIndex((x) => x.name.toLowerCase() === name.toLowerCase());
     const next = same >= 0 ? presets.map((x, i) => (i === same ? { ...made, id: x.id } : x)) : [...presets, made];
     setSavingName(null);
     setPresetId(made.id);
-    onToast?.(same >= 0 ? `已更新预设「${name}」` : `已保存预设「${name}」`);
+    onToast?.(same >= 0 ? i18n.t('k3e41e5bf', { p0: name }) : i18n.t('k91a67400', { p0: name }));
     void persistPresets(next);
   };
 
@@ -241,39 +242,39 @@ export default function WatermarkStudio({ open, ids, onClose, onToast, onDone }:
     const p = presets.find((x) => x.id === presetId);
     if (!p) return;
     setPresetId('');
-    onToast?.(`已删除预设「${p.name}」`);
+    onToast?.(i18n.t('k5ef36234', { p0: p.name }));
     void persistPresets(presets.filter((x) => x.id !== presetId));
   };
 
   const exportPresets = () => {
     if (!presets.length) {
-      onToast?.('还没有预设可导出');
+      onToast?.(i18n.t('keb4dbc03'));
       return;
     }
     const stamp = new Date().toISOString().slice(0, 10);
-    downloadBlob(new Blob([presetFileText(presets)], { type: 'application/json' }), `水印预设-${stamp}.json`);
-    onToast?.(`已导出 ${presets.length} 套预设`);
+    downloadBlob(new Blob([presetFileText(presets)], { type: 'application/json' }), i18n.t('kf7177b5d', { p0: stamp }));
+    onToast?.(i18n.t('kb7a46ee3', { p0: presets.length }));
   };
 
   const importPresets = async (file: File) => {
     try {
       const { presets: incoming, skipped } = parsePresetFile(JSON.parse(await file.text()));
       if (!incoming.length) {
-        onToast?.(skipped ? `文件里 ${skipped} 套预设都不完整，没有导入` : '文件里没有预设');
+        onToast?.(skipped ? i18n.t('kcb60293f', { p0: skipped }) : i18n.t('k858bba1f'));
         return;
       }
       const { presets: next, added, replaced } = mergePresets(presets, incoming);
       await persistPresets(next);
-      onToast?.(`导入完成：新增 ${added} 套${replaced ? `，覆盖同名 ${replaced} 套` : ''}${skipped ? `，跳过 ${skipped} 套` : ''}`);
+      onToast?.(i18n.t('kd6ff289b', { p0: added, p1: replaced ? i18n.t('k357dc025', { p0: replaced }) : '', p2: skipped ? i18n.t('k169ce0ba', { p0: skipped }) : '' }));
     } catch (e) {
-      onToast?.(`导入失败：${(e as Error).message || '文件读不出来'}`);
+      onToast?.(i18n.t('kdfcff80b', { p0: (e as Error).message || i18n.t('kfcd0ef53') }));
     }
   };
 
   /* 字体下拉：内置的「跟随样式」+ 服务端给的字体 + 本机 242 种系统字体（可搜索） */
   const fontOptions = useMemo(() => {
-    const list: SelectOption[] = [{ value: 'auto', label: '跟随样式（推荐）' }];
-    (opt?.fonts || []).forEach((f) => list.push({ value: f.key, label: f.name, group: '内置字体' }));
+    const list: SelectOption[] = [{ value: 'auto', label: i18n.t('kf935034e') }];
+    (opt?.fonts || []).forEach((f) => list.push({ value: f.key, label: f.name, group: i18n.t('kf0fb9bdf') }));
     sysFonts.forEach((f) => list.push({ value: f.key, label: f.name, group: f.group }));
     return list;
   }, [opt, sysFonts]);
@@ -414,27 +415,27 @@ export default function WatermarkStudio({ open, ids, onClose, onToast, onDone }:
       if (logoUsable) return ''; // 有字标可画
       if (s.needs?.length) {
         if (!s.needs.some((k) => usableFields.has(k))) {
-          return `要有${s.needs.map(fieldLabel).join(' / ')}才能排`;
+          return i18n.t('k7db680f4', { p0: s.needs.map(fieldLabel).join(' / ') });
         }
         return '';
       }
       if (!s.uses?.length) return '';
       if (s.uses.some((k) => usableFields.has(k))) return '';
-      return `只排${s.uses.map(fieldLabel).join(' / ')}`;
+      return i18n.t('kaaac02e9', { p0: s.uses.map(fieldLabel).join(' / ') });
     },
     [logoUsable, usableFields, fieldLabel]
   );
 
   /** 应用前的硬校验：这两个情况服务端也会拒，没必要先打一次请求 */
   const validate = useCallback((): string => {
-    if (style === 'none' && frame === 'none') return '请至少选择一个水印样式或相框样式';
+    if (style === 'none' && frame === 'none') return i18n.t('ka6af1eeb');
     if (style !== 'none' && fields.length === 0 && !logo) {
-      return '一项信息都没选：请勾选要显示的拍摄信息，或打开「品牌 logo」';
+      return i18n.t('k502f145d');
     }
     const s = opt?.watermarks.find((x) => x.id === style);
     const blocked = s ? styleBlocked(s) : '';
     if (s && blocked) {
-      return `「${s.name}」${blocked}，当前勾选的信息它排不出来：换一款样式，或改勾它支持的信息`;
+      return i18n.t('k04ff91c4', { p0: s.name, p1: blocked });
     }
     return '';
   }, [style, frame, fields.length, logo, opt, styleBlocked]);
@@ -446,7 +447,7 @@ export default function WatermarkStudio({ open, ids, onClose, onToast, onDone }:
     if (!open || !firstId) return;
     // style/frame 都没选时才是真的没内容可合成
     if (style === 'none' && frame === 'none') {
-      setErr('请至少选择一个水印样式或相框样式');
+      setErr(i18n.t('ka6af1eeb'));
       if (previewRef.current) URL.revokeObjectURL(previewRef.current);
       previewRef.current = '';
       setPreview('');
@@ -467,7 +468,7 @@ export default function WatermarkStudio({ open, ids, onClose, onToast, onDone }:
           setNote(serverNote);
           setErr('');
         })
-        .catch((e) => alive && setErr((e as Error).message || '预览失败'))
+        .catch((e) => alive && setErr((e as Error).message || i18n.t('k6a3a5ef0')))
         .finally(() => alive && setLoading(false));
     }, 350);
     return () => {
@@ -494,7 +495,7 @@ export default function WatermarkStudio({ open, ids, onClose, onToast, onDone }:
         setPolling(false);
         setApplying(false);
         onDone?.();
-        onToast?.(`水印完成：成功 ${s.done} 张${s.failed ? `，失败 ${s.failed} 张` : ''}`);
+        onToast?.(i18n.t('k50b2d991', { p0: s.done, p1: s.failed ? i18n.t('kfb601e6f', { p0: s.failed }) : '' }));
         onClose();
       }
     },
@@ -506,7 +507,7 @@ export default function WatermarkStudio({ open, ids, onClose, onToast, onDone }:
       applyStatus(await api.editJob());
     } catch (pollFailure) {
       errCount.current += 1;
-      if (errCount.current >= 3) setPollErr((pollFailure as Error).message || '无法连接服务');
+      if (errCount.current >= 3) setPollErr((pollFailure as Error).message || i18n.t('ke033d67c'));
     }
   }, [applyStatus]);
 
@@ -562,7 +563,7 @@ export default function WatermarkStudio({ open, ids, onClose, onToast, onDone }:
       if (ids.length === 1) {
         const r = await api.watermarkImage(ids[0], payload);
         onToast?.(
-          r.copied ? `已另存到 ${r.savedPath || '指定目录'}` : `水印已应用（${r.width}×${r.height}）${r.note ? ` · ${r.note}` : ''}`
+          r.copied ? i18n.t('kfad6b303', { p0: r.savedPath || i18n.t('kb239a804') }) : i18n.t('ked5db60f', { p0: r.width, p1: r.height, p2: r.note ? ` · ${r.note}` : '' })
         );
         onDone?.(r.item);
         onClose();
@@ -570,11 +571,11 @@ export default function WatermarkStudio({ open, ids, onClose, onToast, onDone }:
         const r = await api.batchEdit(ids, 'watermark', payload);
         setJob(r.job);
         setPolling(true);
-        onToast?.(`开始为 ${ids.length} 张图加水印…`);
+        onToast?.(i18n.t('k5450d2dd', { p0: ids.length }));
       }
     } catch (e) {
       setApplying(false);
-      const msg = (e as Error).message || '水印合成失败';
+      const msg = (e as Error).message || i18n.t('k68104ad0');
       setErr(msg);
       onToast?.(msg);
     }
@@ -596,11 +597,11 @@ export default function WatermarkStudio({ open, ids, onClose, onToast, onDone }:
     <div className="wm-mask" onMouseDown={applying ? undefined : onClose}>
       <div className="wm-card" onMouseDown={(e) => e.stopPropagation()}>
         <div className="wm-head">
-          <b>水印 / 相框</b>
+          <b>{i18n.t('kaa599e21')}</b>
           <span className="wm-sub">
-            {ids.length > 1 ? `批量处理 ${ids.length} 张（按同一套参数）` : '单张精修'}
+            {ids.length > 1 ? i18n.t('k86ff7d6e', { p0: ids.length }) : i18n.t('kd6dcd722')}
           </span>
-          <button className="btn sm ghost wm-close" disabled={applying} onClick={onClose} title="关闭">
+          <button className="btn sm ghost wm-close" disabled={applying} onClick={onClose} title={i18n.t('kb15d9127')}>
             <IconClose size={14} />
           </button>
         </div>
@@ -608,19 +609,19 @@ export default function WatermarkStudio({ open, ids, onClose, onToast, onDone }:
         <div className="wm-body">
           <div className="wm-preview">
             <div className="wm-stage">
-              {preview ? <img src={preview} alt="水印预览" /> : <div className="wm-empty">选好样式后这里显示预览</div>}
+              {preview ? <img src={preview} alt={i18n.t('k87899c5c')} /> : <div className="wm-empty">{i18n.t('k098e863b')}</div>}
               {(loading || applying) && (
                 <div className="wm-stage-mask">
                   <span className="spinner" />
-                  {applying ? '正在应用…' : '正在合成预览…'}
+                  {applying ? i18n.t('k59ca1a8a') : i18n.t('kb1d3848e')}
                 </div>
               )}
               {note && !err && <div className="wm-stage-note">{note}</div>}
               {err && <div className="wm-stage-err">{err}</div>}
             </div>
             <div className="wm-preview-foot">
-              <span>预览按长边 1400px 渲染，成品用原图分辨率</span>
-              <span className="wm-tag">{ids.length > 1 ? `第 1 张 / 共 ${ids.length} 张` : '原图'}</span>
+              <span>{i18n.t('kf61c1327')}</span>
+              <span className="wm-tag">{ids.length > 1 ? i18n.t('ka1433b53', { p0: ids.length }) : i18n.t('kfb43d5ff')}</span>
             </div>
             {job && job.running && (
               <div className="wm-progress">
@@ -631,7 +632,7 @@ export default function WatermarkStudio({ open, ids, onClose, onToast, onDone }:
                   {job.done + job.failed} / {job.total}（失败 {job.failed}）
                 </span>
                 <button className="btn sm ghost" onClick={cancelJob}>
-                  取消
+                  {i18n.t('k625fb26b')}
                 </button>
               </div>
             )}
@@ -645,7 +646,7 @@ export default function WatermarkStudio({ open, ids, onClose, onToast, onDone }:
           <div className="wm-panel">
             <section className="wm-sec">
               <h4>
-                我的预设 <em>{presets.length} 套</em>
+                {i18n.t('k7d52ef52')} <em>{presets.length} 套</em>
               </h4>
               <div className="wm-row">
                 <Select
@@ -654,20 +655,20 @@ export default function WatermarkStudio({ open, ids, onClose, onToast, onDone }:
                   onChange={applyPreset}
                   options={
                     presets.length
-                      ? [{ value: '', label: '选择一个预设套用…' }, ...presets.map((p) => ({ value: p.id, label: p.name }))]
-                      : [{ value: '', label: '还没有保存过预设' }]
+                      ? [{ value: '', label: i18n.t('ka1ed91aa') }, ...presets.map((p) => ({ value: p.id, label: p.name }))]
+                      : [{ value: '', label: i18n.t('kaa68f2f7') }]
                   }
-                  title="预设保存的是整套排版参数：样式、相框、信息项、品牌型号、字号颜色字体"
+                  title={i18n.t('ke33ebddf')}
                 />
                 <button
                   className="btn sm ghost"
                   onClick={() => setSavingName(presets.find((p) => p.id === presetId)?.name || '')}
-                  title="把当前这一套参数存成预设"
+                  title={i18n.t('kbd0e6dbb')}
                 >
-                  保存
+                  {i18n.t('kbe5fbbe3')}
                 </button>
                 <button className="btn sm ghost" disabled={!presetId} onClick={removePreset}>
-                  删除
+                  {i18n.t('k2f4aaddd')}
                 </button>
               </div>
               {savingName !== null && (
@@ -677,7 +678,7 @@ export default function WatermarkStudio({ open, ids, onClose, onToast, onDone }:
                     autoFocus
                     value={savingName}
                     maxLength={40}
-                    placeholder="预设名字，如「白底商品 · 右下」"
+                    placeholder={i18n.t('k76dc750f')}
                     onChange={(e) => setSavingName(e.target.value)}
                     onKeyDown={(e) => {
                       if (e.key === 'Enter') {
@@ -691,19 +692,19 @@ export default function WatermarkStudio({ open, ids, onClose, onToast, onDone }:
                     }}
                   />
                   <button className="btn sm" onClick={commitPreset}>
-                    保存
+                    {i18n.t('kbe5fbbe3')}
                   </button>
                   <button className="btn sm ghost" onClick={() => setSavingName(null)}>
-                    取消
+                    {i18n.t('k625fb26b')}
                   </button>
                 </div>
               )}
               <div className="wm-row">
                 <button className="btn sm ghost" onClick={() => importRef.current?.click()}>
-                  导入预设
+                  {i18n.t('k710086e2')}
                 </button>
                 <button className="btn sm ghost" onClick={exportPresets}>
-                  导出预设
+                  {i18n.t('kcdb1737a')}
                 </button>
                 <input
                   ref={importRef}
@@ -717,12 +718,12 @@ export default function WatermarkStudio({ open, ids, onClose, onToast, onDone }:
                   }}
                 />
               </div>
-              <p className="wm-hint">导出的是 JSON 文件，可以备份或发给别人；导入时同名预设会被覆盖。</p>
+              <p className="wm-hint">{i18n.t('k47d48e5c')}</p>
             </section>
 
             <section className="wm-sec">
               <h4>
-                要显示的信息 <em>{fields.length} 项</em>
+                {i18n.t('kef658ac0')} <em>{fields.length} 项</em>
               </h4>
               <div className="wm-fields">
                 {(opt?.fields || []).map((f) => {
@@ -732,7 +733,7 @@ export default function WatermarkStudio({ open, ids, onClose, onToast, onDone }:
                     <label key={f.key} className={`wm-field${on ? ' on' : ''}${has ? '' : ' void'}`}>
                       <input type="checkbox" checked={on} onChange={() => toggleField(f.key)} />
                       <span>{f.label}</span>
-                      {!has && <i title="这张图的 EXIF 里没有这一项">无</i>}
+                      {!has && <i title={i18n.t('k323794a0')}>{i18n.t('kd81bb206')}</i>}
                     </label>
                   );
                 })}
@@ -742,7 +743,7 @@ export default function WatermarkStudio({ open, ids, onClose, onToast, onDone }:
               {fields.includes('camera') && (
                 <>
                   <div className="wm-row">
-                    <span className="wm-row-label">相机型号</span>
+                    <span className="wm-row-label">{i18n.t('k0b098228')}</span>
                     {modelFree ? (
                       <>
                         <input
@@ -750,18 +751,18 @@ export default function WatermarkStudio({ open, ids, onClose, onToast, onDone }:
                           value={model}
                           maxLength={60}
                           autoFocus
-                          placeholder="直接写型号，如 ILCE-7M4"
+                          placeholder={i18n.t('k303f4677')}
                           onChange={(e) => setModel(e.target.value)}
                         />
                         <button
                           className="btn sm ghost"
-                          title="回到型号清单"
+                          title={i18n.t('k13c54727')}
                           onClick={() => {
                             setModelFree(false);
                             setModel('');
                           }}
                         >
-                          列表
+                          {i18n.t('k3712972d')}
                         </button>
                       </>
                     ) : (
@@ -769,15 +770,15 @@ export default function WatermarkStudio({ open, ids, onClose, onToast, onDone }:
                         className="wm-sel"
                         value={modelValue}
                         onChange={pickModel}
-                        options={[...modelOptions, { value: CUSTOM_MODEL, label: '自定义型号…' }]}
-                        placeholder={available('camera') ? '留空则读 EXIF 型号' : '选一个型号'}
-                        title="选定品牌后只列这个品牌的常见型号；清单里没有就选「自定义型号」自己写"
+                        options={[...modelOptions, { value: CUSTOM_MODEL, label: i18n.t('k3347c1d4') }]}
+                        placeholder={available('camera') ? i18n.t('k47f35eae') : i18n.t('k3271c52d')}
+                        title={i18n.t('kfbc975df')}
                         searchThreshold={20}
                       />
                     )}
                   </div>
                   {!modelFree && brand !== 'auto' && modelOptions.length === 0 && (
-                    <p className="wm-tip">这个品牌没收录到型号，选「自定义型号」自己写即可。</p>
+                    <p className="wm-tip">{i18n.t('ke4db9f27')}</p>
                   )}
                 </>
               )}
@@ -786,38 +787,38 @@ export default function WatermarkStudio({ open, ids, onClose, onToast, onDone }:
                 <>
                   {locFree ? (
                     <div className="wm-row">
-                      <span className="wm-row-label">拍摄地点</span>
+                      <span className="wm-row-label">{i18n.t('k9fdaa35b')}</span>
                       <input
                         className="wm-input"
                         value={location}
                         maxLength={80}
-                        placeholder={available('location') ? '留空则读 EXIF' : '如：上海 · 外滩'}
+                        placeholder={available('location') ? i18n.t('k2f8579bf') : i18n.t('ka6a2af4b')}
                         onChange={(e) => setLocation(e.target.value)}
                       />
-                      <button className="btn sm ghost" title="改用省/市/区选择" onClick={toPickLocation}>
-                        选城市
+                      <button className="btn sm ghost" title={i18n.t('kc0f5d553')} onClick={toPickLocation}>
+                        {i18n.t('k58106438')}
                       </button>
                     </div>
                   ) : (
                     <>
                       <div className="wm-row">
-                        <span className="wm-row-label">拍摄地点</span>
+                        <span className="wm-row-label">{i18n.t('k9fdaa35b')}</span>
                         <Select
                           className="wm-sel"
                           value={place.province}
                           onChange={(v) => setPlacePart('province', v)}
                           options={provinceOptions}
-                          placeholder="省份"
-                          title="先选省份"
+                          placeholder={i18n.t('kd7009d07')}
+                          title={i18n.t('k08f8be38')}
                         />
                         <Select
                           className="wm-sel"
                           value={place.city}
                           onChange={(v) => setPlacePart('city', v)}
                           options={cityOptions}
-                          placeholder="城市"
+                          placeholder={i18n.t('kf7d29dfa')}
                           disabled={!place.province}
-                          title="再选城市"
+                          title={i18n.t('k62b936b3')}
                         />
                       </div>
                       {place.city && (
@@ -827,24 +828,24 @@ export default function WatermarkStudio({ open, ids, onClose, onToast, onDone }:
                             value={place.district}
                             onChange={(v) => setPlacePart('district', v)}
                             options={districtOptions}
-                            placeholder={districtOptions.length ? '区 / 县（可选）' : '区县（可手写详情）'}
-                            title="第三级：区/县，选完还能在右边补详细地址"
+                            placeholder={districtOptions.length ? i18n.t('kb26c5c02') : i18n.t('kf9bac778')}
+                            title={i18n.t('k5ccc71d5')}
                           />
                           <input
                             className="wm-input"
                             value={place.detail}
                             maxLength={40}
-                            placeholder="详细地址（可选）"
+                            placeholder={i18n.t('kcc114644')}
                             onChange={(e) => setPlacePart('detail', e.target.value)}
                           />
                         </div>
                       )}
                       <div className="wm-row wm-loc-foot">
                         <p className="wm-hint">
-                          水印上显示：<b>{location || '（还没选）'}</b>
+                          {i18n.t('k61dcbd94')}<b>{location || i18n.t('k1be9fc93')}</b>
                         </p>
-                        <button className="btn sm ghost" title="地名不在列表里？直接手写" onClick={toFreeLocation}>
-                          手填
+                        <button className="btn sm ghost" title={i18n.t('k42f35843')} onClick={toFreeLocation}>
+                          {i18n.t('kbd1f8309')}
                         </button>
                       </div>
                     </>
@@ -854,7 +855,7 @@ export default function WatermarkStudio({ open, ids, onClose, onToast, onDone }:
               <div className="wm-row">
                 <label className="wm-switch">
                   <input type="checkbox" checked={logo} onChange={(e) => setLogo(e.target.checked)} />
-                  <span>显示品牌 logo</span>
+                  <span>{i18n.t('kebf7851c')}</span>
                 </label>
                 {logo && (
                   <Select
@@ -866,7 +867,7 @@ export default function WatermarkStudio({ open, ids, onClose, onToast, onDone }:
                       setBrand(v);
                     }}
                     options={[
-                      { value: 'auto', label: '自动识别（按 EXIF 品牌）' },
+                      { value: 'auto', label: i18n.t('k501b93e9') },
                       ...(opt?.brands || []).map((b) => ({
                         value: b.key,
                         label: b.name,
@@ -877,22 +878,22 @@ export default function WatermarkStudio({ open, ids, onClose, onToast, onDone }:
                 )}
               </div>
               {logo && brand === 'auto' && exif && !exif.make && !exif.model && (
-                <p className="wm-tip">这张图的 EXIF 里没有品牌信息，自动识别会跳过 logo；可在右侧下拉里手动指定，或直接在「相机型号」里写上图里的机型。</p>
+                <p className="wm-tip">{i18n.t('k66957e60')}</p>
               )}
             </section>
 
             <section className="wm-sec">
               <h4>
-                水印样式 <em>{opt ? opt.watermarks.length : 0} 款</em>
+                {i18n.t('k42c43485')} <em>{opt ? opt.watermarks.length : 0} 款</em>
               </h4>
               <div className="wm-styles">
                 <button
                   className={`wm-style plain${styleNone ? ' on' : ''}`}
                   onClick={() => setStyle('none')}
-                  title="只要相框，不加水印"
+                  title={i18n.t('k39fd910c')}
                 >
-                  <b>不使用水印</b>
-                  <i>只加相框时选这个</i>
+                  <b>{i18n.t('k27d71a1e')}</b>
+                  <i>{i18n.t('k5060ad9f')}</i>
                 </button>
                 {(opt?.watermarks || []).map((s) => {
                   const blocked = styleBlocked(s);
@@ -901,12 +902,12 @@ export default function WatermarkStudio({ open, ids, onClose, onToast, onDone }:
                       key={s.id}
                       className={`wm-style${style === s.id ? ' on' : ''}${blocked ? ' lack' : ''}`}
                       onClick={() => setStyle(s.id)}
-                      title={blocked ? `${s.desc}（${blocked}，当前勾选的信息它用不上）` : s.desc}
+                      title={blocked ? i18n.t('kc639d803', { p0: s.desc, p1: blocked }) : s.desc}
                     >
                       <b>{s.name}</b>
                       <i>{s.desc}</i>
                       {/* 只吃某几项信息（日期戳要时间、落款只排型号…）：勾选对不上时先标出来 */}
-                      {blocked && <em className="wm-style-lack">不含所选信息</em>}
+                      {blocked && <em className="wm-style-lack">{i18n.t('ke9068e91')}</em>}
                     </button>
                   );
                 })}
@@ -919,10 +920,10 @@ export default function WatermarkStudio({ open, ids, onClose, onToast, onDone }:
                 return (
                   <p className="wm-hint">
                     这款样式
-                    {need ? `必须有：${need}` : ''}
+                    {need ? i18n.t('k26f0b6b4', { p0: need }) : ''}
                     {need && only ? '；' : ''}
-                    {only ? `只排：${only}` : ''}
-                    {styleBlocked(s) ? ' —— 当前勾选的信息都用不上，选了也出不来图' : ''}
+                    {only ? i18n.t('kdbe87d7f', { p0: only }) : ''}
+                    {styleBlocked(s) ? i18n.t('k2530e07d') : ''}
                   </p>
                 );
               })()}
@@ -930,16 +931,16 @@ export default function WatermarkStudio({ open, ids, onClose, onToast, onDone }:
 
             <section className="wm-sec">
               <h4>
-                相框样式 <em>{opt ? opt.frames.length : 0} 款</em>
+                {i18n.t('k57a3875d')} <em>{opt ? opt.frames.length : 0} 款</em>
               </h4>
               <div className="wm-styles">
                 <button
                   className={`wm-style plain${frameNone ? ' on' : ''}`}
                   onClick={() => setFrame('none')}
-                  title="不加相框"
+                  title={i18n.t('k2982f3b0')}
                 >
-                  <b>不使用相框</b>
-                  <i>原图尺寸不变时选这个</i>
+                  <b>{i18n.t('kda9c71c9')}</b>
+                  <i>{i18n.t('k572b454f')}</i>
                 </button>
                 {(opt?.frames || []).map((f) => (
                   <button
@@ -956,37 +957,37 @@ export default function WatermarkStudio({ open, ids, onClose, onToast, onDone }:
             </section>
 
             <section className="wm-sec">
-              <h4>微调</h4>
+              <h4>{i18n.t('k58fd75c1')}</h4>
               <div className="wm-slider">
-                <span>字号</span>
+                <span>{i18n.t('kfc55aff8')}</span>
                 <input type="range" min={0.5} max={2} step={0.05} value={size} onChange={(e) => setSize(Number(e.target.value))} />
                 <b>{Math.round(size * 100)}%</b>
               </div>
               <div className="wm-slider">
-                <span>不透明度</span>
+                <span>{i18n.t('kc9ede7da')}</span>
                 <input type="range" min={0.2} max={1} step={0.05} value={opacity} onChange={(e) => setOpacity(Number(e.target.value))} />
                 <b>{Math.round(opacity * 100)}%</b>
               </div>
               <div className="wm-row">
-                <span className="wm-row-label">文字颜色</span>
+                <span className="wm-row-label">{i18n.t('k7ec907e7')}</span>
                 <Select className="wm-sel" value={color} onChange={setColor} options={COLOR_OPTS} />
               </div>
               <div className="wm-row">
-                <span className="wm-row-label">字体样式</span>
+                <span className="wm-row-label">{i18n.t('ka2ed0418')}</span>
                 <Select
                   className="wm-sel"
                   value={font}
                   onChange={setFont}
                   options={fontOptions}
-                  title="统一替换水印文字的字体；「本机字体」是本机已安装的全部字体，可搜索"
+                  title={i18n.t('k82ccbbf0')}
                 />
                 <button
                   className="btn ghost wm-font-scan"
                   onClick={rescanFonts}
                   disabled={fontScanning}
-                  title="刚在系统里装完字体时点一下，重新扫描本机字体"
+                  title={i18n.t('k573be648')}
                 >
-                  {fontScanning ? '扫描中…' : '刷新'}
+                  {fontScanning ? i18n.t('k68c15533') : i18n.t('k694fc5ef')}
                 </button>
               </div>
               {sysFonts.length > 0 && (
@@ -995,13 +996,13 @@ export default function WatermarkStudio({ open, ids, onClose, onToast, onDone }:
             </section>
 
             <section className="wm-sec">
-              <h4>保存方式</h4>
+              <h4>{i18n.t('k9b15e2d9')}</h4>
               <SaveModeBlock
                 value={save}
                 onChange={(p) => setSave((s) => ({ ...s, ...p }))}
                 disabled={applying}
                 count={ids.length}
-                overwriteHint={`直接覆盖 ${ids.length} 张原图，可用「撤销」恢复。`}
+                overwriteHint={i18n.t('kf97f8139', { p0: ids.length })}
               />
             </section>
           </div>
@@ -1009,13 +1010,13 @@ export default function WatermarkStudio({ open, ids, onClose, onToast, onDone }:
 
         <div className="wm-foot">
           <span className={`wm-hint${err ? ' bad' : ''}`}>
-            {err || '预览总会出图；这张图读不到信息时会提示原因，应用则不会生成空白水印'}
+            {err || i18n.t('kc0304744')}
           </span>
           <button className="btn sm ghost" disabled={applying} onClick={onClose}>
-            取消
+            {i18n.t('k625fb26b')}
           </button>
           <button className="btn sm" disabled={applying || (job?.running ?? false)} onClick={apply}>
-            {applying ? '处理中…' : ids.length > 1 ? `应用到 ${ids.length} 张` : '应用'}
+            {applying ? i18n.t('kcf978c02') : ids.length > 1 ? i18n.t('kd9067042', { p0: ids.length }) : i18n.t('k5b0520a9')}
           </button>
         </div>
       </div>

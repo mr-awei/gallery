@@ -70,6 +70,7 @@ import { autoMergeLegacy, refreshMergedRows } from './lib/legacy-db.js';
 import { backfillMissingFolderLinks, folderDiskDir } from './folders.js';
 import { attachStackInfo } from './lib/stacks.js';
 import { hardwareReport } from './lib/hardware.js';
+import { localeMiddleware } from './lib/i18n.js';
 
 const asyncRoute = (fn) => (req, res, next) => Promise.resolve(fn(req, res, next)).catch(next);
 
@@ -309,6 +310,9 @@ function bootstrap() {
 
 export function buildApp({ desktop = false } = {}) {
   const app = express();
+  // 文案语言：按前端发来的 Accept-Language 决定 error / msg 等字段用中文还是英文
+  // （必须在其它中间件之前挂载，401 / 413 这些早期错误也要能翻译）
+  app.use(localeMiddleware);
   // 本地 API 鉴权：拦住本机任意网页的跨站调用与无令牌的裸调用（规则见 auth.js）
   app.use(apiAuth);
   // 基础安全头：防 MIME 嗅探 / 点击劫持 / 引用泄漏（CSP 由 meta 承担 dev，生产 HTML 再叠加严格头）

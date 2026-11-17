@@ -2,12 +2,13 @@ import { useEffect, useRef, useState } from 'react';
 import { api, type ThemePackBrief } from '../../api';
 import { applyThemePack, getStoredTheme, type ThemePackTheme } from '../../theme';
 import Card from './Card';
+import i18n from '../../i18n';
 
 const COLORS: { key: '--accent' | '--bg' | '--panel' | '--text'; label: string; fallback: string }[] = [
-  { key: '--accent', label: '强调色', fallback: '#7c5cff' },
-  { key: '--bg', label: '背景', fallback: '#f6f7fb' },
-  { key: '--panel', label: '面板', fallback: '#ffffff' },
-  { key: '--text', label: '正文', fallback: '#1f2430' },
+  { key: '--accent', label: i18n.t('kb157dabe'), fallback: '#7c5cff' },
+  { key: '--bg', label: i18n.t('k8e1b944f'), fallback: '#f6f7fb' },
+  { key: '--panel', label: i18n.t('kcd6f79e7'), fallback: '#ffffff' },
+  { key: '--text', label: i18n.t('k58378f0d'), fallback: '#1f2430' },
 ];
 
 interface Props {
@@ -18,7 +19,7 @@ interface Props {
 export default function WorkshopCard({ onToast }: Props) {
   const [items, setItems] = useState<ThemePackBrief[]>([]);
   const [dir, setDir] = useState('');
-  const [name, setName] = useState('我的主题');
+  const [name, setName] = useState(i18n.t('ka791c2af'));
   const [author, setAuthor] = useState('');
   const [fontFamily, setFontFamily] = useState('');
   const [colors, setColors] = useState<Record<string, string>>(
@@ -35,7 +36,7 @@ export default function WorkshopCard({ onToast }: Props) {
       setItems(r.items);
       setDir(r.dir);
     } catch (err) {
-      onToast?.(`读取工坊失败：${(err as Error).message}`, 'error');
+      onToast?.(i18n.t('k943f3583', { p0: (err as Error).message }), 'error');
     }
   };
 
@@ -68,12 +69,12 @@ export default function WorkshopCard({ onToast }: Props) {
       a.click();
       setTimeout(() => URL.revokeObjectURL(url), 1000);
       onToast?.(
-        `已导出「${r.pack.name}」${r.skipped.length ? `（跳过 ${r.skipped.length} 项不合规内容）` : ''}`,
+        i18n.t('k77f5afde', { p0: r.pack.name, p1: r.skipped.length ? i18n.t('k62cf2fd5', { p0: r.skipped.length }) : '' }),
         'info'
       );
       await refresh();
     } catch (err) {
-      onToast?.(`导出失败：${(err as Error).message}`, 'error');
+      onToast?.(i18n.t('k246e218d', { p0: (err as Error).message }), 'error');
     } finally {
       setBusy(false);
     }
@@ -87,13 +88,13 @@ export default function WorkshopCard({ onToast }: Props) {
       const r = await api.workshopImport(text);
       applyThemePack(r.theme);
       onToast?.(
-        `已导入「${r.pack.name}」：还原 ${r.appliedSettings.length} 项壁纸设置、${r.assetPaths.length} 张图片` +
-          (r.skipped.length ? `；跳过 ${r.skipped.length} 项` : ''),
+        i18n.t('kef84c1d6', { p0: r.pack.name, p1: r.appliedSettings.length, p2: r.assetPaths.length }) +
+          (r.skipped.length ? i18n.t('k3f6fd28f', { p0: r.skipped.length }) : ''),
         'info'
       );
       await refresh();
     } catch (err) {
-      onToast?.(`导入失败：${(err as Error).message}`, 'error');
+      onToast?.(i18n.t('kdfcff80b', { p0: (err as Error).message }), 'error');
     } finally {
       setBusy(false);
       if (importRef.current) importRef.current.value = '';
@@ -104,9 +105,9 @@ export default function WorkshopCard({ onToast }: Props) {
     try {
       const r = await api.workshopApply(id);
       applyThemePack(r.theme);
-      onToast?.(`已应用主题包（${r.appliedSettings.length} 项壁纸设置）`, 'info');
+      onToast?.(i18n.t('k8657fe7e', { p0: r.appliedSettings.length }), 'info');
     } catch (err) {
-      onToast?.(`应用失败：${(err as Error).message}`, 'error');
+      onToast?.(i18n.t('k6af6e03b', { p0: (err as Error).message }), 'error');
     }
   };
 
@@ -115,7 +116,7 @@ export default function WorkshopCard({ onToast }: Props) {
       await api.workshopDelete(id);
       await refresh();
     } catch (err) {
-      onToast?.(`删除失败：${(err as Error).message}`, 'error');
+      onToast?.(i18n.t('k94229cac', { p0: (err as Error).message }), 'error');
     }
   };
 
@@ -125,7 +126,7 @@ export default function WorkshopCard({ onToast }: Props) {
     for (const f of Array.from(files)) {
       if (next.length >= 4) break;
       if (f.size > 2 * 1024 * 1024) {
-        onToast?.(`${f.name} 超过 2MB，已跳过`, 'error');
+        onToast?.(i18n.t('k6b97a1a2', { p0: f.name }), 'error');
         continue;
       }
       const dataUrl = await new Promise<string>((resolve, reject) => {
@@ -141,18 +142,18 @@ export default function WorkshopCard({ onToast }: Props) {
 
   return (
     <Card
-      title="创意工坊 / 主题包"
-      desc="把配色、壁纸设置和图片打包成 .tuku-pack 文件，用网盘或聊天工具发给别人；对方导入即可还原。本机工坊目录负责收集导入过的包。"
+      title={i18n.t('k40ac9cfe')}
+      desc={i18n.t('kb02cd612')}
     >
       <div className="field">
-        <label>包名称 / 作者</label>
+        <label>{i18n.t('k1c7b91ec')}</label>
         <div style={{ display: 'flex', gap: 8 }}>
-          <input className="input" value={name} onChange={(e) => setName(e.target.value)} placeholder="主题名称" />
-          <input className="input" value={author} onChange={(e) => setAuthor(e.target.value)} placeholder="作者（可选）" />
+          <input className="input" value={name} onChange={(e) => setName(e.target.value)} placeholder={i18n.t('k4b95189e')} />
+          <input className="input" value={author} onChange={(e) => setAuthor(e.target.value)} placeholder={i18n.t('k94b9b806')} />
         </div>
       </div>
       <div className="field">
-        <label>配色（只覆盖这几项，布局与安全相关变量不动）</label>
+        <label>{i18n.t('k1a403453')}</label>
         <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap' }}>
           {COLORS.map((c) => (
             <label key={c.key} style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
@@ -167,28 +168,28 @@ export default function WorkshopCard({ onToast }: Props) {
         </div>
       </div>
       <div className="field">
-        <label>界面字体（可选）</label>
+        <label>{i18n.t('ka6170ea6')}</label>
         <input
           className="input"
           value={fontFamily}
           onChange={(e) => setFontFamily(e.target.value)}
-          placeholder="如 'Microsoft YaHei', sans-serif"
+          placeholder={i18n.t('kb7090365')}
         />
       </div>
       <div className="switch-row">
-        <span>附带当前壁纸设置（模式 / 参数 / 着色器，不含凭据与路径）</span>
+        <span>{i18n.t('k79127b1c')}</span>
         <input type="checkbox" checked={withSettings} onChange={(e) => setWithSettings(e.target.checked)} />
       </div>
       <div className="field" style={{ marginTop: 8 }}>
-        <label>附带图片（最多 4 张，每张 ≤ 2MB）</label>
+        <label>{i18n.t('k76ac9943')}</label>
         <input type="file" accept="image/png,image/jpeg,image/webp,image/gif" multiple onChange={(e) => void addImages(e.target.files)} />
         {assets.length > 0 && (
-          <div className="hint">{assets.map((a) => a.name).join('、')} <button className="btn sm" onClick={() => setAssets([])}>清空</button></div>
+          <div className="hint">{assets.map((a) => a.name).join('、')} <button className="btn sm" onClick={() => setAssets([])}>{i18n.t('k288f0c40')}</button></div>
         )}
       </div>
       <div style={{ display: 'flex', gap: 8, marginTop: 10, flexWrap: 'wrap' }}>
-        <button className="btn sm primary" onClick={() => void exportPack()} disabled={busy}>导出并下载主题包</button>
-        <button className="btn sm" onClick={() => importRef.current?.click()} disabled={busy}>导入主题包</button>
+        <button className="btn sm primary" onClick={() => void exportPack()} disabled={busy}>{i18n.t('k9d8be9c9')}</button>
+        <button className="btn sm" onClick={() => importRef.current?.click()} disabled={busy}>{i18n.t('k174fb259')}</button>
         <input
           ref={importRef}
           type="file"
@@ -199,30 +200,30 @@ export default function WorkshopCard({ onToast }: Props) {
             if (f) void importPack(f);
           }}
         />
-        <button className="btn sm" onClick={() => void refresh()} disabled={busy}>刷新</button>
+        <button className="btn sm" onClick={() => void refresh()} disabled={busy}>{i18n.t('k694fc5ef')}</button>
       </div>
 
       <div className="field" style={{ marginTop: 14 }}>
         <label>本机工坊（{items.length}）</label>
         {dir && <div className="hint">{dir}</div>}
-        {items.length === 0 && <div className="hint">还没有导入过主题包</div>}
+        {items.length === 0 && <div className="hint">{i18n.t('k7a4de0ef')}</div>}
         {items.map((p) => (
           <div key={p.id} className="switch-row" style={{ alignItems: 'flex-start' }}>
             <span>
               <b>{p.name}</b>{p.author ? ` · ${p.author}` : ''}
               <div className="hint">
-                {p.base === 'dark' ? '深色' : '浅色'} · {p.varCount} 项配色 · {p.settingKeys.length} 项壁纸设置 · {p.assetNames.length} 张图片
+                {p.base === 'dark' ? i18n.t('k41e8e8b9') : i18n.t('k48d0a09b')} · {p.varCount} 项配色 · {p.settingKeys.length} 项壁纸设置 · {p.assetNames.length} 张图片
               </div>
             </span>
             <span style={{ display: 'inline-flex', gap: 6 }}>
-              <button className="btn sm" onClick={() => void applyPack(p.id)}>应用</button>
-              <button className="btn sm danger" onClick={() => void removePack(p.id)}>删除</button>
+              <button className="btn sm" onClick={() => void applyPack(p.id)}>{i18n.t('k5b0520a9')}</button>
+              <button className="btn sm danger" onClick={() => void removePack(p.id)}>{i18n.t('k2f4aaddd')}</button>
             </span>
           </div>
         ))}
       </div>
       <div className="hint" style={{ marginTop: 8 }}>
-        不做在线社区：包是一个普通 JSON 文件，导入时会过滤 CSS 值、图片类型与设置键，不执行任何脚本。
+        {i18n.t('kbd8dcb3d')}
       </div>
     </Card>
   );

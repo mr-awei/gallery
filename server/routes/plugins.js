@@ -6,6 +6,7 @@
 import express from 'express';
 import { openFolder } from '../desktop.js';
 import { PLUGIN_PERMISSIONS } from '../lib/plugin-manifest.js';
+import { translate } from '../lib/i18n.js';
 import {
   ensureUserPluginDir,
   listPlugins,
@@ -26,9 +27,10 @@ import {
 
 const publicView = (p) => ({
   id: p.id,
-  name: p.name,
+  // 插件清单里的名称 / 说明是随包中文文案，展示层按语言翻译（插件 id 与目录不受影响）
+  name: translate(p.name),
   version: p.version,
-  description: p.description,
+  description: translate(p.description),
   permissions: p.permissions,
   actions: p.actions,
   builtin: p.builtin,

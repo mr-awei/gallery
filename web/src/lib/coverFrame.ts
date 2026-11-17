@@ -1,3 +1,4 @@
+import i18n from '../i18n';
 /**
  * 自定义封面抽帧（Eagle 的「Set as cover」）：
  * 视频取某一帧、GIF 取首帧、字体把当前文案渲染成图，
@@ -39,14 +40,14 @@ export function videoFrameDataUrl(src: string, ts = 0.2): Promise<string> {
       v.load();
       if (err) reject(err);
     };
-    v.onerror = () => finish(new Error('视频无法解码，可能是编码不受支持'));
+    v.onerror = () => finish(new Error(i18n.t('k6eb3ca92')));
     v.onloadeddata = () => {
       const target = Math.min(Math.max(0, ts), Math.max(0, (v.duration || 1) - 0.05));
       const draw = () => {
         try {
           const canvas = createCanvas(v.videoWidth || 640, v.videoHeight || 360);
           const ctx = canvas.getContext('2d');
-          if (!ctx) throw new Error('无法创建画布');
+          if (!ctx) throw new Error(i18n.t('k2352bf26'));
           ctx.drawImage(v, 0, 0, canvas.width, canvas.height);
           const url = canvas.toDataURL('image/jpeg', 0.9);
           finish();
@@ -96,14 +97,14 @@ export function imageFrameDataUrl(src: string): Promise<string> {
       try {
         const canvas = createCanvas(img.naturalWidth || 640, img.naturalHeight || 360);
         const ctx = canvas.getContext('2d');
-        if (!ctx) throw new Error('无法创建画布');
+        if (!ctx) throw new Error(i18n.t('k2352bf26'));
         ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
         resolve(canvas.toDataURL('image/jpeg', 0.9));
       } catch (err) {
         reject(err as Error);
       }
     };
-    img.onerror = () => reject(new Error('图片无法解码'));
+    img.onerror = () => reject(new Error(i18n.t('k078e8051')));
     img.src = toAbs(src);
   });
 }
@@ -119,13 +120,13 @@ export async function fontFrameDataUrl(
   const loaded = await face.load();
   document.fonts.add(loaded);
   try {
-    const body = text || 'Aa 字体预览';
+    const body = text || i18n.t('kec102a04');
     const fontSize = opts.size || 72;
     const w = 1000;
     const h = 560;
     const canvas = createCanvas(w, h);
     const ctx = canvas.getContext('2d');
-    if (!ctx) throw new Error('无法创建画布');
+    if (!ctx) throw new Error(i18n.t('k2352bf26'));
     ctx.fillStyle = opts.inverted ? '#f6f6fb' : '#17171f';
     ctx.fillRect(0, 0, canvas.width, canvas.height);
     ctx.fillStyle = opts.inverted ? '#17171f' : '#f6f6fb';

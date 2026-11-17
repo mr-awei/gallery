@@ -5,6 +5,7 @@
 import { useEffect, useState } from 'react';
 import { api, downloadFile } from '../../api';
 import Card from './Card';
+import i18n from '../../i18n';
 
 type Info = { ok: boolean; dir: string; version: string; name: string; id: string; exists: boolean };
 
@@ -34,16 +35,16 @@ export default function ExtensionSection({ onToast }: { onToast: (msg: string, k
     if (!info?.dir) return;
     try {
       await navigator.clipboard.writeText(info.dir);
-      onToast('扩展目录已复制');
+      onToast(i18n.t('k0e004612'));
     } catch {
-      onToast('复制失败：请手动选中下面的路径');
+      onToast(i18n.t('kf836c6a1'));
     }
   };
 
   const openDir = async () => {
     try {
       await api.openExtensionDir();
-      onToast('已在资源管理器打开扩展目录');
+      onToast(i18n.t('k5a74c633'));
     } catch (err) {
       onToast((err as Error).message, 'error');
     }
@@ -52,8 +53,8 @@ export default function ExtensionSection({ onToast }: { onToast: (msg: string, k
   return (
     <>
       <Card
-        title="浏览器扩展（右键采集网页图片）"
-        desc="在 Chrome / Edge 里右键任意图片即可存入图库，也能批量抓当前页、截取可见区域。"
+        title={i18n.t('ka2ff388a')}
+        desc={i18n.t('ke661f6e5')}
         badge={
           info?.version ? (
             <span className="badge" style={{ marginLeft: 8 }}>
@@ -64,23 +65,23 @@ export default function ExtensionSection({ onToast }: { onToast: (msg: string, k
       >
         <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
           <div className="hint" style={{ lineHeight: 1.9 }}>
-            <b>安装（只需一次）</b>
+            <b>{i18n.t('ka4ce7f98')}</b>
             <ol style={{ margin: '6px 0 0', paddingLeft: 20 }}>
               <li>
-                打开 <code>chrome://extensions</code>（Edge 是 <code>edge://extensions</code>）
+                {i18n.t('kd7098f50')} <code>chrome://extensions</code>{i18n.t('ke110a80b')} <code>edge://extensions</code>）
               </li>
-              <li>右上角打开「开发者模式」</li>
+              <li>{i18n.t('k82acf617')}</li>
               <li>
                 点「加载已解压的扩展程序」，选中下面这个目录
-                {info?.id ? `（装好后 ID 应为 ${info.id}）` : ''}
+                {info?.id ? i18n.t('k9f2b35b0', { p0: info.id }) : ''}
               </li>
-              <li>把工具栏上的「图库采集助手」图标固定出来，之后右键图片就能看到「存入图库」</li>
+              <li>{i18n.t('kf43c5a8d')}</li>
             </ol>
           </div>
 
           <div>
             <div className="nav-label" style={{ marginBottom: 6 }}>
-              扩展目录
+              {i18n.t('kf4ba54bc')}
             </div>
             <code
               style={{
@@ -93,26 +94,26 @@ export default function ExtensionSection({ onToast }: { onToast: (msg: string, k
                 lineHeight: 1.6,
               }}
             >
-              {loading ? '读取中…' : info?.dir || '未找到（请从源码运行时使用仓库里的 extension/ 目录）'}
+              {loading ? i18n.t('k8b5015f0') : info?.dir || i18n.t('kea06ce9e')}
             </code>
           </div>
 
           <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
             <button className="btn" onClick={openDir} disabled={!info?.dir}>
-              在资源管理器中打开
+              {i18n.t('k81172701')}
             </button>
             <button className="btn" onClick={copyPath} disabled={!info?.dir}>
-              复制路径
+              {i18n.t('kf4130cae')}
             </button>
             <button className="btn" onClick={() => downloadFile('/api/extension/download')} disabled={!info?.dir}>
-              下载扩展 ZIP
+              {i18n.t('k796af85f')}
             </button>
           </div>
 
           <div className="hint" style={{ lineHeight: 1.85 }}>
-            · 扩展会自动探测本地服务端口（3001–3012），图库没启动时右键会提示「本地图库未启动」。
-            <br />· 批量抓取与截图在扩展弹窗里操作，可顺手填关键词和标签。
-            <br />· 换电脑或重装浏览器时，把 ZIP 拷过去解压再「加载已解压的扩展程序」即可。
+            {i18n.t('kd800778e')}
+            <br />{i18n.t('kec7aba4c')}
+            <br />{i18n.t('kd4a17284')}
           </div>
         </div>
       </Card>

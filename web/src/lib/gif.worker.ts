@@ -5,6 +5,7 @@
  * 把 ImageBitmap 用 transfer 传进来，这里画到 OffscreenCanvas 取像素再编码。
  */
 import { encodeGif, type GifFrame } from './gif';
+import i18n from '../i18n';
 
 interface FrameInput {
   width: number;
@@ -25,7 +26,7 @@ self.onmessage = (e: MessageEvent<EncodeRequest>) => {
     const gifFrames: GifFrame[] = msg.frames.map((f) => {
       const canvas = new OffscreenCanvas(f.width, f.height);
       const ctx = canvas.getContext('2d');
-      if (!ctx) throw new Error('worker 无法创建离屏画布');
+      if (!ctx) throw new Error(i18n.t('kf70718ff'));
       ctx.drawImage(f.bitmap, 0, 0);
       const data = ctx.getImageData(0, 0, f.width, f.height).data;
       f.bitmap.close();

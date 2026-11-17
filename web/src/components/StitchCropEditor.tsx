@@ -3,6 +3,7 @@ import type { PointerEvent as ReactPointerEvent } from 'react';
 import type { StitchCrop } from '../api';
 import type { ImageItem } from '../types';
 import { clamp, coverGeom, zoomAt } from '../lib/stitchGeom';
+import i18n from '../i18n';
 
 /** '2:3' → [2, 3]；格式不对按 4:3 兜底（与服务端 ratioOf 同规则） */
 export function parseRatio(spec?: string): [number, number] {
@@ -336,7 +337,7 @@ export default function StitchCropEditor({
               {onSlotDrag && (
                 <span
                   className="st-edit-no"
-                  title={`第 ${i + 1} 格 · 拖到别的格子＝换位置`}
+                  title={i18n.t('k2838e2bf', { p0: i + 1 })}
                   onPointerDown={(e) => {
                     // 别让格子接管这一下，否则会变成平移构图而不是换位
                     e.stopPropagation();
@@ -349,7 +350,7 @@ export default function StitchCropEditor({
               )}
               <span
                 className={`st-edit-badge${atMin ? ' min' : ''}`}
-                title={atMin ? '已缩到整图，再缩就只是更小更糊' : '点击复位这一格'}
+                title={atMin ? i18n.t('k6c98bf50') : i18n.t('k98aad67e')}
                 onPointerDown={(e) => e.stopPropagation()}
                 onClick={() => resetCell(i)}
               >
@@ -361,7 +362,7 @@ export default function StitchCropEditor({
       </div>
       {!large && (
         <div className="st-edit-tip">
-          {'拖动移动画面 · 滚轮缩放 · 双击复位 · 拖左上角编号到别的格子＝换位置 · 铺满时按下自动推近一档 · 倍率角标变橙＝已缩到整图'}
+          {i18n.t('kcdfbd8e2')}
         </div>
       )}
     </div>

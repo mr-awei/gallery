@@ -2,6 +2,7 @@ import { useCallback, useState } from 'react';
 import { api, quiet } from '../api';
 import type { FolderNode, ImageItem } from '../types';
 import { confirmDialog, promptDialog } from '../components/Dialogs';
+import i18n from '../i18n';
 
 type Toast = (msg: string, kind?: 'info' | 'error') => void;
 
@@ -58,9 +59,9 @@ export function useFolderTree({
   // 新建虚拟文件夹（根级 parentId=null 或某夹下）
   const createFolderAt = useCallback(
     async (parentId: number | null) => {
-      const name = await promptDialog(parentId == null ? '新建文件夹' : '新建子文件夹', '', '文件夹名称');
+      const name = await promptDialog(parentId == null ? i18n.t('kf3a485df') : i18n.t('kbefd04b3'), '', i18n.t('ka98473f2'));
       if (name === null) return;
-      if (!name.trim()) return showToast('文件夹名称不能为空');
+      if (!name.trim()) return showToast(i18n.t('k27c413df'));
       try {
         const r = await api.createFolder(name.trim(), parentId);
         setFolders(r.folders);
@@ -75,7 +76,7 @@ export function useFolderTree({
   const renameFolderAt = useCallback(
     async (id: number) => {
       const folder = folders.find((f) => f.id === id);
-      const name = await promptDialog('重命名文件夹', folder?.name || '', '新名称');
+      const name = await promptDialog(i18n.t('kebc40c02'), folder?.name || '', i18n.t('ke4decf94'));
       if (name === null || !name.trim()) return;
       try {
         const r = await api.renameFolder(id, name.trim());
@@ -95,7 +96,7 @@ export function useFolderTree({
     async (id: number) => {
       const folder = folders.find((f) => f.id === id);
       const cur = String(folder?.tags || '');
-      const next = await promptDialog('文件夹标签', cur, '多个用逗号分隔，夹内素材自动继承');
+      const next = await promptDialog(i18n.t('k3604445c'), cur, i18n.t('kebccf23b'));
       if (next === null) return;
       const tags = next
         .split(/[,，]/)
@@ -104,7 +105,7 @@ export function useFolderTree({
       try {
         const r = await api.setFolderTags(id, tags);
         setFolders(r.folders);
-        showToast(tags.length ? `已给「${folder?.name || '文件夹'}」打上 ${tags.length} 个标签` : '已清空文件夹标签');
+        showToast(tags.length ? i18n.t('k8779e639', { p0: folder?.name || i18n.t('k1f4c1042'), p1: tags.length }) : i18n.t('kc6733453'));
         refreshStats();
       } catch (err) {
         showToast((err as Error).message);
@@ -120,7 +121,7 @@ export function useFolderTree({
   const reorderInFolder = useCallback(
     async (dragIds: number[], targetId: number) => {
       if (!folderId) {
-        showToast('手动排序只在文件夹里生效：先打开一个文件夹');
+        showToast(i18n.t('k2947f066'));
         return;
       }
       const ids = items.map((i) => i.id);
@@ -145,7 +146,7 @@ export function useFolderTree({
   const deleteFolderAt = useCallback(
     async (id: number) => {
       const folder = folders.find((f) => f.id === id);
-      const ok = await confirmDialog(`删除文件夹「${folder?.name || ''}」？只会解除归类，不会删除任何图片。`);
+      const ok = await confirmDialog(i18n.t('k45275f6b', { p0: folder?.name || '' }));
       if (!ok) return;
       try {
         const r = await api.deleteFolder(id);
@@ -189,7 +190,7 @@ export function useFolderTree({
     async (targetFolderId: number, ids: number[]) => {
       try {
         const r = await api.addToFolder(targetFolderId, ids);
-        showToast(`已把 ${ids.length} 张放进文件夹（新增 ${r.added} 条归属）`);
+        showToast(i18n.t('kf5153cc2', { p0: ids.length, p1: r.added }));
         reload();
       } catch (err) {
         showToast((err as Error).message);
@@ -205,7 +206,7 @@ export function useFolderTree({
       try {
         const res = await api.addToFolder(targetId, ids);
         setFolders(res.folders);
-        showToast(res.added ? `已归入文件夹（新增 ${res.added} 张）` : '这些素材已在该文件夹里');
+        showToast(res.added ? i18n.t('k84314bf6', { p0: res.added }) : i18n.t('ke5024bf6'));
       } catch (err) {
         showToast((err as Error).message);
       }

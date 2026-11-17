@@ -6,6 +6,7 @@
  * 区县保留全名（西湖区），详细地址（外滩）可以用 · 接在后面。
  */
 import { api, type GeoProvince } from '../api';
+import i18n from '../i18n';
 
 export type Place = { province: string; city: string; district: string; detail: string };
 
@@ -33,7 +34,7 @@ export function shortProvince(name: string): string {
 /** 市级名去掉「市」：杭州市 → 杭州；自治州/地区/盟保留全名（大理白族自治州、大兴安岭地区） */
 export function shortCity(name: string): string {
   const s = String(name || '');
-  return s.length > 2 && s.endsWith('市') ? s.slice(0, -1) : s;
+  return s.length > 2 && s.endsWith(i18n.t('k371528ff')) ? s.slice(0, -1) : s;
 }
 
 /** 把三级选择 + 详细地址拼成水印上的文字；全空时返回空串（服务端会回落到 EXIF） */

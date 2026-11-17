@@ -15,6 +15,7 @@ import Card from './Card';
 import Select from '../../components/Select';
 import LiveWallpaperExtras from './LiveWallpaperExtras';
 import { useDebouncedCommit } from '../../hooks/useDebouncedCommit';
+import i18n from '../../i18n';
 
 interface Props {
   settings: SettingsType;
@@ -23,20 +24,20 @@ interface Props {
 }
 
 const REASON_LABELS: Record<string, string> = {
-  blur: '模糊 / 低清',
-  lowres: '分辨率太低',
-  noise: '噪点多 / 压缩痕迹重',
-  lighting: '光线差 / 过曝欠曝',
-  expression: '表情不好 / 闭眼',
-  pose: '动作 / 姿态扭曲',
-  composition: '构图不好',
-  background: '背景杂乱',
-  cropped: '截取不全 / 变形',
-  overedited: '修图过度 / 不自然',
-  watermark: '有水印或平台 Logo',
-  notHer: '不是本人',
-  color: '色调不喜欢',
-  other: '其他',
+  blur: i18n.t('kc3f69d7a'),
+  lowres: i18n.t('kf20fd188'),
+  noise: i18n.t('k1ea59300'),
+  lighting: i18n.t('k75f61576'),
+  expression: i18n.t('kf36a543a'),
+  pose: i18n.t('ke5ffa98d'),
+  composition: i18n.t('k1c6b93b2'),
+  background: i18n.t('k2f6bf4f0'),
+  cropped: i18n.t('kb2263008'),
+  overedited: i18n.t('k78773bcc'),
+  watermark: i18n.t('kd60f1419'),
+  notHer: i18n.t('k802a84fb'),
+  color: i18n.t('k309dd351'),
+  other: i18n.t('k0d98c747'),
 };
 const reasonLabel = (k: string) => REASON_LABELS[k] || k;
 
@@ -54,7 +55,7 @@ export default function WallpaperSection({ settings, patch, onToast }: Props) {
   useEffect(() => {
     api.platform()
       .then((r) => setPlatformCaps({ summary: r.summary, liveWallpaper: r.liveWallpaper, gpuMeter: r.gpuMeter }))
-      .catch((err) => setCapsError(`无法读取本机能力：${(err as Error).message}`));
+      .catch((err) => setCapsError(i18n.t('k68c66461', { p0: (err as Error).message })));
   }, []);
 
   // 初始加载（原样迁自父组件）
@@ -87,9 +88,9 @@ export default function WallpaperSection({ settings, patch, onToast }: Props) {
       setLive(saved);
       if (isDesktop && desktop?.controlLiveWallpaper) {
         await desktop.controlLiveWallpaper(patch);
-        onToast('动态壁纸已更新');
+        onToast(i18n.t('k7c4e2ccb'));
       } else {
-        onToast('已保存（桌面端中打开才会真正显示）');
+        onToast(i18n.t('ke96dd179'));
       }
     } catch (err) {
       onToast((err as Error).message, 'error');
@@ -101,9 +102,9 @@ export default function WallpaperSection({ settings, patch, onToast }: Props) {
     try {
       const status = await api.saveAutoWallpaper(patch);
       setAutoStatus(status);
-      onToast('已保存');
+      onToast(i18n.t('kf8dfedcd'));
     } catch (err) {
-      onToast(`保存失败：${(err as Error).message}`, 'error');
+      onToast(i18n.t('k837dd027', { p0: (err as Error).message }), 'error');
     }
   };
 
@@ -123,14 +124,14 @@ export default function WallpaperSection({ settings, patch, onToast }: Props) {
     void desktop.setLiveParams(p).catch((err) => {
       if (previewBroken.current) return;
       previewBroken.current = true;
-      onToast(`动态壁纸参数预览不可用：${(err as Error).message}`, 'error');
+      onToast(i18n.t('kec1eed74', { p0: (err as Error).message }), 'error');
     });
   };
 
   const switchNow = async () => {
     try {
       const res = await api.switchWallpaperNow();
-      onToast(`已切换到：${res.title || '图片'}（图片会完整居中展示，不裁切）`);
+      onToast(i18n.t('k6b6ebd70', { p0: res.title || i18n.t('k20def794') }));
       loadAuto();
       setWallpaperHistory(await api.wallpaperHistory());
     } catch (err) {
@@ -140,29 +141,29 @@ export default function WallpaperSection({ settings, patch, onToast }: Props) {
 
   return (
             <>
-              <Card title="设为壁纸" desc="图片比例与屏幕不同（如竖图做横屏壁纸）时，四周留白的处理方式。">
+              <Card title={i18n.t('kb91e3e16')} desc={i18n.t('k9a18f4d4')}>
                 <div className="field">
-                  <label>留白填充方式</label>
+                  <label>{i18n.t('kd9d2c511')}</label>
                   <Select
                     className="select"
                     style={{ width: '100%' }}
                     value={settings.wallpaperFill || 'blur'}
                     onChange={(v) => patch({ wallpaperFill: v as SettingsType['wallpaperFill'] })}
                   >
-                    <option value="blur">模糊同图铺底（推荐，同 iOS / macOS 做法）</option>
-                    <option value="solid">纯色铺底（取图片主色）</option>
-                    <option value="black">纯黑铺底</option>
+                    <option value="blur">{i18n.t('kc3f00955')}</option>
+                    <option value="solid">{i18n.t('k54f136fc')}</option>
+                    <option value="black">{i18n.t('kc011bc57')}</option>
                   </Select>
                   <div className="hint">
-                    任意比例的图片都会先合成一张<b>屏幕分辨率的壁纸</b>：原图按原始比例<b>完整居中显示</b>，
+                    {i18n.t('kb3101306')}<b>{i18n.t('k9679759c')}</b>{i18n.t('kdb46111f')}<b>{i18n.t('k1befd0c2')}</b>，
                     四周用上面的方式填充 —— 不裁切、不变形、不缩放只显示一部分，始终完整展示
                   </div>
                   </div>
                   </Card>
 
                   <Card
-                  title="多显示器"
-                  desc="检测到的显示器，以及多屏时的摆放方式（需要系统支持 IDesktopWallpaper）。"
+                  title={i18n.t('k37b1c85f')}
+                  desc={i18n.t('k702690e4')}
                   badge={
                     <span style={{ color: 'var(--muted)', fontSize: 12, fontWeight: 400 }}>
                       检测到 {monitors?.count ?? '…'} 个屏幕
@@ -170,16 +171,16 @@ export default function WallpaperSection({ settings, patch, onToast }: Props) {
                   }
                   >
                   <div className="field">
-                    <label>多屏模式</label>
+                    <label>{i18n.t('k9d8afed3')}</label>
                     <Select
                       className="select"
                       style={{ width: '100%' }}
                       value={settings.wallpaperMode || 'single'}
                       onChange={(v) => patch({ wallpaperMode: v as SettingsType['wallpaperMode'] })}
                     >
-                      <option value="single">主屏一张（默认）</option>
-                      <option value="span">跨屏合成一张（多屏无缝衔接同一张图）</option>
-                      <option value="per-monitor">每个屏幕不同图片（各自按屏幕比例合成）</option>
+                      <option value="single">{i18n.t('kaa95627c')}</option>
+                      <option value="span">{i18n.t('k87c562f1')}</option>
+                      <option value="per-monitor">{i18n.t('k28fcdb74')}</option>
                     </Select>
                   </div>
 
@@ -188,19 +189,19 @@ export default function WallpaperSection({ settings, patch, onToast }: Props) {
                       {monitors.monitors.map((m, i) => (
                         <div key={m.id}>
                           屏幕 {i + 1}：{m.width}×{m.height}
-                          {m.x || m.y ? `（位置 ${m.x},${m.y}）` : ''}
+                          {m.x || m.y ? i18n.t('k94103a34', { p0: m.x, p1: m.y }) : ''}
                         </div>
                       ))}
                     </div>
                   )}
                   {(settings.wallpaperMode || 'single') !== 'single' && (monitors?.count ?? 0) <= 1 && (
                     <div className="hint" style={{ color: 'var(--warn)' }}>
-                      当前只检测到 1 个显示器，多屏模式会自动回退为「主屏一张」
+                      {i18n.t('k64ca0050')}
                     </div>
                   )}
 
                   <div className="switch-row" style={{ marginTop: 10 }}>
-                    <span>多屏时每个屏幕放不同的图</span>
+                    <span>{i18n.t('k2c42fd60')}</span>
                     <input
                       type="checkbox"
                       checked={autoStatus?.config?.perMonitorDifferent !== false}
@@ -209,9 +210,9 @@ export default function WallpaperSection({ settings, patch, onToast }: Props) {
                   </div>
                   </Card>
 
-                  <Card title="托盘与快捷键" desc="不打开主窗口也能换壁纸。">
+                  <Card title={i18n.t('ke5ac2e78')} desc={i18n.t('kbfb80408')}>
                   <div className="switch-row">
-                    <span>启用全局快捷键</span>
+                    <span>{i18n.t('k776f0309')}</span>
                     <input
                       type="checkbox"
                       checked={settings.globalShortcuts !== false}
@@ -219,7 +220,7 @@ export default function WallpaperSection({ settings, patch, onToast }: Props) {
                     />
                   </div>
                   <div className="switch-row">
-                    <span>关闭窗口时最小化到托盘（关掉则关窗即退出）</span>
+                    <span>{i18n.t('kde81ca26')}</span>
                     <input
                       type="checkbox"
                       checked={settings.closeToTray !== false}
@@ -227,9 +228,9 @@ export default function WallpaperSection({ settings, patch, onToast }: Props) {
                     />
                   </div>
                   <div className="hint" style={{ lineHeight: 1.9 }}>
-                    · 换一张壁纸：<b>{prettyHotkey(appInfo?.hotkeys?.next) || '未生效'}</b>
+                    {i18n.t('k39664897')}<b>{prettyHotkey(appInfo?.hotkeys?.next) || i18n.t('k996aab1c')}</b>
                     {appInfo?.hotkeys?.next && appInfo.hotkeys.next !== 'CommandOrControl+Alt+W' && (
-                      <span style={{ color: 'var(--warn)' }}>（默认键被其它软件占用，已自动换备用键）</span>
+                      <span style={{ color: 'var(--warn)' }}>{i18n.t('k768bd285')}</span>
                     )}
                     {appInfo?.failedHotkeys?.next && (
                       <span style={{ color: 'var(--warn)' }}>
@@ -237,30 +238,30 @@ export default function WallpaperSection({ settings, patch, onToast }: Props) {
                       </span>
                     )}
                     ，任何窗口下都生效
-                    <br />· 收藏当前壁纸：<b>{prettyHotkey(appInfo?.hotkeys?.favorite) || '未生效'}</b>
+                    <br />{i18n.t('k57b1a643')}<b>{prettyHotkey(appInfo?.hotkeys?.favorite) || i18n.t('k996aab1c')}</b>
                     {appInfo?.failedHotkeys?.favorite && (
                       <span style={{ color: 'var(--warn)' }}>
                         （注册失败：{appInfo.failedHotkeys.favorite} 都被其它程序占用）
                       </span>
                     )}
-                    <br />· 唤出主窗口：<b>{prettyHotkey(appInfo?.hotkeys?.window) || '未生效'}</b>
+                    <br />{i18n.t('k4c8e9692')}<b>{prettyHotkey(appInfo?.hotkeys?.window) || i18n.t('k996aab1c')}</b>
                     {appInfo?.failedHotkeys?.window && (
                       <span style={{ color: 'var(--warn)' }}>
                         （注册失败：{appInfo.failedHotkeys.window} 都被其它程序占用）
                       </span>
                     )}
-                    <br />· 托盘图标：左键打开窗口，右键可换壁纸 / 收藏 / 不喜欢（排除该图并换下一张）/ 暂停定时切换 / 框选截图
+                    <br />{i18n.t('k6e8b2ef8')}
                     <br />· 「不喜欢」会自动归因（暗了 / 糊了 / 有噪点 / 闭眼了 / 动作变形…），只针对该原因学习，不会连坐整个来源或关键词
                     {isDesktop && !appInfo?.shortcutEnabled && (
                       <>
                         <br />
-                        <span style={{ color: 'var(--warn)' }}>当前已在设置里关闭全局快捷键</span>
+                        <span style={{ color: 'var(--warn)' }}>{i18n.t('kfefd9f49')}</span>
                       </>
                     )}
                     {!isDesktop && (
                       <>
                         <br />
-                        <span style={{ color: 'var(--muted)' }}>网页模式下没有托盘与全局快捷键（仅桌面端可用）</span>
+                        <span style={{ color: 'var(--muted)' }}>{i18n.t('k8f8f44db')}</span>
                       </>
                     )}
                   </div>
@@ -270,41 +271,41 @@ export default function WallpaperSection({ settings, patch, onToast }: Props) {
                       onClick={async () => {
                         try {
                           const r = await api.favoriteCurrentWallpaper();
-                          onToast(`已收藏当前壁纸：${r.title || r.imageId}`);
+                          onToast(i18n.t('k99f596b4', { p0: r.title || r.imageId }));
                         } catch (err) {
                           onToast((err as Error).message, 'error');
                         }
                       }}
                     >
-                      收藏当前壁纸
+                      {i18n.t('k4a24ed78')}
                     </button>
                     <button
                       className="btn"
                       onClick={async () => {
                         try {
                           const r = await api.dislikeCurrentWallpaper();
-                          const why = (r.learned || []).length ? `（已记录原因：${(r.learned || []).map(reasonLabel).join('、')}）` : '';
-                          onToast(`已排除并换了一张${why}`);
+                          const why = (r.learned || []).length ? i18n.t('kaf56f3e9', { p0: (r.learned || []).map(reasonLabel).join('、') }) : '';
+                          onToast(i18n.t('k2729b803', { p0: why }));
                           loadAuto();
                         } catch (err) {
                           onToast((err as Error).message, 'error');
                         }
                       }}
                     >
-                      不喜欢，换一张
+                      {i18n.t('k1d7b54ab')}
                     </button>
                   </div>
                   </Card>
 
                   <Card
-                    title="动态壁纸"
-                    desc="把一扇隐藏窗口挂到桌面图标层后面，做成真正的动态桌面（视频 / 网页 / 相册轮播）。"
+                    title={i18n.t('k3bfbb815')}
+                    desc={i18n.t('k2ca3db04')}
                     badge={
                       !isDesktop ? (
-                        <span style={{ color: 'var(--warn)', fontSize: 12, fontWeight: 400 }}>仅桌面端可用</span>
+                        <span style={{ color: 'var(--warn)', fontSize: 12, fontWeight: 400 }}>{i18n.t('k3b5bd0ff')}</span>
                       ) : (
                         <span style={{ color: 'var(--muted)', fontSize: 12, fontWeight: 400 }}>
-                          {live?.enabled ? '已开启' : '未开启'}
+                          {live?.enabled ? i18n.t('k9db7a84f') : i18n.t('kea4a363d')}
                         </span>
                       )
                     }
@@ -312,8 +313,8 @@ export default function WallpaperSection({ settings, patch, onToast }: Props) {
                     {platformCaps && (
                       <div className="hint" style={{ marginBottom: 10, lineHeight: 1.8 }}>
                         {platformCaps.summary}
-                        {!platformCaps.liveWallpaper && '；开启动态壁纸会被明确回滚并提示，不会假装在动。'}
-                        {!platformCaps.gpuMeter && '；GPU 占用阈值与「指定 App 前台」暂停规则在此平台不可用。'}
+                        {!platformCaps.liveWallpaper && i18n.t('k97370f6a')}
+                        {!platformCaps.gpuMeter && i18n.t('k2ce779b3')}
                       </div>
                     )}
                     {capsError && (
@@ -323,11 +324,11 @@ export default function WallpaperSection({ settings, patch, onToast }: Props) {
                     )}
                     {!isDesktop && (
                       <div className="hint" style={{ color: 'var(--warn)', marginBottom: 10 }}>
-                        网页模式下无法把窗口挂到桌面层，请在桌面应用（npm run desktop / npm run dev）中使用此功能。
+                        {i18n.t('kc6ca877f')}
                       </div>
                     )}
                     <div className="switch-row">
-                      <span>开启动态壁纸</span>
+                      <span>{i18n.t('ka0782e66')}</span>
                       <input
                         type="checkbox"
                         checked={!!live?.enabled}
@@ -336,47 +337,47 @@ export default function WallpaperSection({ settings, patch, onToast }: Props) {
                     </div>
 
                     <div className="field">
-                      <label>壁纸类型</label>
+                      <label>{i18n.t('k99df458b')}</label>
                       <Select
                         className="select"
                         style={{ width: '100%' }}
                         value={live?.mode || 'slideshow'}
                         onChange={(v) => applyLiveDebounced.push({ mode: v as LiveWallpaperConfig['mode'] })}
                       >
-                        <option value="slideshow">相册轮播（从收藏/全库自动播放，带缓慢缩放）</option>
-                        <option value="video">本地视频循环（mp4 / webm）</option>
-                        <option value="web">网页（任意网址，如网页动画 / 在线壁纸）</option>
-                        <option value="shader">GLSL 着色器（内置四款 / 自定义源码）</option>
-                        <option value="interactive">交互式壁纸（鼠标粒子，可 Esc 退出）</option>
-                        <option value="audio">音频可视化（本地音频 / 麦克风频谱）</option>
+                        <option value="slideshow">{i18n.t('k57898e64')}</option>
+                        <option value="video">{i18n.t('k9ec3623e')}</option>
+                        <option value="web">{i18n.t('k8c07ad40')}</option>
+                        <option value="shader">{i18n.t('ke474751a')}</option>
+                        <option value="interactive">{i18n.t('k11b825c0')}</option>
+                        <option value="audio">{i18n.t('kc196fa0c')}</option>
                       </Select>
                     </div>
 
                     {live?.mode === 'slideshow' && (
                       <>
                         <div className="field">
-                          <label>轮播范围</label>
+                          <label>{i18n.t('k3e10f06b')}</label>
                           <Select
                             className="select"
                             style={{ width: '100%' }}
                             value={live?.scope || 'favorites'}
                             onChange={(v) => applyLiveDebounced.push({ scope: v as LiveWallpaperConfig['scope'] })}
                           >
-                            <option value="favorites">仅收藏</option>
-                            <option value="all">全库</option>
-                            {!!playlists?.length && <option value="playlist">指定清单</option>}
+                            <option value="favorites">{i18n.t('k9dd8a82d')}</option>
+                            <option value="all">{i18n.t('kd5190d5f')}</option>
+                            {!!playlists?.length && <option value="playlist">{i18n.t('k091fcd6e')}</option>}
                           </Select>
                         </div>
                         {live?.scope === 'playlist' && (
                           <div className="field">
-                            <label>选择清单</label>
+                            <label>{i18n.t('kaa7bfddf')}</label>
                             <Select
                               className="select"
                               style={{ width: '100%' }}
                               value={live?.playlistId ?? ''}
                               onChange={(v) => applyLiveDebounced.push({ playlistId: v ? Number(v) : null })}
                             >
-                              <option value="">— 请选择 —</option>
+                              <option value="">{i18n.t('k77a5a046')}</option>
                               {playlists?.map((p) => (
                                 <option key={p.id} value={p.id}>
                                   {p.name}
@@ -387,7 +388,7 @@ export default function WallpaperSection({ settings, patch, onToast }: Props) {
                         )}
                         <div className="two-col">
                           <div className="field">
-                            <label>切换间隔（秒）</label>
+                            <label>{i18n.t('kf3549654')}</label>
                             <input
                               className="input"
                               type="number"
@@ -400,7 +401,7 @@ export default function WallpaperSection({ settings, patch, onToast }: Props) {
                             />
                           </div>
                           <div className="field">
-                            <label>最低评分（0 = 不限）</label>
+                            <label>{i18n.t('k505f52e4')}</label>
                             <input
                               className="input"
                               type="number"
@@ -414,7 +415,7 @@ export default function WallpaperSection({ settings, patch, onToast }: Props) {
                           </div>
                         </div>
                         <div className="switch-row">
-                          <span>缓慢缩放（Ken Burns）</span>
+                          <span>{i18n.t('k81c00d27')}</span>
                           <input
                             type="checkbox"
                             checked={live?.kenBurns !== false}
@@ -426,7 +427,7 @@ export default function WallpaperSection({ settings, patch, onToast }: Props) {
 
                     {live?.mode === 'video' && (
                       <div className="field">
-                        <label>视频文件（本地 mp4 / webm）</label>
+                        <label>{i18n.t('kd961f1e5')}</label>
                         <div style={{ display: 'flex', gap: 8 }}>
                           <input
                             className="input"
@@ -440,7 +441,7 @@ export default function WallpaperSection({ settings, patch, onToast }: Props) {
                             onClick={async () => {
                               try {
                                 const p = await desktop?.pickFile?.([
-                                  { name: '视频', extensions: ['mp4', 'webm', 'mov'] },
+                                  { name: i18n.t('k7fcf42ed'), extensions: ['mp4', 'webm', 'mov'] },
                                 ]);
                                 if (p) applyLiveDebounced.push({ videoPath: p });
                               } catch (err) {
@@ -448,7 +449,7 @@ export default function WallpaperSection({ settings, patch, onToast }: Props) {
                               }
                             }}
                           >
-                            选择文件
+                            {i18n.t('kfd7e0c99')}
                           </button>
                         </div>
                       </div>
@@ -456,21 +457,21 @@ export default function WallpaperSection({ settings, patch, onToast }: Props) {
 
                     {live?.mode === 'web' && (
                       <div className="field">
-                        <label>网页地址</label>
+                        <label>{i18n.t('k66b98588')}</label>
                         <input
                           className="input"
                           value={live?.webUrl || ''}
                           placeholder="https://..."
                           onChange={(e) => applyLiveDebounced.push({ webUrl: e.target.value })}
                         />
-                        <div className="hint">很多站点禁止被内嵌（X-Frame-Options），这类网页做不了壁纸</div>
+                        <div className="hint">{i18n.t('kb61e50b9')}</div>
                       </div>
                     )}
                     {live?.mode === 'web' && (
                       <div className="field">
-                        <label>网页来源与交互</label>
+                        <label>{i18n.t('k2ed7e7ed')}</label>
                         <div className="switch-row">
-                          <span>允许本地 / 内网网页（默认只放公网 http(s)）</span>
+                          <span>{i18n.t('k44e984d4')}</span>
                           <input
                             type="checkbox"
                             checked={!!live?.allowLocalUrl}
@@ -482,12 +483,12 @@ export default function WallpaperSection({ settings, patch, onToast }: Props) {
                             className="input"
                             style={{ marginTop: 6 }}
                             value={live?.trustedDir || ''}
-                            placeholder="可信本地页面目录（绝对路径），如 E:\wallpapers\pages"
+                            placeholder={i18n.t('kbae514dc')}
                             onChange={(e) => applyLiveDebounced.push({ trustedDir: e.target.value })}
                           />
                         )}
                         <div className="switch-row">
-                          <span>允许网页接收鼠标（关闭点击穿透）</span>
+                          <span>{i18n.t('kffa05df8')}</span>
                           <input
                             type="checkbox"
                             checked={live?.clickThrough === false}
@@ -495,16 +496,16 @@ export default function WallpaperSection({ settings, patch, onToast }: Props) {
                           />
                         </div>
                         <div className="hint">
-                          默认点击穿透，桌面图标照常可点。放开本地页面时只加载本目录内的 <code>file://</code> 页面，
+                          {i18n.t('k66aa5f51')} <code>file://</code> 页面，
                           窗口不挂预加载桥；关闭穿透后网页会遮住桌面图标，按 Esc 立即恢复穿透。
                         </div>
                       </div>
                     )}
 
                     <div className="field" style={{ marginTop: 6 }}>
-                      <label>性能规则（避免抢资源）</label>
+                      <label>{i18n.t('ke3e4e5bb')}</label>
                       <div className="switch-row">
-                        <span>有全屏应用 / 游戏时暂停</span>
+                        <span>{i18n.t('kf3f4bd09')}</span>
                         <input
                           type="checkbox"
                           checked={live?.pauseOnFullscreen !== false}
@@ -512,7 +513,7 @@ export default function WallpaperSection({ settings, patch, onToast }: Props) {
                         />
                       </div>
                       <div className="switch-row">
-                        <span>笔记本用电池时暂停</span>
+                        <span>{i18n.t('kb7ecffa8')}</span>
                         <input
                           type="checkbox"
                           checked={!!live?.pauseOnBattery}
@@ -520,7 +521,7 @@ export default function WallpaperSection({ settings, patch, onToast }: Props) {
                         />
                       </div>
                       <div className="switch-row">
-                        <span>GPU 占用达到阈值时暂停</span>
+                        <span>{i18n.t('k187801c9')}</span>
                         <input
                           type="checkbox"
                           checked={!!live?.pauseOnGpu}
@@ -529,7 +530,7 @@ export default function WallpaperSection({ settings, patch, onToast }: Props) {
                       </div>
                       {live?.pauseOnGpu && (
                         <div className="switch-row">
-                          <span>阈值（%，取最忙 GPU 引擎）</span>
+                          <span>{i18n.t('kbaa0770e')}</span>
                           <input
                             className="input"
                             style={{ width: 90 }}
@@ -546,7 +547,7 @@ export default function WallpaperSection({ settings, patch, onToast }: Props) {
                         </div>
                       )}
                       <div className="field" style={{ marginTop: 8 }}>
-                        <label>指定 App 在前台时暂停</label>
+                        <label>{i18n.t('k42a61af5')}</label>
                         <input
                           className="input"
                           value={live?.pauseApps?.join(', ') || ''}
@@ -557,7 +558,7 @@ export default function WallpaperSection({ settings, patch, onToast }: Props) {
                             })
                           }
                         />
-                        <div className="hint">填进程文件名，逗号分隔，支持 <code>*</code> 通配；命中即暂停，切走自动恢复。GPU 计数器不可用时该规则自动跳过，不会误暂停。</div>
+                        <div className="hint">{i18n.t('k583b0808')} <code>*</code> {i18n.t('k4840822a')}</div>
                       </div>
                     </div>
                   </Card>
@@ -572,18 +573,18 @@ export default function WallpaperSection({ settings, patch, onToast }: Props) {
                   />
 
               <Card
-                title="定时自动切换"
-                desc="按设定周期，从指定范围内自动更换桌面壁纸。"
+                title={i18n.t('k81268ba3')}
+                desc={i18n.t('k1eaed5bc')}
                 badge={
                   autoStatus?.config?.enabled ? (
-                    <span style={{ color: 'var(--ok)', fontWeight: 400, fontSize: 12 }}>● 已启用</span>
+                    <span style={{ color: 'var(--ok)', fontWeight: 400, fontSize: 12 }}>{i18n.t('k66e11add')}</span>
                   ) : (
-                    <span style={{ color: 'var(--warn)', fontWeight: 400, fontSize: 12 }}>○ 未启用</span>
+                    <span style={{ color: 'var(--warn)', fontWeight: 400, fontSize: 12 }}>{i18n.t('kd3d5685c')}</span>
                   )
                 }
               >
                 <div className="switch-row">
-                  <span>启用自动换壁纸</span>
+                  <span>{i18n.t('k96f07f78')}</span>
                   <input
                     type="checkbox"
                     checked={!!autoStatus?.config?.enabled}
@@ -592,23 +593,23 @@ export default function WallpaperSection({ settings, patch, onToast }: Props) {
                 </div>
 
                 <div className="field">
-                  <label>切换频率</label>
+                  <label>{i18n.t('k0de86db4')}</label>
                   <Select
                     className="select"
                     style={{ width: '100%' }}
                     value={autoStatus?.config?.mode || 'day'}
                     onChange={(v) => saveAutoDebounced.push({ mode: v as AutoConfig['mode'] })}
                   >
-                    <option value="day">每天</option>
-                    <option value="week">每周</option>
-                    <option value="month">每月</option>
-                    <option value="custom">自定义间隔（分钟）</option>
+                    <option value="day">{i18n.t('k78623eae')}</option>
+                    <option value="week">{i18n.t('k09b03b6d')}</option>
+                    <option value="month">{i18n.t('kaa3d57c0')}</option>
+                    <option value="custom">{i18n.t('k158e7e77')}</option>
                   </Select>
                 </div>
 
                 {autoStatus?.config?.mode === 'custom' ? (
                   <div className="field">
-                    <label>间隔分钟数</label>
+                    <label>{i18n.t('kc05d4718')}</label>
                     <input
                       className="input"
                       type="number"
@@ -620,7 +621,7 @@ export default function WallpaperSection({ settings, patch, onToast }: Props) {
                 ) : (
                   <>
                     <div className="field">
-                      <label>执行时刻</label>
+                      <label>{i18n.t('kb10475fc')}</label>
                       <input
                         className="input"
                         type="time"
@@ -630,7 +631,7 @@ export default function WallpaperSection({ settings, patch, onToast }: Props) {
                     </div>
                     {autoStatus?.config?.mode === 'week' && (
                       <div className="field">
-                        <label>星期几</label>
+                        <label>{i18n.t('k1981794a')}</label>
                         <Select
                           className="select"
                           style={{ width: '100%' }}
@@ -639,7 +640,7 @@ export default function WallpaperSection({ settings, patch, onToast }: Props) {
                         >
                           {[1, 2, 3, 4, 5, 6, 7].map((d) => (
                             <option key={d} value={d}>
-                              星期{'日一二三四五六'[d % 7]}
+                              星期{i18n.t('k2aa32e11')[d % 7]}
                             </option>
                           ))}
                         </Select>
@@ -647,7 +648,7 @@ export default function WallpaperSection({ settings, patch, onToast }: Props) {
                     )}
                     {autoStatus?.config?.mode === 'month' && (
                       <div className="field">
-                        <label>每月几号</label>
+                        <label>{i18n.t('k31840956')}</label>
                         <input
                           className="input"
                           type="number"
@@ -664,29 +665,29 @@ export default function WallpaperSection({ settings, patch, onToast }: Props) {
                 )}
 
                 <div className="field">
-                  <label>切换范围</label>
+                  <label>{i18n.t('kb5c83efc')}</label>
                   <Select
                     className="select"
                     style={{ width: '100%' }}
                     value={autoStatus?.config?.scope || 'favorites'}
                     onChange={(v) => saveAutoDebounced.push({ scope: v as AutoConfig['scope'] })}
                   >
-                    <option value="all">全库</option>
-                    <option value="favorites">收藏 / 喜欢</option>
-                    <option value="playlist">指定清单</option>
+                    <option value="all">{i18n.t('kd5190d5f')}</option>
+                    <option value="favorites">{i18n.t('kb40bf1e2')}</option>
+                    <option value="playlist">{i18n.t('k091fcd6e')}</option>
                   </Select>
                 </div>
 
                 {autoStatus?.config?.scope === 'playlist' && (
                   <div className="field">
-                    <label>选择清单</label>
+                    <label>{i18n.t('kaa7bfddf')}</label>
                     <Select
                       className="select"
                       style={{ width: '100%' }}
                       value={autoStatus?.config?.playlistId ?? ''}
                       onChange={(v) => saveAutoDebounced.push({ playlistId: Number(v) || null })}
                     >
-                      <option value="">（请选择）</option>
+                      <option value="">{i18n.t('ke8f38b02')}</option>
                       {(playlists || []).map((p) => (
                         <option key={p.id} value={p.id}>
                           {p.name}（{p.count}）
@@ -697,34 +698,34 @@ export default function WallpaperSection({ settings, patch, onToast }: Props) {
                 )}
 
                 <div className="field">
-                  <label>切换顺序</label>
+                  <label>{i18n.t('k18d22a93')}</label>
                   <Select
                     className="select"
                     style={{ width: '100%' }}
                     value={autoStatus?.config?.order || 'smart'}
                     onChange={(v) => saveAutoDebounced.push({ order: v as AutoConfig['order'] })}
                   >
-                    <option value="ai">适配度加权（推荐）：知识库评分 + 本地适配度 + 个人偏好</option>
-                    <option value="smart">评分加权：高分图片更常出现（只用知识库评分）</option>
-                    <option value="random">随机（每张等概率）</option>
-                    <option value="sequential">按顺序轮流</option>
+                    <option value="ai">{i18n.t('kee7252d3')}</option>
+                    <option value="smart">{i18n.t('kceed89f6')}</option>
+                    <option value="random">{i18n.t('k4bed1616')}</option>
+                    <option value="sequential">{i18n.t('k9c2a3d10')}</option>
                   </Select>
                   <div className="hint">
-                    评分来自知识库（采集时的 AI 打分 + 你的删除反馈），分数越高越容易被抽中，但低分图仍会偶尔出现
+                    {i18n.t('ka4ec48bb')}
                     <br />
-                    「适配度加权」里的<strong>适配度是本地启发式</strong>：按留白、亮度、对比、画面复杂度算分，
-                    <strong>不是 AI 判断</strong>；配了视觉模型才会额外让模型看一眼构图（没配就走本地算法）。
+                    {i18n.t('k61110b0f')}<strong>{i18n.t('k7bcb9a80')}</strong>{i18n.t('k36912d86')}
+                    <strong>{i18n.t('kc7995270')}</strong>；配了视觉模型才会额外让模型看一眼构图（没配就走本地算法）。
                     另按时间挑：白天偏明亮、夜间偏暗色
                     <br />
-                    当前实际参与打分：<b>{autoStatus?.pick?.label || '—'}</b>
+                    {i18n.t('k5aa49a64')}<b>{autoStatus?.pick?.label || '—'}</b>
                     {autoStatus?.pick && !autoStatus.pick.prefTrained && (
-                      <span>（个人偏好模型未训练，暂不参与；去「AI 与偏好」里训练后会加入）</span>
+                      <span>{i18n.t('k785c6a20')}</span>
                     )}
                   </div>
                 </div>
 
                 <div className="field">
-                  <label>最低评分（低于该分数不做壁纸，0 = 不限）</label>
+                  <label>{i18n.t('k4ce8824e')}</label>
                   <input
                     className="input"
                     type="number"
@@ -737,13 +738,13 @@ export default function WallpaperSection({ settings, patch, onToast }: Props) {
 
                 {/* AI 壁纸闭环开关 */}
                 <div className="settings-subtitle" style={{ marginTop: 14 }}>
-                  AI 闭环
+                  {i18n.t('kb4d37169')}
                 </div>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
                   <label className="switch-row">
                     <span>
-                      评估「适不适合做壁纸」（留白 / 亮度 / 构图）
-                      <span className="hint">　勾选后本地算法按留白/亮度/对比/复杂度算适配度；配了视觉模型才会再让 AI 复核主体位置</span>
+                      {i18n.t('kdd5840d5')}
+                      <span className="hint">　{i18n.t('k45774e38')}</span>
                     </span>
                     <input
                       type="checkbox"
@@ -753,9 +754,9 @@ export default function WallpaperSection({ settings, patch, onToast }: Props) {
                   </label>
                   <label className="switch-row">
                     <span>
-                      「不喜欢这张」自动归因并回流知识库
+                      {i18n.t('ke509c81b')}
                       <span className="hint">
-                        　先推断这张为什么不合适（噪点/光线/闭眼/动作…），只按该原因建规则；不会给整个来源或关键词降分
+                        　{i18n.t('kc71b7740')}
                       </span>
                     </span>
                     <input
@@ -766,7 +767,7 @@ export default function WallpaperSection({ settings, patch, onToast }: Props) {
                   </label>
                   <label className="switch-row">
                     <span>
-                      按时间挑图（白天偏亮 / 夜间偏暗）
+                      {i18n.t('k4c83b0ba')}
                     </span>
                     <input
                       type="checkbox"
@@ -776,8 +777,8 @@ export default function WallpaperSection({ settings, patch, onToast }: Props) {
                   </label>
                   <label className="switch-row">
                     <span>
-                      抽到低清图时先自动增强再设为壁纸
-                      <span className="hint">　会慢一些，但桌面不会出现糊图</span>
+                      {i18n.t('kbfacad7f')}
+                      <span className="hint">　{i18n.t('kf8238af7')}</span>
                     </span>
                     <input
                       type="checkbox"
@@ -789,42 +790,42 @@ export default function WallpaperSection({ settings, patch, onToast }: Props) {
 
                 <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center', marginTop: 10 }}>
                   <button className="btn primary" onClick={switchNow}>
-                    立即切换一张
+                    {i18n.t('kb8d49329')}
                   </button>
                   <button className="btn" onClick={() => loadAuto()}>
-                    刷新状态
+                    {i18n.t('k4f8d48ef')}
                   </button>
                   <button
                     className="btn"
                     onClick={async () => {
                       try {
                         const r = await api.scanWallpaperFit(120, true);
-                        onToast(`已补算 ${r.done} 张壁纸适配度，剩余 ${r.remain} 张`);
+                        onToast(i18n.t('k4622b88f', { p0: r.done, p1: r.remain }));
                       } catch (err) {
                         onToast((err as Error).message, 'error');
                       }
                     }}
-                    title="提前算好候选图的适配度，切换时更快"
+                    title={i18n.t('k59049e27')}
                   >
-                    补算适配度（120 张）
+                    {i18n.t('k2ac1d320')}
                   </button>
                 </div>
 
                 <div className="hint" style={{ marginTop: 10, lineHeight: 1.9 }}>
                   · 范围内可用图片：{autoStatus?.scopeCount ?? 0} 张
                   <br />· 下次切换：
-                  {autoStatus?.nextRunAt ? formatDate(autoStatus.nextRunAt) : '未安排'}
+                  {autoStatus?.nextRunAt ? formatDate(autoStatus.nextRunAt) : i18n.t('kf3c18aa5')}
                   <br />· 上次切换：
-                  {autoStatus?.lastLog ? `${autoStatus.lastLog.title || '图片'}（${formatDate(autoStatus.lastLog.appliedAt)}）` : '暂无'}
+                  {autoStatus?.lastLog ? `${autoStatus.lastLog.title || i18n.t('k20def794')}（${formatDate(autoStatus.lastLog.appliedAt)}）` : i18n.t('kf61f4cf6')}
                 </div>
 
                 {wallpaperHistory.length > 0 && (
                   <div style={{ marginTop: 10 }}>
-                    <div style={{ fontSize: 12, color: 'var(--muted)', marginBottom: 6 }}>最近切换记录</div>
+                    <div style={{ fontSize: 12, color: 'var(--muted)', marginBottom: 6 }}>{i18n.t('kfdd47f39')}</div>
                     {wallpaperHistory.slice(0, 5).map((h) => (
                       <div key={h.id} style={{ fontSize: 12, color: 'var(--muted)', lineHeight: 1.8 }}>
-                        {formatDate(h.appliedAt)} · {h.title || `图片 ${h.imageId}`} ·{' '}
-                        {h.scope === 'favorites' ? '收藏' : h.scope === 'playlist' ? '清单' : '全库'}
+                        {formatDate(h.appliedAt)} · {h.title || i18n.t('kaea8b780', { p0: h.imageId })} ·{' '}
+                        {h.scope === 'favorites' ? i18n.t('kae336cd0') : h.scope === 'playlist' ? i18n.t('k8d9a495b') : i18n.t('kd5190d5f')}
                       </div>
                     ))}
                   </div>

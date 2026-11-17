@@ -9,6 +9,7 @@ import type {
 import Card from './Card';
 import Select from '../../components/Select';
 import { useDebouncedCommit } from '../../hooks/useDebouncedCommit';
+import i18n from '../../i18n';
 
 interface Props {
   live: LiveWallpaperConfig | null;
@@ -23,10 +24,10 @@ interface Props {
 
 const DEFAULT_PARAMS: LiveWallpaperParams = { brightness: 100, speed: 50, intensity: 60, depth: 40 };
 const SLIDERS: { key: keyof LiveWallpaperParams; label: string; hint: string; max: number }[] = [
-  { key: 'brightness', label: '亮度', hint: '整体明暗（100 = 原样）', max: 200 },
-  { key: 'speed', label: '速度', hint: '动画 / 轮播 / 播放速率', max: 300 },
-  { key: 'intensity', label: '强度', hint: '色彩与响应幅度', max: 300 },
-  { key: 'depth', label: '景深', hint: '模糊与拖尾长度', max: 200 },
+  { key: 'brightness', label: i18n.t('kcfd060d8'), hint: i18n.t('kdc856a93'), max: 200 },
+  { key: 'speed', label: i18n.t('k03f38597'), hint: i18n.t('k3f41d640'), max: 300 },
+  { key: 'intensity', label: i18n.t('kffd5f33d'), hint: i18n.t('kc97575a7'), max: 300 },
+  { key: 'depth', label: i18n.t('k725cff41'), hint: i18n.t('k7c9541ea'), max: 200 },
 ];
 const DEFAULT_SAVER: ScreensaverConfig = {
   enabled: false,
@@ -64,9 +65,9 @@ export default function LiveWallpaperExtras({
     try {
       await api.saveSettings({ screensaver: next });
       patchSettings({ screensaver: next });
-      onToast('屏保设置已保存');
+      onToast(i18n.t('k8da59766'));
     } catch (err) {
-      onToast(`保存屏保设置失败：${(err as Error).message}`, 'error');
+      onToast(i18n.t('kcc9c080e', { p0: (err as Error).message }), 'error');
     }
   };
   const saverDebounced = useDebouncedCommit<ScreensaverConfig>(saveSaver, 300);
@@ -75,9 +76,9 @@ export default function LiveWallpaperExtras({
   return (
     <>
       <Card
-        title="壁纸实时交互参数"
-        desc="拖动滑块即时生效，不重启桌面层窗口；松手后自动保存。"
-        badge={<span style={{ color: 'var(--muted)', fontSize: 12, fontWeight: 400 }}>亮度 / 速度 / 强度 / 景深</span>}
+        title={i18n.t('k238c1ebb')}
+        desc={i18n.t('ke4f957f5')}
+        badge={<span style={{ color: 'var(--muted)', fontSize: 12, fontWeight: 400 }}>{i18n.t('kd505f8e7')}</span>}
       >
         {SLIDERS.map((s) => (
           <div className="field" key={s.key}>
@@ -97,40 +98,39 @@ export default function LiveWallpaperExtras({
           </div>
         ))}
         <div className="hint">
-          桌面端通过 IPC 直推已挂载的渲染窗口，参数走 <code>window.__live.setParams()</code>；
-          浏览器模式只保存配置，预览需重开设置页。
+          {i18n.t('k44c0b1a7')} <code>window.__live.setParams()</code>{i18n.t('kf6d6a95c')}
         </div>
       </Card>
 
       {(live?.mode === 'shader' || live?.mode === 'interactive' || live?.mode === 'audio') && (
         <Card
-          title="动态壁纸内容"
+          title={i18n.t('k7d375855')}
           desc={
             live.mode === 'shader'
-              ? 'WebGL 片元着色器：内置预设或自己写 GLSL，编译失败会在桌面上如实提示。'
+              ? i18n.t('kf428f3ba')
               : live.mode === 'interactive'
-                ? '交互式壁纸：桌面层接收鼠标，粒子会跟着指针走；Esc 退出交互。'
-                : '音频可视化：用素材音频或麦克风驱动实时频谱。'
+                ? i18n.t('kec9fd13e')
+                : i18n.t('k5aecd19e')
           }
         >
           {live.mode === 'shader' && (
             <>
               <div className="field">
-                <label>内置预设</label>
+                <label>{i18n.t('k9c45bf00')}</label>
                 <Select
                   className="select"
                   style={{ width: '100%' }}
                   value={live.shaderPreset || 'plasma'}
                   onChange={(v) => onPatch({ shaderPreset: v })}
                 >
-                  <option value="plasma">等离子（彩色流动）</option>
-                  <option value="waves">水波（层叠条纹）</option>
-                  <option value="aurora">极光（柔和光幕）</option>
-                  <option value="stars">星场（缓慢漂移）</option>
+                  <option value="plasma">{i18n.t('k235f37c7')}</option>
+                  <option value="waves">{i18n.t('k106e2e53')}</option>
+                  <option value="aurora">{i18n.t('k9e4f9978')}</option>
+                  <option value="stars">{i18n.t('k77f34a9f')}</option>
                 </Select>
               </div>
               <div className="field">
-                <label>自定义 GLSL 片元源码（留空则用上面的预设）</label>
+                <label>{i18n.t('k416e6e56')}</label>
                 <textarea
                   className="input"
                   rows={5}
@@ -150,7 +150,7 @@ export default function LiveWallpaperExtras({
           {live.mode === 'interactive' && (
             <>
               <div className="switch-row">
-                <span>允许鼠标与桌面交互</span>
+                <span>{i18n.t('kef3c8111')}</span>
                 <input
                   type="checkbox"
                   checked={!!live.interactive}
@@ -160,7 +160,7 @@ export default function LiveWallpaperExtras({
               <div className="hint">
                 开启后桌面图标层仍可点击（窗口不再忽略鼠标事件）；按 Esc 立即恢复穿透。
                 关闭时仍会渲染粒子动画，只是不接受指针输入。
-                {!isDesktop && ' 网页模式没有桌面层，交互不可用。'}
+                {!isDesktop && i18n.t('kcc7398ca')}
               </div>
             </>
           )}
@@ -168,21 +168,21 @@ export default function LiveWallpaperExtras({
           {live.mode === 'audio' && (
             <>
               <div className="field">
-                <label>音频来源</label>
+                <label>{i18n.t('kca7713b6')}</label>
                 <Select
                   className="select"
                   style={{ width: '100%' }}
                   value={live.audioSource || 'file'}
                   onChange={(v) => onPatch({ audioSource: v as 'file' | 'mic' | 'system' })}
                 >
-                  <option value="file">本地音频文件</option>
-                  <option value="mic">麦克风输入</option>
-                  <option value="system">系统音频（Windows 桌面声音回环）</option>
+                  <option value="file">{i18n.t('k945b9dc4')}</option>
+                  <option value="mic">{i18n.t('kfc4335d4')}</option>
+                  <option value="system">{i18n.t('k03fa5a0c')}</option>
                 </Select>
               </div>
               {(live.audioSource || 'file') === 'file' && (
                 <div className="field">
-                  <label>音频文件</label>
+                  <label>{i18n.t('k01a98f2a')}</label>
                   <div style={{ display: 'flex', gap: 8 }}>
                     <input
                       className="input"
@@ -196,7 +196,7 @@ export default function LiveWallpaperExtras({
                       onClick={async () => {
                         try {
                           const p = await desktop?.pickFile?.([
-                            { name: '音频', extensions: ['mp3', 'wav', 'ogg', 'm4a', 'flac', 'aac', 'webm'] },
+                            { name: i18n.t('k726dd5df'), extensions: ['mp3', 'wav', 'ogg', 'm4a', 'flac', 'aac', 'webm'] },
                           ]);
                           if (p) onPatch({ audioPath: p });
                         } catch (err) {
@@ -204,7 +204,7 @@ export default function LiveWallpaperExtras({
                         }
                       }}
                     >
-                      选择文件
+                      {i18n.t('kfd7e0c99')}
                     </button>
                   </div>
                 </div>
@@ -220,21 +220,21 @@ export default function LiveWallpaperExtras({
       )}
 
       <Card
-        title="屏幕保护程序模式"
-        desc="系统空闲到设定时长后，用动态壁纸全屏覆盖；一动键鼠就立即退出。"
+        title={i18n.t('k7f71e06c')}
+        desc={i18n.t('k7643512a')}
         badge={
           <span style={{ color: saver.enabled ? 'var(--ok)' : 'var(--warn)', fontSize: 12, fontWeight: 400 }}>
-            {saver.enabled ? '● 已启用' : '○ 未启用'}
+            {saver.enabled ? i18n.t('k66e11add') : i18n.t('kd3d5685c')}
           </span>
         }
       >
         <div className="switch-row">
-          <span>启用屏保</span>
+          <span>{i18n.t('k1b0fd2de')}</span>
           <input type="checkbox" checked={saver.enabled} onChange={(e) => pushSaver({ enabled: e.target.checked })} />
         </div>
         <div className="two-col">
           <div className="field">
-            <label>空闲多久触发（分钟）</label>
+            <label>{i18n.t('k18177046')}</label>
             <input
               className="input"
               type="number"
@@ -245,22 +245,22 @@ export default function LiveWallpaperExtras({
             />
           </div>
           <div className="field">
-            <label>屏保画面</label>
+            <label>{i18n.t('k4649027f')}</label>
             <Select
               className="select"
               style={{ width: '100%' }}
               value={saver.mode}
               onChange={(v) => pushSaver({ mode: v as ScreensaverConfig['mode'] })}
             >
-              <option value="slideshow">相册轮播</option>
-              <option value="shader">GLSL 着色器</option>
-              <option value="interactive">交互粒子</option>
-              <option value="audio">音频频谱</option>
+              <option value="slideshow">{i18n.t('kb1a21182')}</option>
+              <option value="shader">{i18n.t('k8a19621d')}</option>
+              <option value="interactive">{i18n.t('k2a7238e4')}</option>
+              <option value="audio">{i18n.t('kf093fb24')}</option>
             </Select>
           </div>
         </div>
         <div className="switch-row">
-          <span>显示时钟</span>
+          <span>{i18n.t('kd475b7e4')}</span>
           <input type="checkbox" checked={saver.showClock} onChange={(e) => pushSaver({ showClock: e.target.checked })} />
         </div>
         <div className="hint">

@@ -13,6 +13,7 @@ import { loadHardware, refreshHardware } from '../../lib/hardware';
 import { IconTrash } from '../../components/Icons';
 import Select from '../../components/Select';
 import Card from './Card';
+import i18n from '../../i18n';
 
 interface Props {
   settings: SettingsType;
@@ -30,16 +31,16 @@ const REMOTE_PRESETS: {
 }[] = [
   {
     key: 'hf-swin2sr',
-    name: 'Hugging Face · Swin2SR 图像超分',
-    tag: '免费 · 需 Token',
-    desc: '免费 Serverless 推理，直接返回图片。到 huggingface.co 注册后生成 hf_ 开头的 Token 填入',
+    name: i18n.t('k85372d4a'),
+    tag: i18n.t('ke6ac331c'),
+    desc: i18n.t('k73c181f9'),
     service: {
       name: 'HuggingFace Swin2SR ×4',
       uploadUrl: 'https://api-inference.huggingface.co/models/caidas/swin2SR-realworld-sr-x4-64-bsrgan-psnr',
       method: 'POST',
       bodyMode: 'binary',
       fileField: 'file',
-      headers: [{ key: 'Authorization', value: 'Bearer 在这里填你的 hf_ Token' }],
+      headers: [{ key: 'Authorization', value: i18n.t('k136cef2b') }],
       resultType: 'direct',
       resultUrlPath: '',
       params: [],
@@ -48,16 +49,16 @@ const REMOTE_PRESETS: {
   },
   {
     key: 'deepai',
-    name: 'DeepAI · 超分辨率（Torch-SRGAN）',
-    tag: '免费额度 · 需 Key',
-    desc: '老牌接口，注册即送免费额度。上传后返回结果链接，需填入 api-key',
+    name: i18n.t('k31b53c58'),
+    tag: i18n.t('k1d9b4a7a'),
+    desc: i18n.t('kdab6a681'),
     service: {
-      name: 'DeepAI 超分',
+      name: i18n.t('kf4bc1d4a'),
       uploadUrl: 'https://api.deepai.org/api/torch-srgan',
       method: 'POST',
       bodyMode: 'multipart',
       fileField: 'image',
-      headers: [{ key: 'api-key', value: '在这里填你的 DeepAI Key' }],
+      headers: [{ key: 'api-key', value: i18n.t('k063e5bc7') }],
       resultType: 'json',
       resultUrlPath: 'output_url',
       params: [],
@@ -66,16 +67,16 @@ const REMOTE_PRESETS: {
   },
   {
     key: 'deepai-waifu2x',
-    name: 'DeepAI · waifu2x 放大（动漫/插画）',
-    tag: '免费额度 · 需 Key',
-    desc: '与上面同一家的动漫风超分接口，同样填 DeepAI 的 api-key 即可',
+    name: i18n.t('kbf938d41'),
+    tag: i18n.t('k1d9b4a7a'),
+    desc: i18n.t('k53a13df5'),
     service: {
       name: 'DeepAI waifu2x',
       uploadUrl: 'https://api.deepai.org/api/waifu2x',
       method: 'POST',
       bodyMode: 'multipart',
       fileField: 'image',
-      headers: [{ key: 'api-key', value: '在这里填你的 DeepAI Key' }],
+      headers: [{ key: 'api-key', value: i18n.t('k063e5bc7') }],
       resultType: 'json',
       resultUrlPath: 'output_url',
       params: [],
@@ -84,11 +85,11 @@ const REMOTE_PRESETS: {
   },
   {
     key: 'selfhost',
-    name: '自建 Real-ESRGAN 服务',
-    tag: '完全免费 · 无限次',
-    desc: '开源自建（如 image-enhance-api / realesrgan-api），本机或服务器部署，无需 Key',
+    name: i18n.t('k07de3520'),
+    tag: i18n.t('k737a9bd9'),
+    desc: i18n.t('k648d94d0'),
     service: {
-      name: '自建超分服务',
+      name: i18n.t('k2a0d7027'),
       uploadUrl: 'http://127.0.0.1:8000/upscale',
       method: 'POST',
       bodyMode: 'multipart',
@@ -106,18 +107,18 @@ const REMOTE_PRESETS: {
   const featureLabel = (f: string) => {
     const [kind, value] = f.split(':');
     const map: Record<string, string> = {
-      src: '来源',
-      kw: '关键词',
-      bucket: '分辨率档',
-      orient: '方向',
-      hue: '色系',
-      bright: '亮度档',
-      sharp: '清晰度档',
-      term: '画面问题',
+      src: i18n.t('k26ca20b1'),
+      kw: i18n.t('k9699a50e'),
+      bucket: i18n.t('k7bb16c5d'),
+      orient: i18n.t('ka465db53'),
+      hue: i18n.t('k672c88b9'),
+      bright: i18n.t('k01feca0e'),
+      sharp: i18n.t('k0a4afe98'),
+      term: i18n.t('k8801870e'),
     };
     const v: Record<string, string> = {
-      sd: '低清', fhd: '1080P', '2k': '2K', '4k': '4K',
-      portrait: '竖图', landscape: '横图', square: '方图', gray: '黑白灰',
+      sd: i18n.t('kba5d85c3'), fhd: '1080P', '2k': '2K', '4k': '4K',
+      portrait: i18n.t('k1d4b5f79'), landscape: i18n.t('kaffd00f2'), square: i18n.t('k5c036336'), gray: i18n.t('k4b90efb3'),
     };
     return `${map[kind] || kind}·${v[value] ?? value}`;
   };
@@ -159,7 +160,7 @@ export default function EnhanceSection({ settings, patch, onToast }: Props) {
       .catch((err) => {
         const msg = (err as Error).message;
         setModelsErr(msg);
-        onToast(`增强模型列表刷新失败：${msg}`, 'error');
+        onToast(i18n.t('kb13fdbdb', { p0: msg }), 'error');
       });
   }, [onToast]);
 
@@ -198,8 +199,8 @@ export default function EnhanceSection({ settings, patch, onToast }: Props) {
           setMatting(st);
           // 以前失败只写进状态里不弹提示，用户只看到按钮回到「未下载」，不知道败在哪
           if (mattingDownloadingRef.current && !st.downloading) {
-            if (st.error) onToast(`去背景模型下载失败：${st.error}`, 'error');
-            else onToast(st.message || '去背景模型下载完成');
+            if (st.error) onToast(i18n.t('ka9752541', { p0: st.error }), 'error');
+            else onToast(st.message || i18n.t('k912dde57'));
           }
           mattingDownloadingRef.current = !!st.downloading;
         }
@@ -207,7 +208,7 @@ export default function EnhanceSection({ settings, patch, onToast }: Props) {
           const st = d.sr;
           setSr(st);
           if (srLoadingRef.current && !st.loading) {
-            onToast(st.error ? `模型下载失败：${st.error}` : '超分模型已就绪');
+            onToast(st.error ? i18n.t('k00a1ea19', { p0: st.error }) : i18n.t('k56c38b88'));
             reloadModels();
           }
           srLoadingRef.current = !!st.loading;
@@ -217,8 +218,8 @@ export default function EnhanceSection({ settings, patch, onToast }: Props) {
           setAiUp(st);
           if (aiUpDownloadingRef.current && !st.downloading) {
             // 运行库 / Real-CUGAN / 社区模型三类安装都走这里收尾；结果带在 message/installError 里
-            if (st.installError) onToast(`安装失败：${st.installError}`, 'error');
-            else onToast(st.message || '安装完成');
+            if (st.installError) onToast(i18n.t('k55e6a828', { p0: st.installError }), 'error');
+            else onToast(st.message || i18n.t('k8bd39e4e'));
             reloadModels();
           }
           aiUpDownloadingRef.current = !!st.downloading;
@@ -234,11 +235,11 @@ export default function EnhanceSection({ settings, patch, onToast }: Props) {
 
   return (
   <Card
-    title="画质增强"
-    desc="设置「低于该标准」的图片自动收录，并选择增强方式。改动后点右上角「保存设置」生效。"
+    title={i18n.t('kfd5e4c21')}
+    desc={i18n.t('kd27ed140')}
   >
     <div className="field">
-      <label>目标标准（低于该分辨率的图片视为待增强）</label>
+      <label>{i18n.t('kf0c69797')}</label>
       <Select
         className="select"
         style={{ width: '100%' }}
@@ -250,13 +251,13 @@ export default function EnhanceSection({ settings, patch, onToast }: Props) {
         <option value="1080p">1080P（1920×1080）</option>
         <option value="2k">2K（2560×1440）</option>
         <option value="4k">4K（3840×2160）</option>
-        <option value="custom">自定义…</option>
+        <option value="custom">{i18n.t('k27de3745')}</option>
       </Select>
     </div>
     {settings.enhance?.standard === 'custom' && (
       <div style={{ display: 'flex', gap: 8, marginTop: -4 }}>
         <div className="field" style={{ flex: 1 }}>
-          <label>宽度（px）</label>
+          <label>{i18n.t('k4a8aa103')}</label>
           <input
             className="input"
             type="number"
@@ -265,7 +266,7 @@ export default function EnhanceSection({ settings, patch, onToast }: Props) {
           />
         </div>
         <div className="field" style={{ flex: 1 }}>
-          <label>高度（px）</label>
+          <label>{i18n.t('k63be317b')}</label>
           <input
             className="input"
             type="number"
@@ -276,14 +277,14 @@ export default function EnhanceSection({ settings, patch, onToast }: Props) {
       </div>
     )}
     <div className="field">
-      <label>默认增强模型</label>
+      <label>{i18n.t('kc6dccaeb')}</label>
       <Select
         className="select"
         style={{ width: '100%' }}
         value={settings.enhance?.model || 'sharp-standard'}
         onChange={(v) => patch({ enhance: { ...settings.enhance, model: v } })}
       >
-        <optgroup label="内置插值放大（离线，不生成新细节）">
+        <optgroup label={i18n.t('ka86133b1')}>
           {(enhanceModels.builtin || []).map((m: EnhanceModel) => (
             <option key={m.id} value={m.id}>
               {m.label} · {m.desc}
@@ -291,17 +292,17 @@ export default function EnhanceSection({ settings, patch, onToast }: Props) {
           ))}
         </optgroup>
         {(enhanceModels.ai || []).length > 0 && (
-          <optgroup label="AI 超分模型（Real-ESRGAN）">
+          <optgroup label={i18n.t('k2444b1fb')}>
             {(enhanceModels.ai || []).map((m: EnhanceAiModel) => (
               <option key={m.id} value={m.id} disabled={!m.available}>
                 {m.label}
-                {m.available ? '' : '（未安装）'}
+                {m.available ? '' : i18n.t('k6e8eee75')}
               </option>
             ))}
           </optgroup>
         )}
         {(enhanceModels.remote || []).length > 0 && (
-          <optgroup label="线上服务">
+          <optgroup label={i18n.t('k9ec2b4af')}>
             {(enhanceModels.remote || []).map((r: EnhanceRemoteService) => (
               <option key={r.id} value={`remote:${r.id}`}>
                 {r.name}
@@ -311,19 +312,19 @@ export default function EnhanceSection({ settings, patch, onToast }: Props) {
         )}
       </Select>
       <div className="hint">
-        内置模型基于 sharp 插值放大，离线可用、无额外依赖；也可在下方配置线上免费增强服务
+        {i18n.t('ke617c0ed')}
       </div>
       {modelsErr && (
         <div className="hint" style={{ color: 'var(--err, #e5484d)' }}>
           模型列表读取失败：{modelsErr}
           <button className="btn sm ghost" style={{ marginLeft: 8 }} onClick={reloadModels}>
-            重试
+            {i18n.t('k132c5cdc')}
           </button>
         </div>
       )}
     </div>
 
-    <div className="settings-subtitle">AI 超分模型（Real-ESRGAN）</div>
+    <div className="settings-subtitle">{i18n.t('k2444b1fb')}</div>
     <div
       style={{
         border: '1px solid var(--border)',
@@ -337,15 +338,15 @@ export default function EnhanceSection({ settings, patch, onToast }: Props) {
         <b style={{ fontSize: 13 }}>
           {aiUp?.installed
             ? aiUp.usable === false
-              ? '● 已安装，但运行环境异常'
-              : '● 已安装，可离线使用'
-            : '○ 未安装'}
+              ? i18n.t('kcf1894c3')
+              : i18n.t('kfaf2c8d0')
+            : i18n.t('kb5f8b643')}
         </b>
         {aiUp?.installed && aiUp.gpu && (
           <span className="tag-pill ok">AI 加速：{aiUp.gpu}</span>
         )}
         <span className="hint" style={{ marginLeft: 'auto' }}>
-          免 Python / 免 CUDA · 约 43MB · 一次下载永久离线
+          {i18n.t('kdfc8fad9')}
         </span>
       </div>
 
@@ -374,7 +375,7 @@ export default function EnhanceSection({ settings, patch, onToast }: Props) {
             try {
               await api.aiUpscaleInstall();
               setAiUp(await api.aiUpscaleStatus());
-              onToast('已开始下载（约 43MB），可在下方查看进度');
+              onToast(i18n.t('kc4d33324'));
             } catch (err) {
               onToast((err as Error).message, 'error');
             }
@@ -382,11 +383,11 @@ export default function EnhanceSection({ settings, patch, onToast }: Props) {
         >
           {aiUp?.downloading
             ? aiUp.progress >= 0
-              ? `下载中 ${aiUp.progress}%`
-              : '下载中…'
+              ? i18n.t('ke8ffc780', { p0: aiUp.progress })
+              : i18n.t('k0164eeb4')
             : aiUp?.installed
-              ? '重新安装 / 修复'
-              : '下载并安装运行库'}
+              ? i18n.t('kd17a2434')
+              : i18n.t('k13020716')}
         </button>
         <button
           className="btn"
@@ -395,30 +396,30 @@ export default function EnhanceSection({ settings, patch, onToast }: Props) {
             try {
               const r = await api.aiUpscaleSelfTest();
               setAiUp(await api.aiUpscaleStatus());
-              onToast(r.gpu ? `自检通过，AI 加速：${r.gpu}` : `自检失败：${r.error}`);
+              onToast(r.gpu ? i18n.t('k37c12d48', { p0: r.gpu }) : i18n.t('k5b6a6f12', { p0: r.error }));
             } catch (err) {
               onToast((err as Error).message, 'error');
             }
           }}
         >
-          重新检测
+          {i18n.t('kf515f8fb')}
         </button>
       </div>
 
       <div className="hint" style={{ marginTop: 10, lineHeight: 1.9 }}>
-        · 安装后「画质增强」页的模型下拉里会出现 3 个真·AI 超分模型：
-        <br />　realesrgan-x4plus（通用照片）、x4plus-anime（二次元/插画）、animevideov3（动漫/写真，最快）
-        <br />· AI 超分单张约数秒到数十秒，批量任务在后台执行，可在增强页看进度
-        <br />· 运行环境：Real-ESRGAN ncnn + Vulkan，使用显卡加速，无需安装 Python 或 CUDA
+        {i18n.t('k0ca4c694')}
+        <br />　{i18n.t('kd0864cb4')}
+        <br />{i18n.t('kc305226e')}
+        <br />{i18n.t('kd07d720c')}
       </div>
 
       {/* 社区模型（真人照片效果更好）+ Real-CUGAN（两级降噪放大） */}
       <div className="settings-subtitle" style={{ marginTop: 14 }}>
-        社区模型与 Real-CUGAN
+        {i18n.t('k470ebbe4')}
       </div>
       <div className="hint" style={{ marginBottom: 8, lineHeight: 1.9 }}>
-        · 社区模型比内置 realesrgan-x4plus 更适合真人照片（涂抹感更少、细节更稳），点「安装」即下载（单个约几 MB）
-        <br />· Real-CUGAN 带降噪档位：装了它之后，**噪点重 / 压缩狠的图会自动走两级流程**：Real-CUGAN 2× 降噪 → 主模型补到标准
+        {i18n.t('kbbcf3e36')}
+        <br />{i18n.t('k4ca1d6da')}
       </div>
 
       <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginBottom: 10 }}>
@@ -431,7 +432,7 @@ export default function EnhanceSection({ settings, patch, onToast }: Props) {
               try {
                 // 后台下载：接口立刻返回，进度/结果靠下方进度条与 job 心跳（以前同步等下载，按钮毫无反馈）
                 setAiUp(await api.aiUpscaleInstallModel(m.id));
-                onToast(`已开始后台下载 ${m.label}，进度见下方`);
+                onToast(i18n.t('kd321da29', { p0: m.label }));
               } catch (err) {
                 onToast((err as Error).message, 'error');
               }
@@ -452,7 +453,7 @@ export default function EnhanceSection({ settings, patch, onToast }: Props) {
             try {
               // 后台下载：立刻返回，下载 / 解压 / 自检各阶段进度走 job 心跳
               setAiUp(await api.aiUpscaleInstallCugan());
-              onToast('已开始后台下载 Real-CUGAN 运行库，进度见下方');
+              onToast(i18n.t('k5ff18233'));
             } catch (err) {
               onToast((err as Error).message, 'error');
             }
@@ -460,27 +461,27 @@ export default function EnhanceSection({ settings, patch, onToast }: Props) {
         >
           {aiUp?.downloading
             ? aiUp.progress >= 0
-              ? `下载中 ${aiUp.progress}%`
-              : '下载中…'
+              ? i18n.t('ke8ffc780', { p0: aiUp.progress })
+              : i18n.t('k0164eeb4')
             : aiUp?.cugan?.installed
-              ? '重新安装 Real-CUGAN'
-              : '↓ 安装 Real-CUGAN 运行库（约 30MB）'}
+              ? i18n.t('kdf8bd133')
+              : i18n.t('k0f2f113b')}
         </button>
         <span style={{ fontSize: 12.5, color: 'var(--muted)' }}>
           {aiUp?.cugan?.installed
-            ? `已安装（可用模型 ${(aiUp.cugan.models || []).length} 个）`
-            : '未安装：噪点重的图将只走单级放大'}
+            ? i18n.t('kab2075f3', { p0: (aiUp.cugan.models || []).length })
+            : i18n.t('k028a624d')}
           </span>
           </div>
 
           {/* AI 去背景 */}
       <div className="settings-subtitle" style={{ marginTop: 14 }}>
-        AI 去背景（本地 ONNX，三档可选）
+        {i18n.t('k83bcedb8')}
       </div>
       <div className="hint" style={{ marginBottom: 8 }}>
         按质量自动选档：装了旗舰档（BEN2，1024px）就用它，其次精细档（BiRefNet lite），都没有才用轻量档（U-2-Net，320px）。
         发丝、绒毛、玻璃与半透明边缘，旗舰 / 精细档明显更干净（代价是 CPU 单张几秒）；
-        <strong>三档都只做人像 / 主体分割</strong>，纯风景、商品、文字图往往抠不干净（工具会提示「几乎没抠出主体」）。
+        <strong>{i18n.t('k4136ffa7')}</strong>{i18n.t('k1374cb80')}
       </div>
       <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
         {(matting?.profiles || []).map((p) => {
@@ -509,11 +510,11 @@ export default function EnhanceSection({ settings, patch, onToast }: Props) {
                     color: '#2563eb',
                   }}
                 >
-                  当前使用
+                  {i18n.t('kbe4cd65b')}
                 </span>
               )}
               <span style={{ fontSize: 12, color: 'var(--muted)' }}>
-                {p.installed ? `${Math.round(p.size / 1024 / 1024)}MB 已下载` : `约 ${Math.round(p.sizeHint / 1024 / 1024)}MB`}
+                {p.installed ? i18n.t('kef33d77f', { p0: Math.round(p.size / 1024 / 1024) }) : i18n.t('kc306a498', { p0: Math.round(p.sizeHint / 1024 / 1024) })}
               </span>
               <button
                 className={`btn sm${p.installed ? '' : ' primary'}`}
@@ -524,13 +525,13 @@ export default function EnhanceSection({ settings, patch, onToast }: Props) {
                     // 后台下载：接口立刻返回，进度靠 SSE / 轮询（以前这个请求要等整包下完）
                     await api.mattingInstall(p.id);
                     setMatting(await api.mattingStatus());
-                    onToast(`已开始后台下载：${p.label}`);
+                    onToast(i18n.t('k4e516b04', { p0: p.label }));
                   } catch (err) {
                     onToast((err as Error).message, 'error');
                   }
                 }}
               >
-                {isThis ? `下载中 ${matting?.progress}%` : p.installed ? '重新下载' : '下载'}
+                {isThis ? i18n.t('ke8ffc780', { p0: matting?.progress }) : p.installed ? i18n.t('k754569be') : i18n.t('kf26ef914')}
               </button>
               {isThis && (
                 <button
@@ -538,14 +539,14 @@ export default function EnhanceSection({ settings, patch, onToast }: Props) {
                   onClick={async () => {
                     try {
                       await api.mattingCancel();
-                      onToast('已取消下载');
+                      onToast(i18n.t('k8b228e0b'));
                       setMatting(await api.mattingStatus());
                     } catch (err) {
                       onToast((err as Error).message, 'error');
                     }
                   }}
                 >
-                  取消
+                  {i18n.t('k625fb26b')}
                 </button>
               )}
             </div>
@@ -553,14 +554,14 @@ export default function EnhanceSection({ settings, patch, onToast }: Props) {
         })}
         {!matting?.profiles?.length && (
           <span style={{ fontSize: 12.5, color: 'var(--muted)' }}>
-            未下载：去背景功能需要先下载模型（一次性）。完整清单与删除入口见「设置 → 下载中心」。
+            {i18n.t('kc7e088a2')}
           </span>
         )}
       </div>
       <div className="hint" style={{ marginTop: 6 }}>
         {matting?.downloaded
-          ? '已就绪：大图预览 → 「✂ 去背景」，生成透明 PNG 存为新图，原图不动'
-          : '去背景功能需要先下载模型（一次性）'}
+          ? i18n.t('k3676697f')
+          : i18n.t('ka18ce425')}
       </div>
       {!!matting?.error && (
         <div className="hint" style={{ color: 'var(--err, #e5484d)', marginTop: 6 }}>
@@ -570,11 +571,11 @@ export default function EnhanceSection({ settings, patch, onToast }: Props) {
 
       {/* 本地偏好模型：个性化推荐 */}
       <div className="settings-subtitle" style={{ marginTop: 14 }}>
-        本地偏好模型（个性化推荐）
+        {i18n.t('k8d84a070')}
       </div>
       <div className="hint" style={{ marginBottom: 8, lineHeight: 1.9 }}>
-        · 用你的行为离线训练：收藏 / 壁纸「喜欢」当正样本，删除并选了原因 / 壁纸「不喜欢」当负样本
-        <br />· 只用画面属性（来源、分辨率、方向、色系、亮度、清晰度、模糊噪点等问题词）建模，全部在本机完成
+        {i18n.t('k2771c23d')}
+        <br />{i18n.t('k7e7bf1c5')}
       </div>
       <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
         <button
@@ -585,20 +586,20 @@ export default function EnhanceSection({ settings, patch, onToast }: Props) {
               setPref(await api.prefStatus());
               onToast(
                 r.ok
-                  ? `训练完成：${r.samples} 个样本（喜欢 ${r.pos} / 不喜欢 ${r.neg}），已更新 ${r.updated} 张图的偏好分`
-                  : r.message || '训练失败'
+                  ? i18n.t('k4f158176', { p0: r.samples, p1: r.pos, p2: r.neg, p3: r.updated })
+                  : r.message || i18n.t('kaf7552e1')
               );
             } catch (err) {
               onToast((err as Error).message, 'error');
             }
           }}
         >
-          训练偏好模型
+          {i18n.t('k2b9fcc7b')}
         </button>
         <span style={{ fontSize: 12.5, color: 'var(--muted)' }}>
           {pref?.trained
-            ? `已训练（${pref.samples} 样本 · ${pref.featureCount} 特征）`
-            : '未训练：图库「推荐」排序与壁纸挑选将使用中性分'}
+            ? i18n.t('k42054592', { p0: pref.samples, p1: pref.featureCount })
+            : i18n.t('k5c257446')}
         </span>
       </div>
       {!!(pref?.top || []).length && (
@@ -615,11 +616,11 @@ export default function EnhanceSection({ settings, patch, onToast }: Props) {
 
       {/* 第二档：Transformer 系（Swin2SR）——高画质但慢 */}
           <div className="settings-subtitle" style={{ marginTop: 14 }}>
-          高画质（慢）· Transformer 超分
+          {i18n.t('k396f9ecc')}
           </div>
           <div className="hint" style={{ marginBottom: 8, lineHeight: 1.9 }}>
-          · Swin2SR（SwinIR 后续工作）重建更自然、伪影更少，但 CPU 上单张约十秒级，适合少量重点图
-          <br />· 首次使用会自动下载模型（几十到几百 MB，走国内镜像）；点下面的按钮可提前下载 / 预热
+          {i18n.t('kab06f919')}
+          <br />{i18n.t('k93102922')}
           </div>
           <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
           {(sr?.models || []).map((m) => (
@@ -633,7 +634,7 @@ export default function EnhanceSection({ settings, patch, onToast }: Props) {
               // （以前同步等几百 MB 下载，前端 20s 超时弹「请求超时」，其实后台还在下）
               const r = await api.aiSrLoad(m.id);
               setSr(r);
-              onToast(`已开始后台下载 ${m.label}，进度见下方`);
+              onToast(i18n.t('kd321da29', { p0: m.label }));
             } catch (err) {
               onToast((err as Error).message, 'error');
             }
@@ -642,7 +643,7 @@ export default function EnhanceSection({ settings, patch, onToast }: Props) {
           >
           {m.downloaded ? '✓ ' : '↓ '}
           {m.label}
-          {m.loaded ? '（已就绪）' : ''}
+          {m.loaded ? i18n.t('k15e5209f') : ''}
           </button>
           ))}
           </div>
@@ -658,7 +659,7 @@ export default function EnhanceSection({ settings, patch, onToast }: Props) {
           )}
           </div>
 
-    <div className="settings-subtitle">线上增强服务（可选）</div>
+    <div className="settings-subtitle">{i18n.t('k8333570d')}</div>
     <div className="settings-desc">
       软件会自动完成「上传图片 → 按参数请求 → 下载结果 → 覆盖原文件」。下面是可直接一键添加的常用免费服务，
       添加后请把 Key 换成自己的，再点「测试服务」验证连通性（返回内容会直接显示出来，便于照着调整）。
@@ -686,7 +687,7 @@ export default function EnhanceSection({ settings, patch, onToast }: Props) {
               })
             }
           >
-            ＋ 添加此服务
+            {i18n.t('keca076b7')}
           </button>
         </div>
       ))}
@@ -707,7 +708,7 @@ export default function EnhanceSection({ settings, patch, onToast }: Props) {
           <input
             className="input"
             style={{ flex: 1 }}
-            placeholder="服务名称"
+            placeholder={i18n.t('k8f3747c0')}
             value={svc.name}
             onChange={(e) =>
               patch({
@@ -722,8 +723,8 @@ export default function EnhanceSection({ settings, patch, onToast }: Props) {
           />
           <button
             className="del"
-            title="删除该服务"
-            aria-label={`删除服务「${svc.name || '未命名'}」`}
+            title={i18n.t('ka9fafb87')}
+            aria-label={i18n.t('k7e09b872', { p0: svc.name || i18n.t('k7f0425a8') })}
             onClick={() =>
               patch({
                 enhance: {
@@ -737,7 +738,7 @@ export default function EnhanceSection({ settings, patch, onToast }: Props) {
           </button>
         </div>
         <div className="field">
-          <label>上传接口地址（接收 multipart 文件字段）</label>
+          <label>{i18n.t('k4080a72b')}</label>
           <input
             className="input"
             value={svc.uploadUrl}
@@ -756,7 +757,7 @@ export default function EnhanceSection({ settings, patch, onToast }: Props) {
         </div>
         <div style={{ display: 'flex', gap: 8 }}>
           <div className="field" style={{ flex: 1 }}>
-            <label>文件字段名</label>
+            <label>{i18n.t('k42b54b3d')}</label>
             <input
               className="input"
               value={svc.fileField || 'file'}
@@ -773,7 +774,7 @@ export default function EnhanceSection({ settings, patch, onToast }: Props) {
             />
           </div>
           <div className="field" style={{ flex: 1 }}>
-            <label>返回类型</label>
+            <label>{i18n.t('k322b25e7')}</label>
             <Select
               className="select"
               style={{ width: '100%' }}
@@ -789,12 +790,12 @@ export default function EnhanceSection({ settings, patch, onToast }: Props) {
                 })
               }
             >
-              <option value="json">JSON（含结果地址）</option>
-              <option value="direct">直接返回图片</option>
+              <option value="json">{i18n.t('k3e2c15d3')}</option>
+              <option value="direct">{i18n.t('kdefd2055')}</option>
             </Select>
           </div>
           <div className="field" style={{ flex: 1 }}>
-            <label>请求体方式</label>
+            <label>{i18n.t('kbfb4c69a')}</label>
             <Select
               className="select"
               style={{ width: '100%' }}
@@ -810,14 +811,14 @@ export default function EnhanceSection({ settings, patch, onToast }: Props) {
                 })
               }
             >
-              <option value="multipart">表单上传（多数服务）</option>
-              <option value="binary">二进制直传（Hugging Face 等）</option>
+              <option value="multipart">{i18n.t('k6975dd0b')}</option>
+              <option value="binary">{i18n.t('kd242eb0e')}</option>
             </Select>
           </div>
         </div>
         {svc.resultType !== 'direct' && (
           <div className="field">
-            <label>结果地址字段路径（如 data.output，留空尝试 url/result/output）</label>
+            <label>{i18n.t('kf53c9571')}</label>
             <input
               className="input"
               value={svc.resultUrlPath || ''}
@@ -836,7 +837,7 @@ export default function EnhanceSection({ settings, patch, onToast }: Props) {
           </div>
         )}
         <div className="field">
-          <label>附加参数（每行 key=value，可选）</label>
+          <label>{i18n.t('kb15be1c4')}</label>
           <textarea
             className="input"
             rows={2}
@@ -870,13 +871,13 @@ export default function EnhanceSection({ settings, patch, onToast }: Props) {
           />
         </div>
         <div className="field">
-          <label>自定义请求头（每行 名称=值，可选；如 api-key=xxx）</label>
+          <label>{i18n.t('k4d2cb06d')}</label>
           <textarea
             className="input"
             rows={2}
             style={{ fontFamily: 'monospace', fontSize: 12 }}
             value={(svc.headers || []).map((h) => `${h.key}=${h.value}`).join('\n')}
-            placeholder={'api-key=你的Key\nAuthorization=Bearer xxx'}
+            placeholder={i18n.t('k5f0f4f59')}
             onChange={(e) =>
               patch({
                 enhance: {
@@ -922,9 +923,9 @@ export default function EnhanceSection({ settings, patch, onToast }: Props) {
               }
             }}
           >
-            {remoteTesting === svc.id ? '测试中…' : '测试服务'}
+            {remoteTesting === svc.id ? i18n.t('k2ff33d1a') : i18n.t('k3c8adc9f')}
           </button>
-          <span className="hint">用一张 64×64 测试图跑完整流程，不会改动你的图片</span>
+          <span className="hint">{i18n.t('kd99e0adf')}</span>
         </div>
         {remoteTest[svc.id] && (
           <div
@@ -966,16 +967,16 @@ export default function EnhanceSection({ settings, patch, onToast }: Props) {
         })
       }
     >
-      ＋ 新增线上服务
+      {i18n.t('k5873e51b')}
     </button>
     <div className="hint" style={{ marginTop: 12 }}>
-      · 软件会自动：上传图片 → 按参数请求 → 下载结果 → 覆盖原文件（其他软件打开即为增强后效果）
-      <br />· 线上服务需自备接口（开源/免费增强 API 均可），请遵守其使用条款
+      {i18n.t('k65b3dc1a')}
+      <br />{i18n.t('kcfd66f7b')}
     </div>
 
       {/* 硬件门槛：抠图 / 超分要跑本地模型，机器不够时得先让用户看见差距 */}
       <div className="settings-subtitle" style={{ marginTop: 18 }}>
-        本机硬件与大模型功能的最低要求
+        {i18n.t('ka8145dd5')}
       </div>
       <div className="hint" style={{ marginBottom: 8 }}>
         抠图、AI 超分、人脸扫描、语义检索都是本地跑模型：内存不够会卡死或中途失败，AI 超分还必须有能跑
@@ -993,13 +994,13 @@ export default function EnhanceSection({ settings, patch, onToast }: Props) {
               ? hw.hardware.gpu.devices
                   .map((d) => (d.vramMB ? `${d.name}（${formatSize(d.vramMB * 1048576)}）` : d.name))
                   .join(' / ')
-              : '未读到'}
+              : i18n.t('k317477be')}
             {' · Vulkan '}
             {hw.hardware.gpu.vulkan.capable === true
-              ? '可用'
+              ? i18n.t('kad6b7038')
               : hw.hardware.gpu.vulkan.capable === false
-                ? '不可用'
-                : '未确认（装好运行库后点「重新检测」）'}
+                ? i18n.t('kd1e4a7e9')
+                : i18n.t('k927933bf')}
           </div>
           <table className="hw-table" style={{ marginTop: 10 }}>
             <colgroup>
@@ -1009,9 +1010,9 @@ export default function EnhanceSection({ settings, patch, onToast }: Props) {
             </colgroup>
             <thead>
               <tr>
-                <th>功能 / 引擎</th>
-                <th>最低要求</th>
-                <th>判定</th>
+                <th>{i18n.t('k3ccc0ef1')}</th>
+                <th>{i18n.t('kd9eb9322')}</th>
+                <th>{i18n.t('ke777f812')}</th>
               </tr>
             </thead>
             <tbody>
@@ -1031,18 +1032,18 @@ export default function EnhanceSection({ settings, patch, onToast }: Props) {
                         ))}
                       </ul>
                     ) : (
-                      '无需检查（不用模型）'
+                      i18n.t('k1c7e477d')
                     )}
                   </td>
                   <td className="hw-verdict" title={f.reason}>
-                    {f.level === 'ok' ? '满足' : f.level === 'warn' ? '偏低，可试' : '不可用'}
+                    {f.level === 'ok' ? i18n.t('kc4865b1d') : f.level === 'warn' ? i18n.t('k70323700') : i18n.t('kd1e4a7e9')}
                   </td>
                 </tr>
               ))}
             </tbody>
           </table>
           <div className="hint" style={{ marginTop: 8, lineHeight: 1.8 }}>
-            把鼠标停在上面的「最低要求 / 判定」上可以看到门槛的依据（哪些是官方说明、哪些是我们按模型规模估的）。
+            {i18n.t('k90ed7347')}
           </div>
           <button
             className="btn sm"
@@ -1052,19 +1053,19 @@ export default function EnhanceSection({ settings, patch, onToast }: Props) {
               setHwBusy(true);
               try {
                 setHw(await refreshHardware());
-                onToast('硬件信息已重新检测');
+                onToast(i18n.t('k0f8f24e9'));
               } catch (err) {
-                onToast(`检测失败：${(err as Error).message}`, 'error');
+                onToast(i18n.t('kbc1969eb', { p0: (err as Error).message }), 'error');
               } finally {
                 setHwBusy(false);
               }
             }}
           >
-            {hwBusy ? '检测中…' : '重新检测'}
+            {hwBusy ? i18n.t('k0a08b242') : i18n.t('kf515f8fb')}
           </button>
         </>
       ) : (
-        <div className="hint">正在读取本机硬件…（读不到不影响其它设置）</div>
+        <div className="hint">{i18n.t('k8dd9f460')}</div>
       )}
   </Card>
   );

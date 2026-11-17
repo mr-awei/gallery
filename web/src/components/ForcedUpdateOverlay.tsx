@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { desktop, quiet, type UpdateState } from '../api';
+import i18n from '../i18n';
 
 /**
  * 更新提示层。
@@ -50,7 +51,7 @@ export default function ForcedUpdateOverlay() {
   if (!mandatory && state.dismissed) return null;
 
   const failed = state.status === 'error';
-  const version = state.version || state.deferredVersion || '新版本';
+  const version = state.version || state.deferredVersion || i18n.t('kb6c4f3de');
   const current = state.current || '';
 
   const retryInstall = async () => {
@@ -58,11 +59,11 @@ export default function ForcedUpdateOverlay() {
     try {
       const r = await desktop?.updateInstall?.();
       if (r && !r.ok) {
-        setState((s) => (s ? { ...s, status: 'error', error: r.msg || '安装未能启动' } : s));
+        setState((s) => (s ? { ...s, status: 'error', error: r.msg || i18n.t('k585af0a0') } : s));
       }
     } catch (err) {
       setState((s) =>
-        s ? { ...s, status: 'error', error: (err as Error).message || '安装未能启动' } : s
+        s ? { ...s, status: 'error', error: (err as Error).message || i18n.t('k585af0a0') } : s
       );
     } finally {
       setBusy(false);
@@ -93,13 +94,13 @@ export default function ForcedUpdateOverlay() {
     try {
       const r = await desktop?.updateDefer?.();
       if (r && !r.ok) {
-        setState((s) => (s ? { ...s, status: 'error', error: r.msg || '没能记下这次选择' } : s));
+        setState((s) => (s ? { ...s, status: 'error', error: r.msg || i18n.t('k60df9707') } : s));
         return;
       }
       setState((s) => (s ? { ...s, dismissed: true, deferred: true, mandatory: false } : s));
     } catch (err) {
       setState((s) =>
-        s ? { ...s, status: 'error', error: (err as Error).message || '没能记下这次选择' } : s
+        s ? { ...s, status: 'error', error: (err as Error).message || i18n.t('k60df9707') } : s
       );
     } finally {
       setBusy(false);
@@ -122,29 +123,27 @@ export default function ForcedUpdateOverlay() {
   /* ------------------------------ 文案 ------------------------------ */
 
   const title = !ready
-    ? '本次启动需要先完成更新'
+    ? i18n.t('ke4daa83b')
     : failed
-      ? '更新安装未能启动'
+      ? i18n.t('ka6f1f643')
       : mandatory
-        ? '正在安装更新'
-        : '新版本已就绪';
+        ? i18n.t('k563e44d5')
+        : i18n.t('k91630c33');
 
   const desc = !ready
-    ? `上次选择了「下次打开时安装」，所以这次启动前要把 v${version} 装完${
-        current ? `（当前 v${current}）` : ''
-      }。`
+    ? i18n.t('k1fc14b7f', { p0: version, p1: current ? i18n.t('k5b5df527', { p0: current }) : '' })
     : failed
-      ? `新版本 v${version} 已下载完成，但安装程序没能启动。`
+      ? i18n.t('k0728a96d', { p0: version })
       : mandatory
-        ? `正在重启安装 v${version}，请稍候。`
-        : `新版本 v${version}${current ? `（当前 v${current}）` : ''} 已下载完成，现在装还是下次打开再装？`;
+        ? i18n.t('k6d41f582', { p0: version })
+        : i18n.t('k2de06a98', { p0: version, p1: current ? i18n.t('k5b5df527', { p0: current }) : '' });
 
   const progress = Math.max(0, Math.min(100, state.percent || 0));
 
   return (
-    <div style={overlayStyle} role="alertdialog" aria-modal="true" aria-label="应用更新">
+    <div style={overlayStyle} role="alertdialog" aria-modal="true" aria-label={i18n.t('k3f91e9b8')}>
       <div style={cardStyle} ref={cardRef} tabIndex={-1}>
-        <div style={badgeStyle}>图库</div>
+        <div style={badgeStyle}>{i18n.t('k6084bc4b')}</div>
         <h1 style={titleStyle}>{title}</h1>
         <p style={descStyle}>{desc}</p>
 
@@ -154,7 +153,7 @@ export default function ForcedUpdateOverlay() {
             <div
               style={barWrapStyle}
               role="progressbar"
-              aria-label={'更新下载进度'}
+              aria-label={i18n.t('k64d77599')}
               aria-valuemin={0}
               aria-valuemax={100}
               aria-valuenow={failed || state.status === 'checking' ? undefined : progress}
@@ -163,18 +162,18 @@ export default function ForcedUpdateOverlay() {
             </div>
             <div style={hintStyle} role="status" aria-live="polite">
               {failed
-                ? '下载失败'
+                ? i18n.t('k65e200d3')
                 : state.status === 'checking'
-                  ? '正在检查更新…'
-                  : `正在下载 ${progress}%`}
+                  ? i18n.t('k037647ef')
+                  : i18n.t('kd1bade2a', { p0: progress })}
             </div>
-            {failed && <p style={errorStyle}>{state.error || '更新下载失败'}</p>}
+            {failed && <p style={errorStyle}>{state.error || i18n.t('kb30dce9c')}</p>}
             <div style={rowStyle}>
               <button type="button" style={primaryBtnStyle} disabled={busy} onClick={retryPrepare}>
-                {busy ? '正在重试…' : '重试'}
+                {busy ? i18n.t('k4cc14a6c') : i18n.t('k132c5cdc')}
               </button>
               <button type="button" style={ghostBtnStyle} onClick={quit}>
-                退出应用
+                {i18n.t('k7498c202')}
               </button>
             </div>
           </>
@@ -186,14 +185,14 @@ export default function ForcedUpdateOverlay() {
             <div style={barWrapStyle}>
               <div style={{ ...barStyle, width: '100%' }} />
             </div>
-            <div style={hintStyle}>更新包已在本地，无需再次下载</div>
+            <div style={hintStyle}>{i18n.t('k62bc773c')}</div>
             {!mandatory && (
               <div style={rowStyle}>
                 <button type="button" style={primaryBtnStyle} disabled={busy} onClick={installNow}>
-                  {busy ? '正在启动…' : '立即安装并重启'}
+                  {busy ? i18n.t('k7bc27521') : i18n.t('kcba94149')}
                 </button>
                 <button type="button" style={ghostBtnStyle} disabled={busy} onClick={defer}>
-                  下次打开时安装
+                  {i18n.t('kcc3576f1')}
                 </button>
               </div>
             )}
@@ -203,19 +202,19 @@ export default function ForcedUpdateOverlay() {
         {/* 安装失败 */}
         {ready && failed && (
           <>
-            <p style={errorStyle}>{state.error || '安装程序未能启动'}</p>
+            <p style={errorStyle}>{state.error || i18n.t('k981fe96b')}</p>
             <div style={rowStyle}>
               <button type="button" style={primaryBtnStyle} disabled={busy} onClick={retryInstall}>
-                {busy ? '正在启动…' : '重试安装'}
+                {busy ? i18n.t('k7bc27521') : i18n.t('kc2b4c1af')}
               </button>
               {mandatory && !state.degraded ? (
                 // 延后到期：装不上就只能退出，没有「先用旧版」这条路
                 <button type="button" style={ghostBtnStyle} onClick={quit}>
-                  退出应用
+                  {i18n.t('k7498c202')}
                 </button>
               ) : (
                 <button type="button" style={ghostBtnStyle} onClick={dismiss}>
-                  本次先继续用
+                  {i18n.t('k9793bcc9')}
                 </button>
               )}
             </div>
@@ -224,14 +223,14 @@ export default function ForcedUpdateOverlay() {
 
         <div style={footStyle}>
           {!ready
-            ? '这是上次在更新提示里选择「下次打开时安装」的结果：不装完就无法继续使用。也可以退出后手动运行已下载的安装包。'
+            ? i18n.t('kfd6c1563')
             : failed
               ? state.degraded
-                ? '已连续多次装不上，强制更新已自动关闭：选择「本次先继续用」即可照常使用，下次启动也不会再被遮挡。想重试请到「设置 → 关于软件 → 检查更新」手动触发，或退出后手动运行安装包。'
+                ? i18n.t('k9cda6940')
                 : mandatory
-                  ? '不安装就无法继续使用本次的旧版本；重试仍失败时，可以退出后手动运行安装包。'
-                  : '选择「本次先继续用」后可以照常使用，下次启动会再次尝试安装；也可以退出应用后手动运行安装包。'
-              : '「立即安装并重启」会关闭并重新打开应用，图库数据不受影响；「下次打开时安装」本次照常使用，下次打开时必须先装完才能用。'}
+                  ? i18n.t('k00bbb4c3')
+                  : i18n.t('k25777dc4')
+              : i18n.t('k1d7f63dd')}
         </div>
       </div>
     </div>

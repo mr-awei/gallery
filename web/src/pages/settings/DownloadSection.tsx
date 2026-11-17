@@ -4,6 +4,7 @@ import Card from './Card';
 import { api } from '../../api';
 import { subscribeEvents } from '../../events';
 import type { ModelItem, ModelsPayload } from '../../types';
+import i18n from '../../i18n';
 
 /**
  * 下载中心：全软件所有模型的统一入口（超分 / 抠图 / 人脸 / 语义）。
@@ -101,9 +102,9 @@ export default function DownloadSection({
     setBusy('install-all');
     try {
       const r = await api.installAllModels();
-      if (!r.ok) onToast(r.error || '无法开始批量下载');
-      else if (r.already) onToast('已经有一批在下，等它跑完');
-      else onToast(`已排队下载 ${r.total || 0} 项，会按顺序一个一个装`);
+      if (!r.ok) onToast(r.error || i18n.t('k70af984d'));
+      else if (r.already) onToast(i18n.t('kc39b4dfb'));
+      else onToast(i18n.t('k6a76abc3', { p0: r.total || 0 }));
       setAllRunning(Boolean(r.ok));
       void load();
     } catch (err: any) {
@@ -117,7 +118,7 @@ export default function DownloadSection({
     setBusy('install-all');
     try {
       const r = await api.cancelInstallAllModels();
-      onToast(r.ok ? '已取消，当前这项会先停住' : '取消失败');
+      onToast(r.ok ? i18n.t('ka7ab5c1a') : i18n.t('k482e8539'));
       setAllRunning(false);
     } catch (err: any) {
       onToast(String(err?.message || err));
@@ -131,26 +132,26 @@ export default function DownloadSection({
     try {
       if (kind === 'install') {
         const r = await api.installModel(item.id);
-        if (!r.ok) onToast(r.error || '下载未能开始');
-        else onToast(`已开始下载：${item.name}`);
+        if (!r.ok) onToast(r.error || i18n.t('k05f9b9a8'));
+        else onToast(i18n.t('k1d7887a3', { p0: item.name }));
         void load();
       } else if (kind === 'cancel') {
         const r = await api.cancelModelDownload(item.id);
-        if (!r.ok) onToast(r.error || '无法取消');
-        else onToast('已请求取消');
+        if (!r.ok) onToast(r.error || i18n.t('k675a760e'));
+        else onToast(i18n.t('ke650001d'));
         void load();
       } else if (kind === 'remove') {
-        const warn = item.required ? `「${item.name}」是核心权重，删除后相关功能会直接不可用。确定删除？` : `确定删除「${item.name}」？`;
+        const warn = item.required ? i18n.t('k99d45ef2', { p0: item.name }) : i18n.t('k01baa048', { p0: item.name });
         if (!window.confirm(warn)) return;
         const r = await api.removeModel(item.id);
-        if (!r.ok) onToast(r.error || '删除失败');
+        if (!r.ok) onToast(r.error || i18n.t('kacf0664a'));
         else {
-          onToast(`已删除：${item.name}`);
+          onToast(i18n.t('k34d941d3', { p0: item.name }));
           setData(r);
         }
       } else {
         const r = await api.verifyModel(item.id);
-        onToast(r.ok ? r.message || '校验通过' : r.error || '校验未通过');
+        onToast(r.ok ? r.message || i18n.t('k9a9088c0') : r.error || i18n.t('kdd64a02b'));
       }
     } catch (err: any) {
       onToast(String(err?.message || err));
@@ -161,10 +162,10 @@ export default function DownloadSection({
 
   if (error && !data) {
     return (
-      <Card title="下载中心" desc="软件用到的全部模型与运行库">
+      <Card title={i18n.t('k937902e1')} desc={i18n.t('k7ddf83bd')}>
         <div style={{ color: 'var(--danger, #d33)', fontSize: 13 }}>读取失败：{error}</div>
         <button className="btn" style={{ marginTop: 10 }} onClick={() => void load()}>
-          重试
+          {i18n.t('k132c5cdc')}
         </button>
       </Card>
     );
@@ -175,8 +176,8 @@ export default function DownloadSection({
 
   return (
     <Card
-      title="下载中心"
-      desc="软件用到的全部模型与运行库都在这里下载、更新、清理。装在库所在目录，换库不用重下。"
+      title={i18n.t('k937902e1')}
+      desc={i18n.t('k84725777')}
     >
       {/* 总览 */}
       <div
@@ -191,30 +192,30 @@ export default function DownloadSection({
           marginBottom: 14,
         }}
       >
-        <Stat label="已下载" value={summary ? `${summary.installed} / ${summary.total}` : '—'} />
-        <Stat label="占用空间" value={summary ? fmtBytes(summary.bytes) : '—'} />
-        <Stat label="可清理" value={summary ? fmtBytes(summary.removableBytes) : '—'} />
-        {summary && summary.updates > 0 && <Stat label="待更新" value={`${summary.updates} 项`} warn />}
+        <Stat label={i18n.t('k9719fec8')} value={summary ? `${summary.installed} / ${summary.total}` : '—'} />
+        <Stat label={i18n.t('kad35f58f')} value={summary ? fmtBytes(summary.bytes) : '—'} />
+        <Stat label={i18n.t('kd28aeb5f')} value={summary ? fmtBytes(summary.removableBytes) : '—'} />
+        {summary && summary.updates > 0 && <Stat label={i18n.t('k840ecc96')} value={i18n.t('kc6ae400b', { p0: summary.updates })} warn />}
         <div style={{ marginLeft: 'auto', display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
           {allRunning ? (
             <>
-              <span style={{ fontSize: 12, color: 'var(--text-3, #8a8f98)' }}>批量下载中，一项一项装…</span>
+              <span style={{ fontSize: 12, color: 'var(--text-3, #8a8f98)' }}>{i18n.t('k5ea0e030')}</span>
               <button className="btn" disabled={busy === 'install-all'} onClick={() => void cancelAll()}>
-                取消全部下载
+                {i18n.t('k080273c8')}
               </button>
             </>
           ) : (
             <button
               className="btn primary"
               disabled={!pendingItems.length || busy === 'install-all'}
-              title={pendingItems.length ? '把没下载的模型全部排队装好' : '所有模型都已下载'}
+              title={pendingItems.length ? i18n.t('k42c58c59') : i18n.t('kb5e47f2e')}
               onClick={() => void startAll()}
             >
-              {pendingItems.length ? `全部下载（${pendingItems.length} 项 · 约 ${fmtBytes(pendingBytes)}）` : '已全部下载'}
+              {pendingItems.length ? i18n.t('kbe584330', { p0: pendingItems.length, p1: fmtBytes(pendingBytes) }) : i18n.t('ke20fceb7')}
             </button>
           )}
           <button className="btn" disabled={checking} onClick={() => void load()}>
-            刷新
+            {i18n.t('k694fc5ef')}
           </button>
           <button
             className="btn"
@@ -223,18 +224,18 @@ export default function DownloadSection({
               setChecking(true);
               try {
                 await load();
-                onToast('已重新扫描磁盘');
+                onToast(i18n.t('k7ae8e696'));
               } finally {
                 setChecking(false);
               }
             }}
           >
-            {checking ? '扫描中…' : '重新扫描'}
+            {checking ? i18n.t('k68c15533') : i18n.t('k75e1781b')}
           </button>
         </div>
       </div>
 
-      {!data && <div className="settings-desc">读取中…</div>}
+      {!data && <div className="settings-desc">{i18n.t('k8b5015f0')}</div>}
 
       {groups.map((g) => {
         const items = (data?.items || []).filter((m) => m.group === g.id);
@@ -265,7 +266,7 @@ export default function DownloadSection({
       })}
 
       <div className="settings-desc" style={{ marginTop: 4 }}>
-        隐私说明：所有推理都在本机完成，图片不会上传。模型来自 HuggingFace / GitHub，走官方与镜像双通道，下载后按随包哈希校验。
+        {i18n.t('k11344dab')}
       </div>
     </Card>
   );
@@ -309,15 +310,15 @@ function ModelRow({
     >
       <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
         <span style={{ fontSize: 13, fontWeight: 600 }}>{item.name}</span>
-        {item.required && <Badge tone="neutral">核心</Badge>}
+        {item.required && <Badge tone="neutral">{i18n.t('k976a3e8e')}</Badge>}
         {item.installed && !item.error ? (
-          <Badge tone="ok">已下载</Badge>
+          <Badge tone="ok">{i18n.t('k9719fec8')}</Badge>
         ) : (
-          <Badge tone="muted">未下载</Badge>
+          <Badge tone="muted">{i18n.t('k33618963')}</Badge>
         )}
-        {item.updateAvailable && <Badge tone="warn">可更新</Badge>}
+        {item.updateAvailable && <Badge tone="warn">{i18n.t('kb48cca48')}</Badge>}
         <span style={{ marginLeft: 'auto', fontSize: 12, color: 'var(--text-3, #8a8f98)' }}>
-          {item.installed ? fmtBytes(item.size) : `约 ${fmtBytes(item.sizeHint)}`}
+          {item.installed ? fmtBytes(item.size) : i18n.t('k326af30e', { p0: fmtBytes(item.sizeHint) })}
         </span>
       </div>
 
@@ -325,7 +326,7 @@ function ModelRow({
 
       <div style={{ fontSize: 11.5, color: 'var(--text-3, #8a8f98)', marginTop: 3 }}>
         {item.source} · {item.license}
-        {item.installed && item.verified ? ' · 已校验' : item.installed ? '' : ''}
+        {item.installed && item.verified ? i18n.t('kd8285fbc') : item.installed ? '' : ''}
       </div>
       {item.note && (
         <div style={{ fontSize: 11.5, color: 'var(--text-3, #8a8f98)', marginTop: 2, fontStyle: 'italic' }}>
@@ -345,7 +346,7 @@ function ModelRow({
               }}
             />
           </div>
-          <div style={{ fontSize: 11.5, color: 'var(--text-3, #8a8f98)', marginTop: 4 }}>{msg || '下载中…'}</div>
+          <div style={{ fontSize: 11.5, color: 'var(--text-3, #8a8f98)', marginTop: 4 }}>{msg || i18n.t('k0164eeb4')}</div>
         </div>
       )}
 
@@ -356,23 +357,23 @@ function ModelRow({
       <div style={{ display: 'flex', gap: 8, marginTop: 8 }}>
         {downloading ? (
           <button className="btn" disabled={rowBusy} onClick={() => onAct('cancel', item)}>
-            取消
+            {i18n.t('k625fb26b')}
           </button>
         ) : item.installed ? (
           <>
             <button className="btn" disabled={rowBusy} onClick={() => onAct('verify', item)}>
-              校验
+              {i18n.t('kb7579706')}
             </button>
             <button className="btn" disabled={rowBusy} onClick={() => onAct('install', item)}>
-              重新下载
+              {i18n.t('k754569be')}
             </button>
             <button className="btn btn-danger" disabled={rowBusy} onClick={() => onAct('remove', item)}>
-              删除
+              {i18n.t('k2f4aaddd')}
             </button>
           </>
         ) : (
           <button className="btn btn-primary" disabled={rowBusy} onClick={() => onAct('install', item)}>
-            {rowBusy ? '启动中…' : '下载'}
+            {rowBusy ? i18n.t('kf6196bb1') : i18n.t('kf26ef914')}
           </button>
         )}
       </div>

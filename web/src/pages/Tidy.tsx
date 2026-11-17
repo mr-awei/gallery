@@ -6,6 +6,7 @@ import { IconRefresh, IconTrash, IconWand } from '../components/Icons';
 import { IconSliders } from '../components/Icons';
 import DuelView from '../components/DuelView';
 import CompareView from '../components/CompareView';
+import i18n from '../i18n';
 
 interface Props {
   onToast: (msg: string, kind?: 'info' | 'error') => void;
@@ -29,7 +30,7 @@ export default function Tidy({ onToast, onLibraryChanged, filters, folderId, sel
   const resolveScopeIds = useCallback(async (): Promise<number[] | undefined> => {
     if (scope === 'selected') {
       if (!selectedIds?.length) {
-        onToast('还没有选中任何素材，已按全库扫描');
+        onToast(i18n.t('k067f99c5'));
         return undefined;
       }
       return selectedIds;
@@ -38,10 +39,10 @@ export default function Tidy({ onToast, onLibraryChanged, filters, folderId, sel
       try {
         const r = await api.imageIds(filters as Filters, { folderId: folderId ?? null });
         if (!r.ids.length) {
-          onToast('当前筛选条件下没有素材，已按全库扫描');
+          onToast(i18n.t('k7c8bfecd'));
           return undefined;
         }
-        setScopeNote(r.truncated ? '筛选结果过多，只扫描了前一部分' : '');
+        setScopeNote(r.truncated ? i18n.t('kb9763ab9') : '');
         return r.ids;
       } catch (e) {
         onToast((e as Error).message);
@@ -67,7 +68,7 @@ export default function Tidy({ onToast, onLibraryChanged, filters, folderId, sel
       try {
         const res = await api.resolveSimilar(keepId, [loseId]);
         if (!res.removed) {
-          onToast(res.failures?.[0]?.error || '移入回收站失败');
+          onToast(res.failures?.[0]?.error || i18n.t('k806045f4'));
           return false;
         }
         setGroups((prev) =>
@@ -129,7 +130,7 @@ export default function Tidy({ onToast, onLibraryChanged, filters, folderId, sel
   const scan = useCallback(
     async (th = threshold) => {
       setScanning(true);
-      setScanLabel('正在扫描相似图片（按感知哈希逐张比对）…');
+      setScanLabel(i18n.t('k730b62b6'));
       try {
         const ids = await resolveScopeIds();
         const res = await api.similar(th, ids);
@@ -138,8 +139,8 @@ export default function Tidy({ onToast, onLibraryChanged, filters, folderId, sel
         const next: Record<string, number> = {};
         for (const g of res.groups) next[g.key] = g.recommendId;
         setPicked(next);
-        const range = ids?.length ? `（范围 ${ids.length} 张）` : '';
-        onToast(res.count ? `发现 ${res.count} 组相似图片${range}` : `没有发现相似图片${range}`);
+        const range = ids?.length ? i18n.t('k77b258c5', { p0: ids.length }) : '';
+        onToast(res.count ? i18n.t('k7913a54d', { p0: res.count, p1: range }) : i18n.t('k135cf395', { p0: range }));
       } catch (err) {
         onToast((err as Error).message, 'error');
       } finally {
@@ -153,7 +154,7 @@ export default function Tidy({ onToast, onLibraryChanged, filters, folderId, sel
   // 同名跨格式去重：同目录同名（如 5.jpg 与 5.png）视为同一张，推荐保留 PNG
   const scanFormat = useCallback(async () => {
     setScanning(true);
-    setScanLabel('正在扫描同名 JPG/PNG 重复…');
+    setScanLabel(i18n.t('k3ca023cc'));
     try {
       // 先登记磁盘上新增/手动拷入的文件，否则只有 png 在库里、jpg 配不成对
       const scanned = await api.scanFolder();
@@ -164,8 +165,8 @@ export default function Tidy({ onToast, onLibraryChanged, filters, folderId, sel
       const next: Record<string, number> = {};
       for (const g of res.groups) next[g.key] = g.recommendId;
       setPicked(next);
-      const extra = scanned.saved ? `（本次新登记 ${scanned.saved} 张）` : '';
-      onToast(res.count ? `发现 ${res.count} 组同名格式重复（推荐保留 PNG）${extra}` : `没有同名 JPG/PNG 重复${extra}`);
+      const extra = scanned.saved ? i18n.t('k240aa08b', { p0: scanned.saved }) : '';
+      onToast(res.count ? i18n.t('kd3796db1', { p0: res.count, p1: extra }) : i18n.t('ke94a7eb7', { p0: extra }));
     } catch (err) {
       onToast((err as Error).message, 'error');
     } finally {
@@ -177,7 +178,7 @@ export default function Tidy({ onToast, onLibraryChanged, filters, folderId, sel
   // CLIP 深度特征相似：余弦 ≥ 0.92 视为同类，能抓住 pHash 漏掉的裁剪/旋转/滤镜变体
   const scanClip = useCallback(async () => {
     setScanning(true);
-    setScanLabel('正在进行 CLIP 深度相似分析（AI 视觉特征比对）…');
+    setScanLabel(i18n.t('k6460338e'));
     try {
       const ids = await resolveScopeIds();
       const res = await api.similarClip(0.92, ids);
@@ -186,10 +187,10 @@ export default function Tidy({ onToast, onLibraryChanged, filters, folderId, sel
       const next: Record<string, number> = {};
       for (const g of res.groups) next[g.key] = g.recommendId;
       setPicked(next);
-      if (!res.count) return onToast('没有发现深度相似的图片');
+      if (!res.count) return onToast(i18n.t('k7698ad8e'));
       const exact = res.groups.filter((g) => g.tier === 'exact').length;
       onToast(
-        `发现 ${res.count} 组：${exact} 组完全重复（可一键清理），${res.count - exact} 组系列照（只折叠，不自动删）`
+        i18n.t('k0a4bd4f7', { p0: res.count, p1: exact, p2: res.count - exact })
       );
     } catch (err) {
       onToast((err as Error).message, 'error');
@@ -205,7 +206,7 @@ export default function Tidy({ onToast, onLibraryChanged, filters, folderId, sel
    */
   const scanMd5 = useCallback(async () => {
     setScanning(true);
-    setScanLabel('正在补算 MD5 指纹（按字节完全一致才算重复）…');
+    setScanLabel(i18n.t('k7110bf1f'));
     try {
       let remaining = 1;
       let done = 0;
@@ -213,7 +214,7 @@ export default function Tidy({ onToast, onLibraryChanged, filters, folderId, sel
         const b = await api.md5Backfill(500);
         done += b.done;
         remaining = b.remaining;
-        if (b.done > 0) setJobProgress(`已补算 ${done} 张，剩余 ${remaining} 张`);
+        if (b.done > 0) setJobProgress(i18n.t('k996dd2d1', { p0: done, p1: remaining }));
         if (!b.done) break;
       }
       const res = await api.md5Dupes();
@@ -225,7 +226,7 @@ export default function Tidy({ onToast, onLibraryChanged, filters, folderId, sel
       const next: Record<string, number> = {};
       for (const g of res.groups) next[g.md5] = g.items[0]?.id;
       setMd5Keep(next);
-      onToast(res.groups.length ? `发现 ${res.groups.length} 组完全重复，可回收 ${formatSize(res.reclaim || 0)}` : '没有字节完全相同的重复文件');
+      onToast(res.groups.length ? i18n.t('k661d684a', { p0: res.groups.length, p1: formatSize(res.reclaim || 0) }) : i18n.t('k4c4224de'));
     } catch (err) {
       onToast((err as Error).message, 'error');
     } finally {
@@ -240,7 +241,7 @@ export default function Tidy({ onToast, onLibraryChanged, filters, folderId, sel
     const keep = md5Keep[g.md5] || g.items[0]?.id;
     const ids = g.items.filter((it) => it.id !== keep).map((it) => it.id);
     if (!ids.length) return;
-    if (!(await confirmDialog(`保留 1 张，把另外 ${ids.length} 张移入回收站？（可在「设置 → 数据与维护」恢复）`)))
+    if (!(await confirmDialog(i18n.t('kb3d0ff9b', { p0: ids.length }))))
       return;
     setBusy(g.md5);
     try {
@@ -248,9 +249,9 @@ export default function Tidy({ onToast, onLibraryChanged, filters, folderId, sel
       const failed = r.failed || [];
       if (failed.length) {
         // 部分失败必须如实说：之前无论删没删成都提示「已解决」，重复项还在列表里消失
-        onToast(`已移入回收站 ${r.removed} 张，${failed.length} 张失败：${failed[0].error}`, 'error');
+        onToast(i18n.t('k5eafc6fa', { p0: r.removed, p1: failed.length, p2: failed[0].error }), 'error');
       } else {
-        onToast(`已移入回收站 ${r.removed} 张`);
+        onToast(i18n.t('k4e6ca751', { p0: r.removed }));
       }
       // 有失败就保留这组，方便用户重试
       if (!failed.length) setMd5Groups((prev) => prev.filter((x) => x.md5 !== g.md5));
@@ -266,7 +267,7 @@ export default function Tidy({ onToast, onLibraryChanged, filters, folderId, sel
   const resolveAllMd5 = async () => {
     if (!md5Groups.length) return;
     const total = md5Groups.reduce((s, g) => s + g.items.length - 1, 0);
-    if (!(await confirmDialog(`将处理 ${md5Groups.length} 组，共移入回收站 ${total} 张（每组保留一张）？`))) return;
+    if (!(await confirmDialog(i18n.t('k584b720e', { p0: md5Groups.length, p1: total })))) return;
     setBusy('__md5all__');
     let removed = 0;
     let failed = 0;
@@ -287,8 +288,8 @@ export default function Tidy({ onToast, onLibraryChanged, filters, folderId, sel
       setMd5Groups((prev) => prev.filter((g) => !done.includes(g.md5)));
       onToast(
         failed
-          ? `已移入回收站 ${removed} 张，${failed} 张失败（这些组已保留，可重试）`
-          : `已移入回收站 ${removed} 张`
+          ? i18n.t('k3644067d', { p0: removed, p1: failed })
+          : i18n.t('k4e6ca751', { p0: removed })
       );
       onLibraryChanged();
     } catch (err) {
@@ -335,19 +336,19 @@ export default function Tidy({ onToast, onLibraryChanged, filters, folderId, sel
     const keep = keepOverride ?? (picked[g.key] || g.recommendId);
     const removeIds = g.items.filter((it) => it.id !== keep).map((it) => it.id);
     if (!removeIds.length) {
-      onToast('这组只有一张图，无需处理');
+      onToast(i18n.t('ke92ca59e'));
       return true;
     }
     if (
       !(await confirmDialog(
-        `保留 1 张，把另外 ${removeIds.length} 张移入应用内回收站？（可在「设置 → 数据与维护」恢复）`
+        i18n.t('k43c2a53e', { p0: removeIds.length })
       ))
     )
       return false;
     setBusy(g.key);
     try {
       const res = await api.resolveSimilar(keep, removeIds);
-      onToast(res.removed ? `已移入回收站 ${res.removed} 张` : '没有删除任何图片');
+      onToast(res.removed ? i18n.t('k4e6ca751', { p0: res.removed }) : i18n.t('kc8b30d2b'));
       setGroups((prev) => prev.filter((x) => x.key !== g.key));
       loadStats();
       onLibraryChanged();
@@ -364,13 +365,13 @@ export default function Tidy({ onToast, onLibraryChanged, filters, folderId, sel
     const list = visibleGroups.filter((g) => g.tier !== 'series');
     const seriesCount = visibleGroups.length - list.length;
     if (!list.length) {
-      onToast(seriesCount ? `${seriesCount} 组都是系列照，已跳过（请逐组人工确认）` : '没有可处理的组');
+      onToast(seriesCount ? i18n.t('kc13ca786', { p0: seriesCount }) : i18n.t('k092cf89d'));
       return;
     }
     const total = list.reduce((s, g) => s + g.items.length - 1, 0);
-    const tip = seriesCount ? `另有 ${seriesCount} 组系列照已跳过` : '';
+    const tip = seriesCount ? i18n.t('k908c2742', { p0: seriesCount }) : '';
     if (
-      !(await confirmDialog(`将处理 ${list.length} 组，共移入回收站 ${total} 张（每组保留推荐的那张）。${tip}确定吗？`))
+      !(await confirmDialog(i18n.t('kef322d33', { p0: list.length, p1: total, p2: tip })))
     )
       return;
     setBusy('__all__');
@@ -386,7 +387,7 @@ export default function Tidy({ onToast, onLibraryChanged, filters, folderId, sel
         removed += res.removed;
         doneKeys.add(g.key);
       }
-      onToast(`已移入回收站 ${removed} 张${seriesCount ? `，${seriesCount} 组系列照保留待人工确认` : ''}`);
+      onToast(i18n.t('k97df5de1', { p0: removed, p1: seriesCount ? i18n.t('kefed2f7c', { p0: seriesCount }) : '' }));
       setGroups((prev) => prev.filter((g) => !doneKeys.has(g.key)));
       loadStats();
       onLibraryChanged();
@@ -399,17 +400,17 @@ export default function Tidy({ onToast, onLibraryChanged, filters, folderId, sel
 
   /** 补算主色（分批循环到算完） */
   const runDominant = async () => {
-    if (!stats?.noDominant) return onToast('所有图片都已有主色');
+    if (!stats?.noDominant) return onToast(i18n.t('k5f4cc923'));
     setBusy('dominant');
     let done = 0;
     try {
       for (;;) {
         const res = await api.backfillDominant(300);
         done += res.done;
-        setJobProgress(`已处理 ${done} 张，剩余 ${res.remain} 张`);
+        setJobProgress(i18n.t('k3d230127', { p0: done, p1: res.remain }));
         if (!res.remain || !res.done) break;
       }
-      onToast(`主色补算完成，共 ${done} 张`);
+      onToast(i18n.t('kd36ea20c', { p0: done }));
       loadStats();
     } catch (err) {
       onToast((err as Error).message, 'error');
@@ -421,7 +422,7 @@ export default function Tidy({ onToast, onLibraryChanged, filters, folderId, sel
 
   /** 补算主体哈希（白底抠图归一化 pHash，相似分组更准）：分批循环到算完 */
   const runSubject = async () => {
-    if (!stats?.noObjHash) return onToast('所有图片都已有主体哈希');
+    if (!stats?.noObjHash) return onToast(i18n.t('kb5c85d23'));
     setBusy('subject');
     let done = 0;
     let skipped = 0;
@@ -430,10 +431,10 @@ export default function Tidy({ onToast, onLibraryChanged, filters, folderId, sel
         const res = await api.backfillSubject(200);
         done += res.done;
         skipped += res.skipped ?? 0;
-        setJobProgress(`已处理 ${done + skipped} 张，剩余 ${res.remain} 张`);
+        setJobProgress(i18n.t('k3d230127', { p0: done + skipped, p1: res.remain }));
         if (!res.remain || (!res.done && !res.skipped)) break;
       }
-      onToast(skipped ? `主体哈希完成：${done} 张算出，${skipped} 张非白底已跳过` : `主体哈希补算完成，共 ${done} 张`);
+      onToast(skipped ? i18n.t('kc65cf801', { p0: done, p1: skipped }) : i18n.t('kc8003208', { p0: done }));
       loadStats();
     } catch (err) {
       onToast((err as Error).message, 'error');
@@ -445,22 +446,22 @@ export default function Tidy({ onToast, onLibraryChanged, filters, folderId, sel
 
   /** AI 打标（分批循环，供自然语言搜索） */
   const runAiTag = async () => {
-    if (!stats?.noAiDesc) return onToast('所有图片都已有 AI 描述');
+    if (!stats?.noAiDesc) return onToast(i18n.t('k25c20c72'));
     setBusy('ai');
     let done = 0;
     try {
       for (let i = 0; i < 200; i++) {
         const res = await api.aiTagBatch(4);
         done += res.done;
-        setJobProgress(`AI 已分析 ${done} 张，剩余 ${res.remain} 张`);
+        setJobProgress(i18n.t('k53adf23d', { p0: done, p1: res.remain }));
         if (!res.remain) break;
         if (!res.done) {
           const err = res.results.find((r) => !r.ok)?.error;
-          onToast(err ? `AI 分析中断：${err}` : 'AI 分析没有进展');
+          onToast(err ? i18n.t('k045ab030', { p0: err }) : i18n.t('k99cab8a1'));
           break;
         }
       }
-      onToast(`AI 打标完成，共 ${done} 张`);
+      onToast(i18n.t('k5fb8416a', { p0: done }));
       loadStats();
     } catch (err) {
       onToast((err as Error).message, 'error');
@@ -476,34 +477,34 @@ export default function Tidy({ onToast, onLibraryChanged, filters, folderId, sel
     <div>
       <div className="page-head">
         <div>
-          <h1 className="page-title">整理</h1>
+          <h1 className="page-title">{i18n.t('k1b6c7716')}</h1>
           <div className="page-sub">
             {mode === 'format'
-              ? '同名格式去重：同目录下同名 JPG/PNG 视为同一张，推荐保留更清晰的 PNG'
+              ? i18n.t('kfc9a2b18')
               : mode === 'clip'
-                ? 'CLIP 深度相似：按 AI 视觉特征分组，裁剪 / 旋转 / 加滤镜的变体也能归到一组'
+                ? i18n.t('kbd4f058a')
                 : mode === 'md5'
-                  ? '完全重复（MD5）：按字节逐位比对，只有一模一样的文件才会出现；与上面的 pHash 相似合并互补'
-                  : '相似图审查合并 · 主色补算 · AI 描述打标（让搜索能听懂自然语言）'}
+                  ? i18n.t('kace52fff')
+                  : i18n.t('k4b9b6782')}
           </div>
         </div>
         <div style={{ display: 'flex', gap: 8 }}>
           <button className="btn" onClick={scanClip} disabled={scanning}>
-            <IconWand /> CLIP 深度相似
+            <IconWand /> {i18n.t('k071a1dc4')}
           </button>
           <button className="btn" onClick={scanFormat} disabled={scanning}>
-            <IconWand /> 同名 JPG/PNG 去重
+            <IconWand /> {i18n.t('k3115634d')}
           </button>
           <button
             className="btn"
             onClick={scanMd5}
             disabled={scanning}
-            title="按字节完全一致分组（MD5），与 pHash 相似检测互补"
+            title={i18n.t('k7d423ed0')}
           >
-            <IconWand /> 完全重复（MD5）
+            <IconWand /> {i18n.t('k37499f1b')}
           </button>
           <button className="btn" onClick={() => scan()} disabled={scanning}>
-            <IconRefresh /> {scanning ? '扫描中…' : '重新扫描相似图'}
+            <IconRefresh /> {scanning ? i18n.t('k68c15533') : i18n.t('k74e9f7de')}
           </button>
           {mode === 'md5' ? (
             <button
@@ -511,7 +512,7 @@ export default function Tidy({ onToast, onLibraryChanged, filters, folderId, sel
               onClick={resolveAllMd5}
               disabled={!!busy || !md5Groups.length}
             >
-              <IconTrash /> 一键清理重复
+              <IconTrash /> {i18n.t('kbd033310')}
             </button>
           ) : (
             <button
@@ -519,7 +520,7 @@ export default function Tidy({ onToast, onLibraryChanged, filters, folderId, sel
               onClick={resolveAll}
               disabled={!!busy || !visibleGroups.length}
             >
-              <IconTrash /> 一键保留最佳
+              <IconTrash /> {i18n.t('k4e7a08b3')}
             </button>
           )}
           {skipped.size > 0 && (
@@ -529,7 +530,7 @@ export default function Tidy({ onToast, onLibraryChanged, filters, folderId, sel
                 try {
                   await api.tidySkipReset();
                   setSkipped(new Set());
-                  onToast('已重置全部「不处理」，被跳过的组会重新出现');
+                  onToast(i18n.t('kcb6f6cfa'));
                 } catch (e) {
                   onToast((e as Error).message);
                 }
@@ -550,48 +551,48 @@ export default function Tidy({ onToast, onLibraryChanged, filters, folderId, sel
             {scanning
               ? scanLabel
               : busy === 'dominant'
-                ? '正在补算主色（解码逐张取主色）…'
+                ? i18n.t('k0c907b6b')
                 : busy === 'subject'
-                  ? '正在补算主体哈希（抠出商品主体后重新计算指纹）…'
-                  : 'AI 正在分析图片（生成搜索用描述）…'}
+                  ? i18n.t('kd33947d3')
+                  : i18n.t('k88f8ff3a')}
           </span>
-          <span className="job-meta">{jobProgress || `已耗时 ${elapsed}s`}</span>
+          <span className="job-meta">{jobProgress || i18n.t('ka2aa36fd', { p0: elapsed })}</span>
         </div>
       )}
 
       {mode === 'md5' ? (
         <div className="toolbar">
-          <span style={{ color: 'var(--muted)', fontSize: 12 }}>按 MD5 + 字节大小精确分组</span>
+          <span style={{ color: 'var(--muted)', fontSize: 12 }}>{i18n.t('k70ab30cb')}</span>
           <span className="hint" style={{ marginLeft: 4 }}>
-            完全相同的文件才会归为一组（与 pHash 相似合并互补）
+            {i18n.t('kbe37efc3')}
           </span>
           <span style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: 10 }}>
             <span style={{ color: 'var(--muted)', fontSize: 12.5 }}>
               {md5Groups.length} 组 · 可回收 {formatSize(md5Reclaim)}
-              {md5Missing > 0 ? ` · ${md5Missing} 张待补算指纹` : ''}
+              {md5Missing > 0 ? i18n.t('k313d0a76', { p0: md5Missing }) : ''}
             </span>
             <button className="btn sm" onClick={scanMd5} disabled={scanning}>
-              <IconRefresh /> 重新检测
+              <IconRefresh /> {i18n.t('kf515f8fb')}
             </button>
           </span>
         </div>
       ) : (
         <div className="toolbar">
-          <span style={{ color: 'var(--muted)', fontSize: 12 }}>扫描范围</span>
+          <span style={{ color: 'var(--muted)', fontSize: 12 }}>{i18n.t('k6bb5fc14')}</span>
           <select
             className="input"
             style={{ padding: '4px 8px', fontSize: 12.5 }}
             value={scope}
             onChange={(e) => setScope(e.target.value as 'all' | 'filter' | 'selected')}
-            title="只比较这一批素材，避免全库扫描把无关的组带出来"
+            title={i18n.t('kd9c52931')}
           >
-            <option value="all">全库</option>
-            <option value="filter">当前筛选结果</option>
+            <option value="all">{i18n.t('kd5190d5f')}</option>
+            <option value="filter">{i18n.t('k35134b52')}</option>
             <option value="selected" disabled={!selectedIds?.length}>
               已选中 {selectedIds?.length || 0} 张
             </option>
           </select>
-          <span style={{ color: 'var(--muted)', fontSize: 12, marginLeft: 6 }}>相似度阈值</span>
+          <span style={{ color: 'var(--muted)', fontSize: 12, marginLeft: 6 }}>{i18n.t('k2980caa0')}</span>
           <input
             type="range"
             min={2}
@@ -616,9 +617,9 @@ export default function Tidy({ onToast, onLibraryChanged, filters, folderId, sel
           !scanning && (
             <div className="empty">
               <div className="big"><IconSliders size={42} /></div>
-              <h3>没有字节完全相同的重复文件</h3>
+              <h3>{i18n.t('k4c4224de')}</h3>
               <p style={{ color: 'var(--muted)', fontSize: 13 }}>
-                同一张图被重复导入、或从不同渠道存成两份时才会出现在这里；相似但不同的图请在 pHash 那栏处理
+                {i18n.t('k0b5d21d8')}
               </p>
             </div>
           )
@@ -638,14 +639,14 @@ export default function Tidy({ onToast, onLibraryChanged, filters, folderId, sel
                       color: 'var(--err, #e5484d)',
                     }}
                   >
-                    MD5 一致 · 可放心清理
+                    {i18n.t('k288aa511')}
                   </span>
                   <span className="hint">
                     {formatSize(g.size)} / 个 · MD5 {g.md5.slice(0, 12)}…
                   </span>
                   <div style={{ marginLeft: 'auto' }}>
                     <button className="btn sm danger" onClick={() => resolveMd5(g)} disabled={!!busy}>
-                      {busy === g.md5 ? '处理中…' : `保留选中的，删其余 ${g.items.length - 1} 个`}
+                      {busy === g.md5 ? i18n.t('kcf978c02') : i18n.t('ka14dcaa5', { p0: g.items.length - 1 })}
                     </button>
                   </div>
                 </div>
@@ -674,9 +675,9 @@ export default function Tidy({ onToast, onLibraryChanged, filters, folderId, sel
       {mode !== 'md5' && visibleGroups.length === 0 && !scanning && (
         <div className="empty">
           <div className="big"><IconTrash size={42} /></div>
-          <h3>没有需要合并的相似图片</h3>
+          <h3>{i18n.t('kc7a18e30')}</h3>
           <p style={{ color: 'var(--muted)', fontSize: 13 }}>
-            同一张照片的不同裁剪 / 不同来源版本会自动出现在这里，可整组对比后保留最清晰的那张
+            {i18n.t('kbf785cc3')}
           </p>
         </div>
       )}
@@ -697,7 +698,7 @@ export default function Tidy({ onToast, onLibraryChanged, filters, folderId, sel
                     color: 'var(--err, #e5484d)',
                   }}
                 >
-                  完全重复 · 可放心清理
+                  {i18n.t('k2722a8b0')}
                 </span>
               ) : g.tier === 'series' ? (
                 <span
@@ -708,30 +709,30 @@ export default function Tidy({ onToast, onLibraryChanged, filters, folderId, sel
                     background: 'rgba(240,170,40,.15)',
                     color: '#e8a33d',
                   }}
-                  title="同一场拍摄的多帧，不算重复。已按画质排好序，想要留哪张自己勾选"
+                  title={i18n.t('k4370187c')}
                 >
-                  系列照 · 建议保留，不自动清理
+                  {i18n.t('k7bd8bdd0')}
                 </span>
               ) : null}
               <span className="hint">
-                选一张保留，其余移入回收站（推荐项已按「清晰度 × 分辨率」自动选中）
+                {i18n.t('ke397516e')}
               </span>
               <div style={{ marginLeft: 'auto', display: 'flex', gap: 8 }}>
                 <button
                   className="btn sm"
                   onClick={() => setDuel(g)}
                   disabled={g.items.length < 2}
-                  title="两个一组逐对比较：败者立即移入回收站，直到只剩一张"
+                  title={i18n.t('kf1899581')}
                 >
-                  两两对比
+                  {i18n.t('k2d4bdcd5')}
                 </button>
                 <button
                   className="btn sm"
                   onClick={() => setCmpGroup(g)}
                   disabled={g.items.length < 2}
-                  title="并排 / 分割（拖分界线）/ 重叠（调不透明度）三种方式细看差异"
+                  title={i18n.t('k17e5a96d')}
                 >
-                  三种对比
+                  {i18n.t('kfb27722a')}
                 </button>
                 <button
                   className="btn sm"
@@ -745,10 +746,10 @@ export default function Tidy({ onToast, onLibraryChanged, filters, folderId, sel
                   }}
                   disabled={!!busy}
                 >
-                  这组不处理
+                  {i18n.t('k552f8d52')}
                 </button>
                 <button className="btn sm danger" onClick={() => resolve(g)} disabled={!!busy}>
-                  {busy === g.key ? '处理中…' : `保留选中的，删其余 ${g.items.length - 1} 张`}
+                  {busy === g.key ? i18n.t('kcf978c02') : i18n.t('k27cc6608', { p0: g.items.length - 1 })}
                 </button>
               </div>
             </div>
@@ -765,9 +766,9 @@ export default function Tidy({ onToast, onLibraryChanged, filters, folderId, sel
                   <div className="similar-meta">
                     <span>{label(it)}</span>
                     <span>
-                      {typeof it.quality === 'number' ? `画质 ${it.quality}` : `评分 ${it.score}`}
+                      {typeof it.quality === 'number' ? i18n.t('k723ad1eb', { p0: it.quality }) : i18n.t('k13808e97', { p0: it.score })}
                       {it.rating > 0 ? ` · ${'★'.repeat(it.rating)}` : ''}
-                      {it.id === g.recommendId ? ' · 推荐' : ''}
+                      {it.id === g.recommendId ? i18n.t('kfc4e063a') : ''}
                     </span>
                     <span className="hint">{it.source}</span>
                   </div>
@@ -781,7 +782,7 @@ export default function Tidy({ onToast, onLibraryChanged, filters, folderId, sel
       {/* 增量渲染哨兵：进入视口就再放 30 组出来 */}
       {(visibleGroups.length > groupLimit || md5Groups.length > groupLimit) && (
         <div ref={sentinelRef} className="hint" style={{ padding: '14px 0', textAlign: 'center' }}>
-          {`已显示 ${Math.min(groupLimit, mode === 'md5' ? md5Groups.length : visibleGroups.length)} 组，继续滚动加载更多…`}
+          {i18n.t('k9a635b5f', { p0: Math.min(groupLimit, mode === 'md5' ? md5Groups.length : visibleGroups.length) })}
         </div>
       )}
 
@@ -805,7 +806,7 @@ export default function Tidy({ onToast, onLibraryChanged, filters, folderId, sel
           group={duel}
           onEliminate={eliminateOne}
           onFinished={() => {
-            onToast('整组处理完成，只保留了画质最佳的一张');
+            onToast(i18n.t('k664e0604'));
             setGroups((prev) => prev.filter((g) => g.key !== duel.key));
             loadStats();
             setDuel(null);
@@ -815,7 +816,7 @@ export default function Tidy({ onToast, onLibraryChanged, filters, folderId, sel
       )}
 
       <div className="card">
-        <h4 className="section-title">素材维护</h4>
+        <h4 className="section-title">{i18n.t('k468aabaa')}</h4>
         <div className="hint" style={{ marginBottom: 10, lineHeight: 1.9 }}>
           · 库内共 {stats?.total ?? '…'} 张，已评分 {stats?.rated ?? 0} 张
           <br />          · 缺主色：{stats?.noDominant ?? '…'} 张（主色用于「找同色」与颜色筛选）
@@ -824,16 +825,16 @@ export default function Tidy({ onToast, onLibraryChanged, filters, folderId, sel
         </div>
         <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
           <button className="btn" onClick={runDominant} disabled={!!busy}>
-            <IconWand /> {busy === 'dominant' ? '补算主色中…' : '补算主色'}
+            <IconWand /> {busy === 'dominant' ? i18n.t('kc19afbe1') : i18n.t('kbffcc1ff')}
           </button>
           <button className="btn" onClick={runSubject} disabled={!!busy}>
-            <IconWand /> {busy === 'subject' ? '补算主体哈希中…' : '补算主体哈希'}
+            <IconWand /> {busy === 'subject' ? i18n.t('k21dc4846') : i18n.t('k4c41f223')}
           </button>
           <button className="btn" onClick={runAiTag} disabled={!!busy}>
-            <IconWand /> {busy === 'ai' ? 'AI 分析中…' : '批量 AI 打标'}
+            <IconWand /> {busy === 'ai' ? i18n.t('kb1ee39eb') : i18n.t('kfef40924')}
           </button>
           <button className="btn" onClick={loadStats} disabled={!!busy}>
-            刷新统计
+            {i18n.t('kba542a85')}
           </button>
           {jobProgress && <span className="hint" style={{ alignSelf: 'center' }}>{jobProgress}</span>}
         </div>

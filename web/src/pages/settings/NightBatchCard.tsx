@@ -1,14 +1,15 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { api } from '../../api';
 import Card from './Card';
+import i18n from '../../i18n';
 
 interface Props {
   onToast: (msg: string, type?: 'info' | 'error') => void;
 }
 
 const TASKS: { key: 'semantic' | 'face'; label: string; hint: string }[] = [
-  { key: 'semantic', label: '语义索引', hint: '让「以图搜图 / 语义搜索」能命中晚上导入的图' },
-  { key: 'face', label: '人脸索引', hint: '人物页的分组与命名' },
+  { key: 'semantic', label: i18n.t('kdcec5f42'), hint: i18n.t('ke0d26045') },
+  { key: 'face', label: i18n.t('k6945ac81'), hint: i18n.t('ke42b82fa') },
 ];
 
 /**
@@ -28,7 +29,7 @@ export default function NightBatchCard({ onToast }: Props) {
         .nightBatch()
         .then(setState)
         .catch((err) => {
-          if (!silent) onToast(`夜间批处理状态读取失败：${(err as Error).message}`, 'error');
+          if (!silent) onToast(i18n.t('kd96f4827', { p0: (err as Error).message }), 'error');
         });
     },
     [onToast]
@@ -47,7 +48,7 @@ export default function NightBatchCard({ onToast }: Props) {
     try {
       setState(await api.saveNightBatch(patch));
     } catch (err) {
-      onToast(`保存失败：${(err as Error).message}`, 'error');
+      onToast(i18n.t('k837dd027', { p0: (err as Error).message }), 'error');
     }
   };
 
@@ -55,7 +56,7 @@ export default function NightBatchCard({ onToast }: Props) {
     const cur = state?.tasks || [];
     const next = on ? [...new Set([...cur, key])] : cur.filter((t) => t !== key);
     if (!next.length) {
-      onToast('至少要留一项，否则夜里没事可做', 'info');
+      onToast(i18n.t('k0af8b85e'), 'info');
       return;
     }
     void save({ tasks: next });
@@ -66,9 +67,9 @@ export default function NightBatchCard({ onToast }: Props) {
     try {
       const r = await api.runNightBatch();
       if (r.status) setState(r.status);
-      onToast(r.summary ? `本轮完成：${r.summary}` : '已开始处理');
+      onToast(r.summary ? i18n.t('k26278f8f', { p0: r.summary }) : i18n.t('k236a141a'));
     } catch (err) {
-      onToast(`启动失败：${(err as Error).message}`, 'error');
+      onToast(i18n.t('kd96e3f54', { p0: (err as Error).message }), 'error');
     } finally {
       setBusy('');
     }
@@ -79,9 +80,9 @@ export default function NightBatchCard({ onToast }: Props) {
     try {
       const r = await api.stopNightBatch();
       if (r.status) setState(r.status);
-      onToast(r.message || '已停止', 'info');
+      onToast(r.message || i18n.t('k82977854'), 'info');
     } catch (err) {
-      onToast(`停止失败：${(err as Error).message}`, 'error');
+      onToast(i18n.t('k8ce513f7', { p0: (err as Error).message }), 'error');
     } finally {
       setBusy('');
     }
@@ -89,13 +90,13 @@ export default function NightBatchCard({ onToast }: Props) {
 
   const pct = state && state.total > 0 ? Math.min(100, Math.round((state.done / state.total) * 100)) : 0;
   const pending = state?.pending || { semantic: 0, face: 0, total: 0 };
-  const taskLabel = state?.task === 'semantic' ? '语义索引' : state?.task === 'face' ? '人脸索引' : '';
+  const taskLabel = state?.task === 'semantic' ? i18n.t('kdcec5f42') : state?.task === 'face' ? i18n.t('k6945ac81') : '';
 
   return (
     <Card
-      title="AI 夜间批处理"
-      desc="导入后没来得及建的语义 / 人脸索引，留到你设定的时段再补：串行执行、不抢界面。只补缺失的那些，中途关机或切库都能接着来。"
-      badge={state?.running ? <span className="badge">{taskLabel || '运行中'} {pct}%</span> : undefined}
+      title={i18n.t('k41284d5b')}
+      desc={i18n.t('k712d01d7')}
+      badge={state?.running ? <span className="badge">{taskLabel || i18n.t('kd679aea3')} {pct}%</span> : undefined}
     >
       <label className="hint" style={{ display: 'inline-flex', gap: 6, alignItems: 'center' }}>
         <input
@@ -104,11 +105,11 @@ export default function NightBatchCard({ onToast }: Props) {
           disabled={!state}
           onChange={(e) => void save({ enabled: e.target.checked })}
         />
-        开启夜间批处理
+        {i18n.t('k6e782fb9')}
       </label>
 
       <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', alignItems: 'center', marginTop: 10 }}>
-        <span className="hint">时段</span>
+        <span className="hint">{i18n.t('k6de97eb2')}</span>
         <input
           className="input sm"
           type="time"
@@ -117,7 +118,7 @@ export default function NightBatchCard({ onToast }: Props) {
           disabled={!state?.enabled}
           onChange={(e) => void save({ start: e.target.value })}
         />
-        <span className="hint">到</span>
+        <span className="hint">{i18n.t('kd716f1e8')}</span>
         <input
           className="input sm"
           type="time"
@@ -126,7 +127,7 @@ export default function NightBatchCard({ onToast }: Props) {
           disabled={!state?.enabled}
           onChange={(e) => void save({ end: e.target.value })}
         />
-        <span className="hint">（跨午夜可以设成 22:00 到 06:00）</span>
+        <span className="hint">{i18n.t('kbcfb2ae9')}</span>
       </div>
 
       <div style={{ display: 'flex', gap: 14, flexWrap: 'wrap', marginTop: 10 }}>
@@ -156,7 +157,7 @@ export default function NightBatchCard({ onToast }: Props) {
       {state?.running && (
         <div style={{ marginTop: 10 }}>
           <div className="hint">
-            {taskLabel || '准备中'} {state.done} / {state.total} 张
+            {taskLabel || i18n.t('kf76540a9')} {state.done} / {state.total} 张
             {state.total > 0 ? `（${pct}%）` : ''}
           </div>
           <div style={{ height: 6, background: 'var(--bg-3)', borderRadius: 3, overflow: 'hidden', marginTop: 4 }}>
@@ -171,33 +172,33 @@ export default function NightBatchCard({ onToast }: Props) {
           disabled={!!busy || state?.running || !pending.total}
           onClick={() => void runNow()}
         >
-          {busy === 'run' ? '启动中…' : '现在跑一轮'}
+          {busy === 'run' ? i18n.t('kf6196bb1') : i18n.t('k719e6484')}
         </button>
         {state?.running && (
           <button className="btn sm ghost" disabled={busy === 'stop' || state.stopRequested} onClick={() => void stop()}>
-            {state.stopRequested ? '正在收尾…' : '停止'}
+            {state.stopRequested ? i18n.t('k06e7df32') : i18n.t('k095e938e')}
           </button>
         )}
       </div>
 
       <div className="hint" style={{ marginTop: 8, lineHeight: 1.8 }}>
-        {pending.total === 0 ? '当前没有需要补算的图片。' : `待处理：语义 ${pending.semantic} 张 · 人脸 ${pending.face} 张。`}
-        {state?.enabled && !state.running && state.skipped ? `现在没跑：${state.skipped}。` : ''}
+        {pending.total === 0 ? i18n.t('k1a1be048') : i18n.t('kb6133c4b', { p0: pending.semantic, p1: pending.face })}
+        {state?.enabled && !state.running && state.skipped ? i18n.t('k51fa284f', { p0: state.skipped }) : ''}
         {state?.lastAt ? (
           <>
             <br />
-            {`上次运行：${new Date(state.lastAt).toLocaleString()}${state.lastSummary ? ` · ${state.lastSummary}` : ''}`}
+            {i18n.t('kf6b34e52', { p0: new Date(state.lastAt).toLocaleString(), p1: state.lastSummary ? ` · ${state.lastSummary}` : '' })}
           </>
         ) : (
           <>
             <br />
-            还没跑过。
+            {i18n.t('k0b0ee40a')}
           </>
         )}
         {state?.lastError ? (
           <>
             <br />
-            <span className="err">{`上次出错：${state.lastError}`}</span>
+            <span className="err">{i18n.t('k7ea5a870', { p0: state.lastError })}</span>
           </>
         ) : null}
       </div>

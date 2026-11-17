@@ -16,6 +16,7 @@ import {
   type Ann,
 } from '../lib/annotationDraw';
 import { IconSquare, IconArrowUpRight, IconHighlight, IconType, IconGrid, IconBrush } from './Icons';
+import i18n from '../i18n';
 
 /**
  * 图上标注（对标 Eagle 4 Annotations）：
@@ -35,12 +36,12 @@ interface Props {
 }
 
 const TOOLS: { key: Tool; label: string; icon: React.ReactNode }[] = [
-  { key: 'rect', label: '矩形框（Shift 锁正方形）', icon: <IconSquare size={15} /> },
-  { key: 'arrow', label: '箭头（Shift 锁 15°）', icon: <IconArrowUpRight size={15} /> },
-  { key: 'highlight', label: '高亮', icon: <IconHighlight size={15} /> },
-  { key: 'text', label: '文字（图上直接输入）', icon: <IconType size={15} /> },
-  { key: 'mosaic', label: '马赛克', icon: <IconGrid size={15} /> },
-  { key: 'brush', label: '画笔', icon: <IconBrush size={15} /> },
+  { key: 'rect', label: i18n.t('ke4126849'), icon: <IconSquare size={15} /> },
+  { key: 'arrow', label: i18n.t('k024fead7'), icon: <IconArrowUpRight size={15} /> },
+  { key: 'highlight', label: i18n.t('k0db56917'), icon: <IconHighlight size={15} /> },
+  { key: 'text', label: i18n.t('k851c5205'), icon: <IconType size={15} /> },
+  { key: 'mosaic', label: i18n.t('k4e237ce4'), icon: <IconGrid size={15} /> },
+  { key: 'brush', label: i18n.t('k25bfe25f'), icon: <IconBrush size={15} /> },
 ];
 
 const COLORS = ['#ff3b30', '#ffcc00', '#34c759', '#0a84ff', '#ffffff', '#000000'];
@@ -187,7 +188,7 @@ export default function AnnotationLayer({ imageId, imageUrl, frame, onCount, onT
         setSavedAt(new Date().toLocaleTimeString('zh-CN', { hour12: false }));
       }
     } catch (err) {
-      onToast?.(`标注保存失败：${(err as Error).message}`);
+      onToast?.(i18n.t('kf678e58f', { p0: (err as Error).message }));
     } finally {
       inflightRef.current = false;
       if (pendingRef.current) void flushNow();
@@ -499,13 +500,13 @@ export default function AnnotationLayer({ imageId, imageUrl, frame, onCount, onT
 
   const clearAll = async () => {
     if (!items.length) return;
-    if (await confirmDialog(`确定删除这张图的 ${items.length} 处标注？此操作不可撤销。`)) commit([]);
+    if (await confirmDialog(i18n.t('k1598d6e0', { p0: items.length }))) commit([]);
   };
 
   const exportPng = async () => {
     if (exporting) return;
     if (!imageUrl) {
-      onToast?.('底图未就绪，稍后再试');
+      onToast?.(i18n.t('k5ae3a4db'));
       return;
     }
     setExporting(true);
@@ -517,9 +518,9 @@ export default function AnnotationLayer({ imageId, imageUrl, frame, onCount, onT
       a.download = `annotated-${imageId}.png`;
       a.click();
       window.setTimeout(() => URL.revokeObjectURL(url), 4000);
-      onToast?.('已导出带标注的图片');
+      onToast?.(i18n.t('k15ef9664'));
     } catch (err) {
-      onToast?.(`导出失败：${(err as Error).message}`);
+      onToast?.(i18n.t('k246e218d', { p0: (err as Error).message }));
     } finally {
       setExporting(false);
     }
@@ -537,10 +538,10 @@ export default function AnnotationLayer({ imageId, imageUrl, frame, onCount, onT
     try {
       const blob = await composeAnnotated(imageUrl, items);
       const file = new File([blob], `annotated-${imageId}.png`, { type: 'image/png' });
-      const r = await api.uploadFile(file, { tags: '标注', keyword: 'annotated' });
-      onToast?.(r.image ? `已存为新素材「${r.image.title}」` : '已存入图库');
+      const r = await api.uploadFile(file, { tags: i18n.t('k9f10db00'), keyword: 'annotated' });
+      onToast?.(r.image ? i18n.t('k10961d18', { p0: r.image.title }) : i18n.t('k31786ef0'));
     } catch (err) {
-      onToast?.(`存入图库失败：${(err as Error).message}`);
+      onToast?.(i18n.t('kcae2d1a7', { p0: (err as Error).message }));
     } finally {
       setExporting(false);
     }
@@ -685,7 +686,7 @@ export default function AnnotationLayer({ imageId, imageUrl, frame, onCount, onT
           className="ann-text-input"
           autoFocus
           value={textEdit.value}
-          placeholder="输入文字，Enter 确认"
+          placeholder={i18n.t('kad150312')}
           style={{
             left: textEdit.x * W,
             top: textEdit.y * H,
@@ -723,32 +724,32 @@ export default function AnnotationLayer({ imageId, imageUrl, frame, onCount, onT
             onClick={() => setColor(c)}
           />
         ))}
-        <input className="ann-size" type="range" min={1} max={12} value={size} title={`线条粗细 ${size}`} onChange={(e) => setSize(Number(e.target.value))} />
+        <input className="ann-size" type="range" min={1} max={12} value={size} title={i18n.t('kde5ec74f', { p0: size })} onChange={(e) => setSize(Number(e.target.value))} />
         <span className="ann-sep" />
-        <button className="ann-btn" onClick={undo} disabled={!canUndo} title="撤销（Ctrl+Z）">
-          撤销
+        <button className="ann-btn" onClick={undo} disabled={!canUndo} title={i18n.t('ka3efb59c')}>
+          {i18n.t('kbd9fcf46')}
         </button>
-        <button className="ann-btn" onClick={redo} disabled={!canRedo} title="重做（Ctrl+Shift+Z）">
-          重做
+        <button className="ann-btn" onClick={redo} disabled={!canRedo} title={i18n.t('ka30fcd5c')}>
+          {i18n.t('kc3c873d3')}
         </button>
-        <button className="ann-btn" onClick={delSelected} disabled={!selected} title="删除选中（Delete）">
-          删除
+        <button className="ann-btn" onClick={delSelected} disabled={!selected} title={i18n.t('kfc8b6f25')}>
+          {i18n.t('k2f4aaddd')}
         </button>
-        <button className="ann-btn" onClick={clearAll} disabled={!items.length} title="清空这一张的所有标注">
-          清空
+        <button className="ann-btn" onClick={clearAll} disabled={!items.length} title={i18n.t('k4fb253c1')}>
+          {i18n.t('k288f0c40')}
         </button>
-        <button className="ann-btn" onClick={exportPng} disabled={exporting || !items.length} title="原图 + 标注合成 PNG 下载到本地">
-          {exporting ? '导出中…' : '导出图片'}
+        <button className="ann-btn" onClick={exportPng} disabled={exporting || !items.length} title={i18n.t('k75c5fc7f')}>
+          {exporting ? i18n.t('k86f99e94') : i18n.t('k0130accd')}
         </button>
         <button
           className="ann-btn"
           onClick={saveToLibrary}
           disabled={exporting || !items.length}
-          title="原图 + 标注合成后作为新素材入库（不会覆盖原图）"
+          title={i18n.t('kc736f18e')}
         >
-          存入图库
+          {i18n.t('kc39a77da')}
         </button>
-        <span className="ann-state">{saving ? '保存中…' : savedAt ? `已保存 ${savedAt}` : `${items.length} 处标注`}</span>
+        <span className="ann-state">{saving ? i18n.t('k9b5d32d1') : savedAt ? i18n.t('kdd644b32', { p0: savedAt }) : i18n.t('kec8ad261', { p0: items.length })}</span>
       </div>
     </div>
   );

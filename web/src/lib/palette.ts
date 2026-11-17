@@ -1,3 +1,4 @@
+import i18n from '../i18n';
 /**
  * 色板导出（Eagle 的「Export palette」）：
  * - ASE：Adobe Swatch Exchange，Photoshop / Illustrator / Affinity 可直接导入
@@ -14,7 +15,7 @@ export function downloadBlob(blob: Blob, filename: string) {
   setTimeout(() => URL.revokeObjectURL(url), 2000);
 }
 
-export function buildASE(colors: string[], title = '图库'): Blob {
+export function buildASE(colors: string[], title = i18n.t('k6084bc4b')): Blob {
   const enc = new TextEncoder();
   const chunks: Uint8Array[] = [];
   const header = new ArrayBuffer(12);
@@ -65,7 +66,7 @@ export function buildPngSheet(colors: string[], labels?: string[]): Promise<Blob
   canvas.width = cols * cellW;
   canvas.height = rows * cellH;
   const ctx = canvas.getContext('2d');
-  if (!ctx) throw new Error('无法创建画布');
+  if (!ctx) throw new Error(i18n.t('k2352bf26'));
   ctx.fillStyle = '#1a1a24';
   ctx.fillRect(0, 0, canvas.width, canvas.height);
   colors.forEach((hex, i) => {
@@ -86,6 +87,6 @@ export function buildPngSheet(colors: string[], labels?: string[]): Promise<Blob
     }
   });
   return new Promise((resolve, reject) => {
-    canvas.toBlob((b) => (b ? resolve(b) : reject(new Error('导出失败'))), 'image/png');
+    canvas.toBlob((b) => (b ? resolve(b) : reject(new Error(i18n.t('kdd51ab50')))), 'image/png');
   });
 }

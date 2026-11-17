@@ -4,6 +4,7 @@ import type { ActionConditions, ActionDef, ActionPreviewStep, ActionStep } from 
 import type { FolderNode } from '../types';
 import { IconClose, IconTrash } from './Icons';
 import ConditionEditor from './ConditionEditor';
+import i18n from '../i18n';
 
 /**
  * 动作（Actions）：把一串固定步骤存成宏，对选区一键重放。
@@ -59,7 +60,7 @@ export default function ActionsPanel({
 
   const run = async (a: ActionDef) => {
     if (!ids.length) {
-      setLog('先在图上选中要处理的素材');
+      setLog(i18n.t('k19aeb2ab'));
       return;
     }
     setBusy(`run-${a.id}`);
@@ -68,12 +69,12 @@ export default function ActionsPanel({
       const r = await api.runAction(a.id, ids);
       const firstErr = r.items.find((x) => !x.ok)?.error;
       setLog(
-        `「${r.action.name}」：成功 ${r.okCount} 张` +
+        i18n.t('kd17be0e0', { p0: r.action.name, p1: r.okCount }) +
           `${r.skipped ? `，跳过 ${r.skipped} 张（条件不匹配）` : ''}` +
           `${r.failed ? `，失败 ${r.failed} 张（${firstErr || ''}）` : ''}`
       );
       if (r.okCount) setLastRun({ id: a.id, name: r.action.name });
-      onToast?.(`动作完成：${r.okCount} / ${r.total}${r.skipped ? `（跳过 ${r.skipped}）` : ''}`);
+      onToast?.(i18n.t('kbc73fbdc', { p0: r.okCount, p1: r.total, p2: r.skipped ? i18n.t('k609f9c59', { p0: r.skipped }) : '' }));
       onRefresh?.();
       load();
     } catch (e) {
@@ -86,7 +87,7 @@ export default function ActionsPanel({
   /** 预演：把每张图将改什么列出来，AI / OCR / 插件步骤会如实标注「无法预演」 */
   const dryRun = async (a: ActionDef) => {
     if (!ids.length) {
-      setLog('先在图上选中要处理的素材');
+      setLog(i18n.t('k19aeb2ab'));
       return;
     }
     setBusy(`dry-${a.id}`);
@@ -98,7 +99,7 @@ export default function ActionsPanel({
         skipped: r.skipped,
         items: r.items.map((x) => ({ id: x.id, skipped: x.skipped, preview: x.preview })),
       });
-      setLog(`预演完成：将影响 ${r.total - r.skipped} 张，跳过 ${r.skipped} 张（未写库）`);
+      setLog(i18n.t('kc935dac8', { p0: r.total - r.skipped, p1: r.skipped }));
     } catch (e) {
       setLog((e as Error).message);
     } finally {
@@ -111,12 +112,12 @@ export default function ActionsPanel({
     setBusy('undo');
     try {
       const r = await api.undoLastOp();
-      setLog(`已撤销「${lastRun?.name || '上次操作'}」（${r.op}）`);
-      onToast?.('已撤销这次动作');
+      setLog(i18n.t('k051ba703', { p0: lastRun?.name || i18n.t('kbbd69f7d'), p1: r.op }));
+      onToast?.(i18n.t('k066edc8a'));
       setLastRun(null);
       onRefresh?.();
     } catch (e) {
-      setLog(`撤销失败：${(e as Error).message}`);
+      setLog(i18n.t('k5b0be54d', { p0: (e as Error).message }));
     } finally {
       setBusy('');
     }
@@ -124,7 +125,7 @@ export default function ActionsPanel({
 
   const save = async () => {
     if (!draft.name.trim()) {
-      setLog('给动作起个名字');
+      setLog(i18n.t('k632c4e2b'));
       return;
     }
     setBusy('save');
@@ -135,7 +136,7 @@ export default function ActionsPanel({
         steps: draft.steps,
         conditions: draft.conditions,
       });
-      setLog('已保存');
+      setLog(i18n.t('kf8dfedcd'));
       setDraft({ name: '', steps: [{ type: 'tag', mode: 'add', tags: '' }], conditions: EMPTY_COND });
       load();
     } catch (e) {
@@ -152,15 +153,15 @@ export default function ActionsPanel({
     <div className="modal-backdrop tk-backdrop" onClick={onClose}>
       <div className="modal-card tk-card" onClick={(e) => e.stopPropagation()}>
         <div className="modal-head">
-          <b>动作</b>
-          <span className="tk-title">{ids.length ? `将对 ${ids.length} 张执行` : '请先在图上选中素材'}</span>
-          <button className="icon-btn" onClick={onClose} title="关闭">
+          <b>{i18n.t('kc500cfab')}</b>
+          <span className="tk-title">{ids.length ? i18n.t('k9aeddbd3', { p0: ids.length }) : i18n.t('kbcc9f8b5')}</span>
+          <button className="icon-btn" onClick={onClose} title={i18n.t('kb15d9127')}>
             <IconClose />
           </button>
         </div>
         <div className="modal-body tk-body">
-          <h4 className="section-title">已保存的动作</h4>
-          {actions.length === 0 && <div className="tk-empty">还没有动作。下面新建一个，把常用操作串起来。</div>}
+          <h4 className="section-title">{i18n.t('kb4411aa8')}</h4>
+          {actions.length === 0 && <div className="tk-empty">{i18n.t('k68beae2e')}</div>}
           <div className="tk-actions">
             {actions.map((a) => (
               <div className="tk-action" key={a.id}>
@@ -168,22 +169,22 @@ export default function ActionsPanel({
                   <b>{a.name}</b>
                   <div className="tk-hint">
                     {a.steps.map((s) => types[s.type]?.label || s.type).join(' → ')}
-                    {a.lastRunAt ? ` · 上次 ${formatDate(a.lastRunAt)}` : ''}
+                    {a.lastRunAt ? i18n.t('k36a36fdb', { p0: formatDate(a.lastRunAt) }) : ''}
                   </div>
                 </div>
                 <div className="tk-row">
-                  <button className="btn sm ghost" disabled={!!busy} onClick={() => dryRun(a)} title="只算出会改什么，不写库">
-                    {busy === `dry-${a.id}` ? '预演中…' : '预演'}
+                  <button className="btn sm ghost" disabled={!!busy} onClick={() => dryRun(a)} title={i18n.t('k077cb160')}>
+                    {busy === `dry-${a.id}` ? i18n.t('kba434fbf') : i18n.t('kae6769da')}
                   </button>
                   <button className="btn sm" disabled={!!busy} onClick={() => run(a)}>
-                    {busy === `run-${a.id}` ? '执行中…' : '执行'}
+                    {busy === `run-${a.id}` ? i18n.t('kbef6b130') : i18n.t('k1a6aa24e')}
                   </button>
                   <button
                     className="btn sm ghost"
                     onClick={() => setDraft({ id: a.id, name: a.name, steps: a.steps, conditions: a.conditions || EMPTY_COND })}
-                    title="载入到下方编辑器"
+                    title={i18n.t('k9ad29bf6')}
                   >
-                    编辑
+                    {i18n.t('k95b351c8')}
                   </button>
                   <button
                     className="btn sm ghost danger"
@@ -193,12 +194,12 @@ export default function ActionsPanel({
                         await api.deleteAction(a.id);
                         load();
                       } catch (err) {
-                        const msg = `删除动作「${a.name}」失败：${(err as Error).message}`;
+                        const msg = i18n.t('kf97bd7bc', { p0: a.name, p1: (err as Error).message });
                         setLog(msg);
                         onToast?.(msg);
                       }
                     }}
-                    title="删除这个动作"
+                    title={i18n.t('kfaa2858f')}
                   >
                     <IconTrash />
                   </button>
@@ -211,7 +212,7 @@ export default function ActionsPanel({
             <div className="tk-row" style={{ marginTop: 10 }}>
               <span className="tk-hint">刚执行：「{lastRun.name}」</span>
               <button className="btn sm" disabled={!!busy} onClick={() => void undoLastRun()}>
-                {busy === 'undo' ? '撤销中…' : '撤销这次动作'}
+                {busy === 'undo' ? i18n.t('kab341812') : i18n.t('kee1f6522')}
               </button>
             </div>
           )}
@@ -258,19 +259,19 @@ export default function ActionsPanel({
           )}
 
           <h4 className="section-title" style={{ marginTop: 16 }}>
-            {draft.id ? '编辑动作' : '新建动作'}
+            {draft.id ? i18n.t('k9130cd37') : i18n.t('kdc2d2427')}
           </h4>
           <input
             className="input"
             style={{ width: '100%', marginBottom: 8 }}
-            placeholder="动作名称，例如「微博图打包」"
+            placeholder={i18n.t('k7ac52a32')}
             value={draft.name}
             onChange={(e) => setDraft((d) => ({ ...d, name: e.target.value }))}
           />
 
           {/* 执行条件：与智能文件夹同一套规则语义（评分 / AI 匹配度 / 标签 / 关键词 / 收藏 / 画幅） */}
           <div className="tk-hint" style={{ margin: '6px 0 4px' }}>
-            执行条件（可选，不命中的素材会被跳过）
+            {i18n.t('ka8d3c838')}
           </div>
           <ConditionEditor
             value={draft.conditions}
@@ -293,13 +294,13 @@ export default function ActionsPanel({
               {s.type === 'tag' && (
                 <>
                   <select className="input" value={s.mode || 'add'} onChange={(e) => patch(i, { mode: e.target.value })}>
-                    <option value="add">添加</option>
-                    <option value="remove">移除</option>
-                    <option value="replace">替换</option>
+                    <option value="add">{i18n.t('kb58c7549')}</option>
+                    <option value="remove">{i18n.t('k86048b4f')}</option>
+                    <option value="replace">{i18n.t('ke22c9a05')}</option>
                   </select>
                   <input
                     className="input"
-                    placeholder="标签，逗号分隔"
+                    placeholder={i18n.t('k9745f021')}
                     value={s.tags || ''}
                     onChange={(e) => patch(i, { tags: e.target.value })}
                   />
@@ -318,12 +319,12 @@ export default function ActionsPanel({
               {s.type === 'note' && (
                 <>
                   <select className="input" value={s.mode || 'append'} onChange={(e) => patch(i, { mode: e.target.value })}>
-                    <option value="append">追加</option>
-                    <option value="replace">替换</option>
+                    <option value="append">{i18n.t('k7dc3a574')}</option>
+                    <option value="replace">{i18n.t('ke22c9a05')}</option>
                   </select>
                   <input
                     className="input"
-                    placeholder="备注内容"
+                    placeholder={i18n.t('k2f4c8baa')}
                     value={s.text || ''}
                     onChange={(e) => patch(i, { text: e.target.value })}
                   />
@@ -332,13 +333,13 @@ export default function ActionsPanel({
               {s.type === 'title' && (
                 <>
                   <select className="input" value={s.mode || 'template'} onChange={(e) => patch(i, { mode: e.target.value })}>
-                    <option value="template">模板</option>
-                    <option value="prefix">前缀</option>
-                    <option value="suffix">后缀</option>
+                    <option value="template">{i18n.t('k59cf15fe')}</option>
+                    <option value="prefix">{i18n.t('k4c9bb426')}</option>
+                    <option value="suffix">{i18n.t('k242d641e')}</option>
                   </select>
                   <input
                     className="input"
-                    placeholder={s.mode === 'template' ? '{keyword}-{index}' : '要加的文字'}
+                    placeholder={s.mode === 'template' ? '{keyword}-{index}' : i18n.t('k4b780462')}
                     value={(s.mode === 'template' ? s.template : s.text) || ''}
                     onChange={(e) =>
                       patch(i, s.mode === 'template' ? { template: e.target.value } : { text: e.target.value })
@@ -352,7 +353,7 @@ export default function ActionsPanel({
                   value={s.folderId ?? ''}
                   onChange={(e) => patch(i, { folderId: Number(e.target.value) })}
                 >
-                  <option value="">选择文件夹</option>
+                  <option value="">{i18n.t('kaaa4b65e')}</option>
                   {folders.map((f) => (
                     <option key={f.id} value={f.id}>
                       {f.name}
@@ -366,22 +367,22 @@ export default function ActionsPanel({
                   value={s.value === false ? 'off' : 'on'}
                   onChange={(e) => patch(i, { value: e.target.value === 'on' })}
                 >
-                  <option value="on">收藏</option>
-                  <option value="off">取消收藏</option>
+                  <option value="on">{i18n.t('kae336cd0')}</option>
+                  <option value="off">{i18n.t('kf22cec28')}</option>
                 </select>
               )}
               {s.type === 'aiPrompt' && (
                 <>
                   <input
                     className="input"
-                    placeholder="AI 指令，如「写一句适合小红书的标题」"
+                    placeholder={i18n.t('ka33fdea8')}
                     value={s.instruction || ''}
                     onChange={(e) => patch(i, { instruction: e.target.value })}
                   />
                   <select className="input" value={s.target || 'note'} onChange={(e) => patch(i, { target: e.target.value })}>
-                    <option value="note">写入备注</option>
-                    <option value="title">写入标题</option>
-                    <option value="tags">写入标签</option>
+                    <option value="note">{i18n.t('kac11c31b')}</option>
+                    <option value="title">{i18n.t('kc6117b53')}</option>
+                    <option value="tags">{i18n.t('k3e370e86')}</option>
                   </select>
                 </>
               )}
@@ -392,7 +393,7 @@ export default function ActionsPanel({
                 className="btn sm ghost danger"
                 disabled={draft.steps.length <= 1}
                 onClick={() => setDraft((d) => ({ ...d, steps: d.steps.filter((_, j) => j !== i) }))}
-                title="删除这一步"
+                title={i18n.t('kd9cf3562')}
               >
                 <IconTrash />
               </button>
@@ -403,17 +404,17 @@ export default function ActionsPanel({
               className="btn sm"
               onClick={() => setDraft((d) => ({ ...d, steps: [...d.steps, { type: 'tag', mode: 'add', tags: '' }] }))}
             >
-              + 加一步
+              {i18n.t('k82478f85')}
             </button>
             <button className="btn sm primary" disabled={busy === 'save'} onClick={save}>
-              {draft.id ? '保存修改' : '保存为动作'}
+              {draft.id ? i18n.t('kc5575b3f') : i18n.t('k5a56b871')}
             </button>
             {draft.id && (
               <button
                 className="btn sm ghost"
                 onClick={() => setDraft({ name: '', steps: [{ type: 'tag', mode: 'add', tags: '' }], conditions: EMPTY_COND })}
               >
-                取消编辑
+                {i18n.t('kcbb46593')}
               </button>
             )}
           </div>

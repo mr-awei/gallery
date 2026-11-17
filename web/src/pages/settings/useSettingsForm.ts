@@ -10,6 +10,7 @@ import type {
   Settings as SettingsType,
 } from '../../types';
 import { subscribeEvents } from '../../events';
+import i18n from '../../i18n';
 
 /**
  * 设置页的状态与操作层（从 Settings.tsx 抽出）。
@@ -105,7 +106,7 @@ export function useSettingsForm({
           const st = d.import;
           setImporting(!!st.running);
           if (importingRef.current && !st.running) {
-            onToast(`导入完成：${st.message || ''}`);
+            onToast(i18n.t('ka58d5cae', { p0: st.message || '' }));
             onLibraryChanged();
           }
           importingRef.current = !!st.running;
@@ -133,9 +134,9 @@ export function useSettingsForm({
   }, [dirty]);
 
   const netModeLabel = (mode?: string) =>
-    ({ off: '直连', system: '系统代理', http: 'HTTP 代理', https: 'HTTPS 代理', socks5: 'SOCKS5 代理', socks4: 'SOCKS4 代理' }[
+    ({ off: i18n.t('k6721039b'), system: i18n.t('k90c0bb9a'), http: i18n.t('kc0027e61'), https: i18n.t('ke2b46044'), socks5: i18n.t('ke1e7945d'), socks4: i18n.t('k8e887270') }[
       mode || 'off'
-    ] || '直连');
+    ] || i18n.t('k6721039b'));
 
   const applyPreset = (key: string) => {
     const preset = presets[key];
@@ -160,12 +161,12 @@ export function useSettingsForm({
     setAiError('');
     try {
       const res = await api.aiTest();
-      onToast(`连接成功：${res.reply || res.model}`);
+      onToast(i18n.t('kb2ab9fa8', { p0: res.reply || res.model }));
       setAiStatus(await api.aiStatus());
       if (res.models?.length) setModels(res.models);
     } catch (err) {
       setAiError((err as Error).message);
-      onToast('连接失败，详情见下方提示');
+      onToast(i18n.t('kf67a6c6b'));
     } finally {
       setTesting(false);
     }
@@ -177,10 +178,10 @@ export function useSettingsForm({
       const res = await api.aiModels();
       setModels(res.models);
       setCustomModel(false);
-      onToast(`拉取到 ${res.models.length} 个模型`);
+      onToast(i18n.t('k76bf3851', { p0: res.models.length }));
     } catch (err) {
       setAiError((err as Error).message);
-      onToast('拉取失败，详情见下方提示');
+      onToast(i18n.t('k8c639ace'));
     }
   };
 
@@ -197,9 +198,9 @@ export function useSettingsForm({
     try {
       const saved = await api.saveSettings({ tourDone: done });
       setSettings((s) => (s ? { ...s, ...saved } : s));
-      onToast(done ? '已关闭自动提醒：可以在本页随时重新播放' : '已重置：下次启动时会自动弹出教程');
+      onToast(done ? i18n.t('ka23571dc') : i18n.t('kbbd46075'));
     } catch (err) {
-      onToast(`保存失败：${(err as Error).message}`, 'error');
+      onToast(i18n.t('k837dd027', { p0: (err as Error).message }), 'error');
     }
   };
 
@@ -222,9 +223,9 @@ export function useSettingsForm({
       // 换了素材文件夹会触发后台扫描，明确告知用户，避免以为「选了目录却没反应」
       const dirChanged = (saved.storageDir || '') !== (prevDir || '');
       if (dirChanged) onLibraryChanged(); // 立即刷新图库，不用手动点刷新
-      onToast(dirChanged ? '设置已保存，正在扫描新素材文件夹…' : '设置已保存');
+      onToast(dirChanged ? i18n.t('k10f282aa') : i18n.t('k669e3a20'));
     } catch (err) {
-      onToast(`保存失败：${(err as Error).message}`, 'error');
+      onToast(i18n.t('k837dd027', { p0: (err as Error).message }), 'error');
     }
   };
 
@@ -234,7 +235,7 @@ export function useSettingsForm({
       const saved = await api.saveSettings({ weiboCookieClear: true });
       setSettings(saved);
       setWbCookieDraft('');
-      onToast('已清除微博 Cookie');
+      onToast(i18n.t('k63793f1b'));
     } catch (err) {
       onToast((err as Error).message, 'error');
     }
@@ -246,7 +247,7 @@ export function useSettingsForm({
       const saved = await api.saveSettings({ aiApiKeyClear: true });
       setSettings(saved);
       setAiKeyDraft('');
-      onToast('已清除 AI API Key');
+      onToast(i18n.t('k9d5a7ff6'));
     } catch (err) {
       onToast((err as Error).message, 'error');
     }
@@ -269,7 +270,7 @@ export function useSettingsForm({
         });
         setSettings(saved);
         setWbCookieDraft('');
-        onToast('已自动获取微博 Cookie 并保存');
+        onToast(i18n.t('k6ee24734'));
       } else if (res?.msg) {
         onToast(res.msg);
       }
@@ -288,7 +289,7 @@ export function useSettingsForm({
       setKeywords(res.keywords);
       setNewKw('');
     } catch (err) {
-      onToast(`添加失败：${(err as Error).message}`, 'error');
+      onToast(i18n.t('k5c67c99d', { p0: (err as Error).message }), 'error');
     }
   };
 
@@ -297,7 +298,7 @@ export function useSettingsForm({
       const res = await api.updateKeyword(k.id, { enabled: k.enabled ? 0 : 1 });
       setKeywords(res.keywords);
     } catch (err) {
-      onToast(`更新失败：${(err as Error).message}`, 'error');
+      onToast(i18n.t('k6810a0d5', { p0: (err as Error).message }), 'error');
     }
   };
 
@@ -306,7 +307,7 @@ export function useSettingsForm({
       const res = await api.deleteKeyword(id);
       setKeywords(res.keywords);
     } catch (err) {
-      onToast(`删除失败：${(err as Error).message}`, 'error');
+      onToast(i18n.t('k94229cac', { p0: (err as Error).message }), 'error');
     }
   };
 
@@ -315,7 +316,7 @@ export function useSettingsForm({
     importingRef.current = true;
     try {
       await api.importLocal();
-      onToast('已开始导入本地素材，完成后图库会自动刷新');
+      onToast(i18n.t('k52274854'));
       // 完成时机由 job 事件推送（见上方订阅）；这里留超时兜底，防止推送断连时按钮永久锁死
       window.setTimeout(() => {
         if (importingRef.current) {
@@ -327,18 +328,18 @@ export function useSettingsForm({
       // 失败必须立刻解锁：旧代码没有 catch，按钮一直显示「导入中」，只能等 15 分钟兜底
       importingRef.current = false;
       setImporting(false);
-      onToast(`导入失败：${(err as Error).message}`, 'error');
+      onToast(i18n.t('kdfcff80b', { p0: (err as Error).message }), 'error');
     }
   };
 
   const clearAll = async () => {
-    if (!(await confirmDialog('确定清空整个图库？图片文件也会一并删除（收藏与标签将丢失）。'))) return;
+    if (!(await confirmDialog(i18n.t('kbed43cba')))) return;
     try {
       const res = await api.clearLibrary();
-      onToast(`已清空 ${res.removed} 张图片`);
+      onToast(i18n.t('k33970f72', { p0: res.removed }));
       onLibraryChanged();
     } catch (err) {
-      onToast(`清空失败：${(err as Error).message}`, 'error');
+      onToast(i18n.t('k329014c1', { p0: (err as Error).message }), 'error');
     }
   };
 

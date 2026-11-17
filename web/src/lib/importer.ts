@@ -1,4 +1,5 @@
 import { api } from '../api';
+import i18n from '../i18n';
 
 /** 可入库的扩展名（与后端 mediaKind 判定保持一致） */
 export const UPLOAD_EXTS =
@@ -66,4 +67,4 @@ export function filesFromDataTransfer(dt: DataTransfer | null): File[] {
 }
 
 /** 下拉遮罩里给用户看的支持说明 */
-export const UPLOAD_HINT = '支持图片 / 视频 / 音频 / 字体 / PDF / Office / 3D 模型';
+export const UPLOAD_HINT = i18n.t('k5c5f0287');

@@ -1,4 +1,5 @@
 import React from 'react';
+import i18n from '../i18n';
 
 const COLORS = ['#ff4d8d', '#a855f7', '#38bdf8', '#4ade80', '#fbbf24', '#f472b6', '#818cf8'];
 
@@ -36,7 +37,7 @@ export function Donut({ data, total }: { data: { name: string; count: number }[]
           {total}
         </text>
         <text x="70" y="84" textAnchor="middle" fill="var(--muted)" fontSize="11">
-          张图片
+          {i18n.t('k54aa1e97')}
         </text>
       </svg>
       <div className="legend" style={{ flex: 1, minWidth: 130 }}>
@@ -49,7 +50,7 @@ export function Donut({ data, total }: { data: { name: string; count: number }[]
             </span>
           </div>
         ))}
-        {!data.length && <span style={{ color: 'var(--muted)' }}>暂无数据</span>}
+        {!data.length && <span style={{ color: 'var(--muted)' }}>{i18n.t('k21efd88b')}</span>}
       </div>
     </div>
   );
@@ -68,7 +69,7 @@ export function Bars({ data }: { data: { name: string; count: number }[] }) {
           <span className="val">{d.count}</span>
         </div>
       ))}
-      {!data.length && <span style={{ color: 'var(--muted)' }}>暂无数据</span>}
+      {!data.length && <span style={{ color: 'var(--muted)' }}>{i18n.t('k21efd88b')}</span>}
     </div>
   );
 }
@@ -80,7 +81,7 @@ export function TrendLine({ data }: { data: { date: string; count: number }[] })
   if (data.length < 2) {
     return (
       <div style={{ color: 'var(--muted)', fontSize: 12, paddingTop: 30 }}>
-        {data.length === 1 ? `第一天已采集 ${data[0].count} 张` : '暂无数据'}
+        {data.length === 1 ? i18n.t('kb6dd2b0f', { p0: data[0].count }) : i18n.t('k21efd88b')}
       </div>
     );
   }

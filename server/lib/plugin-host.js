@@ -16,6 +16,7 @@ import { APP_ROOT, DATA_DIR } from '../config.js';
 import { getSettings, saveSettings } from '../db.js';
 import * as lib from '../library.js';
 import { dirMatchesId, resolvePluginEntry, sanitizePatch, validateManifest } from './plugin-manifest.js';
+import { translate } from './i18n.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
@@ -233,7 +234,8 @@ export async function runPlugin({ id, action = 'run', imageId = null, args = {} 
     ok: true,
     plugin: plugin.id,
     action,
-    logs: Array.isArray(raw.logs) ? raw.logs.slice(0, 50) : [],
+    // 插件日志直接展示在运行结果面板里：随包插件的日志是中文，出口按语言翻译
+    logs: Array.isArray(raw.logs) ? raw.logs.slice(0, 50).map((l) => translate(String(l))) : [],
     patch,
     applied,
     result: raw.result ?? null,

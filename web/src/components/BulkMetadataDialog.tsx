@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { api } from '../api';
 import type { ImageItem } from '../types';
 import { IconClose } from './Icons';
+import i18n from '../i18n';
 
 /**
  * 批量元数据编辑（对标 Eagle 的多选「批量编辑」）。
@@ -54,11 +55,11 @@ export default function BulkMetadataDialog({ ids, onClose, onToast, onUpdated }:
       else if (note.trim() !== '') body.note = note.trim();
       const r = await api.bulkMetadata(body);
       onUpdated(r.items || []);
-      const skipped = r.skipped ? `，${r.skipped} 张已不存在` : '';
-      onToast(`已更新 ${r.updated} 张素材${skipped}`);
+      const skipped = r.skipped ? i18n.t('kfc0cec8c', { p0: r.skipped }) : '';
+      onToast(i18n.t('ke59b8731', { p0: r.updated, p1: skipped }));
       onClose();
     } catch (e) {
-      onToast((e as Error)?.message || '批量修改失败', 'error');
+      onToast((e as Error)?.message || i18n.t('k24182b23'), 'error');
       setBusy(false);
     }
   };
@@ -68,40 +69,40 @@ export default function BulkMetadataDialog({ ids, onClose, onToast, onUpdated }:
       <div className="modal-card" style={{ maxWidth: 520 }} onClick={(e) => e.stopPropagation()}>
         <div className="modal-head">
           <b>批量编辑信息 · 已选 {ids.length} 张</b>
-          <button className="btn ghost sm" onClick={onClose} disabled={busy} aria-label={'关闭'}>
+          <button className="btn ghost sm" onClick={onClose} disabled={busy} aria-label={i18n.t('kb15d9127')}>
             <IconClose />
           </button>
         </div>
 
         <div className="modal-body" style={{ display: 'block' }}>
           <div className="field">
-            <label>评分</label>
+            <label>{i18n.t('k108db12e')}</label>
             <select className="input" style={{ width: 180 }} value={rating} onChange={(e) => setRating(e.target.value)}>
-              <option value="">不修改</option>
+              <option value="">{i18n.t('k8229ad29')}</option>
               {RATINGS.map((r) => (
                 <option key={r} value={r}>
-                  {r === 0 ? '清除评分' : `${'★'.repeat(r)}（${r} 星）`}
+                  {r === 0 ? i18n.t('k4b944119') : i18n.t('kedadd8b7', { p0: '★'.repeat(r), p1: r })}
                 </option>
               ))}
             </select>
           </div>
 
           <div className="field">
-            <label>收藏</label>
+            <label>{i18n.t('kae336cd0')}</label>
             <select
               className="input"
               style={{ width: 180 }}
               value={favorite}
               onChange={(e) => setFavorite(e.target.value)}
             >
-              <option value="">不修改</option>
-              <option value="1">加入收藏</option>
-              <option value="0">取消收藏</option>
+              <option value="">{i18n.t('k8229ad29')}</option>
+              <option value="1">{i18n.t('k05b72da9')}</option>
+              <option value="0">{i18n.t('kf22cec28')}</option>
             </select>
           </div>
 
           <div className="field">
-            <label>标签</label>
+            <label>{i18n.t('k14d34236')}</label>
             <div style={{ display: 'flex', gap: 8, alignItems: 'center', marginBottom: 8 }}>
               <select
                 className="input"
@@ -109,35 +110,35 @@ export default function BulkMetadataDialog({ ids, onClose, onToast, onUpdated }:
                 value={tagMode}
                 onChange={(e) => setTagMode(e.target.value as TagMode)}
               >
-                <option value="add">添加</option>
-                <option value="remove">移除</option>
-                <option value="set">替换为</option>
+                <option value="add">{i18n.t('kb58c7549')}</option>
+                <option value="remove">{i18n.t('k86048b4f')}</option>
+                <option value="set">{i18n.t('k1605701e')}</option>
               </select>
               <input
                 className="input"
                 style={{ flex: 1, minWidth: 140 }}
-                placeholder="多个标签用逗号分隔"
+                placeholder={i18n.t('kc379e80c')}
                 value={tagsText}
                 onChange={(e) => setTagsText(e.target.value)}
               />
             </div>
             <div style={{ fontSize: 11.5, color: 'var(--muted)' }}>
               {tagsText.trim() === ''
-                ? '留空则不改标签。每张图原有的其它标签都会保留（「替换为」除外）。'
+                ? i18n.t('keef0e802')
                 : tagMode === 'add'
-                  ? `会给每张图补上：${tagList.join('、')}`
+                  ? i18n.t('k78f04785', { p0: tagList.join('、') })
                   : tagMode === 'remove'
-                    ? `会从每张图移除：${tagList.join('、')}`
-                    : `会把每张图的标签整体改成：${tagList.join('、') || '（空）'}`}
+                    ? i18n.t('kbf35580d', { p0: tagList.join('、') })
+                    : i18n.t('k8e04077a', { p0: tagList.join('、') || i18n.t('k27c4e28d') })}
             </div>
           </div>
 
           <div className="field">
-            <label>备注</label>
+            <label>{i18n.t('k2432b575')}</label>
             <textarea
               className="input"
               style={{ width: '100%', minHeight: 64, resize: 'vertical' }}
-              placeholder="留空则不修改备注"
+              placeholder={i18n.t('k3d37b042')}
               value={note}
               onChange={(e) => {
                 setNote(e.target.value);
@@ -153,16 +154,16 @@ export default function BulkMetadataDialog({ ids, onClose, onToast, onUpdated }:
                   if (e.target.checked) setNote('');
                 }}
               />
-              清空这批素材的备注
+              {i18n.t('k10355e1f')}
             </label>
           </div>
         </div>
 
         <div className="modal-foot">
-          <span style={{ fontSize: 12, color: 'var(--muted)' }}>整批一次提交，可以用 Ctrl+Z 一次性撤销</span>
+          <span style={{ fontSize: 12, color: 'var(--muted)' }}>{i18n.t('kdc5ef80a')}</span>
           <div style={{ display: 'flex', gap: 8 }}>
             <button className="btn" onClick={onClose} disabled={busy}>
-              取消
+              {i18n.t('k625fb26b')}
             </button>
             <button
               className="btn"
@@ -170,7 +171,7 @@ export default function BulkMetadataDialog({ ids, onClose, onToast, onUpdated }:
               disabled={busy || !dirty}
               onClick={submit}
             >
-              {busy ? '保存中…' : `应用到 ${ids.length} 张`}
+              {busy ? i18n.t('k9b5d32d1') : i18n.t('kd9067042', { p0: ids.length })}
             </button>
           </div>
         </div>

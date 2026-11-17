@@ -1,5 +1,6 @@
 import React from 'react';
 import { isDesktop, pickFolder } from '../api';
+import i18n from '../i18n';
 
 /**
  * 保存方式（批量裁切台与批量调色台共用）：
@@ -43,7 +44,7 @@ export default function SaveModeBlock({ value, onChange, disabled, count, overwr
             disabled={disabled}
             onChange={() => onChange({ saveMode: 'overwrite' })}
           />
-          <span>覆盖原图</span>
+          <span>{i18n.t('k7eeb7854')}</span>
         </label>
         <label className="lb-radio">
           <input
@@ -53,7 +54,7 @@ export default function SaveModeBlock({ value, onChange, disabled, count, overwr
             disabled={disabled}
             onChange={() => onChange({ saveMode: 'copy' })}
           />
-          <span>另存为副本</span>
+          <span>{i18n.t('k297bb85d')}</span>
         </label>
       </div>
       {saveMode === 'copy' ? (
@@ -62,7 +63,7 @@ export default function SaveModeBlock({ value, onChange, disabled, count, overwr
             <input
               className="input"
               value={targetDir}
-              placeholder="留空 = 存到各自原图旁边（可选）"
+              placeholder={i18n.t('k60cffa96')}
               readOnly={isDesktop}
               disabled={disabled}
               onChange={(e) => onChange({ targetDir: e.target.value })}
@@ -76,7 +77,7 @@ export default function SaveModeBlock({ value, onChange, disabled, count, overwr
                   if (d) onChange({ targetDir: d });
                 }}
               >
-                选择…
+                {i18n.t('k4f05519a')}
               </button>
             )}
           </div>
@@ -87,10 +88,10 @@ export default function SaveModeBlock({ value, onChange, disabled, count, overwr
               disabled={disabled}
               onChange={(e) => onChange({ addToLibrary: e.target.checked })}
             />
-            <span>保存后加入图库</span>
+            <span>{i18n.t('k1db1db0d')}</span>
           </label>
           <p className="bulk-edit-desc">
-            原图保持不变，{count} 份副本{targetDir ? '写入该目录' : '写到各自原图旁边'}（重名自动加序号）。
+            原图保持不变，{count} 份副本{targetDir ? i18n.t('k29f3272e') : i18n.t('k21911e5c')}（重名自动加序号）。
           </p>
         </div>
       ) : (

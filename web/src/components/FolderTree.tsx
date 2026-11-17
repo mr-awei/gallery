@@ -13,6 +13,7 @@ import {
 } from './Icons';
 import { FOLDER_MIME, IMAGE_MIME } from '../lib/dnd';
 import type { FolderNode } from '../types';
+import i18n from '../i18n';
 
 const COLLAPSE_KEY = 'tuku:folder-tree:collapsed';
 /** 根节点折叠用哨兵 id（真实文件夹 id 都是正数） */
@@ -327,7 +328,7 @@ export default function FolderTree({
                 {f.name}
               </span>
               {f.tags && (
-                <span className="folder-tags" title={`文件夹标签（夹内素材自动继承）：${f.tags}`}>
+                <span className="folder-tags" title={i18n.t('k1aae1c7f', { p0: f.tags })}>
                   {String(f.tags)
                     .split(',')
                     .map((t) => t.trim())
@@ -338,7 +339,7 @@ export default function FolderTree({
                 </span>
               )}
               {f.locked && (
-                <span className="folder-lock" title={f.unlocked ? '已解锁（本次会话可见）' : '隐私空间：已加锁'}>
+                <span className="folder-lock" title={f.unlocked ? i18n.t('k65771115') : i18n.t('k25a9facd')}>
                   {f.unlocked ? <IconUnlock size={12} /> : <IconLock size={12} />}
                 </span>
               )}
@@ -354,18 +355,18 @@ export default function FolderTree({
   return (
     <div className="folder-tree">
       <div className="folder-tree-head">
-        <span>文件夹</span>
+        <span>{i18n.t('k1f4c1042')}</span>
         <div className="folder-tree-head-actions">
           {parentIds.length > 0 && (
             <button
               className="folder-add-btn"
-              title={allChildrenCollapsed ? '展开全部子文件夹' : '收起全部子文件夹'}
+              title={allChildrenCollapsed ? i18n.t('k9e9f0fe4') : i18n.t('k2030ab5c')}
               onClick={toggleAllChildren}
             >
               {allChildrenCollapsed ? <IconChevronDown size={14} /> : <IconChevronRight size={14} />}
             </button>
           )}
-          <button className="folder-add-btn" title="新建文件夹" aria-label="新建文件夹" onClick={() => onCreate(null)}>
+          <button className="folder-add-btn" title={i18n.t('kf3a485df')} aria-label={i18n.t('kf3a485df')} onClick={() => onCreate(null)}>
             <IconPlus size={14} />
           </button>
         </div>
@@ -376,7 +377,7 @@ export default function FolderTree({
           type="button"
           className={`folder-item folder-root${rootActive ? ' active' : ''}`}
           onClick={onOpenRoot}
-          title={rootPath ? `素材根目录：${rootPath}` : '素材根目录（未在设置页指定）'}
+          title={rootPath ? i18n.t('k6a1172a2', { p0: rootPath }) : i18n.t('kea01ef23')}
         >
           {tree.get(null)?.length ? (
             <span
@@ -407,52 +408,52 @@ export default function FolderTree({
           >
             {mf ? (
               <>
-                <button onClick={() => { setMenu(null); onOpen(mf.id); }}>打开文件夹</button>
+                <button onClick={() => { setMenu(null); onOpen(mf.id); }}>{i18n.t('kb00f8cb9')}</button>
                 <div className="card-ctx-sep" />
                 <button onClick={() => { setMenu(null); onCreate(mf.id); }}>
-                  <IconPlus size={13} /> 新建子文件夹
+                  <IconPlus size={13} /> {i18n.t('kbefd04b3')}
                 </button>
                 {onBatchCreate && (
                   <button onClick={() => { setMenu(null); onBatchCreate(mf.id); }}>
-                    <IconPlus size={13} /> 批量新建子文件夹…
+                    <IconPlus size={13} /> {i18n.t('k5319a349')}
                   </button>
                 )}
                 {onEditAppearance && (
                   <button onClick={() => { setMenu(null); onEditAppearance(mf.id); }}>
-                    <IconPalette size={13} /> 图标与颜色…
+                    <IconPalette size={13} /> {i18n.t('kba1684ef')}
                   </button>
                 )}
                 {onSetCover && (
                   <button onClick={() => { setMenu(null); onSetCover(mf.id); }}>
-                    <IconImages size={13} /> 设置封面
+                    <IconImages size={13} /> {i18n.t('kb9bbf33f')}
                   </button>
                 )}
                 {onEditTags && (
-                  <button onClick={() => { setMenu(null); onEditTags(mf.id); }}># 文件夹标签</button>
+                  <button onClick={() => { setMenu(null); onEditTags(mf.id); }}>{i18n.t('ke286f652')}</button>
                 )}
                 {onToggleLock && (
                   <button onClick={() => { setMenu(null); onToggleLock(mf.id); }}>
                     {mf.locked && mf.unlocked ? <IconUnlock size={13} /> : <IconLock size={13} />}
-                    {mf.locked ? (mf.unlocked ? ' 重新上锁 / 改密码' : ' 解锁') : ' 加密码锁（隐私空间）'}
+                    {mf.locked ? (mf.unlocked ? i18n.t('kc18de144') : i18n.t('kfa7ffa2d')) : i18n.t('k41989790')}
                   </button>
                 )}
                 <div className="card-ctx-sep" />
                 <button onClick={() => { setMenu(null); onRename(mf.id); }}>
-                  <IconPencil size={13} /> 重命名
+                  <IconPencil size={13} /> {i18n.t('kc8ce4b36')}
                 </button>
                 <button onClick={() => { setMenu(null); onDelete(mf.id); }}>
-                  <IconClose size={13} /> 删除文件夹（不删图片）
+                  <IconClose size={13} /> {i18n.t('k42d3ae1d')}
                 </button>
               </>
             ) : (
               <>
-                <button onClick={() => { setMenu(null); onOpenRoot(); }}>打开素材根目录</button>
+                <button onClick={() => { setMenu(null); onOpenRoot(); }}>{i18n.t('kb3f144a3')}</button>
                 <button onClick={() => { setMenu(null); onCreate(null); }}>
-                  <IconPlus size={13} /> 新建文件夹
+                  <IconPlus size={13} /> {i18n.t('kf3a485df')}
                 </button>
                 {onBatchCreate && (
                   <button onClick={() => { setMenu(null); onBatchCreate(null); }}>
-                    <IconPlus size={13} /> 批量新建文件夹…
+                    <IconPlus size={13} /> {i18n.t('k267e5c9e')}
                   </button>
                 )}
               </>

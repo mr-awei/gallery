@@ -21,6 +21,7 @@ import {
   type ReverseNetwork,
 } from '../api';
 import { IconClose } from './Icons';
+import i18n from '../i18n';
 
 export type ReverseTarget = {
   /** 单张图搜图 */
@@ -70,7 +71,7 @@ export default function ReverseSearchDialog({ target, onClose, onToast }: Props)
       })
       .catch((err) => {
         if (!alive) return;
-        onToast('读取搜图引擎失败：' + errText(err), 'error');
+        onToast(i18n.t('kd6ed2041') + errText(err), 'error');
       })
       .finally(() => {
         if (alive) setLoading(false);
@@ -107,7 +108,7 @@ export default function ReverseSearchDialog({ target, onClose, onToast }: Props)
 
   const run = async (ids: string[]) => {
     if (!target || !ids.length) {
-      onToast('至少选一个引擎', 'error');
+      onToast(i18n.t('kbee352cf'), 'error');
       return;
     }
     setRunning(true);
@@ -125,19 +126,19 @@ export default function ReverseSearchDialog({ target, onClose, onToast }: Props)
             await copyImageToClipboard(`${BASE}/api/images/${r.image.id}/file`);
             copied = true;
           } catch (err) {
-            onToast('复制图片到剪贴板失败：' + errText(err), 'error');
+            onToast(i18n.t('k31e30a8f') + errText(err), 'error');
           }
         }
         window.open(one.url, '_blank', 'noopener,noreferrer');
       }
       const bad = r.results.filter((x) => !x.ok);
       if (bad.length) {
-        onToast(`搜图完成：${r.results.length - bad.length} 个成功，${bad.length} 个失败`, 'error');
+        onToast(i18n.t('kd28b8e9f', { p0: r.results.length - bad.length, p1: bad.length }), 'error');
       } else {
-        onToast(`已在 ${r.results.length} 个引擎里搜这张图`);
+        onToast(i18n.t('k14f7e335', { p0: r.results.length }));
       }
     } catch (err) {
-      onToast('搜图失败：' + errText(err), 'error');
+      onToast(i18n.t('kd5f1fc1c') + errText(err), 'error');
     } finally {
       setRunning(false);
     }
@@ -165,7 +166,7 @@ export default function ReverseSearchDialog({ target, onClose, onToast }: Props)
     >
       <span className="rs-engine-name">{e.name}</span>
       <span className="rs-engine-tag">
-        {e.mode === 'manual' ? '打开识图页粘贴' : e.ready ? '可直接搜' : '网络不通'}
+        {e.mode === 'manual' ? i18n.t('kb1bfcffd') : e.ready ? i18n.t('kacaddf03') : i18n.t('k216f5313')}
       </span>
       <span className="rs-engine-desc">{e.mode === 'manual' ? e.why : e.desc}</span>
     </button>
@@ -175,11 +176,11 @@ export default function ReverseSearchDialog({ target, onClose, onToast }: Props)
     <div className="modal-backdrop rs-backdrop" onClick={() => !running && onClose()}>
       <div className="modal-card rs-card" onClick={(e) => e.stopPropagation()}>
         <div className="modal-head">
-          <b>{'全网以图搜图'}</b>
+          <b>{i18n.t('kab358cab')}</b>
           <span className="rs-title" title={target.title}>
             {target.title}
           </span>
-          <button className="icon-btn" onClick={onClose} title={'关闭（Esc）'}>
+          <button className="icon-btn" onClick={onClose} title={i18n.t('k01aadfea')}>
             <IconClose />
           </button>
         </div>
@@ -188,26 +189,26 @@ export default function ReverseSearchDialog({ target, onClose, onToast }: Props)
           <div className="rs-target">
             {target.previewUrl && <img src={target.previewUrl} alt="" />}
             <div className="rs-target-text">
-              <b>{target.hint || '用这张照片去检索'}</b>
+              <b>{target.hint || i18n.t('k0fb02b9c')}</b>
               <span>
                 {target.personId
-                  ? '自动选这个人最清晰、人脸最大的一张：质量分高的优先，其次看人脸在画面里占多大'
-                  : '会把原图上传给支持直传的引擎；不支持直传的引擎打开页面后粘贴（已自动复制）'}
+                  ? i18n.t('ke2fed4be')
+                  : i18n.t('ke1077dfe')}
               </span>
             </div>
           </div>
 
-          {loading && <div className="rs-hint">{'正在检测各引擎可用性…'}</div>}
+          {loading && <div className="rs-hint">{i18n.t('k713f3df5')}</div>}
 
           <div className="rs-group">
-            <div className="rs-group-title">{'国内引擎'}</div>
+            <div className="rs-group-title">{i18n.t('k8d69a6d9')}</div>
             <div className="rs-engines">{cnEngines.map(engineRow)}</div>
           </div>
 
           <div className="rs-group">
             <div className="rs-group-title">
-              {'国外引擎'}
-              {network && !network.ok && <em className="rs-bad">{'国际网络本次不通'}</em>}
+              {i18n.t('k7f71282d')}
+              {network && !network.ok && <em className="rs-bad">{i18n.t('kb1919f2d')}</em>}
             </div>
             <div className="rs-engines">{globalEngines.map(engineRow)}</div>
           </div>
@@ -215,7 +216,7 @@ export default function ReverseSearchDialog({ target, onClose, onToast }: Props)
           {needConfirm && (
             <div className="rs-confirm">
               <div>
-                {`国际网络不通（${selectedGlobalBlocked.map((e) => e.name).join('、')} 连不上），这些引擎大概率搜不出来。要只用国内引擎吗？`}
+                {i18n.t('kfeae6c00', { p0: selectedGlobalBlocked.map((e) => e.name).join('、') })}
               </div>
               <div className="rs-confirm-actions">
                 <button
@@ -226,10 +227,10 @@ export default function ReverseSearchDialog({ target, onClose, onToast }: Props)
                     void run(ids);
                   }}
                 >
-                  {'只用国内引擎'}
+                  {i18n.t('ke373ea2e')}
                 </button>
                 <button className="btn ghost sm" onClick={() => void run([...picked])}>
-                  {'仍然全部尝试'}
+                  {i18n.t('k0e9123ad')}
                 </button>
               </div>
             </div>
@@ -237,17 +238,17 @@ export default function ReverseSearchDialog({ target, onClose, onToast }: Props)
 
           <div className="rs-actions">
             <button className="btn primary" disabled={running || !picked.size} onClick={start}>
-              {running ? '正在搜…' : `开始搜图（${picked.size} 个引擎）`}
+              {running ? i18n.t('k5960e9c1') : i18n.t('k610d21a9', { p0: picked.size })}
             </button>
             <button className="btn ghost sm" onClick={() => setPicked(new Set(engines.map((e) => e.id)))}>
-              {'全选'}
+              {i18n.t('k66eeacd9')}
             </button>
             <button className="btn ghost sm" onClick={() => setPicked(new Set())}>
-              {'清空'}
+              {i18n.t('k288f0c40')}
             </button>
             {network && (
               <span className="rs-hint">
-                {'引擎按钮可多选；打开多个页面时浏览器可能拦截弹窗'}
+                {i18n.t('kd8ff8297')}
               </span>
             )}
           </div>
@@ -258,11 +259,11 @@ export default function ReverseSearchDialog({ target, onClose, onToast }: Props)
                 <div key={r.engine} className={`rs-result${r.ok ? '' : ' bad'}`}>
                   <div className="rs-result-head">
                     <b>{r.name}</b>
-                    <span className={`rs-badge ${r.region}`}>{r.region === 'cn' ? '国内' : '国外'}</span>
+                    <span className={`rs-badge ${r.region}`}>{r.region === 'cn' ? i18n.t('k227dd1db') : i18n.t('kba5ce286')}</span>
                     <span className="rs-result-note">{r.ok ? r.note : r.error}</span>
                     {r.url && (
                       <button className="btn ghost sm" onClick={() => window.open(r.url, '_blank', 'noopener,noreferrer')}>
-                        {'再打开'}
+                        {i18n.t('kda4ae2b0')}
                       </button>
                     )}
                   </div>

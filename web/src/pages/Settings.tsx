@@ -46,6 +46,7 @@ import ImportNameTemplateCard from './settings/ImportNameTemplateCard';
 import PluginMarket from './settings/PluginMarket';
 import AboutSection from './settings/AboutSection';
 import DownloadSection from './settings/DownloadSection';
+import i18n, { changeLocale, currentLocale } from '../i18n';
 
 type SectionMeta = {
   key: SectionKey;
@@ -60,139 +61,139 @@ type SectionMeta = {
  */
 const NAV_GROUPS: { label: string; items: SectionMeta[] }[] = [
   {
-    label: '开始使用',
+    label: i18n.t('k85d22db7'),
     items: [
       {
         key: 'general',
-        label: '通用',
-        desc: '图片保存位置、删除行为与编辑偏好',
+        label: i18n.t('kaa05fd09'),
+        desc: i18n.t('kd4c5d721'),
         icon: <IconFolder />,
       },
       {
         key: 'guide',
-        label: '教程',
-        desc: '分步导览、可搜索说明与常用入口',
+        label: i18n.t('kb7824d5c'),
+        desc: i18n.t('ke88cceea'),
         icon: <IconGrid />,
       },
     ],
   },
   {
-    label: '素材与整理',
+    label: i18n.t('k42f4f97b'),
     items: [
       {
         key: 'crawl',
-        label: '采集',
-        desc: '采集源、关键词与质量过滤',
+        label: i18n.t('ke8bc2616'),
+        desc: i18n.t('kfb878786'),
         icon: <IconSpider />,
       },
       {
         key: 'tags',
-        label: '标签与别名',
-        desc: '同义词只影响搜索，不改图片标签',
+        label: i18n.t('ke00706fa'),
+        desc: i18n.t('kfa0c8173'),
         icon: <IconLayers />,
       },
       {
         key: 'data',
-        label: '数据与维护',
-        desc: '本地导入、备份恢复与回收站',
+        label: i18n.t('k18e2e886'),
+        desc: i18n.t('kf7fa5c99'),
         icon: <IconImages />,
       },
     ],
   },
   {
-    label: '智能与画质',
+    label: i18n.t('k73b7418c'),
     items: [
       {
         key: 'ai',
-        label: 'AI 接入',
-        desc: '智能评分与知识库的大模型配置',
+        label: i18n.t('k70ba6cfb'),
+        desc: i18n.t('ke68146ea'),
         icon: <IconBrain />,
       },
       {
         key: 'enhance',
-        label: '画质增强',
-        desc: '目标标准、增强模型与线上服务',
+        label: i18n.t('kfd5e4c21'),
+        desc: i18n.t('k1862ae14'),
         icon: <IconWand />,
       },
     ],
   },
   {
-    label: '桌面与操作',
+    label: i18n.t('k2e4b22db'),
     items: [
       {
         key: 'wallpaper',
-        label: '壁纸',
-        desc: '设壁纸的填充方式与定时自动切换',
+        label: i18n.t('k8e92193d'),
+        desc: i18n.t('kb145ac01'),
         icon: <IconWallpaper />,
       },
       {
         key: 'shortcut',
-        label: '快捷键',
-        desc: '自定义主窗口的全局键位',
+        label: i18n.t('kf7d29966'),
+        desc: i18n.t('k538fd2e8'),
         icon: <IconGear />,
       },
     ],
   },
   {
-    label: '连接与扩展',
+    label: i18n.t('kbaa6276d'),
     items: [
       {
         key: 'network',
-        label: '网络',
-        desc: '代理设置，对采集、下载、AI 生效',
+        label: i18n.t('k7ddbe15c'),
+        desc: i18n.t('k88159aee'),
         icon: <IconGlobe />,
       },
       {
         key: 'extension',
-        label: '浏览器扩展',
-        desc: '在哪里、怎么装、怎么用',
+        label: i18n.t('k9058622f'),
+        desc: i18n.t('k9d0b1f20'),
         icon: <IconLink />,
       },
       {
         key: 'api',
-        label: 'API 参考',
-        desc: '全部接口清单与在线调试，可导出 Markdown',
+        label: i18n.t('k1bd4a861'),
+        desc: i18n.t('kcda963b7'),
         icon: <IconCode />,
       },
       {
         key: 'plugins',
-        label: '插件',
-        desc: '脚本宿主与已安装插件',
+        label: i18n.t('k236b0cdd'),
+        desc: i18n.t('k3df95d8b'),
         icon: <IconWand />,
       },
       {
         key: 'market',
-        label: '插件市场',
-        desc: '浏览权限声明、一键安装与在线安装',
+        label: i18n.t('ka5fdebec'),
+        desc: i18n.t('k253875ff'),
         icon: <IconLink />,
       },
       {
         key: 'lan',
-        label: '手机投送',
-        desc: '同一 Wi-Fi 扫码上传与只读分享',
+        label: i18n.t('k102f36ba'),
+        desc: i18n.t('k09212153'),
         icon: <IconGlobe />,
       },
     ],
   },
   {
-    label: '运行状态',
+    label: i18n.t('ke4b51d5c'),
     items: [
       {
         key: 'tasks',
-        label: '任务与撤销',
-        desc: '后台任务历史与操作回滚',
+        label: i18n.t('k64e00eaa'),
+        desc: i18n.t('k09da8aa9'),
         icon: <IconRotateCcw />,
       },
       {
         key: 'models',
-        label: '下载中心',
-        desc: '所有模型与运行库的下载、更新与清理',
+        label: i18n.t('k937902e1'),
+        desc: i18n.t('kf00ebbac'),
         icon: <IconDownload />,
       },
       {
         key: 'about',
-        label: '关于软件',
-        desc: '版本、检查更新、运行环境与诊断目录',
+        label: i18n.t('k7716a5ac'),
+        desc: i18n.t('k7e54fdc2'),
         icon: <IconInfo />,
       },
     ],
@@ -240,34 +241,34 @@ export default function Settings({
     <div>
       <div className="page-head">
         <div>
-          <h1 className="page-title">{'设置'}</h1>
+          <h1 className="page-title">{i18n.t('ke366ccf1')}</h1>
           <div className="page-sub">
-            {'按用途分组，左侧切换分类，改完点右上角保存'}
+            {i18n.t('k2b67ca80')}
           </div>
           <div className="settings-scope">
             <span>
-              <b>{'按资源库独立'}</b>{' '}
-              {'采集源 / AI 评分 / 壁纸 / 删除策略 / 保存位置'}
+              <b>{i18n.t('ka3d9a184')}</b>{' '}
+              {i18n.t('kc692e163')}
             </span>
             <span>
-              <b>{'跨库共享'}</b> <span>{'微博 Cookie / AI 接入 / 网络代理'}</span>
+              <b>{i18n.t('kbc9154a4')}</b> <span>{i18n.t('k36084a8b')}</span>
             </span>
           </div>
         </div>
         <button
           className="btn primary"
           onClick={save}
-          title={dirty ? '有未保存的改动' : '当前没有需要保存的改动'}
+          title={dirty ? i18n.t('k9ac39816') : i18n.t('k2fb8e178')}
           style={dirty ? { boxShadow: '0 0 0 2px rgba(255,77,141,.35)' } : undefined}
         >
-          {'保存设置'}
+          {i18n.t('k4323be72')}
           {dirty ? ' ●' : ''}
         </button>
       </div>
 
       <div className="settings-shell">
-        <nav className="settings-nav" aria-label={'设置分类'}>
-          <div className="nav-label">{'设置分类'}</div>
+        <nav className="settings-nav" aria-label={i18n.t('k2590095f')}>
+          <div className="nav-label">{i18n.t('k2590095f')}</div>
           {NAV_GROUPS.map((g) => (
             <div className="nav-group" key={g.label}>
               <div className="nav-group-title">{g.label}</div>
@@ -293,15 +294,30 @@ export default function Settings({
               <h2>{current.label}</h2>
               <p>{current.desc}</p>
             </div>
-            {dirty && <span className="settings-badge">有未保存的改动</span>}
+            {dirty && <span className="settings-badge">{i18n.t('k9ac39816')}</span>}
           </div>
 
           {/* ------------------------------ 通用 ------------------------------ */}
           {section === 'general' && (
-            <Card title="通用" desc="决定素材落在哪里、删除时怎么处理，以及编辑与评分偏好。">
-              <div className="settings-subhead">存储与删除</div>
+            <Card title={i18n.t('kaa05fd09')} desc={i18n.t('ke7741759')}>
+              <div className="field" style={{ maxWidth: 260 }}>
+                <label>{i18n.t('k7a0878a7')}</label>
+                <select
+                  className="input"
+                  value={currentLocale().startsWith('en') ? 'en-US' : 'zh-CN'}
+                  onChange={(e) => {
+                    changeLocale(e.target.value === 'en-US' ? 'en-US' : 'zh-CN');
+                    window.location.reload();
+                  }}
+                >
+                  <option value="zh-CN">{i18n.t('ka7bac223')}</option>
+                  <option value="en-US">English</option>
+                </select>
+                <div className="hint">{i18n.t('kd3336e90')}</div>
+              </div>
+              <div className="settings-subhead">{i18n.t('k24af4ac2')}</div>
               <div className="field">
-                <label>图片保存文件夹</label>
+                <label>{i18n.t('k5511f0a3')}</label>
                 <div style={{ display: 'flex', gap: 8 }}>
                   <input
                     className="input"
@@ -312,40 +328,40 @@ export default function Settings({
                   <button
                     className="btn"
                     disabled={!isDesktop}
-                    title={isDesktop ? '选择文件夹' : '仅桌面端支持选择文件夹'}
+                    title={isDesktop ? i18n.t('kaaa4b65e') : i18n.t('kb5eb86d0')}
                     onClick={async () => {
                       const dir = await pickFolder();
                       if (dir) {
                         patch({ storageDir: dir });
                         await api.saveSettings({ storageDir: dir });
-                        onToast(`保存文件夹已设置为 ${dir}，正在扫描…`);
+                        onToast(i18n.t('k34a1ed4d', { p0: dir }));
                         onLibraryChanged(); // 立即刷新图库，不用手动点刷新
                       }
                     }}
                   >
-                    选择…
+                    {i18n.t('k4f05519a')}
                   </button>
                 </div>
                 <div className="hint">
-                  文件名格式：关键词_来源_宽x高_时间.jpg；可直接用资源管理器浏览、设为壁纸
+                  {i18n.t('k6326c14a')}
                 </div>
               </div>
               <div className="field">
-                <label>在软件里删除图片时</label>
+                <label>{i18n.t('kd7a59201')}</label>
                 <Select
                   className="select"
                   style={{ width: '100%' }}
                   value={settings.deletePolicy}
                   onChange={(v) => patch({ deletePolicy: v as SettingsType['deletePolicy'] })}
                 >
-                  <option value="trash">移到回收站（可恢复）</option>
-                  <option value="permanent">彻底删除</option>
-                  <option value="unlink">只从图库移除，保留文件</option>
+                  <option value="trash">{i18n.t('k68d0d6e7')}</option>
+                  <option value="permanent">{i18n.t('k73279665')}</option>
+                  <option value="unlink">{i18n.t('k2e826605')}</option>
                 </Select>
               </div>
-              <div className="settings-subhead">评分与编辑</div>
+              <div className="settings-subhead">{i18n.t('k7bf9f9f9')}</div>
               <div className="field">
-                <label>智能评分阈值（低于该分采集时自动丢弃）</label>
+                <label>{i18n.t('ka47a0407')}</label>
                 <DebouncedInput
                   type="number"
                   min={0}
@@ -355,7 +371,7 @@ export default function Settings({
                 />
               </div>
               <div className="field" style={{ maxWidth: 260 }}>
-                <label>调色历史保留步数</label>
+                <label>{i18n.t('ke8a5da7f')}</label>
                 <DebouncedInput
                   type="number"
                   min={1}
@@ -364,15 +380,15 @@ export default function Settings({
                   onCommit={(v) => patch({ historySteps: Math.min(500, Math.max(1, Number(v) || 100)) })}
                 />
                 <div className="hint">
-                  调色台左侧「历史记录」最多留多少步，默认 100（1~500）。一次拖动只算一步，调完色还能点到之前某一步
+                  {i18n.t('kac06a924')}
                 </div>
               </div>
               <div className="field">
                 <div className="switch-row">
                   <span>
-                    非破坏性编辑
+                    {i18n.t('k0b40dd56')}
                     <span className="hint">
-                      　裁切 / 旋转 / 调色只记操作链，原图字节不动；导出时才套用，随时可「还原」
+                      　{i18n.t('kb362146a')}
                     </span>
                   </span>
                   <input
@@ -386,34 +402,34 @@ export default function Settings({
                   想彻底落盘，在灯箱的「非破坏编辑」里点「应用到底片」。
                 </div>
               </div>
-              <div className="settings-subhead">快捷操作</div>
+              <div className="settings-subhead">{i18n.t('k9530e8e4')}</div>
               <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
                 <button className="btn" onClick={() => openFolder(settings.storageDir)}>
-                  <IconFolder /> 打开文件夹
+                  <IconFolder /> {i18n.t('kb00f8cb9')}
                 </button>
                 <button
                   className="btn"
                   onClick={async () => {
                     const res = await api.scanFolder();
-                    onToast(res.ok ? `扫描完成：新增 ${res.saved ?? 0} 张` : res.message || '扫描失败');
+                    onToast(res.ok ? i18n.t('k37161a2f', { p0: res.saved ?? 0 }) : res.message || i18n.t('k5ec14542'));
                     onLibraryChanged();
                   }}
                 >
-                  重新扫描文件夹
+                  {i18n.t('k7beb581f')}
                 </button>
                 <button
                   className="btn"
                   onClick={async () => {
                     const res = await api.purgeMissing();
-                    onToast(`已清理 ${res.removed} 条失效记录`);
+                    onToast(i18n.t('ka3ca1c0f', { p0: res.removed }));
                     onLibraryChanged();
                   }}
                 >
-                  清理失效记录
+                  {i18n.t('ke87f0fc0')}
                 </button>
               </div>
               <div className="hint" style={{ marginTop: 12 }}>
-                修改保存位置或删除策略后，点右上角「保存设置」生效
+                {i18n.t('k177ffed9')}
               </div>
             </Card>
           )}
@@ -459,50 +475,50 @@ export default function Settings({
           {section === 'guide' && (
             <>
               <Card
-                title="教程"
-                desc="分 7 步把重点功能串一遍：看什么、怎么找、怎么批量处理、怎么编辑。跟着点「下一步」即可，中途随时能跳过。"
+                title={i18n.t('kb7824d5c')}
+                desc={i18n.t('k7e390984')}
                 badge={
-                  <span className="settings-badge">{tourDone ? '已看过 · 不会自动弹出' : '还没看过 · 启动时会自动弹出'}</span>
+                  <span className="settings-badge">{tourDone ? i18n.t('k78eebac6') : i18n.t('k04a1e8f3')}</span>
                 }
               >
                 <div className="field">
-                  <label>分步导览</label>
+                  <label>{i18n.t('k8550e5d0')}</label>
                   <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
                     <button className="btn primary" onClick={onStartTour}>
-                      开始 / 重看教程
+                      {i18n.t('k549a624e')}
                     </button>
                     <button className="btn" onClick={() => setTourHint(!tourDone)}>
-                      {tourDone ? '下次启动时再自动提醒' : '关闭自动提醒'}
+                      {tourDone ? i18n.t('k45fefaad') : i18n.t('kd7257977')}
                     </button>
                   </div>
                   <div className="hint" style={{ marginTop: 6 }}>
-                    提醒只影响「打开应用时会不会自动弹」，不影响随时从本页手动播放。
+                    {i18n.t('k8bc7c8f8')}
                   </div>
                 </div>
 
                 <div className="field">
-                  <label>教程会讲到</label>
+                  <label>{i18n.t('k0b246795')}</label>
                   <ul className="hint" style={{ margin: 0, paddingLeft: 18, lineHeight: 1.9 }}>
-                    <li>侧栏与资源库：图库 / 收藏 / 清单 / 采集 / 待整理分别放什么</li>
-                    <li>顶栏工具箱：裁切拼接、智能检索、画质增强、知识库</li>
-                    <li>搜索与筛选：关键词、来源、评分、颜色、画幅，组合存成智能文件夹</li>
-                    <li>多选与批量条：批量裁切、调色、水印 / 相框、移动、删除</li>
-                    <li>大图里编辑：旋转、Camera Raw 调色、水印 / 相框、标注、版本回滚</li>
-                    <li>设置：存储位置、备份导出、AI 接入、删除策略与快捷键</li>
+                    <li>{i18n.t('k70b4b681')}</li>
+                    <li>{i18n.t('kc41ee12f')}</li>
+                    <li>{i18n.t('k7c7118af')}</li>
+                    <li>{i18n.t('k78d114f5')}</li>
+                    <li>{i18n.t('k7b685539')}</li>
+                    <li>{i18n.t('kb3ba8874')}</li>
                   </ul>
                 </div>
               </Card>
 
               <Card
-                title="使用教程（可搜索）"
-                desc="每个功能一条完整说明：怎么用、边界在哪、对应快捷键。按关键词搜索比翻文档快。"
-                badge={<span className="settings-badge">F1 随时打开</span>}
+                title={i18n.t('k04f5cbe9')}
+                desc={i18n.t('k0def9c59')}
+                badge={<span className="settings-badge">{i18n.t('kc181ce48')}</span>}
               >
                 <div className="field">
-                  <label>按功能查</label>
+                  <label>{i18n.t('kf8cc5b85')}</label>
                   <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
                     <button className="btn primary" onClick={onOpenTutorial}>
-                      打开使用教程
+                      {i18n.t('kedfa445b')}
                     </button>
                   </div>
                   <div className="hint" style={{ marginTop: 6 }}>
@@ -512,14 +528,14 @@ export default function Settings({
                 </div>
               </Card>
 
-              <Card title="常用入口速查" desc="不想看导览时，这几个地方就是全部主流程。">
+              <Card title={i18n.t('ke17f3542')} desc={i18n.t('kfc933cf4')}>
                 <div className="hint" style={{ lineHeight: 1.9 }}>
-                  <div>① 收集：顶部拖入文件 / 粘贴图片 / 侧栏「采集」按关键词抓图 / 浏览器扩展</div>
-                  <div>② 整理：卡片悬停打星收藏、拖到左侧文件夹、多选后批量处理</div>
-                  <div>③ 找图：顶部搜索框 + 筛选条件，或「智能检索」用一句话描述找</div>
-                  <div>④ 编辑：双击开大图，「更多」里有裁切 / 调色 / 水印相框，写回前自动存版本</div>
-                  <div>⑤ 备份：本页「数据与维护」里可导出、校验与恢复</div>
-                  <div style={{ marginTop: 6 }}>键盘快捷键按 ? 查看；教程已跳过的，随时回来点「开始 / 重看教程」。</div>
+                  <div>{i18n.t('k3826fbf9')}</div>
+                  <div>{i18n.t('k8746e406')}</div>
+                  <div>{i18n.t('k91e8a4d6')}</div>
+                  <div>{i18n.t('k47edd654')}</div>
+                  <div>{i18n.t('k3608bdc0')}</div>
+                  <div style={{ marginTop: 6 }}>{i18n.t('k6cfe96b2')}</div>
                 </div>
               </Card>
             </>
@@ -555,25 +571,25 @@ export default function Settings({
           {/* --------------------------- 数据与维护 --------------------------- */}
           {section === 'data' && (
             <>
-              <div className="settings-subhead">导入与维护</div>
+              <div className="settings-subhead">{i18n.t('kbc23b34a')}</div>
               <ImportNameTemplateCard
                 value={settings.importNameTemplate || ''}
                 applyToLocal={!!settings.importNameTemplateForLocal}
                 onChange={(p) => patch(p)}
                 onToast={onToast}
               />
-              <Card title="图库维护" desc="本地素材导入与初始化。">
+              <Card title={i18n.t('k4ed3eab4')} desc={i18n.t('k77a49796')}>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
                   <button className="btn" onClick={runImport} disabled={importing}>
-                    {importing ? '导入中…' : '导入工作区本地素材'}
+                    {importing ? i18n.t('k9b1a865c') : i18n.t('k6da268f3')}
                   </button>
                   {/* 「下载初始素材」已移除：SEED_URLS 是空数组，按钮点下去只会显示"已尝试下载" */}
                   <button className="btn danger" onClick={clearAll}>
-                    <IconTrash /> 清空图库
+                    <IconTrash /> {i18n.t('kf331ee8f')}
                   </button>
                 </div>
                 <div className="field" style={{ marginTop: 14, maxWidth: 260 }}>
-                  <label>导入深度（层）</label>
+                  <label>{i18n.t('k9ad1ad70')}</label>
                   <DebouncedInput
                     type="number"
                     min={1}
@@ -582,24 +598,24 @@ export default function Settings({
                     onCommit={(v) => patch({ importMaxDepth: Math.min(16, Math.max(1, Number(v) || 4)) })}
                   />
                   <div className="hint">
-                    扫描子文件夹的层数上限，默认 4。放得更深的素材需要调大，否则导入结束会提示有目录被跳过
+                    {i18n.t('k727001c9')}
                   </div>
                 </div>
                 <div className="hint" style={{ marginTop: 14, lineHeight: 1.9 }}>
-                  · 采集到的图片直接写入「通用」里设置的本地文件夹，可用资源管理器直接访问
-                  <br />· 本地已有素材按原路径登记并生成缩略图，不复制原文件
-                  <br />· 大图预览中可一键「设为桌面壁纸」「在文件夹中显示」
+                  {i18n.t('ke21b6c91')}
+                  <br />{i18n.t('k1f20d809')}
+                  <br />{i18n.t('k6f8a5a3b')}
                 </div>
               </Card>
 
               <MaintenanceCard onLibraryChanged={onLibraryChanged} onToast={onToast} />
 
-              <div className="settings-subhead">备份与恢复</div>
+              <div className="settings-subhead">{i18n.t('kb4fbc92c')}</div>
               <DataTransferCard onLibraryChanged={onLibraryChanged} onToast={onToast} />
               <RecycleBinCard onLibraryChanged={onLibraryChanged} onToast={onToast} />
               <SyncCard onToast={onToast} onLibraryChanged={onLibraryChanged} />
 
-              <div className="settings-subhead">扩展与监控</div>
+              <div className="settings-subhead">{i18n.t('kbe44fe20')}</div>
               <WorkshopCard onToast={onToast} />
               <WatchCard onToast={onToast} />
             </>

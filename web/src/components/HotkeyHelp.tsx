@@ -1,5 +1,6 @@
 import { IconClose } from './Icons';
 import { displayBinding, useKeymap } from '../lib/keymap';
+import i18n from '../i18n';
 
 /** 快捷键帮助面板（按 ? 随时打开），只列真实现过的键，避免文档骗人。
  *  主窗口那几项跟随「设置 → 快捷键」里的自定义值实时变化。 */
@@ -7,43 +8,43 @@ export default function HotkeyHelp({ onClose }: { onClose: () => void }) {
   const { keymap } = useKeymap();
   const groups: { title: string; rows: [string, string][] }[] = [
     {
-      title: '主窗口（可在设置里改）',
+      title: i18n.t('k292a63a1'),
       rows: [
-        [displayBinding(keymap.palette), '打开 / 关闭命令面板'],
-        [displayBinding(keymap.filter), '筛选器搜索：类型 / 星级 / 色系 / 文件夹'],
-        [`${displayBinding(keymap.search)} 或 /`, '聚焦搜索框'],
-        [displayBinding(keymap.quickPreview), '快速预览鼠标下的素材；预览中再按一次关闭'],
-        [displayBinding(keymap.selectAll), '全选当前筛选下的全部素材（不只是已加载的一页）'],
-        [displayBinding(keymap.delete), '删除选中的素材'],
-        [displayBinding(keymap.undo), '撤销最近一次编辑（裁切/旋转/调色/增强的覆盖写回）'],
-        [displayBinding(keymap.help), '打开 / 关闭这个面板'],
+        [displayBinding(keymap.palette), i18n.t('k5075f772')],
+        [displayBinding(keymap.filter), i18n.t('k0f01a411')],
+        [i18n.t('k0c3ee9cf', { p0: displayBinding(keymap.search) }), i18n.t('kb0f61d34')],
+        [displayBinding(keymap.quickPreview), i18n.t('k16fa4f11')],
+        [displayBinding(keymap.selectAll), i18n.t('k59e4f3bf')],
+        [displayBinding(keymap.delete), i18n.t('k6c58b289')],
+        [displayBinding(keymap.undo), i18n.t('k20e7e920')],
+        [displayBinding(keymap.help), i18n.t('k01422122')],
       ],
     },
     {
-      title: '大图浏览',
+      title: i18n.t('k20e5c5b4'),
       rows: [
-        ['← / →', '上一张 / 下一张'],
-        ['空格', '视频/音频播放暂停；静态图再按空格关闭预览'],
-        ['+ / - / 0', '放大 / 缩小 / 还原'],
-        ['1 ~ 5', '给当前素材打星（再按一次取消）'],
-        ['i', '打开 / 关闭右侧信息面板'],
-        ['Esc', '关闭预览（菜单/播放中会先收一层）'],
+        ['← / →', i18n.t('k196b34c2')],
+        [i18n.t('kfcbc6a64'), i18n.t('k2f5c71d3')],
+        ['+ / - / 0', i18n.t('k19dd6cd1')],
+        ['1 ~ 5', i18n.t('k56f0d705')],
+        ['i', i18n.t('kd4aab14c')],
+        ['Esc', i18n.t('k9bbb3188')],
       ],
     },
     {
-      title: '图上标注',
+      title: i18n.t('k3965a15e'),
       rows: [
-        ['Ctrl / ⌘ + Z', '撤销上一笔'],
-        ['Ctrl / ⌘ + Shift + Z', '重做'],
-        ['Delete', '删除选中的标注'],
-        ['Esc', '取消选中 / 退出标注'],
+        ['Ctrl / ⌘ + Z', i18n.t('k6f9f9020')],
+        ['Ctrl / ⌘ + Shift + Z', i18n.t('kc3c873d3')],
+        ['Delete', i18n.t('k8f4035fb')],
+        ['Esc', i18n.t('k1772590f')],
       ],
     },
     {
-      title: '其他',
+      title: i18n.t('k0d98c747'),
       rows: [
-        ['双击卡片', '打开大图'],
-        ['Esc', '关闭弹窗，或取消多选'],
+        [i18n.t('kebfd5832'), i18n.t('k20a0c156')],
+        ['Esc', i18n.t('k85d8f743')],
       ],
     },
   ];
@@ -52,8 +53,8 @@ export default function HotkeyHelp({ onClose }: { onClose: () => void }) {
     <div className="modal-backdrop" onClick={onClose}>
       <div className="modal-card hk-card" onClick={(e) => e.stopPropagation()}>
         <div className="modal-head">
-          <b>键盘快捷键</b>
-          <button className="icon-btn" onClick={onClose} title="关闭">
+          <b>{i18n.t('k867ade50')}</b>
+          <button className="icon-btn" onClick={onClose} title={i18n.t('kb15d9127')}>
             <IconClose />
           </button>
         </div>
@@ -71,9 +72,9 @@ export default function HotkeyHelp({ onClose }: { onClose: () => void }) {
           ))}
         </div>
         <div className="modal-foot">
-          <span className="exp-hint">大图打开时同样生效，输入框内不会触发</span>
+          <span className="exp-hint">{i18n.t('k5e0e0489')}</span>
           <button className="btn sm primary" onClick={onClose}>
-            知道了
+            {i18n.t('kce26955a')}
           </button>
         </div>
       </div>

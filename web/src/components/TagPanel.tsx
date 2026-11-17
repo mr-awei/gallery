@@ -4,6 +4,7 @@ import { api } from '../api';
 import { confirmDialog, promptDialog } from './Dialogs';
 import { TAG_MIME } from '../lib/dnd';
 import type { TagNode } from '../types';
+import i18n from '../i18n';
 
 interface Props {
   /** 全量标签（用来算同级顺序与所属分组） */
@@ -112,18 +113,18 @@ export default function TagPanel({
     try {
       if (pos === 'child') {
         if (isDescendant(target.tag, dragged)) {
-          onToast?.('不能把标签拖到自己的子标签下');
+          onToast?.(i18n.t('k7b02e003'));
           return;
         }
         const r = await api.moveTag(dragged, target.tag);
         onChanged({ tags: r.tags, groups: r.groups });
-        onToast?.(`「${dragged}」已归到「${target.tag}」下`);
+        onToast?.(i18n.t('k464a4353', { p0: dragged, p1: target.tag }));
         return;
       }
       /* 同级排序：先对齐目标的分组/父级，再按新顺序批量写 sort_order */
       const parentOfTarget = target.parent || '';
       if (parentOfTarget && (parentOfTarget === dragged || isDescendant(parentOfTarget, dragged))) {
-        onToast?.('不能把标签移动到自己的子标签里');
+        onToast?.(i18n.t('kda8c0b51'));
         return;
       }
       await api.tagMeta({ tag: dragged, group: target.group || '', parent: parentOfTarget });
@@ -134,7 +135,7 @@ export default function TagPanel({
       const r = await api.reorderTags(order.map((x) => x.tag));
       onChanged({ tags: r.tags, groups: r.groups });
     } catch (err) {
-      onToast?.(`移动标签失败：${(err as Error).message}`);
+      onToast?.(i18n.t('k460f948b', { p0: (err as Error).message }));
     }
   };
 
@@ -144,39 +145,39 @@ export default function TagPanel({
     setGroupHint('');
     if (!dragged) return;
     try {
-      const r = await api.tagMeta({ tag: dragged, group: group === '未分组' ? '' : group, parent: '' });
+      const r = await api.tagMeta({ tag: dragged, group: group === i18n.t('k6bf48c97') ? '' : group, parent: '' });
       onChanged({ tags: r.tags, groups: r.groups });
-      onToast?.(`「${dragged}」已移到分组「${group}」`);
+      onToast?.(i18n.t('k38e7eb79', { p0: dragged, p1: group }));
     } catch (err) {
-      onToast?.(`移动失败：${(err as Error).message}`);
+      onToast?.(i18n.t('k6c539f98', { p0: (err as Error).message }));
     }
   };
 
   const renameGroup = async (group: string) => {
     setMenu(null);
-    const next = await promptDialog(`重命名分组「${group}」为：`, group);
+    const next = await promptDialog(i18n.t('k0d97a39c', { p0: group }), group);
     if (next === null) return;
     const name = next.trim();
     if (!name || name === group) return;
     try {
       const r = await api.renameTagGroup(group, name);
       onChanged({ tags: r.tags, groups: r.groups });
-      onToast?.(`分组已改名为「${name}」`);
+      onToast?.(i18n.t('k1054f8d5', { p0: name }));
       setCollapsed((prev) => prev.map((g) => (g === group ? name : g)));
     } catch (err) {
-      onToast?.(`改名失败：${(err as Error).message}`);
+      onToast?.(i18n.t('kcaa6b0dd', { p0: (err as Error).message }));
     }
   };
 
   const deleteGroup = async (group: string) => {
     setMenu(null);
-    if (!(await confirmDialog(`删除分组「${group}」？组内标签会退回「未分组」，标签和图片都不受影响。`))) return;
+    if (!(await confirmDialog(i18n.t('kd34ad324', { p0: group })))) return;
     try {
       const r = await api.deleteTagGroup(group);
       onChanged({ tags: r.tags, groups: r.groups });
-      onToast?.(`分组「${group}」已删除，标签已退回未分组`);
+      onToast?.(i18n.t('kfd4948c5', { p0: group }));
     } catch (err) {
-      onToast?.(`删除失败：${(err as Error).message}`);
+      onToast?.(i18n.t('k94229cac', { p0: (err as Error).message }));
     }
   };
 
@@ -223,13 +224,13 @@ export default function TagPanel({
               }}
               onContextMenu={(e) => {
                 e.preventDefault();
-                if (group === '未分组') return;
+                if (group === i18n.t('k6bf48c97')) return;
                 setMenu({ group, x: e.clientX, y: e.clientY });
               }}
               title={
-                group === '未分组'
-                  ? '点击折叠 / 展开'
-                  : '点击折叠 / 展开 · 把标签拖到这里换组 · 右键改名或删除分组'
+                group === i18n.t('k6bf48c97')
+                  ? i18n.t('k377e04b5')
+                  : i18n.t('k2b03e0a7')
               }
             >
               <span className="tag-caret">{isCollapsed ? '▸' : '▾'}</span>
@@ -261,7 +262,7 @@ export default function TagPanel({
                       e.preventDefault();
                       onEditTag(t);
                     }}
-                    title={`${t.tag}（${t.count}）· 右键编辑分组 / 颜色 / 层级 · 拖动可改层级与顺序`}
+                    title={i18n.t('ka9b13c1d', { p0: t.tag, p1: t.count })}
                   >
                     <span className="tag-dot" style={t.color ? { background: t.color } : undefined} />
                     <span className="tag-name">{t.tag}</span>
@@ -289,7 +290,7 @@ export default function TagPanel({
                         e.preventDefault();
                         onEditTag(c);
                       }}
-                      title={`${c.tag}（${c.count}）· 子标签 · 右键编辑元数据`}
+                      title={i18n.t('k841b0336', { p0: c.tag, p1: c.count })}
                     >
                       <span className="tag-dot" style={c.color ? { background: c.color } : undefined} />
                       <span className="tag-name">{c.tag}</span>
@@ -301,7 +302,7 @@ export default function TagPanel({
           </div>
         );
       })}
-      {!tags.length && <div className="tag-empty">还没有标签，给图片打上标签后会出现在这里</div>}
+      {!tags.length && <div className="tag-empty">{i18n.t('k12f833fa')}</div>}
 
       {remaining > 0 && onLoadMore && (
         <button className="tag-load-more" onClick={onLoadMore}>
@@ -315,11 +316,11 @@ export default function TagPanel({
           style={{ left: menu.x, top: menu.y }}
           onClick={(e) => e.stopPropagation()}
         >
-          <button onClick={() => void renameGroup(menu.group)}><IconPencil size={13} /> 重命名分组</button>
+          <button onClick={() => void renameGroup(menu.group)}><IconPencil size={13} /> {i18n.t('kf67e2dbb')}</button>
           <button className="danger" onClick={() => void deleteGroup(menu.group)}>
-            <IconTrash size={13} /> 删除分组
+            <IconTrash size={13} /> {i18n.t('kfebf1925')}
           </button>
-          <div className="tag-group-menu-note">删除只解散分组，标签与图片都会保留</div>
+          <div className="tag-group-menu-note">{i18n.t('k43c5b135')}</div>
         </div>
       )}
     </div>

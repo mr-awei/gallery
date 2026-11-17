@@ -1,5 +1,6 @@
 import { IconLink, IconLock } from './Icons';
 import React, { useEffect } from 'react';
+import i18n from '../i18n';
 
 /**
  * 裁切参数面板（单张裁切面板与批量裁切台共用一套控件）：
@@ -150,8 +151,8 @@ export default function CropSettings({
   busy,
   onFocus,
   onCenter,
-  centerLabel = '全部居中',
-  focusLabel = '按焦点排布',
+  centerLabel = i18n.t('k42330f9b'),
+  focusLabel = i18n.t('kb4f8f7bf'),
 }: Props) {
   const ratioStr = cropRatioStr(s);
   const free = isFreeRatio(s.preset);
@@ -183,15 +184,15 @@ export default function CropSettings({
   return (
     <>
       <div className="cs-sec">
-        <div className="cs-sec-title">尺寸</div>
+        <div className="cs-sec-title">{i18n.t('kc8339fd2')}</div>
         <div className="cs-wh">
           <label>
-            <span>宽</span>
+            <span>{i18n.t('kea5a1c75')}</span>
             <input
               className="input"
               inputMode="numeric"
               value={s.noResize ? '' : s.outW}
-              placeholder="原尺寸"
+              placeholder={i18n.t('k6b7c87ca')}
               disabled={disabled || s.noResize}
               onChange={(e) => {
                 const v = e.target.value.replace(/[^\d]/g, '');
@@ -210,19 +211,19 @@ export default function CropSettings({
           <button
             className={`cs-link${s.linkWH ? ' on' : ''}`}
             onClick={() => onChange({ linkWH: !s.linkWH })}
-            title={s.linkWH ? '已锁定比例：改一边另一边跟着算' : '已解锁：宽高各自输入'}
+            title={s.linkWH ? i18n.t('kb0dd29fb') : i18n.t('k0902125a')}
             disabled={disabled || free}
             type="button"
           >
             {s.linkWH ? <IconLink size={13} /> : <IconLock size={13} />}
           </button>
           <label>
-            <span>高</span>
+            <span>{i18n.t('k4296d7d2')}</span>
             <input
               className="input"
               inputMode="numeric"
               value={s.noResize ? '' : s.outH}
-              placeholder="原尺寸"
+              placeholder={i18n.t('k6b7c87ca')}
               disabled={disabled || s.noResize}
               onChange={(e) => {
                 const v = e.target.value.replace(/[^\d]/g, '');
@@ -246,15 +247,15 @@ export default function CropSettings({
             disabled={disabled}
             onChange={(e) => onChange({ noResize: e.target.checked })}
           />
-          <span>不进行大小调整</span>
+          <span>{i18n.t('kfc8605e7')}</span>
         </label>
         <p className="cs-tip">
-          {outputHint ?? (out ? `输出 ${out.w} × ${out.h} px` : '保持裁切后的自然像素尺寸')}
+          {outputHint ?? (out ? i18n.t('k9169a065', { p0: out.w, p1: out.h }) : i18n.t('kb7997782'))}
         </p>
       </div>
 
       <div className="cs-sec">
-        <div className="cs-sec-title">比例</div>
+        <div className="cs-sec-title">{i18n.t('k15007537')}</div>
         <div className="cs-presets">
           {CROP_PRESETS.map((p) => {
             // 文案跟着方向翻面：竖版时 4:3 档读作 3:4、16:9 档读作 9:16。
@@ -266,7 +267,7 @@ export default function CropSettings({
                 key={p.key}
                 className={`btn sm${s.preset === p.key ? ' primary' : ''}`}
                 disabled={disabled}
-                title={`按 ${label} 比例裁切（居中最大区域，可再拖动调整；方向由下面的竖版/横版决定）`}
+                title={i18n.t('k33a1c7ca', { p0: label })}
                 // 不碰 portrait：批量裁 500 张竖图时，先点「竖版」再换比例不该被弹回横版。
                 // 档位按钮只负责宽高比，方向是独立的开关。
                 onClick={() => onChange({ preset: p.key, baseW: p.w, baseH: p.h })}
@@ -280,7 +281,7 @@ export default function CropSettings({
             disabled={disabled}
             onClick={() => applyCustom(s.customW, s.customH)}
           >
-            自定义
+            {i18n.t('kf1d4ff50')}
           </button>
         </div>
         {/* 横竖紧跟在比例后面：选完宽高比，下一件事就是定方向 */}
@@ -288,18 +289,18 @@ export default function CropSettings({
           <button
             className={`btn sm${s.portrait ? ' primary' : ''}`}
             disabled={disabled || free || square}
-            title={square ? '方图没有横竖之分' : '把当前比例翻成竖版（4:3 → 3:4、16:9 → 9:16）'}
+            title={square ? i18n.t('k050fd53f') : i18n.t('k7f06b36d')}
             onClick={() => onChange({ portrait: true })}
           >
-            竖版
+            {i18n.t('kf02ee187')}
           </button>
           <button
             className={`btn sm${!s.portrait ? ' primary' : ''}`}
             disabled={disabled || free || square}
-            title={square ? '方图没有横竖之分' : '把当前比例翻成横版（3:4 → 4:3、9:16 → 16:9）'}
+            title={square ? i18n.t('k050fd53f') : i18n.t('k199f4dd8')}
             onClick={() => onChange({ portrait: false })}
           >
-            横版
+            {i18n.t('k2cfab0df')}
           </button>
         </div>
         {allowFree && (
@@ -308,17 +309,17 @@ export default function CropSettings({
               className={`btn sm${s.preset === 'free' ? ' primary' : ''}`}
               disabled={disabled}
               onClick={() => onChange({ preset: 'free' })}
-              title="自由裁切：拖动选框四边四角任意调整"
+              title={i18n.t('k5ffb505b')}
             >
-              自由
+              {i18n.t('k0aaabc22')}
             </button>
             <button
               className={`btn sm${s.preset === 'orig' ? ' primary' : ''}`}
               disabled={disabled}
               onClick={() => onChange({ preset: 'orig' })}
-              title="保持原图比例自由裁切"
+              title={i18n.t('k3162945d')}
             >
-              原比例
+              {i18n.t('k34a18167')}
             </button>
           </div>
         )}
@@ -349,15 +350,15 @@ export default function CropSettings({
         </div>
         <p className="cs-tip">
           {s.preset === 'free'
-            ? '自由裁切：拖动选框四边四角任意调整'
+            ? i18n.t('k5ffb505b')
             : s.preset === 'orig'
-              ? '原比例：拖动改变大小，画幅不变'
-              : `当前 ${ratioStr}`}
+              ? i18n.t('kfa9b75d5')
+              : i18n.t('kea3263f8', { p0: ratioStr })}
         </p>
       </div>
 
       <div className="cs-sec">
-        <div className="cs-sec-title">焦点</div>
+        <div className="cs-sec-title">{i18n.t('ke0096ff3')}</div>
         <label className="lb-radio cs-check">
           <input
             type="checkbox"
@@ -365,15 +366,15 @@ export default function CropSettings({
             disabled={disabled}
             onChange={(e) => onChange({ autoFocus: e.target.checked })}
           />
-          <span>自动检测图像焦点</span>
+          <span>{i18n.t('k1383d9e1')}</span>
         </label>
-        <p className="cs-tip">按轮廓 + 肤色 + 饱和度找主体，把人脸/主体放进框内；勾选后改比例也会重新检测。</p>
+        <p className="cs-tip">{i18n.t('k582224cf')}</p>
         <div className="cs-actions">
           <button className="btn sm" disabled={disabled || busy} onClick={onCenter}>
             {centerLabel}
           </button>
           <button className="btn sm" disabled={disabled || busy} onClick={onFocus}>
-            {busy ? '检测中…' : focusLabel}
+            {busy ? i18n.t('k0a08b242') : focusLabel}
           </button>
         </div>
       </div>

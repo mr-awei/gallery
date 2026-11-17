@@ -4,6 +4,7 @@ import { api } from '../api';
 import type { Library, SwitchLibraryResult } from '../types';
 import { IconCheck, IconChevronDown, IconFolder, IconLock, IconMore } from './Icons';
 import LibraryLockDialog from './LibraryLockDialog';
+import i18n from '../i18n';
 
 /**
  * Eagle 式资源库切换器：左上角触发按钮 → 库列表面板。
@@ -134,11 +135,11 @@ export default function LibrarySwitcher({
   // 面板/菜单 portal 到 body：脱离侧栏的层叠上下文，避免 fixed 弹层被主内容盖住
   return (
     <div className="lib-switcher-wrap" ref={wrapRef}>
-      <button ref={triggerRef} type="button" className="lib-trigger" onClick={togglePanel} title="切换资源库">
+      <button ref={triggerRef} type="button" className="lib-trigger" onClick={togglePanel} title={i18n.t('ka63be475')}>
         <IconFolder />
-        <span className="lib-trigger-name">{active?.name ?? '选择资源库'}</span>
+        <span className="lib-trigger-name">{active?.name ?? i18n.t('k23a9576a')}</span>
         {active?.hasPassword && (
-          <span className="lib-trigger-lock" title="这个资源库已加密码">
+          <span className="lib-trigger-lock" title={i18n.t('k217fd8a7')}>
             <IconLock size={12} />
           </span>
         )}
@@ -150,7 +151,7 @@ export default function LibrarySwitcher({
       {open &&
         createPortal(
           <div className="lib-panel" ref={panelRef} style={{ top: panelPos.top, left: panelPos.left }}>
-            <div className="lib-panel-head">资源库</div>
+            <div className="lib-panel-head">{i18n.t('kc99f5cf1')}</div>
             <div className="lib-panel-list">
               {libraries.map((lib) => (
                 <div
@@ -168,26 +169,26 @@ export default function LibrarySwitcher({
                       void pickLibrary(lib);
                     }
                   }}
-                  title={lib.root_path ? `素材根目录：${lib.root_path}` : lib.path}
+                  title={lib.root_path ? i18n.t('k6a1172a2', { p0: lib.root_path }) : lib.path}
                 >
                   <span className="lib-row-icon">
                     <IconFolder />
                   </span>
                   <span className="lib-row-name">{lib.name}</span>
                   {lib.hasPassword && (
-                    <span className="lib-row-lock" title={lib.locked ? '已加密码（现在锁着）' : '已加密码（本次已解锁）'}>
+                    <span className="lib-row-lock" title={lib.locked ? i18n.t('k089cf362') : i18n.t('k4c447a9c')}>
                       <IconLock size={12} />
                     </span>
                   )}
                   {lib.id === activeLibId && (
-                    <span className="lib-row-check" title="当前资源库">
+                    <span className="lib-row-check" title={i18n.t('ke8e1189e')}>
                       <IconCheck size={13} />
                     </span>
                   )}
                   <button
                     type="button"
                     className="lib-row-more"
-                    title="资源库操作"
+                    title={i18n.t('ka2a8b260')}
                     onClick={(e) => openRowMenu(e, lib)}
                   >
                     <IconMore size={14} />
@@ -196,7 +197,7 @@ export default function LibrarySwitcher({
               ))}
             </div>
             <button type="button" className="lib-panel-create" onClick={pick(onCreate)}>
-              ＋ 新建资源库…
+              {i18n.t('kd5aa0341')}
             </button>
           </div>,
           document.body
@@ -214,7 +215,7 @@ export default function LibrarySwitcher({
                 if (lib) onOpenInExplorer(lib);
               })}
             >
-              在文件管理器打开
+              {i18n.t('kedca2c1f')}
             </button>
             <button
               type="button"
@@ -222,16 +223,16 @@ export default function LibrarySwitcher({
                 setDialog({ lib: menuLib, mode: menuLib.hasPassword ? 'change' : 'set' })
               )}
             >
-              {menuLib.hasPassword ? '修改密码…' : '设置密码…'}
+              {menuLib.hasPassword ? i18n.t('k0d885e5c') : i18n.t('kc6439126')}
             </button>
             {menuLib.hasPassword && menuLib.id === activeLibId && !menuLib.locked && (
               <button type="button" onClick={pick(() => void sealNow(menuLib))}>
-                立即上锁
+                {i18n.t('kb00619f2')}
               </button>
             )}
             {menuLib.hasPassword && (
               <button type="button" onClick={pick(() => setDialog({ lib: menuLib, mode: 'remove' }))}>
-                取消密码…
+                {i18n.t('k1daca059')}
               </button>
             )}
             <button
@@ -243,7 +244,7 @@ export default function LibrarySwitcher({
                 if (lib) onDelete(lib);
               })}
             >
-              从列表删除
+              {i18n.t('k0d1438f3')}
             </button>
           </div>,
           document.body

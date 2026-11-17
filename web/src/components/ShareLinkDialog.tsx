@@ -6,6 +6,7 @@ import { useEffect, useState } from 'react';
 import { api } from '../api';
 import type { LanShare, LanStatus } from '../types';
 import { IconClose, IconGlobe } from './Icons';
+import i18n from '../i18n';
 
 interface Props {
   defaultTitle: string;
@@ -19,9 +20,9 @@ interface Props {
 type Scope = 'library' | 'folder' | 'selection';
 
 const SCOPE_LABEL: Record<Scope, string> = {
-  library: '整个资源库',
-  folder: '指定文件夹',
-  selection: '选中的素材',
+  library: i18n.t('kcff473ab'),
+  folder: i18n.t('kde88d21d'),
+  selection: i18n.t('k917ca133'),
 };
 
 export default function ShareLinkDialog({
@@ -34,7 +35,7 @@ export default function ShareLinkDialog({
 }: Props) {
   const hasSelection = !!selectedIds?.length;
   const [scope, setScope] = useState<Scope>(hasSelection ? 'selection' : folderId ? 'folder' : 'library');
-  const [title, setTitle] = useState(folderName || defaultTitle || '图库分享');
+  const [title, setTitle] = useState(folderName || defaultTitle || i18n.t('kd602cbf4'));
   const [minutes, setMinutes] = useState(60);
   const [password, setPassword] = useState('');
   const [allowDownload, setAllowDownload] = useState(true);
@@ -50,7 +51,7 @@ export default function ShareLinkDialog({
       if (s.enabled) setShares((await api.lanShares()).shares || []);
       else setShares([]);
     } catch (err) {
-      onToast(`读取投送状态失败：${(err as Error).message}`, 'error');
+      onToast(i18n.t('k47db8442', { p0: (err as Error).message }), 'error');
     }
   };
   useEffect(() => {
@@ -58,10 +59,10 @@ export default function ShareLinkDialog({
   }, []);
 
   const scopes: { key: Scope; label: string; hint: string }[] = [
-    { key: 'library', label: '整个资源库', hint: '对方能看到库里全部可见素材' },
-    ...(folderId ? [{ key: 'folder' as Scope, label: '当前文件夹', hint: folderName || '只分享这个文件夹' }] : []),
+    { key: 'library', label: i18n.t('kcff473ab'), hint: i18n.t('k00b7e4d8') },
+    ...(folderId ? [{ key: 'folder' as Scope, label: i18n.t('k1f9ea1b1'), hint: folderName || i18n.t('k038092ba') }] : []),
     ...(hasSelection
-      ? [{ key: 'selection' as Scope, label: `已选 ${selectedIds!.length} 张`, hint: '只分享当前选中的素材' }]
+      ? [{ key: 'selection' as Scope, label: i18n.t('kff8fd594', { p0: selectedIds!.length }), hint: i18n.t('k9304f0d7') }]
       : []),
   ];
 
@@ -69,7 +70,7 @@ export default function ShareLinkDialog({
     if (busy) return;
     // 前端先挡一道：4 位以下等于没设密码，让用户以为设了最危险
     if (password && (password.length < 4 || password.length > 64)) {
-      onToast('访问密码需为 4~64 个字符', 'error');
+      onToast(i18n.t('kaf948ce9'), 'error');
       return;
     }
     setBusy(true);
@@ -79,7 +80,7 @@ export default function ShareLinkDialog({
         scope,
         ids: scope === 'selection' ? selectedIds : undefined,
         folderId: scope === 'folder' ? Number(folderId) : undefined,
-        title: title.trim() || '图库分享',
+        title: title.trim() || i18n.t('kd602cbf4'),
         password: password || undefined,
         allowDownload,
       });
@@ -87,11 +88,11 @@ export default function ShareLinkDialog({
       await refresh();
       onToast(
         password
-          ? '只读链接已生成（需要访问密码，请把密码另行告知对方）'
-          : '只读分享链接已生成，手机扫码即可浏览'
+          ? i18n.t('k14d21f43')
+          : i18n.t('kf5cfdb4d')
       );
     } catch (err) {
-      onToast(`生成失败：${(err as Error).message}`, 'error');
+      onToast(i18n.t('k7f52ecb6', { p0: (err as Error).message }), 'error');
     } finally {
       setBusy(false);
     }
@@ -102,26 +103,26 @@ export default function ShareLinkDialog({
       await api.revokeLanShare(token);
       if (qr.includes(token)) setQr('');
       await refresh();
-      onToast('这条分享链接已撤销，对方立即无法访问');
+      onToast(i18n.t('kee0b2b27'));
     } catch (err) {
-      onToast(`撤销失败：${(err as Error).message}`, 'error');
+      onToast(i18n.t('k5b0be54d', { p0: (err as Error).message }), 'error');
     }
   };
 
   const copy = (text: string) =>
     navigator.clipboard
       ?.writeText(text)
-      .then(() => onToast('链接已复制'))
-      .catch(() => onToast('复制失败，请手动选中', 'error'));
+      .then(() => onToast(i18n.t('k4b7d6310')))
+      .catch(() => onToast(i18n.t('k63e6737e'), 'error'));
 
   const enableLan = async () => {
     setBusy(true);
     try {
       await api.setLanAccess(true);
       await refresh();
-      onToast('已开启局域网访问，可以生成分享链接了');
+      onToast(i18n.t('k6973ff7d'));
     } catch (err) {
-      onToast(`开启失败：${(err as Error).message}`, 'error');
+      onToast(i18n.t('k4b4487c5', { p0: (err as Error).message }), 'error');
     } finally {
       setBusy(false);
     }
@@ -132,31 +133,31 @@ export default function ShareLinkDialog({
       <div className="modal-card" style={{ maxWidth: 620 }} onClick={(e) => e.stopPropagation()}>
         <div className="modal-head">
           <b>
-            <IconGlobe /> 只读分享链接
+            <IconGlobe /> {i18n.t('ka14f1a96')}
           </b>
-          <button className="btn ghost sm" onClick={onClose} title="关闭">
+          <button className="btn ghost sm" onClick={onClose} title={i18n.t('kb15d9127')}>
             <IconClose />
           </button>
         </div>
 
         <div className="modal-body" style={{ display: 'block' }}>
           <div className="hint" style={{ lineHeight: 1.8, marginBottom: 14 }}>
-            生成一条手机扫码即可打开的链接：对方只能浏览与搜索，<b>不能上传、不能修改</b>。
+            {i18n.t('k87821561')}<b>{i18n.t('k0dd4389f')}</b>。
             链接只在内存里，应用重启、到期或手动撤销后立即失效。手机需要与电脑连同一个 Wi-Fi。
           </div>
 
           {status && !status.enabled && (
             <div className="field" style={{ padding: 12, border: '1px solid var(--warn)', borderRadius: 10 }}>
-              <b>局域网访问还没开启</b>
-              <div className="hint" style={{ margin: '6px 0 10px' }}>分享链接需要一个独立的投送端口；开启后主服务仍然只监听 127.0.0.1。</div>
+              <b>{i18n.t('kb6aa4563')}</b>
+              <div className="hint" style={{ margin: '6px 0 10px' }}>{i18n.t('k32e14f66')}</div>
               <button className="btn sm" disabled={busy} onClick={() => void enableLan()}>
-                开启局域网访问
+                {i18n.t('kb47f8792')}
               </button>
             </div>
           )}
 
           <div className="field">
-            <label>分享范围</label>
+            <label>{i18n.t('k9b91ed4b')}</label>
             <div className="export-scope">
               {scopes.map((s) => (
                 <label key={s.key} className={`export-scope-item${scope === s.key ? ' active' : ''}`}>
@@ -172,7 +173,7 @@ export default function ShareLinkDialog({
 
           <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap' }}>
             <div className="field" style={{ flex: 2, minWidth: 220 }}>
-              <label>标题（手机页顶部显示）</label>
+              <label>{i18n.t('kf58f141e')}</label>
               <input
                 className="input"
                 style={{ width: '100%' }}
@@ -182,58 +183,58 @@ export default function ShareLinkDialog({
               />
             </div>
             <div className="field" style={{ flex: 1, minWidth: 130 }}>
-              <label>有效期</label>
+              <label>{i18n.t('kbb114ab9')}</label>
               <select
                 className="select"
                 style={{ width: '100%', padding: '7px 8px', borderRadius: 8 }}
                 value={minutes}
                 onChange={(e) => setMinutes(Number(e.target.value))}
               >
-                <option value={30}>30 分钟</option>
-                <option value={60}>1 小时</option>
-                <option value={180}>3 小时</option>
-                <option value={1440}>1 天</option>
-                <option value={10080}>7 天</option>
+                <option value={30}>{i18n.t('ke856b618')}</option>
+                <option value={60}>{i18n.t('k7a3bc120')}</option>
+                <option value={180}>{i18n.t('k1ee83072')}</option>
+                <option value={1440}>{i18n.t('k78c2dcbe')}</option>
+                <option value={10080}>{i18n.t('kfdef8c23')}</option>
               </select>
             </div>
           </div>
 
           <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap', alignItems: 'flex-end' }}>
             <div className="field" style={{ flex: 1, minWidth: 200 }}>
-              <label>访问密码（可选，至少 4 位）</label>
+              <label>{i18n.t('k2dfb8f41')}</label>
               <input
                 className="input"
                 style={{ width: '100%' }}
                 type="text"
                 autoComplete="new-password"
-                placeholder="留空表示拿到链接就能看"
+                placeholder={i18n.t('k9b533f55')}
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
                 maxLength={64}
               />
               <div className="hint" style={{ marginTop: 4 }}>
-                设了密码后，手机打开链接要先输密码；密码只存在本机，不写进链接。
+                {i18n.t('k1ef52953')}
               </div>
             </div>
             <label className="hint" style={{ display: 'flex', gap: 8, alignItems: 'center', paddingBottom: 6 }}>
               <input type="checkbox" checked={allowDownload} onChange={(e) => setAllowDownload(e.target.checked)} />
-              允许对方保存原图
+              {i18n.t('k84298930')}
             </label>
           </div>
 
           <button className="btn" disabled={busy || !status?.enabled} onClick={() => void create()}>
-            生成只读链接
+            {i18n.t('k2cd455f6')}
           </button>
 
           {qr && (
             <div style={{ display: 'flex', gap: 16, alignItems: 'flex-start', marginTop: 16, flexWrap: 'wrap' }}>
-              <img key={qr} src={qr} alt="分享二维码" style={{ width: 148, height: 148, background: '#fff', padding: 4, borderRadius: 8 }} />
+              <img key={qr} src={qr} alt={i18n.t('k2dc98e4a')} style={{ width: 148, height: 148, background: '#fff', padding: 4, borderRadius: 8 }} />
               <div className="hint" style={{ flex: 1, minWidth: 220, lineHeight: 1.8 }}>
-                <b>扫这个码打开只读页面</b>
+                <b>{i18n.t('k6fb642a6')}</b>
                 <br />
-                手机浏览器支持「添加到主屏幕」，之后不用再扫码；离线浏览需要 HTTPS 访问。
+                {i18n.t('k4c582f25')}
                 <br />
-                列表与单张缩略图都会按上面的范围校验，换个 id 也看不到范围外的素材。
+                {i18n.t('kccdefebd')}
               </div>
             </div>
           )}
@@ -244,16 +245,16 @@ export default function ShareLinkDialog({
               {shares.map((s) => (
                 <div key={s.token} style={{ borderTop: '1px solid var(--border)', paddingTop: 10, marginTop: 10 }}>
                   <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
-                    <b style={{ fontSize: 13 }}>{s.title || '未命名分享'}</b>
+                    <b style={{ fontSize: 13 }}>{s.title || i18n.t('ke852d4d5')}</b>
                     <span className="hint">
                       {SCOPE_LABEL[s.scope || 'library']}
-                      {s.scope === 'selection' ? ` · ${s.ids?.length || 0} 张` : ''} · 到{' '}
+                      {s.scope === 'selection' ? i18n.t('k12558f70', { p0: s.ids?.length || 0 }) : ''} · 到{' '}
                       {new Date(s.expiresAt).toLocaleString()}
-                      {s.hasPassword ? ' · 需密码' : ''}
-                      {s.allowDownload === false ? ' · 禁止下载原图' : ''}
+                      {s.hasPassword ? i18n.t('k9e263c1b') : ''}
+                      {s.allowDownload === false ? i18n.t('kc89af83f') : ''}
                     </span>
-                    <button className="btn sm ghost" onClick={() => void copy(s.urls[0] || '')}>复制链接</button>
-                    <button className="btn sm ghost" onClick={() => void revoke(s.token)}>撤销</button>
+                    <button className="btn sm ghost" onClick={() => void copy(s.urls[0] || '')}>{i18n.t('k879058ce')}</button>
+                    <button className="btn sm ghost" onClick={() => void revoke(s.token)}>{i18n.t('kbd9fcf46')}</button>
                   </div>
                   <input
                     className="input"
@@ -271,10 +272,10 @@ export default function ShareLinkDialog({
                   await api.revokeLanShares();
                   setQr('');
                   await refresh();
-                  onToast('已撤销全部分享链接');
+                  onToast(i18n.t('kee8a4138'));
                 }}
               >
-                全部撤销
+                {i18n.t('kd80cec99')}
               </button>
             </div>
           )}

@@ -4,6 +4,7 @@ import { api, copyText, formatDate, withToken } from '../api';
 import type { Filters, ImageItem } from '../types';
 import { IconLink, IconRefresh, IconSearch, IconTrash } from '../components/Icons';
 import { confirmDialog } from '../components/Dialogs';
+import i18n from '../i18n';
 
 /** 一次取多少条：以前固定只取前 300 条，顶部却显示真实总数，数字和列表永远对不上 */
 const PAGE = 100;
@@ -110,14 +111,14 @@ export default function Bookmarks({ onToast, onOpen, onLibraryChanged }: Props) 
 
   const copy = async (text: string) => {
     const ok = await copyText(text);
-    onToast?.(ok ? '链接已复制' : '复制失败，请手动复制', ok ? 'info' : 'error');
+    onToast?.(ok ? i18n.t('k4b7d6310') : i18n.t('k41da1ca4'), ok ? 'info' : 'error');
   };
 
   const remove = async (it: ImageItem) => {
-    if (!(await confirmDialog(`删除书签「${it.title}」？快照文件也会一并删除。`))) return;
+    if (!(await confirmDialog(i18n.t('kb3005d88', { p0: it.title })))) return;
     try {
       await api.remove(it.id);
-      onToast?.('已删除');
+      onToast?.(i18n.t('k5cc23262'));
       onLibraryChanged?.();
       void load(1, false);
     } catch (e) {
@@ -129,7 +130,7 @@ export default function Bookmarks({ onToast, onOpen, onLibraryChanged }: Props) 
     <div>
       <div className="page-head">
         <div>
-          <h1 className="page-title">书签</h1>
+          <h1 className="page-title">{i18n.t('k46779389')}</h1>
           <div className="page-sub">
             共 {total} 个书签 · 右侧是入库时保存的离线快照（不执行网页脚本），断网也能看
           </div>
@@ -141,13 +142,13 @@ export default function Bookmarks({ onToast, onOpen, onLibraryChanged }: Props) 
             </span>
             <input
               className="input"
-              placeholder="搜标题 / 网址 / 备注…"
+              placeholder={i18n.t('k50e134ba')}
               value={q}
               onChange={(e) => setQ(e.target.value)}
             />
           </div>
-          <button className="btn sm" onClick={() => load(1, false)} title="重新载入">
-            <IconRefresh /> 刷新
+          <button className="btn sm" onClick={() => load(1, false)} title={i18n.t('k421b5367')}>
+            <IconRefresh /> {i18n.t('k694fc5ef')}
           </button>
         </div>
       </div>
@@ -179,19 +180,19 @@ export default function Bookmarks({ onToast, onOpen, onLibraryChanged }: Props) 
             ))}
             {!items.length && !loading && (
               <div className="bm-empty">
-                {q ? '没有匹配的书签' : '还没有书签。用顶部「＋ 书签」粘贴网址即可保存。'}
+                {q ? i18n.t('k4f5b3716') : i18n.t('k68e81cca')}
               </div>
             )}
-            {loading && <div className="bm-empty">载入中…</div>}
+            {loading && <div className="bm-empty">{i18n.t('k768bbcdb')}</div>}
             {hasMore && !loading && (
               <button
                 className="btn sm"
                 style={{ margin: 8 }}
                 disabled={loadingMore}
-                title={`已显示 ${items.length} / ${total} 条`}
+                title={i18n.t('kdff7ad9a', { p0: items.length, p1: total })}
                 onClick={() => load(page + 1, true)}
               >
-                {loadingMore ? '载入中…' : `加载更多（还有 ${Math.max(0, total - items.length)} 条）`}
+                {loadingMore ? i18n.t('k768bbcdb') : i18n.t('k94bb4943', { p0: Math.max(0, total - items.length) })}
               </button>
             )}
           </div>
@@ -205,25 +206,25 @@ export default function Bookmarks({ onToast, onOpen, onLibraryChanged }: Props) 
                   </b>
                   {cur.sourceUrl && (
                     <button className="btn sm" onClick={() => window.open(cur.sourceUrl, '_blank', 'noopener')}>
-                      <IconLink /> 打开原网址
+                      <IconLink /> {i18n.t('k5bf9c373')}
                     </button>
                   )}
                   {cur.sourceUrl && (
                     <button className="btn sm ghost" onClick={() => copy(cur.sourceUrl)}>
-                      复制链接
+                      {i18n.t('k879058ce')}
                     </button>
                   )}
-                  <button className="btn sm ghost" onClick={() => onOpen(cur, items)} title="进大图看封面 / 改标题标签">
-                    详情
+                  <button className="btn sm ghost" onClick={() => onOpen(cur, items)} title={i18n.t('kfaa79bcc')}>
+                    {i18n.t('kf26225bd')}
                   </button>
                   <button className="btn sm ghost danger" onClick={() => remove(cur)}>
-                    <IconTrash /> 删除
+                    <IconTrash /> {i18n.t('k2f4aaddd')}
                   </button>
                 </div>
                 <div className="bm-iframe-wrap">
                   {missing && (
                     <div className="bm-empty" style={{ borderBottom: '1px solid var(--line)' }}>
-                      <IconWarning size={13} /> 快照文件缺失（可能已被清理），这里没有内容可显示；需要看原文请点「打开原网址」。
+                      <IconWarning size={13} /> {i18n.t('k88c75a0b')}
                     </div>
                   )}
                   <iframe
@@ -236,12 +237,12 @@ export default function Bookmarks({ onToast, onOpen, onLibraryChanged }: Props) 
                     onError={() => setMissing(true)}
                   />
                   <div className="bm-snap-note">
-                    快照不含脚本与外链 frame，排版可能与原网页有差异；需要完整内容请点「打开原网址」。
+                    {i18n.t('k1ef0b975')}
                   </div>
                 </div>
               </>
             ) : (
-              <div className="bm-empty">从左侧选一个书签</div>
+              <div className="bm-empty">{i18n.t('k83610286')}</div>
             )}
           </div>
         </div>

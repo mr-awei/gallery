@@ -5,6 +5,7 @@ import { IconSearch, IconPencil, IconRotateCw } from './Icons';
  * 这里只是把一次筛选的现场记下来，不产生新的素材归属。
  */
 import type { SavedFilter } from '../types';
+import i18n from '../i18n';
 
 interface Props {
   filters: SavedFilter[];
@@ -33,11 +34,11 @@ export default function SavedFilterList({
     <div className="saved-filters">
       {!hideHeader && (
         <div className="side-section-title" style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-          <span>保存的筛选</span>
+          <span>{i18n.t('k7cdd7d9a')}</span>
           <button
             className="folder-add-btn"
             style={{ marginLeft: 'auto' }}
-            title="把当前筛选条件保存下来"
+            title={i18n.t('kf251081d')}
             onClick={onSaveCurrent}
           >
             ＋
@@ -46,7 +47,7 @@ export default function SavedFilterList({
       )}
       {filters.length === 0 && (
         <div className="saved-filter-empty">
-          调好筛选后点上面的 ＋，下次一键回到这个视图（含当前文件夹）。
+          {i18n.t('k3615f81d')}
         </div>
       )}
       {filters.map((f) => (
@@ -54,7 +55,7 @@ export default function SavedFilterList({
           key={f.id}
           className={`saved-filter-row${f.id === activeId ? ' active' : ''}`}
           onClick={() => onOpen(f)}
-          title={`${f.name}（右键可重命名 / 删除）`}
+          title={i18n.t('k61989061', { p0: f.name })}
           onContextMenu={(e) => {
             e.preventDefault();
             onEdit(f);
@@ -64,7 +65,7 @@ export default function SavedFilterList({
           <span className="sf-name">{f.name}</span>
           <button
             className="sf-more"
-            title="重命名"
+            title={i18n.t('kc8ce4b36')}
             onClick={(e) => {
               e.stopPropagation();
               onEdit(f);
@@ -74,7 +75,7 @@ export default function SavedFilterList({
           </button>
           <button
             className="sf-more"
-            title="用当前筛选条件覆盖这一条"
+            title={i18n.t('k4d79c7f5')}
             onClick={(e) => {
               e.stopPropagation();
               onOverwrite(f);
@@ -84,7 +85,7 @@ export default function SavedFilterList({
           </button>
           <button
             className="sf-more"
-            title="删除这个筛选器（不删素材）"
+            title={i18n.t('k1f2420ed')}
             onClick={(e) => {
               e.stopPropagation();
               onDelete(f);

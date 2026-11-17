@@ -9,6 +9,7 @@
 import { desktop } from '../api';
 import { encodeGif } from './gif';
 import { frameDelayMs, planFrameTimes } from './clip-plan';
+import i18n from '../i18n';
 
 /** 单帧：主线程已 seek 好并抽成 ImageBitmap，交由 Worker 取像素 + 编码 */
 export interface GifCapture {
@@ -55,7 +56,7 @@ async function openHiddenVideo(src: string): Promise<HiddenVideo> {
     video.load();
   };
   await new Promise<void>((resolve, reject) => {
-    const timer = window.setTimeout(() => reject(new Error('视频元数据读取超时（编码可能不受支持）')), 15000);
+    const timer = window.setTimeout(() => reject(new Error(i18n.t('k6a1c7419'))), 15000);
     const done = () => {
       window.clearTimeout(timer);
       resolve();
@@ -65,7 +66,7 @@ async function openHiddenVideo(src: string): Promise<HiddenVideo> {
       'error',
       () => {
         window.clearTimeout(timer);
-        reject(new Error('视频无法解码（不支持的编码或文件已损坏）'));
+        reject(new Error(i18n.t('kb3a33c64')));
       },
       { once: true }
     );
@@ -78,7 +79,7 @@ async function seekTo(video: HTMLVideoElement, t: number) {
   await new Promise<void>((resolve, reject) => {
     const timer = window.setTimeout(() => {
       cleanup();
-      reject(new Error(`跳转到第 ${t.toFixed(1)} 秒超时`));
+      reject(new Error(i18n.t('k4deae0e3', { p0: t.toFixed(1) })));
     }, 10000);
     const onSeeked = () => {
       cleanup();
@@ -86,7 +87,7 @@ async function seekTo(video: HTMLVideoElement, t: number) {
     };
     const onError = () => {
       cleanup();
-      reject(new Error('跳转时解码失败'));
+      reject(new Error(i18n.t('k8f8895bb')));
     };
     const cleanup = () => {
       window.clearTimeout(timer);
@@ -114,7 +115,7 @@ export async function captureFrames(src: string, opts: ClipRange): Promise<GifCa
     canvas.width = width;
     canvas.height = height;
     const ctx = canvas.getContext('2d', { willReadFrequently: true });
-    if (!ctx) throw new Error('无法创建画布');
+    if (!ctx) throw new Error(i18n.t('k2352bf26'));
     const frames: GifCapture[] = [];
     const delayMs = frameDelayMs(times, opts.endSec);
     for (let i = 0; i < times.length; i++) {
@@ -156,12 +157,12 @@ export async function encodeGifWorker(frames: GifCapture[], options: { loop?: nu
         resolve(m.bytes);
         worker.terminate();
       } else {
-        reject(new Error(m.message || 'GIF 编码失败'));
+        reject(new Error(m.message || i18n.t('k6a364b2c')));
         worker.terminate();
       }
     };
     worker.onerror = (err) => {
-      reject(new Error(err.message || 'GIF 编码线程出错'));
+      reject(new Error(err.message || i18n.t('k7fcdb162')));
       worker.terminate();
     };
     worker.postMessage({ type: 'encode', frames: payload, options }, transfers);
@@ -175,7 +176,7 @@ async function encodeGifMain(frames: GifCapture[], options: { loop?: number } = 
     canvas.width = f.width;
     canvas.height = f.height;
     const ctx = canvas.getContext('2d');
-    if (!ctx) throw new Error('无法创建画布');
+    if (!ctx) throw new Error(i18n.t('k2352bf26'));
     ctx.drawImage(f.bitmap, 0, 0);
     const data = ctx.getImageData(0, 0, f.width, f.height).data;
     f.bitmap.close();
@@ -186,7 +187,7 @@ async function encodeGifMain(frames: GifCapture[], options: { loop?: number } = 
 
 /** 用 MediaRecorder 录制裁剪区间，产出 webm Blob（无 ffmpeg 的原生视频片段导出） */
 export async function recordClip(src: string, opts: ClipRange): Promise<Blob> {
-  if (typeof MediaRecorder === 'undefined') throw new Error('当前环境不支持 MediaRecorder');
+  if (typeof MediaRecorder === 'undefined') throw new Error(i18n.t('k60e36564'));
   const { video, release } = await openHiddenVideo(src);
   let stream: MediaStream | null = null;
   try {
@@ -197,7 +198,7 @@ export async function recordClip(src: string, opts: ClipRange): Promise<Blob> {
     canvas.width = width;
     canvas.height = height;
     const ctx = canvas.getContext('2d');
-    if (!ctx) throw new Error('无法创建画布');
+    if (!ctx) throw new Error(i18n.t('k2352bf26'));
     const fps = Math.max(1, Math.min(30, opts.fps));
     stream = canvas.captureStream(fps);
     const candidates = ['video/webm;codecs=vp9', 'video/webm;codecs=vp8', 'video/webm'];
@@ -209,10 +210,10 @@ export async function recordClip(src: string, opts: ClipRange): Promise<Blob> {
     };
     const finished = new Promise<Blob>((resolve, reject) => {
       rec.onstop = () => {
-        if (!chunks.length) reject(new Error('录制没有产生数据'));
+        if (!chunks.length) reject(new Error(i18n.t('k4eb99a1f')));
         else resolve(new Blob(chunks, { type: mimeType || 'video/webm' }));
       };
-      rec.onerror = () => reject(new Error('录制失败'));
+      rec.onerror = () => reject(new Error(i18n.t('k97c3249f')));
     });
     // play() 失败等路径会直接拒绝外层 Promise，此时没人 await finished；
     // 先挂一个空 catch，避免「录制没有产生数据」变成未处理的 Promise 拒绝。
@@ -269,7 +270,7 @@ export async function recordClip(src: string, opts: ClipRange): Promise<Blob> {
           } catch {
             /* 已经停了 */
           }
-          reject(new Error(`无法播放视频：${err?.message || err}`));
+          reject(new Error(i18n.t('k3c6eadb5', { p0: err?.message || err })));
         });
     });
   } finally {
@@ -282,7 +283,7 @@ export async function recordClip(src: string, opts: ClipRange): Promise<Blob> {
 export async function saveExport(dataUrl: string, filename: string): Promise<string> {
   if (desktop?.saveExport) {
     const r = await desktop.saveExport({ dataUrl, filename });
-    if (!r?.ok) throw new Error(r?.error || '保存失败');
+    if (!r?.ok) throw new Error(r?.error || i18n.t('k6de920b4'));
     return r.path || filename;
   }
   const a = document.createElement('a');

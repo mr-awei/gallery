@@ -4,6 +4,7 @@ import type { JobItem, OpLogItem } from '../../api';
 import Card from './Card';
 import { usePollWhenVisible } from '../../hooks/usePollWhenVisible';
 import { subscribeEvents } from '../../events';
+import i18n from '../../i18n';
 
 interface Props {
   onToast: (msg: string, kind?: 'info' | 'error') => void;
@@ -11,20 +12,20 @@ interface Props {
 
 /** 状态文案 map：模块级不能调 t，改成按调用点传 t 的取词函数 */
 const KIND_LABEL = (): Record<string, string> => ({
-  crawl: '采集',
-  edit: '批量编辑',
-  enhance: '画质增强',
-  'model-install': '模型下载',
-  'eagle-export': '导出 Eagle 库',
+  crawl: i18n.t('ke8bc2616'),
+  edit: i18n.t('ke73cefac'),
+  enhance: i18n.t('kfd5e4c21'),
+  'model-install': i18n.t('k02b71a79'),
+  'eagle-export': i18n.t('kb3a4d282'),
 });
 
 const STATUS_LABEL = (): Record<string, string> => ({
-  queued: '排队中',
-  running: '进行中',
-  done: '已完成',
-  failed: '失败',
-  canceled: '已取消',
-  interrupted: '中断（进程退出）',
+  queued: i18n.t('ke5ac1d20'),
+  running: i18n.t('kfb852fc6'),
+  done: i18n.t('kfad5222c'),
+  failed: i18n.t('kacd5cb84'),
+  canceled: i18n.t('k2111ccbb'),
+  interrupted: i18n.t('kc6a78bd9'),
 });
 
 function statusColor(status: string) {
@@ -83,7 +84,7 @@ export default function JobsSection({ onToast }: Props) {
     setBusy(true);
     try {
       const r = await api.cancelJob(job.id);
-      onToast(r.message || (r.ok ? '已请求停止' : '无法停止'));
+      onToast(r.message || (r.ok ? i18n.t('k2530fb3f') : i18n.t('ka96ed6db')));
       refresh();
     } catch (err) {
       onToast((err as Error).message, 'error');
@@ -96,7 +97,7 @@ export default function JobsSection({ onToast }: Props) {
     setBusy(true);
     try {
       await api.retryJob(job.id);
-      onToast('已重新入队');
+      onToast(i18n.t('k60c37f5c'));
       refresh();
     } catch (err) {
       onToast((err as Error).message, 'error');
@@ -114,7 +115,7 @@ export default function JobsSection({ onToast }: Props) {
         .map(([k, v]) => `${k}=${v}`)
         .join(' ');
       onToast(
-        `已撤销：${op.summary}${detail ? `（${detail}）` : ''}`,
+        i18n.t('ke4e1c25f', { p0: op.summary, p1: detail ? `（${detail}）` : '' }),
       );
       refresh();
     } catch (err) {
@@ -127,10 +128,10 @@ export default function JobsSection({ onToast }: Props) {
   return (
     <>
       <Card
-        title={'任务历史'}
-        desc={'采集、批量编辑、画质增强、模型下载都会留档，中断或失败的任务可以直接重试。'}
+        title={i18n.t('k8ac876fb')}
+        desc={i18n.t('keb225fe4')}
       >
-        {jobs.length === 0 && <div className="hint">{'暂无任务记录'}</div>}
+        {jobs.length === 0 && <div className="hint">{i18n.t('k617432fa')}</div>}
         {jobs.map((j) => {
           const live = j.status === 'running' || j.status === 'queued';
           return (
@@ -162,12 +163,12 @@ export default function JobsSection({ onToast }: Props) {
               </span>
               {live && (
                 <button className="btn sm" disabled={busy} onClick={() => void cancel(j)}>
-                  {'停止'}
+                  {i18n.t('k095e938e')}
                 </button>
               )}
               {!live && j.kind !== 'model-install' && (j.status === 'failed' || j.status === 'interrupted' || j.status === 'canceled') && (
                 <button className="btn sm" disabled={busy} onClick={() => void retry(j)}>
-                  {'重试'}
+                  {i18n.t('k132c5cdc')}
                 </button>
               )}
             </div>
@@ -176,10 +177,10 @@ export default function JobsSection({ onToast }: Props) {
       </Card>
 
       <Card
-        title={'最近操作'}
-        desc={'打标、收藏、移动文件夹、删除、回收站恢复、批量导入、批量重命名、重复清理都能撤销一步（撤销删除走回收站，不会真删文件）。'}
+        title={i18n.t('k004f1d61')}
+        desc={i18n.t('k6aa47ed1')}
       >
-        {ops.length === 0 && <div className="hint">{'暂无操作记录'}</div>}
+        {ops.length === 0 && <div className="hint">{i18n.t('keaa7b798')}</div>}
         {ops.map((o) => (
           <div
             key={o.id}
@@ -190,13 +191,13 @@ export default function JobsSection({ onToast }: Props) {
               {o.summary}
             </span>
             {o.undone ? (
-              <span style={{ fontSize: 11.5, color: 'var(--muted)' }}>{'已撤销'}</span>
+              <span style={{ fontSize: 11.5, color: 'var(--muted)' }}>{i18n.t('k50239f4f')}</span>
             ) : o.undoable ? (
               <button className="btn sm" disabled={busy} onClick={() => void undo(o)}>
-                {'撤销'}
+                {i18n.t('kbd9fcf46')}
               </button>
             ) : (
-              <span style={{ fontSize: 11.5, color: 'var(--muted)' }}>{'不可撤销'}</span>
+              <span style={{ fontSize: 11.5, color: 'var(--muted)' }}>{i18n.t('k8826dd60')}</span>
             )}
           </div>
         ))}

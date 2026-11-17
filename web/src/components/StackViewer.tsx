@@ -9,6 +9,7 @@ import { api } from '../api';
 import { useEscClose } from '../lib/useEscClose';
 import type { ImageItem } from '../types';
 import { IconClose, IconStack } from './Icons';
+import i18n from '../i18n';
 
 interface Props {
   stackId: number;
@@ -48,7 +49,7 @@ export default function StackViewer({ stackId, onClose, onChanged, onToast, onOp
     setBusy(true);
     try {
       const r = await api.ungroupStack(sid);
-      onToast(`已解散堆叠（${r.removed} 张恢复为独立素材）`);
+      onToast(i18n.t('k0403886e', { p0: r.removed }));
       onChanged();
       onClose();
     } catch (err) {
@@ -62,7 +63,7 @@ export default function StackViewer({ stackId, onClose, onChanged, onToast, onOp
     setBusy(true);
     try {
       const r = await api.removeFromStack(item.id);
-      onToast(`「${item.title}」已移出堆叠`);
+      onToast(i18n.t('k16557bc1', { p0: item.title }));
       onChanged();
       const rest = items.filter((x) => x.id !== item.id);
       setItems(rest);
@@ -95,7 +96,7 @@ export default function StackViewer({ stackId, onClose, onChanged, onToast, onOp
     try {
       const r = await api.mergeStacks(sid, target.stackId);
       setPicker(null);
-      onToast(`已并入另一个堆叠，现在共 ${r.stacks.length} 张`);
+      onToast(i18n.t('k15136e57', { p0: r.stacks.length }));
       onChanged();
       setSid(r.stackId);
       await reload(r.stackId);
@@ -111,7 +112,7 @@ export default function StackViewer({ stackId, onClose, onChanged, onToast, onOp
     try {
       // 明确设封面，不走 createStack 的「按评分挑组主」
       const r = await api.setStackPrimary(sid, item.id);
-      onToast(`已把「${item.title}」设为堆叠封面`);
+      onToast(i18n.t('k125d386b', { p0: item.title }));
       onChanged();
       setSid(r.stackId);
       await reload(r.stackId);
@@ -123,35 +124,35 @@ export default function StackViewer({ stackId, onClose, onChanged, onToast, onOp
   };
 
   return (
-    <div className="stack-viewer" onClick={onClose} data-a11y-dialog="esc" aria-label={'同组图片叠图查看'}>
+    <div className="stack-viewer" onClick={onClose} data-a11y-dialog="esc" aria-label={i18n.t('kc6856b30')}>
       <div className="stack-viewer-card" onClick={(e) => e.stopPropagation()}>
         <div className="stack-viewer-head">
           <b>
-            <IconStack size={14} /> {'堆叠 · '}
+            <IconStack size={14} /> {i18n.t('k3c932e60')}
             {items.length}
-            {' 张'}
+            {i18n.t('k6499fc74')}
           </b>
           <div style={{ display: 'flex', gap: 8 }}>
             <button className="btn sm ghost" disabled={busy} onClick={() => void openPicker()}>
-              {picker ? '收起列表' : '并入其他堆叠…'}
+              {picker ? i18n.t('k3d283f1d') : i18n.t('k06bbf175')}
             </button>
             <button className="btn sm ghost" disabled={busy} onClick={() => void ungroup()}>
-              解散堆叠
+              {i18n.t('k7228c050')}
             </button>
-            <button className="btn ghost sm" onClick={onClose} title="关闭">
+            <button className="btn ghost sm" onClick={onClose} title={i18n.t('kb15d9127')}>
               <IconClose />
             </button>
           </div>
         </div>
         {picker && (
           <div className="stack-picker">
-            {picker.length === 0 && <div className="qc-hint">库里没有其他堆叠可并入。</div>}
+            {picker.length === 0 && <div className="qc-hint">{i18n.t('k6a10e6ec')}</div>}
             {picker.map((s) => (
               <button
                 key={s.stackId}
                 className="stack-pick-row"
                 disabled={busy}
-                title={`并入「${s.title}」这一组（${s.count} 张）`}
+                title={i18n.t('ka13fd96c', { p0: s.title, p1: s.count })}
                 onClick={() => void mergeInto(s)}
               >
                 <img src={s.thumbUrl} alt="" loading="lazy" />
@@ -166,7 +167,7 @@ export default function StackViewer({ stackId, onClose, onChanged, onToast, onOp
             <div
               key={it.id}
               className={`stack-tile${it.id === sid || it.stackPrimary ? ' on' : ''}`}
-              title={`${it.title}\n点击打开大图`}
+              title={i18n.t('k1f608e3f', { p0: it.title })}
               onClick={() => onOpenItem?.(it)}
             >
               <img src={it.thumbUrl} alt={it.title} loading="lazy" />
@@ -175,29 +176,29 @@ export default function StackViewer({ stackId, onClose, onChanged, onToast, onOp
                 <button
                   className="btn sm ghost"
                   disabled={busy || it.stackPrimary}
-                  title="把这版设为堆叠封面（组主）"
+                  title={i18n.t('kdf044589')}
                   onClick={(e) => {
                     e.stopPropagation();
                     void makePrimary(it);
                   }}
                 >
-                  设封面
+                  {i18n.t('kf2a3d97f')}
                 </button>
                 <button
                   className="btn sm ghost"
                   disabled={busy}
-                  title="移出堆叠（不删素材）"
+                  title={i18n.t('k665598f1')}
                   onClick={(e) => {
                     e.stopPropagation();
                     void removeOne(it);
                   }}
                 >
-                  移出
+                  {i18n.t('k63ae0f6a')}
                 </button>
               </div>
             </div>
           ))}
-          {!items.length && <div className="qc-hint">读取堆叠成员…</div>}
+          {!items.length && <div className="qc-hint">{i18n.t('kd8382453')}</div>}
         </div>
       </div>
     </div>

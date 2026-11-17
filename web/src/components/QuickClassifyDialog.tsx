@@ -10,6 +10,7 @@ import { useEscClose } from '../lib/useEscClose';
 import type { FolderNode } from '../types';
 import { IconClose } from './Icons';
 import { IconZap } from './Icons';
+import i18n from '../i18n';
 
 interface Props {
   ids: number[];
@@ -59,7 +60,7 @@ export default function QuickClassifyDialog({ ids, folders, currentFolderId, onC
       .map((t) => t.trim())
       .filter(Boolean)
       .filter((t, i, a) => a.indexOf(t) === i);
-    if (!folderId && !tagList.length) return onToast('选一个文件夹，或填至少一个标签');
+    if (!folderId && !tagList.length) return onToast(i18n.t('k6191b652'));
     setBusy(true);
     try {
       let added = 0;
@@ -69,9 +70,9 @@ export default function QuickClassifyDialog({ ids, folders, currentFolderId, onC
       }
       for (const t of tagList) await api.batch(ids, 'addTag', t);
       const parts = [];
-      if (folderId) parts.push(`放入文件夹（新增 ${added} 条归属）`);
-      if (tagList.length) parts.push(`打上 ${tagList.length} 个标签`);
-      onToast(`已给 ${ids.length} 张素材${parts.join('、')}`);
+      if (folderId) parts.push(i18n.t('k59e83a62', { p0: added }));
+      if (tagList.length) parts.push(i18n.t('k82182597', { p0: tagList.length }));
+      onToast(i18n.t('k0f14e17e', { p0: ids.length, p1: parts.join('、') }));
       onDone();
       onClose();
     } catch (err) {
@@ -85,18 +86,18 @@ export default function QuickClassifyDialog({ ids, folders, currentFolderId, onC
       <div className="modal-card" style={{ maxWidth: 560 }} onClick={(e) => e.stopPropagation()}>
         <div className="modal-head">
           <b><IconZap size={14} /> 快速分类 · {ids.length} 张</b>
-          <button className="btn ghost sm" onClick={onClose} title="关闭（Esc）">
+          <button className="btn ghost sm" onClick={onClose} title={i18n.t('k01aadfea')}>
             <IconClose />
           </button>
         </div>
 
         <div className="modal-body" style={{ display: 'block' }}>
           <div className="qc-section">
-            <h4>放进文件夹</h4>
+            <h4>{i18n.t('kf7fdd8a0')}</h4>
             <input
               className="input"
               style={{ width: '100%', marginBottom: 8 }}
-              placeholder="搜索文件夹…"
+              placeholder={i18n.t('k6bbbc182')}
               value={keyword}
               autoFocus
               onChange={(e) => setKeyword(e.target.value)}
@@ -105,9 +106,9 @@ export default function QuickClassifyDialog({ ids, folders, currentFolderId, onC
               <button
                 className={`qc-chip${folderId === null ? ' on' : ''}`}
                 onClick={() => setFolderId(null)}
-                title="不放进任何文件夹"
+                title={i18n.t('k389f658e')}
               >
-                不归类
+                {i18n.t('kf890fc93')}
               </button>
               {list.map(({ f, depth }) => (
                 <button
@@ -115,22 +116,22 @@ export default function QuickClassifyDialog({ ids, folders, currentFolderId, onC
                   className={`qc-chip${folderId === f.id ? ' on' : ''}`}
                   style={{ marginLeft: depth ? 8 : 0 }}
                   onClick={() => setFolderId(folderId === f.id ? null : f.id)}
-                  title={`${f.name}（${f.total || 0} 张）`}
+                  title={i18n.t('k7b65ed56', { p0: f.name, p1: f.total || 0 })}
                 >
                   {f.icon ? `${f.icon} ` : ''}
                   {f.name}
                 </button>
               ))}
-              {!list.length && <span className="qc-hint">没有匹配的文件夹</span>}
+              {!list.length && <span className="qc-hint">{i18n.t('k6b461729')}</span>}
             </div>
           </div>
 
           <div className="qc-section">
-            <h4>追加标签</h4>
+            <h4>{i18n.t('kd6f2f5ed')}</h4>
             <input
               className="input"
               style={{ width: '100%' }}
-              placeholder="多个用逗号分隔，例如：主视觉, 参考"
+              placeholder={i18n.t('k187faea1')}
               value={tags}
               onChange={(e) => setTags(e.target.value)}
               onKeyDown={(e) => {
@@ -138,16 +139,16 @@ export default function QuickClassifyDialog({ ids, folders, currentFolderId, onC
               }}
             />
             <div className="qc-hint" style={{ marginTop: 6 }}>
-              标签是追加，不会清掉素材已有的标签。
+              {i18n.t('k7ded9ecc')}
             </div>
           </div>
         </div>
 
         <div className="modal-foot">
-          <span style={{ fontSize: 12, color: 'var(--muted)' }}>回车直接应用</span>
+          <span style={{ fontSize: 12, color: 'var(--muted)' }}>{i18n.t('k2999a44f')}</span>
           <div style={{ display: 'flex', gap: 8 }}>
             <button className="btn" onClick={onClose} disabled={busy}>
-              取消
+              {i18n.t('k625fb26b')}
             </button>
             <button
               className="btn"
@@ -155,7 +156,7 @@ export default function QuickClassifyDialog({ ids, folders, currentFolderId, onC
               disabled={busy}
               onClick={() => void submit()}
             >
-              {busy ? '应用中…' : '应用'}
+              {busy ? i18n.t('k9a6c9650') : i18n.t('k5b0520a9')}
             </button>
           </div>
         </div>

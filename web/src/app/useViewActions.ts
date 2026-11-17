@@ -6,6 +6,7 @@ import type { LightboxState } from '../hooks/useLightbox';
 import { clampThumbWidth } from '../lib/thumb-size';
 import type { Filters, FolderNode, ImageItem, SavedFilter, View, ViewMode } from '../types';
 import type { LoadGallery, Toast } from './types';
+import i18n from '../i18n';
 
 type Options = {
   setView: Dispatch<SetStateAction<View>>;
@@ -132,7 +133,7 @@ export function useViewActions({
       setFolderId(null);
       setFilters((prev) => ({ ...prev, bbox, tag: '', pending: '' }));
       setView('gallery');
-      showToast(`已筛出 ${label} 一带的素材`);
+      showToast(i18n.t('k7f2191e7', { p0: label }));
     },
     [setFilters, setFolderId, setView, showToast]
   );
@@ -166,7 +167,7 @@ export function useViewActions({
   const markAllSeen = useCallback(async () => {
     try {
       const res = await api.markAllViewed(effectiveFilters);
-      showToast(res.affected ? `已标记 ${res.affected} 张为已看` : '当前筛选下没有图片');
+      showToast(res.affected ? i18n.t('k93ea0939', { p0: res.affected }) : i18n.t('k6f54a9bd'));
       pageRef.current = 1;
       load(1, true);
     } catch (err) {
@@ -180,12 +181,12 @@ export function useViewActions({
       const res = await api.relocateMissing();
       const unreadable = res.unreadable || 0;
       const unreadableNote = unreadable
-        ? `；另有 ${unreadable} 个文件读不到大小，未参与重关联`
+        ? i18n.t('kb1a4bee2', { p0: unreadable })
         : '';
       showToast(
         res.relocated
-          ? `已找回 ${res.relocated} 张图片的路径${res.remaining ? `，仍有 ${res.remaining} 张未找到` : ''}${unreadableNote}`
-          : `没有找回任何图片（${res.remaining} 张仍未找到，可能已被删除）${unreadableNote}`
+          ? i18n.t('ka5b69513', { p0: res.relocated, p1: res.remaining ? i18n.t('k73acabcf', { p0: res.remaining }) : '', p2: unreadableNote })
+          : i18n.t('k9e0d3a0f', { p0: res.remaining, p1: unreadableNote })
       );
     } catch (err) {
       showToast((err as Error).message);
@@ -194,10 +195,10 @@ export function useViewActions({
   }, [refreshGallery, showToast]);
 
   const purgeMissing = useCallback(async () => {
-    if (!(await confirmDialog(`确定清理这 ${missingCount} 条文件缺失的记录吗？图片记录将被移除。`))) return;
+    if (!(await confirmDialog(i18n.t('kb757ec32', { p0: missingCount })))) return;
     try {
       const res = await api.purgeMissing();
-      showToast(`已清理 ${res.removed} 条缺失记录`);
+      showToast(i18n.t('kaa83c02c', { p0: res.removed }));
     } catch (err) {
       showToast((err as Error).message);
     }
@@ -216,11 +217,11 @@ export function useViewActions({
           if (!name) return;
           const created = await api.createPlaylist(name);
           const pl = created.playlists.find((p) => p.name === name);
-          if (!pl) throw new Error('创建清单失败');
+          if (!pl) throw new Error(i18n.t('kc69f1598'));
           pid = pl.id;
         }
         const res = await api.addToPlaylist(pid as number, ids);
-        showToast(`已加入清单（新增 ${res.added} 张）`);
+        showToast(i18n.t('k5fcf1205', { p0: res.added }));
       } catch (err) {
         showToast((err as Error).message);
       }
@@ -244,7 +245,7 @@ export function useViewActions({
         }
         const res = await api.addToFolder(fid as number, ids);
         setFolders(res.folders);
-        showToast(`已加入文件夹（新增 ${res.added} 张）`);
+        showToast(i18n.t('kc37ccaa8', { p0: res.added }));
       } catch (err) {
         showToast((err as Error).message);
       }

@@ -8,6 +8,7 @@ import type { SourceInfo } from '../../api';
 import { IconTrash } from '../../components/Icons';
 import type { Keyword, Settings as SettingsType } from '../../types';
 import Card from './Card';
+import i18n from '../../i18n';
 
 interface Props {
   settings: SettingsType;
@@ -49,23 +50,23 @@ export default function CrawlSection({
 }: Props) {
   return (
     <>
-        <Card title="采集源" desc="开关参与采集的图片来源，可多选。">
+        <Card title={i18n.t('kad00783c')} desc={i18n.t('k7200cdb3')}>
           {sources.map((s) => (
             <div className="switch-row" key={s.key} title={s.hint}>
               <span>
                 {s.label}
-                {s.needsCookie && <span className="src-hint">需配置</span>}
+                {s.needsCookie && <span className="src-hint">{i18n.t('k47d2f2f9')}</span>}
                 {s.hint && <div className="hint" style={{ marginTop: 2 }}>{s.hint}</div>}
               </span>
               <input type="checkbox" checked={!!settings.sources[s.key]} onChange={() => toggleSource(s.key)} />
             </div>
           ))}
           <div className="field" style={{ marginTop: 14 }}>
-            <label>微博 Cookie（可选，填了才能用「微博图片」源）</label>
+            <label>{i18n.t('ke04832f9')}</label>
             {isDesktop && (
               <div style={{ display: 'flex', gap: 8, marginBottom: 8 }}>
                 <button className="btn sm" onClick={weiboLogin} disabled={wbLogin}>
-                  {wbLogin ? '等待登录…' : '打开内置浏览器登录，自动获取'}
+                  {wbLogin ? i18n.t('k826ffd8e') : i18n.t('kdf00f559')}
                 </button>
               </div>
             )}
@@ -74,7 +75,7 @@ export default function CrawlSection({
               rows={2}
               style={{ fontFamily: 'monospace', fontSize: 12 }}
               value={wbCookieDraft}
-              placeholder={settings.hasWeiboCookie ? '已保存登录凭据（不回显）。粘贴新 Cookie 可覆盖' : 'SUB=xxx; SUBP=xxx; SSOLoginState=xxx; …（整段粘贴）'}
+              placeholder={settings.hasWeiboCookie ? i18n.t('ka43bac7b') : i18n.t('kd7b9a929')}
               onChange={(e) => setWbCookieDraft(e.target.value)}
             />
             <div className="hint">
@@ -86,20 +87,20 @@ export default function CrawlSection({
             {settings.hasWeiboCookie && (
               <div style={{ marginTop: 6 }}>
                 <button className="btn sm" onClick={clearWeiboCookie}>
-                  清除已保存的 Cookie
+                  {i18n.t('k0bcaffe2')}
                 </button>
               </div>
             )}
           </div>
         </Card>
 
-        <Card title="关键词" desc="采集时按这些关键词逐个抓图，可临时停用某个词。">
+        <Card title={i18n.t('k9699a50e')} desc={i18n.t('k42806718')}>
           <div className="kw-list">
             {keywords.map((k) => (
               <div className="kw-row" key={k.id}>
                 <input type="checkbox" checked={!!k.enabled} onChange={() => toggleKeyword(k)} />
                 <span style={{ opacity: k.enabled ? 1 : 0.45 }}>{k.text}</span>
-                <button className="del" onClick={() => removeKeyword(k.id)} aria-label={`删除关键词「${k.text}」`}>
+                <button className="del" onClick={() => removeKeyword(k.id)} aria-label={i18n.t('kb8cbac7b', { p0: k.text })}>
                   <IconTrash />
                 </button>
               </div>
@@ -109,20 +110,20 @@ export default function CrawlSection({
             <input
               className="input"
               style={{ flex: 1 }}
-              placeholder="新增关键词…"
+              placeholder={i18n.t('k9715b09d')}
               value={newKw}
               onChange={(e) => setNewKw(e.target.value)}
               onKeyDown={(e) => e.key === 'Enter' && addKeyword()}
             />
             <button className="btn" onClick={addKeyword}>
-              添加
+              {i18n.t('kb58c7549')}
             </button>
           </div>
         </Card>
 
-        <Card title="抓取与质量过滤" desc="控制抓取量与入库门槛，过滤低质与重复图片。">
+        <Card title={i18n.t('ke3a573fb')} desc={i18n.t('k15da038a')}>
           <div className="field">
-            <label>每个关键词默认页数</label>
+            <label>{i18n.t('k0e7bf5d0')}</label>
             <input
               className="input"
               type="number"
@@ -133,7 +134,7 @@ export default function CrawlSection({
             />
           </div>
           <div className="field">
-            <label>并发下载数</label>
+            <label>{i18n.t('kd0e268cb')}</label>
             <input
               className="input"
               type="number"
@@ -144,37 +145,37 @@ export default function CrawlSection({
             />
           </div>
           <div className="field">
-            <label>Wallhaven API Key（可选）</label>
+            <label>{i18n.t('k60836be4')}</label>
             <input
               className="input"
               value={settings.wallhavenApiKey}
-              placeholder="留空亦可搜索 SFW 内容"
+              placeholder={i18n.t('k6398ac13')}
               onChange={(e) => patch({ wallhavenApiKey: e.target.value })}
             />
           </div>
-          <div className="settings-subtitle">质量过滤与去重</div>
+          <div className="settings-subtitle">{i18n.t('k85c2998b')}</div>
           <div className="field">
-            <label>长边最小像素</label>
+            <label>{i18n.t('k0f1cedfd')}</label>
             <input
               className="input"
               type="number"
               value={settings.minResolution}
               onChange={(e) => patch({ minResolution: Number(e.target.value) || 0 })}
             />
-            <div className="hint">低于该分辨率的图片会被丢弃（默认 800px）</div>
+            <div className="hint">{i18n.t('k2d7c1c85')}</div>
           </div>
           <div className="field">
-            <label>最小文件大小（KB）</label>
+            <label>{i18n.t('ka660c2bf')}</label>
             <input
               className="input"
               type="number"
               value={settings.minFileSize}
               onChange={(e) => patch({ minFileSize: Number(e.target.value) || 0 })}
             />
-            <div className="hint">过滤图标、缩略图等小文件（默认 30KB）</div>
+            <div className="hint">{i18n.t('k0bd2372a')}</div>
           </div>
           <div className="field">
-            <label>pHash 汉明距离阈值</label>
+            <label>{i18n.t('k7e86ee5c')}</label>
             <input
               className="input"
               type="number"
@@ -183,10 +184,10 @@ export default function CrawlSection({
               value={settings.phashThreshold}
               onChange={(e) => patch({ phashThreshold: Number(e.target.value) || 0 })}
             />
-            <div className="hint">≤ 该值判定为重复图片并丢弃（默认 8，越小越宽松）</div>
+            <div className="hint">{i18n.t('k634a5d8f')}</div>
           </div>
           <div className="field">
-            <label>单张最大体积（MB）</label>
+            <label>{i18n.t('k46d4ba7b')}</label>
             <input
               className="input"
               type="number"

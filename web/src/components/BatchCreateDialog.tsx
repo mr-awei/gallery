@@ -7,6 +7,7 @@ import { api } from '../api';
 import { useEscClose } from '../lib/useEscClose';
 import type { FolderNode, TagNode } from '../types';
 import { IconClose } from './Icons';
+import i18n from '../i18n';
 
 interface Props {
   /** folder = 建文件夹；tag = 建标签 */
@@ -42,18 +43,18 @@ export default function BatchCreateDialog({
     .filter(Boolean);
 
   const submit = async () => {
-    if (!names.length) return onToast('先填写至少一个名称');
+    if (!names.length) return onToast(i18n.t('k7ccfbeee'));
     setBusy(true);
     try {
       if (mode === 'folder') {
         const r = await api.createFoldersBatch(names, parentId);
         onFolders?.(r.folders);
-        const skipped = r.skipped?.length ? `，跳过 ${r.skipped.length} 个同名` : '';
-        onToast(`已新建 ${r.created.length} 个文件夹${skipped}`);
+        const skipped = r.skipped?.length ? i18n.t('ke27e796f', { p0: r.skipped.length }) : '';
+        onToast(i18n.t('ka44d4cd3', { p0: r.created.length, p1: skipped }));
       } else {
         const r = await api.createTagsBatch(names, group || undefined);
         onTags?.({ tags: r.tags, groups: r.groups });
-        onToast(`已新建 ${r.created.length} 个标签${group ? `（分组：${group}）` : ''}`);
+        onToast(i18n.t('k007ec734', { p0: r.created.length, p1: group ? i18n.t('k6ac40686', { p0: group }) : '' }));
       }
       onClose();
     } catch (err) {
@@ -67,23 +68,23 @@ export default function BatchCreateDialog({
       <div className="modal-card" style={{ maxWidth: 500 }} onClick={(e) => e.stopPropagation()}>
         <div className="modal-head">
           <b>
-            {mode === 'folder' ? '＋ 批量新建文件夹' : '＋ 批量新建标签'}
-            {mode === 'folder' && parentName ? ` · 在「${parentName}」下` : ''}
+            {mode === 'folder' ? i18n.t('kc06d4a24') : i18n.t('k915b34b4')}
+            {mode === 'folder' && parentName ? i18n.t('k2ea1da2e', { p0: parentName }) : ''}
           </b>
-          <button className="btn ghost sm" onClick={onClose} title="关闭">
+          <button className="btn ghost sm" onClick={onClose} title={i18n.t('kb15d9127')}>
             <IconClose />
           </button>
         </div>
 
         <div className="modal-body" style={{ display: 'block' }}>
           <div className="field">
-            <label>名称（一行一个，也可以用逗号分隔）</label>
+            <label>{i18n.t('kb3abc1d8')}</label>
             <textarea
               className="input"
               style={{ width: '100%', minHeight: 150, resize: 'vertical', fontFamily: 'inherit' }}
               value={text}
               autoFocus
-              placeholder={mode === 'folder' ? '2508季\n白底图\n参考图' : '主视觉\n详情页\n模特'}
+              placeholder={mode === 'folder' ? i18n.t('k89a0f76e') : i18n.t('k3067ae3b')}
               onChange={(e) => setText(e.target.value)}
               onKeyDown={(e) => {
                 if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) {
@@ -95,17 +96,17 @@ export default function BatchCreateDialog({
           </div>
           <div className="qc-hint">
             {mode === 'folder'
-              ? '同名文件夹已存在时会跳过，不会建出两个一样的夹。'
-              : '空标签也会出现在侧栏，方便先把分类铺好再往里放图。'}
-            当前将创建 <b>{names.length}</b> 个。
+              ? i18n.t('k750d84c3')
+              : i18n.t('kabf21169')}
+            当前将创建 <b>{names.length}</b> {i18n.t('k23562975')}
           </div>
         </div>
 
         <div className="modal-foot">
-          <span style={{ fontSize: 12, color: 'var(--muted)' }}>Ctrl+Enter 提交</span>
+          <span style={{ fontSize: 12, color: 'var(--muted)' }}>{i18n.t('k0daa3ca7')}</span>
           <div style={{ display: 'flex', gap: 8 }}>
             <button className="btn" onClick={onClose} disabled={busy}>
-              取消
+              {i18n.t('k625fb26b')}
             </button>
             <button
               className="btn"
@@ -113,7 +114,7 @@ export default function BatchCreateDialog({
               disabled={busy || !names.length}
               onClick={() => void submit()}
             >
-              {busy ? '创建中…' : `创建 ${names.length} 个`}
+              {busy ? i18n.t('kd156b373') : i18n.t('k8da9e6ab', { p0: names.length })}
             </button>
           </div>
         </div>

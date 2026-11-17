@@ -3,6 +3,7 @@ import { api, quiet } from '../api';
 import { ensureHardware, hardwareFeatureForModel } from '../lib/hardware';
 import type { ImageItem } from '../types';
 import type { Toast } from './types';
+import i18n from '../i18n';
 
 type Options = {
   patchItem: (updated: ImageItem) => void;
@@ -39,12 +40,12 @@ export function useEnhance({ patchItem, refreshStats, showToast }: Options) {
         // 已达标时服务端不会改动文件（noop），不能谎报「已增强至 W×H」
         showToast(
           noop
-            ? `该图已是 ${updated.width}×${updated.height}，无需增强`
-            : `已增强至 ${updated.width}×${updated.height}`
+            ? i18n.t('k532bf855', { p0: updated.width, p1: updated.height })
+            : i18n.t('kcfc980d6', { p0: updated.width, p1: updated.height })
         );
         refreshStats();
       } catch (err) {
-        showToast(`增强失败：${(err as Error).message}`);
+        showToast(i18n.t('k7af59a2d', { p0: (err as Error).message }));
       } finally {
         setEnhancingId(null);
       }

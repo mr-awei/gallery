@@ -4,6 +4,7 @@ import { confirmDialog } from '../../components/Dialogs';
 import type { TrashItem } from '../../types';
 import { IconTrash } from '../../components/Icons';
 import Card from './Card';
+import i18n from '../../i18n';
 
 interface Props {
   onLibraryChanged: () => void;
@@ -17,10 +18,10 @@ function fmtWhen(iso: string) {
   const t = new Date(iso).getTime();
   if (!t) return '';
   const diff = Date.now() - t;
-  if (diff < 60_000) return '刚刚';
-  if (diff < 3600_000) return `${Math.floor(diff / 60_000)} 分钟前`;
-  if (diff < 86400_000) return `${Math.floor(diff / 3600_000)} 小时前`;
-  return `${Math.floor(diff / 86400_000)} 天前`;
+  if (diff < 60_000) return i18n.t('k4181f7fe');
+  if (diff < 3600_000) return i18n.t('kca5ca1bf', { p0: Math.floor(diff / 60_000) });
+  if (diff < 86400_000) return i18n.t('kb64b6d77', { p0: Math.floor(diff / 3600_000) });
+  return i18n.t('k9c3df85c', { p0: Math.floor(diff / 86400_000) });
 }
 
 /** 「回收站」卡片：最近删除的图片，可恢复 / 彻底删除 */
@@ -60,45 +61,45 @@ export default function RecycleBinCard({ onLibraryChanged, onToast }: Props) {
   const restore = async (t: TrashItem) => {
     try {
       await api.restoreTrash(t.id);
-      onToast('已恢复到原位置');
+      onToast(i18n.t('k4bfc16f3'));
       loadTrash();
       onLibraryChanged();
     } catch (err) {
       // 原文件夹被删/盘符离线等情况以前是静默失败，用户以为恢复了
-      onToast(`恢复失败：${(err as Error).message}`, 'error');
+      onToast(i18n.t('k29923a84', { p0: (err as Error).message }), 'error');
     }
   };
 
   const purge = async (t: TrashItem) => {
     // 应用内统一用 confirmDialog：window.confirm 在 Electron 里是系统弹窗，样式与其它确认框不一致
-    if (!(await confirmDialog(`彻底删除「${t.title}」？此操作不可恢复。`))) return;
+    if (!(await confirmDialog(i18n.t('k99479387', { p0: t.title })))) return;
     try {
       await api.deleteTrash(t.id);
       loadTrash();
     } catch (err) {
-      onToast(`彻底删除失败：${(err as Error).message}`, 'error');
+      onToast(i18n.t('k30a26b4f', { p0: (err as Error).message }), 'error');
     }
   };
 
   return (
-    <Card title={`回收站（${total}）`} desc="删除的图片先进入这里，可随时恢复到原文件夹。">
+    <Card title={i18n.t('k3fcef687', { p0: total })} desc={i18n.t('k7ea12fc3')}>
       {loadErr && (
         <div style={{ color: 'var(--err, #e5484d)', fontSize: 12.5, marginBottom: 8 }}>
           回收站读取失败：{loadErr}
           <button className="btn sm ghost" style={{ marginLeft: 8 }} onClick={() => void loadTrash()}>
-            重试
+            {i18n.t('k132c5cdc')}
           </button>
         </div>
       )}
       {!trash.length && !loadErr && (
-        <span style={{ color: 'var(--muted)', fontSize: 13 }}>暂无被删除的图片</span>
+        <span style={{ color: 'var(--muted)', fontSize: 13 }}>{i18n.t('kc625167b')}</span>
       )}
 
       {trash.length > 0 && (
         <div className="kw-row" style={{ marginBottom: 8 }}>
           <input
             className="input"
-            placeholder="搜索标题 / 原因 / 原路径"
+            placeholder={i18n.t('ka82baaa1')}
             value={q}
             onChange={(e) => setQ(e.target.value)}
             style={{ flex: 1 }}
@@ -121,20 +122,20 @@ export default function RecycleBinCard({ onLibraryChanged, onToast }: Props) {
               </span>
               <span style={{ color: 'var(--muted)', fontSize: 11.5 }}>
                 {t.width}×{t.height}
-                {t.sizeBytes ? ` · ${fmtSize(t.sizeBytes)}` : ''} · {t.reason || '未记录原因'}
+                {t.sizeBytes ? ` · ${fmtSize(t.sizeBytes)}` : ''} · {t.reason || i18n.t('k1868aef7')}
                 {t.deletedAt ? ` · ${fmtWhen(t.deletedAt)}` : ''}
               </span>
             </span>
             <button className="btn sm" onClick={() => void restore(t)}>
-              恢复
+              {i18n.t('kc7db6d4f')}
             </button>
-            <button className="del" title="彻底删除" onClick={() => void purge(t)}>
+            <button className="del" title={i18n.t('k73279665')} onClick={() => void purge(t)}>
               <IconTrash />
             </button>
           </div>
         ))}
         {!trash.length && total > 0 && !loadErr && (
-          <span style={{ color: 'var(--muted)', fontSize: 12.5 }}>没有匹配的项目</span>
+          <span style={{ color: 'var(--muted)', fontSize: 12.5 }}>{i18n.t('kf7d44a46')}</span>
         )}
       </div>
 
@@ -143,10 +144,10 @@ export default function RecycleBinCard({ onLibraryChanged, onToast }: Props) {
           className="btn sm"
           style={{ marginTop: 8 }}
           disabled={loadingMore}
-          title={`已显示 ${trash.length} / ${total} 条`}
+          title={i18n.t('kdff7ad9a', { p0: trash.length, p1: total })}
           onClick={() => void loadTrash(trash.length, true)}
         >
-          {loadingMore ? '载入中…' : `显示更多（还有 ${total - trash.length} 条）`}
+          {loadingMore ? i18n.t('k768bbcdb') : i18n.t('k064c05b0', { p0: total - trash.length })}
         </button>
       )}
 
@@ -155,16 +156,16 @@ export default function RecycleBinCard({ onLibraryChanged, onToast }: Props) {
           className="btn danger"
           style={{ marginTop: 10 }}
           onClick={async () => {
-            if (!(await confirmDialog(`清空回收站？将永久删除 ${total} 个文件，不可恢复。`))) return;
+            if (!(await confirmDialog(i18n.t('k0ad9b2ad', { p0: total })))) return;
             try {
               const res = await api.emptyTrash();
               if (res.failed?.length) {
                 onToast(
-                  `已删除 ${res.removed} 个；${res.failed.length} 个文件删不掉（多半被其它程序占用），记录已保留可重试`,
+                  i18n.t('k5afaa998', { p0: res.removed, p1: res.failed.length }),
                   'error'
                 );
               } else {
-                onToast(`已彻底删除 ${res.removed} 个文件`);
+                onToast(i18n.t('ka1996aba', { p0: res.removed }));
               }
               loadTrash();
             } catch (err) {
@@ -172,7 +173,7 @@ export default function RecycleBinCard({ onLibraryChanged, onToast }: Props) {
             }
           }}
         >
-          清空回收站
+          {i18n.t('k8cd6bc18')}
         </button>
       )}
     </Card>

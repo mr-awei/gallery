@@ -6,6 +6,7 @@ import type { VersionInfo } from '../api';
 import type { ImageItem } from '../types';
 import { IconClose, IconCopy, IconDownload, IconRefresh, IconTrash, IconWand } from './Icons';
 import InpaintTab from './InpaintTab';
+import i18n from '../i18n';
 
 /**
  * 素材工具箱：把「检查器 / OCR / 来源 / 版本 / 多区域裁切」收在一个浮层里。
@@ -23,12 +24,12 @@ interface Props {
 }
 
 const TABS: { key: ToolkitTab; label: string; hint: string }[] = [
-  { key: 'info', label: '检查器', hint: '尺寸 / 格式 / EXIF' },
-  { key: 'ocr', label: '图内文字', hint: 'OCR 后可被搜索并复制' },
-  { key: 'source', label: '来源', hint: '以图搜图 / 换大图' },
-  { key: 'versions', label: '版本历史', hint: '回到任意一次编辑之前' },
-  { key: 'regions', label: '多区域裁切', hint: '一张图切出多份副本' },
-  { key: 'inpaint', label: '擦除修复', hint: '涂掉划痕 / 水印 / 小物件' },
+  { key: 'info', label: i18n.t('k9478f662'), hint: i18n.t('kbb331a9a') },
+  { key: 'ocr', label: i18n.t('k08dc029e'), hint: i18n.t('k0da211d8') },
+  { key: 'source', label: i18n.t('k26ca20b1'), hint: i18n.t('k54276f58') },
+  { key: 'versions', label: i18n.t('k6fdd8590'), hint: i18n.t('k1254ee27') },
+  { key: 'regions', label: i18n.t('k3d38e999'), hint: i18n.t('k2dd70064') },
+  { key: 'inpaint', label: i18n.t('kd971fed4'), hint: i18n.t('kac62cace') },
 ];
 
 export default function ImageToolkit({ item, tab = 'info', onClose, onToast, onReplaced }: Props) {
@@ -48,11 +49,11 @@ export default function ImageToolkit({ item, tab = 'info', onClose, onToast, onR
     <div className="modal-backdrop tk-backdrop" onClick={onClose}>
       <div className="modal-card tk-card" onClick={(e) => e.stopPropagation()}>
         <div className="modal-head">
-          <b>素材工具箱</b>
+          <b>{i18n.t('k616c5a20')}</b>
           <span className="tk-title" title={item.title}>
             {item.title}
           </span>
-          <button className="icon-btn" onClick={onClose} title="关闭（Esc）">
+          <button className="icon-btn" onClick={onClose} title={i18n.t('k01aadfea')}>
             <IconClose />
           </button>
         </div>
@@ -101,42 +102,42 @@ function InfoTab({ item, onToast }: { item: ImageItem; onToast?: (msg: string, k
 
   const exif = data?.exif || {};
   const rows: [string, string][] = [
-    ['相机', String(exif.camera || '')],
-    ['镜头', String(exif.lens || '')],
-    ['拍摄时间', String(exif.takenAt || '')],
-    ['光圈', exif.aperture != null ? `f/${exif.aperture}` : ''],
-    ['快门', String(exif.exposure || '')],
+    [i18n.t('k5c980c4f'), String(exif.camera || '')],
+    [i18n.t('k45cf25c9'), String(exif.lens || '')],
+    [i18n.t('ke7d65b46'), String(exif.takenAt || '')],
+    [i18n.t('kb7104277'), exif.aperture != null ? `f/${exif.aperture}` : ''],
+    [i18n.t('kc57dfe98'), String(exif.exposure || '')],
     ['ISO', exif.iso != null ? String(exif.iso) : ''],
-    ['焦距', exif.focalLength != null ? `${exif.focalLength}mm` : ''],
-    ['软件', String(exif.software || '')],
+    [i18n.t('k2391c262'), exif.focalLength != null ? `${exif.focalLength}mm` : ''],
+    [i18n.t('kf0dfc65b'), String(exif.software || '')],
   ].filter(([, v]) => v) as [string, string][];
 
   return (
     <div className="tk-info">
       <div className="tk-kv">
-        <span>尺寸</span>
+        <span>{i18n.t('kc8339fd2')}</span>
         <b>
           {data?.width || item.width} × {data?.height || item.height}
         </b>
-        <span>格式</span>
-        <b>{(data?.format || '未知').toUpperCase()}</b>
-        <span>体积</span>
+        <span>{i18n.t('ke3127cc1')}</span>
+        <b>{(data?.format || i18n.t('k1622dc9b')).toUpperCase()}</b>
+        <span>{i18n.t('k972d5f82')}</span>
         <b>{formatSize(item.sizeBytes)}</b>
-        <span>色彩空间</span>
+        <span>{i18n.t('k8f5d2fd3')}</span>
         <b>{data?.space || '—'}</b>
         <span>DPI</span>
         <b>{data?.density ? String(data.density) : '—'}</b>
-        <span>透明通道</span>
-        <b>{data?.hasAlpha ? '有' : '无'}</b>
-        <span>入库时间</span>
+        <span>{i18n.t('kd0bc689f')}</span>
+        <b>{data?.hasAlpha ? i18n.t('kcc4ad2fd') : i18n.t('kd81bb206')}</b>
+        <span>{i18n.t('k5e2aaf4f')}</span>
         <b>{formatDate(item.createdAt)}</b>
-        <span>原文件</span>
+        <span>{i18n.t('kdbc87e61')}</span>
         {/* 检查器里显示的本来就是磁盘路径，点它定位比再去右键菜单找一遍省事 */}
         <b
           className="tk-path is-clickable"
-          title={`${item.path}\n点击在文件夹中显示`}
+          title={i18n.t('k6d89daf9', { p0: item.path })}
           onClick={() =>
-            revealFile(item.path).catch((err: Error) => onToast?.(`打开所在文件夹失败：${err.message}`, 'error'))
+            revealFile(item.path).catch((err: Error) => onToast?.(i18n.t('k22c7225f', { p0: err.message }), 'error'))
           }
         >
           {item.path}
@@ -155,7 +156,7 @@ function InfoTab({ item, onToast }: { item: ImageItem; onToast?: (msg: string, k
           </tbody>
         </table>
       ) : (
-        !err && <div className="tk-empty">这张素材没有 EXIF 信息（截图、网络图片和导出图通常不带）。</div>
+        !err && <div className="tk-empty">{i18n.t('k53cc79f5')}</div>
       )}
       {data?.error && <div className="tk-warn">{data.error}</div>}
     </div>
@@ -194,7 +195,7 @@ function OcrTab({ item, onToast }: { item: ImageItem; onToast?: (m: string, kind
       const r = await api.ocrRun(item.id, force);
       setText(r.text);
       setMeta({ engine: r.engine, createdAt: new Date().toISOString(), chars: r.text.length });
-      setMsg(r.text.trim() ? `识别到 ${r.text.length} 字，已进入搜索索引` : '这张图里没有识别到文字');
+      setMsg(r.text.trim() ? i18n.t('k1601f484', { p0: r.text.length }) : i18n.t('k3fda9e80'));
     } catch (err) {
       setMsg((err as Error).message);
     } finally {
@@ -208,7 +209,7 @@ function OcrTab({ item, onToast }: { item: ImageItem; onToast?: (m: string, kind
     <div className="tk-ocr">
       <div className="tk-row">
         <button className="btn sm primary" disabled={busy} onClick={() => run(!!text)}>
-          <IconWand /> {busy ? '识别中…' : text ? '重新识别' : '识别文字'}
+          <IconWand /> {busy ? i18n.t('k5f021cab') : text ? i18n.t('k2a3dd292') : i18n.t('kb4a9ace8')}
         </button>
         {text && (
           <>
@@ -216,10 +217,10 @@ function OcrTab({ item, onToast }: { item: ImageItem; onToast?: (m: string, kind
               className="btn sm"
               onClick={async () => {
                 const ok = await copyText(text);
-                onToast?.(ok ? '文字已复制到剪贴板' : '复制失败，请手动选中复制', ok ? 'info' : 'error');
+                onToast?.(ok ? i18n.t('k34368424') : i18n.t('k3987c43b'), ok ? 'info' : 'error');
               }}
             >
-              <IconCopy /> 复制文字
+              <IconCopy /> {i18n.t('kd640f875')}
             </button>
             <button
               className="btn sm ghost danger"
@@ -228,13 +229,13 @@ function OcrTab({ item, onToast }: { item: ImageItem; onToast?: (m: string, kind
                   await api.ocrClear(item.id);
                   setText('');
                   setMeta(null);
-                  setMsg('已删除识别结果（搜索将不再命中这张图）');
+                  setMsg(i18n.t('k2fd45925'));
                 } catch (err) {
                   setMsg((err as Error).message);
                 }
               }}
             >
-              <IconTrash /> 清除
+              <IconTrash /> {i18n.t('k4403fca0')}
             </button>
           </>
         )}
@@ -244,14 +245,14 @@ function OcrTab({ item, onToast }: { item: ImageItem; onToast?: (m: string, kind
         <textarea className="tk-textarea" value={text} readOnly spellCheck={false} />
       ) : (
         <div className="tk-empty">
-          识别结果会存进图库，关键词搜索能直接搜到图里的文字；识别在本机离线完成，不上传图片。
+          {i18n.t('ka54b7df2')}
         </div>
       )}
       {meta?.createdAt && (
         <div className="tk-hint">
           识别于 {formatDate(meta.createdAt)}
-          {meta.engine ? ` · 引擎 ${meta.engine}` : ''}
-          {meta.chars ? ` · ${meta.chars} 字` : ''}
+          {meta.engine ? i18n.t('kcf66b62a', { p0: meta.engine }) : ''}
+          {meta.chars ? i18n.t('k1649dbd1', { p0: meta.chars }) : ''}
         </div>
       )}
     </div>
@@ -297,7 +298,7 @@ function SourceTab({
       const r = await api.reverseSearch(item.id, engine);
       if (r.url) {
         window.open(r.url, '_blank', 'noopener');
-        setNote(r.note || '已在浏览器打开搜图结果');
+        setNote(r.note || i18n.t('k1a50fee7'));
       } else {
         setResults(r.results || []);
         setNote(r.note || '');
@@ -327,7 +328,7 @@ function SourceTab({
     try {
       const r = await api.upgradeSource(item.id);
       onReplaced?.(r.item);
-      onToast?.(`已换成 ${r.after.width}×${r.after.height} 的大图（原 ${r.before.width}×${r.before.height}）`);
+      onToast?.(i18n.t('kdf78ff5f', { p0: r.after.width, p1: r.after.height, p2: r.before.width, p3: r.before.height }));
       setUp(null);
     } catch (err) {
       setUpErr((err as Error).message);
@@ -338,7 +339,7 @@ function SourceTab({
 
   return (
     <div className="tk-source">
-      <h4 className="section-title">以图搜图</h4>
+      <h4 className="section-title">{i18n.t('kc30d6c94')}</h4>
       <div className="tk-providers">
         {(providers?.providers || []).map((p) => (
           <div className={`tk-provider${p.ready ? '' : ' off'}`} key={p.id}>
@@ -347,11 +348,11 @@ function SourceTab({
               <div className="tk-hint">{p.ready ? p.desc : p.reason}</div>
             </div>
             <button className="btn sm" disabled={!p.ready || !!busy} onClick={() => run(p.id)}>
-              {busy === p.id ? '处理中…' : p.kind === 'upload' ? '上传检索' : '打开'}
+              {busy === p.id ? i18n.t('kcf978c02') : p.kind === 'upload' ? i18n.t('k01fcc2de') : i18n.t('kd7098f50')}
             </button>
           </div>
         ))}
-        {!providers && !note && <div className="tk-hint">正在读取可用渠道…</div>}
+        {!providers && !note && <div className="tk-hint">{i18n.t('kcebe7f81')}</div>}
       </div>
       {note && <div className="tk-hint">{note}</div>}
       {results.length > 0 && (
@@ -367,7 +368,7 @@ function SourceTab({
                 if (!r.link) e.preventDefault();
               }}
             >
-              {r.thumb ? <img src={r.thumb} alt="" loading="lazy" /> : <span className="tk-noimg">无缩略图</span>}
+              {r.thumb ? <img src={r.thumb} alt="" loading="lazy" /> : <span className="tk-noimg">{i18n.t('k09483fca')}</span>}
               <div>
                 <b>{r.title}</b>
                 <div className="tk-hint">
@@ -380,27 +381,27 @@ function SourceTab({
       )}
 
       <h4 className="section-title" style={{ marginTop: 18 }}>
-        一键换大图
+        {i18n.t('k88655e7e')}
       </h4>
       <div className="tk-hint" style={{ marginBottom: 8 }}>
-        用采到的原始地址重新下载一张更大的存回原文件（会先留撤销备份，可还原）。
+        {i18n.t('k3d1287d7')}
       </div>
       <div className="tk-row">
         <button className="btn sm" disabled={!!busy} onClick={checkUpgrade}>
-          <IconRefresh /> {busy === 'upgrade' ? '探测中…' : '检测有没有更大版本'}
+          <IconRefresh /> {busy === 'upgrade' ? i18n.t('k396c315c') : i18n.t('ka57934f4')}
         </button>
         {up?.found && (
           <button className="btn sm primary" disabled={!!busy} onClick={doUpgrade}>
-            {busy === 'replace' ? '替换中…' : '替换为大图'}
+            {busy === 'replace' ? i18n.t('k1b5e17ec') : i18n.t('k95b6a7df')}
           </button>
         )}
       </div>
       {up && (
         <div className="tk-hint">
           {up.found
-            ? `可替换：${up.before.width}×${up.before.height} → ${up.after?.width}×${up.after?.height}`
-            : `没有找到更大的版本（原图 ${up.before.width}×${up.before.height}）`}
-          {!up.found && up.tried.length > 0 && ` · 试过 ${up.tried.length} 个地址`}
+            ? i18n.t('k2c1c049e', { p0: up.before.width, p1: up.before.height, p2: up.after?.width, p3: up.after?.height })
+            : i18n.t('k4dfb3bed', { p0: up.before.width, p1: up.before.height })}
+          {!up.found && up.tried.length > 0 && i18n.t('ka609d215', { p0: up.tried.length })}
         </div>
       )}
       {upErr && <div className="tk-warn">{upErr}</div>}
@@ -440,7 +441,7 @@ function VersionsTab({
     try {
       const r = await api.restoreVersion(item.id, vid);
       onReplaced?.(r.item);
-      onToast?.('已恢复到该版本（当前版本也已备份，可再撤销）');
+      onToast?.(i18n.t('k7bf996c8'));
       load();
     } catch (e) {
       setErr((e as Error).message);
@@ -454,21 +455,21 @@ function VersionsTab({
   return (
     <div className="tk-versions">
       <div className="tk-hint" style={{ marginBottom: 10 }}>
-        每做一次编辑（裁切 / 旋转 / 调色 / 增强 / 换大图）都会先备份原图，这里可以把任意一版换回来。
+        {i18n.t('k02b63cb4')}
       </div>
       {data && (
         <>
           <div className="tk-vcurrent">
             <img src={item.thumbUrl} alt="" />
             <div>
-              <b>当前版本</b>
+              <b>{i18n.t('k9b601b8e')}</b>
               <div className="tk-hint">
                 {data.current.width}×{data.current.height} · {data.current.sizeLabel}
               </div>
             </div>
-            <span className="tk-badge">在用</span>
+            <span className="tk-badge">{i18n.t('k60136ec9')}</span>
           </div>
-          {data.versions.length === 0 && <div className="tk-empty">这张素材还没有编辑历史。</div>}
+          {data.versions.length === 0 && <div className="tk-empty">{i18n.t('k956aae64')}</div>}
           <div className="tk-vlist">
             {data.versions.map((v) => (
               <div className="tk-vitem" key={v.id}>
@@ -481,15 +482,15 @@ function VersionsTab({
                   </div>
                 </div>
                 {v.missing ? (
-                  <span className="tk-warn">备份文件已丢失</span>
+                  <span className="tk-warn">{i18n.t('kc6cdf4d8')}</span>
                 ) : (
                   <button
                     className="btn sm"
                     disabled={busy > 0}
                     onClick={() => restore(v.id)}
-                    title="把原图换回这一版；当前版本同样会被备份"
+                    title={i18n.t('k38a1d65e')}
                   >
-                    {busy === v.id ? '恢复中…' : '恢复此版本'}
+                    {busy === v.id ? i18n.t('kabc10332') : i18n.t('ka4927087')}
                   </button>
                 )}
               </div>
@@ -554,7 +555,7 @@ function RegionsTab({ item, onToast }: { item: ImageItem; onToast?: (m: string, 
     startRef.current = null;
     setDraft(null);
     if (d && d.w > 0.02 && d.h > 0.02) setRects((prev) => [...prev, d].slice(0, 24));
-    else if (d) setMsg('框太小了，拖大一点再放开');
+    else if (d) setMsg(i18n.t('kfe467db5'));
   };
 
   const pick = async () => {
@@ -565,7 +566,7 @@ function RegionsTab({ item, onToast }: { item: ImageItem; onToast?: (m: string, 
   const save = async () => {
     if (!rects.length) return;
     if (!dir) {
-      setMsg('请先选择保存位置');
+      setMsg(i18n.t('kf3394ecf'));
       return;
     }
     setBusy(true);
@@ -573,8 +574,8 @@ function RegionsTab({ item, onToast }: { item: ImageItem; onToast?: (m: string, 
     try {
       const r = await api.cropRegions(item.id, rects, { targetDir: dir, addToLibrary: addToLib });
       const ok = r.results.filter((x) => x.ok).length;
-      setMsg(`已保存 ${ok} / ${r.count} 个区域`);
-      onToast?.(`已从这张图切出 ${ok} 份`);
+      setMsg(i18n.t('k573d0ee2', { p0: ok, p1: r.count }));
+      onToast?.(i18n.t('k0cf25e41', { p0: ok }));
       if (ok) setRects([]);
     } catch (e) {
       setMsg((e as Error).message);
@@ -635,30 +636,30 @@ function RegionsTab({ item, onToast }: { item: ImageItem; onToast?: (m: string, 
         </div>
       </div>
       <div className="tk-regions-side">
-        <div className="tk-hint">在图上拖出多个框，一次全部另存为副本（原图不动）。</div>
+        <div className="tk-hint">{i18n.t('k434975d9')}</div>
         <div className="tk-hint">已框 {rects.length} 个</div>
         <button className="btn sm" onClick={pick}>
-          {dir ? '更换保存位置' : '选择保存位置'}
+          {dir ? i18n.t('kb08d287e') : i18n.t('kb08bb8a4')}
         </button>
         <label className="tk-check">
           <input type="checkbox" checked={addToLib} onChange={(e) => setAddToLib(e.target.checked)} />
-          同时入库
+          {i18n.t('k1bf32aea')}
         </label>
         <div className="tk-regions-actions">
           <button className="btn sm ghost" disabled={!rects.length} onClick={() => setRects([])}>
-            清空
+            {i18n.t('k288f0c40')}
           </button>
           <button className="btn sm primary" disabled={busy || !rects.length} onClick={save}>
-            <IconDownload /> {busy ? '保存中…' : '保存全部'}
+            <IconDownload /> {busy ? i18n.t('k9b5d32d1') : i18n.t('kaac9e35b')}
           </button>
         </div>
         {dir && (
           <button
             type="button"
             className="tk-hint tk-path tk-path-btn"
-            title={`${dir}\n点击打开该文件夹`}
+            title={i18n.t('k93e7a536', { p0: dir })}
             onClick={() =>
-              openFolder(dir).catch((e: Error) => onToast?.(`打开文件夹失败：${e.message}`, 'error'))
+              openFolder(dir).catch((e: Error) => onToast?.(i18n.t('k811885fb', { p0: e.message }), 'error'))
             }
           >
             {dir}

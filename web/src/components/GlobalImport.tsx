@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { UPLOAD_HINT, filesFromDataTransfer, importFiles, type ImportProgress } from '../lib/importer';
+import i18n from '../i18n';
 
 interface Props {
   /** 有文件成功入库后回调，父级据此刷新列表与统计 */
@@ -30,13 +31,13 @@ export default function GlobalImport({ onImported, onToast }: Props) {
         // 有失败时把第一条原因带上，否则用户只知道「失败了」却无从下手
         onToast?.(
           r.failed
-            ? `入库完成：${r.saved} 成功 / ${r.failed} 失败${r.firstError ? `（${r.firstError}）` : ''}`
-            : `已入库 ${r.saved} 个文件`
+            ? i18n.t('k114b20a0', { p0: r.saved, p1: r.failed, p2: r.firstError ? `（${r.firstError}）` : '' })
+            : i18n.t('k092eb236', { p0: r.saved })
         );
       } else if (r.skipped) {
-        onToast?.(`没有可入库的文件（${UPLOAD_HINT}）`);
+        onToast?.(i18n.t('kfad63985', { p0: UPLOAD_HINT }));
       } else if (r.failed) {
-        onToast?.(`入库失败：${r.failed} 个文件未通过${r.firstError ? `（${r.firstError}）` : ''}`);
+        onToast?.(i18n.t('k199695f7', { p0: r.failed, p1: r.firstError ? `（${r.firstError}）` : '' }));
       }
     },
     [onImported, onToast]
@@ -92,7 +93,7 @@ export default function GlobalImport({ onImported, onToast }: Props) {
       if (e.defaultPrevented) return; // 页面内自己接管了
       e.preventDefault();
       if (!ok) {
-        onToast?.('把文件拖到中间的圆形采集区再松手才会入库');
+        onToast?.(i18n.t('kc17ad804'));
         return;
       }
       void run(filesFromDataTransfer(e.dataTransfer));
@@ -114,9 +115,9 @@ export default function GlobalImport({ onImported, onToast }: Props) {
       {dragging && (
         <div className="gi-drop" aria-hidden>
           <div className="gi-drop-box" ref={boxRef}>
-            <b>拖到这里松手</b>
+            <b>{i18n.t('kc928da5d')}</b>
             <span>{UPLOAD_HINT}</span>
-            <em>落到别处不会入库</em>
+            <em>{i18n.t('k63f24dba')}</em>
           </div>
         </div>
       )}
@@ -124,8 +125,8 @@ export default function GlobalImport({ onImported, onToast }: Props) {
         <div className="gi-busy" role="status">
           <span className="gi-busy-dot" />
           正在入库 {busy.done}/{busy.total}
-          {busy.saved ? ` · 成功 ${busy.saved}` : ''}
-          {busy.failed ? ` · 失败 ${busy.failed}` : ''}
+          {busy.saved ? i18n.t('k9aee1908', { p0: busy.saved }) : ''}
+          {busy.failed ? i18n.t('k1b84532a', { p0: busy.failed }) : ''}
         </div>
       )}
     </>

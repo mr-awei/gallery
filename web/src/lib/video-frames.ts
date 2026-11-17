@@ -1,3 +1,4 @@
+import i18n from '../i18n';
 /**
  * 视频「扫帧」预览：把 N 个时间点的画面拼成一张雪碧图，hover 时按鼠标位置切换。
  *
@@ -37,7 +38,7 @@ function seek(video: HTMLVideoElement, time: number): Promise<void> {
     const fail = () => {
       video.removeEventListener('seeked', done);
       video.removeEventListener('error', fail);
-      reject(new Error('视频抽帧失败'));
+      reject(new Error(i18n.t('ke43acdbe')));
     };
     video.addEventListener('seeked', done, { once: true });
     video.addEventListener('error', fail, { once: true });
@@ -67,8 +68,8 @@ export function captureVideoSprite(url: string, frames = 6): Promise<SpriteResul
     try {
       await new Promise<void>((resolve, reject) => {
         video.addEventListener('loadedmetadata', () => resolve(), { once: true });
-        video.addEventListener('error', () => reject(new Error('视频无法加载')), { once: true });
-        setTimeout(() => reject(new Error('视频加载超时')), 8000);
+        video.addEventListener('error', () => reject(new Error(i18n.t('k3de7d487'))), { once: true });
+        setTimeout(() => reject(new Error(i18n.t('k7ce5cad2'))), 8000);
       });
       const duration = video.duration || 0;
       const times = pickFrameTimes(duration, frames);

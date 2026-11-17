@@ -29,6 +29,10 @@ tsconfig.tsbuildinfo
 
 # 本地工具状态
 .codebuddy/
+.trae-html-share-packages/
+
+# 文档的本地备份
+docs/*.bak
 
 # 环境变量与系统文件
 .env

@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { api } from '../../api';
 import Card from './Card';
+import i18n from '../../i18n';
 
 interface Props {
   value: string;
@@ -26,14 +27,14 @@ export default function ImportNameTemplateCard({ value, applyToLocal, onChange, 
     api
       .nameTemplatePreview('')
       .then((r) => setMeta({ presets: r.presets || [], tokens: r.tokens || [] }))
-      .catch((err) => onToast(`读取命名模板说明失败：${(err as Error).message}`, 'error'));
+      .catch((err) => onToast(i18n.t('kbfab7937', { p0: (err as Error).message }), 'error'));
   }, []);
 
   const preview = async () => {
     if (!value.trim()) {
       setNames([]);
       setSample(false);
-      onToast('留空表示沿用内置默认文件名');
+      onToast(i18n.t('kb07c6a1c'));
       return;
     }
     setBusy(true);
@@ -42,9 +43,9 @@ export default function ImportNameTemplateCard({ value, applyToLocal, onChange, 
       setNames(r.names || []);
       setSample(!!r.sample);
       setMeta({ presets: r.presets || [], tokens: r.tokens || [] });
-      onToast('已按库里最近的素材生成预览');
+      onToast(i18n.t('k53f76138'));
     } catch (err) {
-      onToast(`预览失败：${(err as Error).message}`, 'error');
+      onToast(i18n.t('kb6327eeb', { p0: (err as Error).message }), 'error');
     } finally {
       setBusy(false);
     }
@@ -52,14 +53,14 @@ export default function ImportNameTemplateCard({ value, applyToLocal, onChange, 
 
   return (
     <Card
-      title="导入时命名模板"
-      desc="新素材落盘时按模板命名；采集、拖拽/粘贴、手机投送、浏览器扩展与批量入库共用一套规则。"
-      badge={<span style={{ color: 'var(--muted)', fontSize: 12, fontWeight: 400 }}>按资源库独立保存</span>}
+      title={i18n.t('k2404cfc0')}
+      desc={i18n.t('k16319d8a')}
+      badge={<span style={{ color: 'var(--muted)', fontSize: 12, fontWeight: 400 }}>{i18n.t('k389927e0')}</span>}
     >
-      <div className="settings-subhead">模板</div>
+      <div className="settings-subhead">{i18n.t('k59cf15fe')}</div>
       <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center' }}>
         <div className="field" style={{ flex: 2, minWidth: 220, margin: 0 }}>
-          <label>文件名模板（留空 = 内置默认「关键词_来源_尺寸_时间戳_随机」）</label>
+          <label>{i18n.t('k4286b222')}</label>
           <input
             className="input"
             style={{ width: '100%' }}
@@ -70,14 +71,14 @@ export default function ImportNameTemplateCard({ value, applyToLocal, onChange, 
           />
         </div>
         <div className="field" style={{ flex: 1, minWidth: 180, margin: 0 }}>
-          <label>套用预设（可保存复用）</label>
+          <label>{i18n.t('k323afcc4')}</label>
           <select
             className="select"
             style={{ width: '100%', padding: '7px 8px', borderRadius: 8 }}
             value=""
             onChange={(e) => onChange({ importNameTemplate: e.target.value })}
           >
-            <option value="">选择一个预设…</option>
+            <option value="">{i18n.t('kf6e77050')}</option>
             {meta.presets.map((p) => (
               <option key={p.label} value={p.value}>
                 {p.label}
@@ -86,7 +87,7 @@ export default function ImportNameTemplateCard({ value, applyToLocal, onChange, 
           </select>
         </div>
         <button className="btn sm" disabled={busy} onClick={() => void preview()}>
-          预览前 20 个目标名
+          {i18n.t('k75865583')}
         </button>
       </div>
 
@@ -98,14 +99,13 @@ export default function ImportNameTemplateCard({ value, applyToLocal, onChange, 
           </code>
         ))}
         <br />
-        <code>{'{index}'}</code> 按本批顺序递增（4 位补零），重名自动追加 <code>-1 / -2</code>；
-        扩展名没写 <code>{'{ext}'}</code> 也会自动补上。非法字符会被过滤。
+        <code>{'{index}'}</code> {i18n.t('k41d6c1dc')} <code>-1 / -2</code>{i18n.t('k7c2dc34a')} <code>{'{ext}'}</code> {i18n.t('kf14cd153')}
       </div>
 
       {names.length > 0 && (
         <div className="field" style={{ marginTop: 10 }}>
           <label>
-            目标文件名预览（{names.length} 个{sample ? '，库里还没有素材，用示例数据' : '，来自库里最近的素材'}）
+            目标文件名预览（{names.length} 个{sample ? i18n.t('k16e31089') : i18n.t('k0248df3b')}）
           </label>
           <div
             className="hint"
@@ -120,9 +120,9 @@ export default function ImportNameTemplateCard({ value, applyToLocal, onChange, 
         </div>
       )}
 
-      <div className="settings-subhead">本地文件夹扫描</div>
+      <div className="settings-subhead">{i18n.t('k34668c88')}</div>
       <div className="switch-row">
-        <span>扫描本地文件夹时，复制一份并按模板命名</span>
+        <span>{i18n.t('k8620aac3')}</span>
         <input
           type="checkbox"
           checked={applyToLocal}
@@ -130,11 +130,11 @@ export default function ImportNameTemplateCard({ value, applyToLocal, onChange, 
         />
       </div>
       <div className="hint" style={{ lineHeight: 1.8 }}>
-        默认关闭：本地扫描是<b>原地登记</b>，不会改名或移动你硬盘上的文件。
+        {i18n.t('k447a773d')}<b>{i18n.t('kc564c2e9')}</b>，不会改名或移动你硬盘上的文件。
         开启后才会把素材复制一份到保存文件夹（保留目录层级，文件夹关联不丢）并按模板命名，原文件始终不动。
-        <b>扫描保存文件夹本身时不要开启</b>，否则会不断产生副本。
+        <b>{i18n.t('k2c8af7ac')}</b>{i18n.t('k495f5c30')}
       </div>
-      <div className="hint">改完记得点右上角「保存设置」。</div>
+      <div className="hint">{i18n.t('k3d0009ad')}</div>
     </Card>
   );
 }

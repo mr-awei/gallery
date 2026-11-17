@@ -7,6 +7,7 @@ import ExportDialog from './ExportDialog';
 import WallpaperPreview from './WallpaperPreview';
 import ImageToolkit, { type ToolkitTab } from './ImageToolkit';
 import CompareView from './CompareView';
+import i18n from '../i18n';
 
 /** 取文件路径所在目录（用于「另存副本」默认落到原图目录） */
 const dirOfPath = (p: string) => p.replace(/[\\/][^\\/]*$/, '') || p;
@@ -734,29 +735,29 @@ export default function Lightbox({
           if (!st.downloading) void api.mattingInstall().catch(() => undefined);
           onChangeToast?.(
             st.downloading
-              ? 'AI 抠图模型正在下载（约 4.5MB），下完再点一次；白底/灰底图现在就能用「纯底图抠图」'
-              : 'AI 抠图模型还没下载，已在后台开始下载（约 4.5MB）；白底/灰底图现在就能用「纯底图抠图」'
+              ? i18n.t('k22bd90cd')
+              : i18n.t('k739d4b9e')
           );
           return;
         }
       }
       const r = await api.removeBackground(item.id, mode);
       if (!r.ok) {
-        onChangeToast?.(`抠图失败：${r.reason || '未知原因'}`);
+        onChangeToast?.(i18n.t('kaa4e8014', { p0: r.reason || i18n.t('kf91d273b') }));
         return;
       }
       // 后端发现前景占比异常时会给 warning：别把废图说成「成功」
-      if (r.warning) onChangeToast?.(`已生成，但${r.warning}`);
-      else if (mode === 'flat') onChangeToast?.(`已生成透明底版本（纯底图抠图，前景 ${Math.round((r.coverage || 0) * 100)}%）`);
-      else onChangeToast?.('已生成去背景版本，已存入图库');
+      if (r.warning) onChangeToast?.(i18n.t('kbf0222c1', { p0: r.warning }));
+      else if (mode === 'flat') onChangeToast?.(i18n.t('kcd301d2a', { p0: Math.round((r.coverage || 0) * 100) }));
+      else onChangeToast?.(i18n.t('k65c6538b'));
     } catch (err) {
       const msg = (err as Error).message || '';
       if (mode === 'ai' && /模型|下载/.test(msg)) {
         // 缺模型：顺手开始后台下载，并告诉用户下完再来
         void api.mattingInstall().catch(() => undefined);
-        onChangeToast?.('AI 抠图模型还没下载，已在后台开始下载（约 4.5MB）；白底/灰底图现在就能用「纯底图抠图」');
+        onChangeToast?.(i18n.t('k739d4b9e'));
       } else {
-        onChangeToast?.(`抠图失败：${msg}`);
+        onChangeToast?.(i18n.t('kaa4e8014', { p0: msg }));
       }
     } finally {
       setMatting(false);
@@ -799,7 +800,7 @@ export default function Lightbox({
   /** 覆盖原图是不可逆写回：值得一次确认（副本模式、非破坏模式都不用问） */
   const confirmOverwrite = async (what: string) => {
     if (saveMode === 'copy' || ndOn) return true;
-    return confirmDialog(`${what}将直接覆盖原文件（可用 Ctrl+Z 撤销最近一次）。继续？`);
+    return confirmDialog(i18n.t('kfe3ef80e', { p0: what }));
   };
 
   const saveCrop = async () => {
@@ -808,7 +809,7 @@ export default function Lightbox({
     saveLockRef.current = true;
     setSaving(true);
     try {
-      if (!(await confirmOverwrite('裁切'))) return;
+      if (!(await confirmOverwrite(i18n.t('k096cbe88')))) return;
       const r = await api.cropImage(item.id, {
         ratio: cropRatio,
         rect: cropRect,
@@ -818,17 +819,17 @@ export default function Lightbox({
       });
       if (r.item) onReplaceItem(r.item); // 另存且未入库时 item 为 null，原图没变不用刷新
       // 按比例裁切会先找主体；没找到主体就走了居中，得告诉用户为什么裁在这里
-      const focusNote = r.focus === 'center' ? '（未检测到明显主体，已居中裁切）' : '';
+      const focusNote = r.focus === 'center' ? i18n.t('k28eb42ad') : '';
       onChangeToast?.(
         r.nonDestructive
-          ? `已记入非破坏编辑（原图未改动）${focusNote}　更多 → 非破坏编辑可应用到底片`
+          ? i18n.t('ke150f6a7', { p0: focusNote })
           : r.copied
-            ? `裁切副本已保存：${r.savedPath}${r.note || ''}${focusNote}`
-            : `裁切已保存到原文件${focusNote}`
+            ? i18n.t('k4fecd910', { p0: r.savedPath, p1: r.note || '', p2: focusNote })
+            : i18n.t('k16c36af2', { p0: focusNote })
       );
       closeEditor();
     } catch (err) {
-      onChangeToast?.(`裁切失败：${(err as Error).message || '未知错误'}`);
+      onChangeToast?.(i18n.t('k500c14f8', { p0: (err as Error).message || i18n.t('k974e7484') }));
     } finally {
       saveLockRef.current = false;
       setSaving(false);
@@ -841,19 +842,19 @@ export default function Lightbox({
     saveLockRef.current = true;
     setSaving(true);
     try {
-      if (!(await confirmOverwrite('调色'))) return;
+      if (!(await confirmOverwrite(i18n.t('k9e368d03')))) return;
       const r = await api.adjustImage(item.id, { ...adjust, ...saveOpts });
       if (r.item) onReplaceItem(r.item);
       onChangeToast?.(
         r.nonDestructive
-          ? '已记入非破坏编辑（原图未改动）　更多 → 非破坏编辑可应用到底片'
+          ? i18n.t('k29663fae')
           : r.copied
-            ? `调色副本已保存：${r.savedPath}${r.note || ''}`
-            : '调色已保存到原文件'
+            ? i18n.t('k3caa37e1', { p0: r.savedPath, p1: r.note || '' })
+            : i18n.t('kb7526bb4')
       );
       setColorRoom(false);
     } catch (err) {
-      onChangeToast?.(`调色失败：${(err as Error).message || '未知错误'}`);
+      onChangeToast?.(i18n.t('ke73916ce', { p0: (err as Error).message || i18n.t('k974e7484') }));
     } finally {
       saveLockRef.current = false;
       setSaving(false);
@@ -875,10 +876,10 @@ export default function Lightbox({
       const r = await api.rotateImage(item.id, dir);
       onReplaceItem(r.item);
       if (r.nonDestructive) {
-        onChangeToast?.('已记入非破坏编辑（原图未改动）　更多 → 非破坏编辑可应用到底片');
+        onChangeToast?.(i18n.t('k29663fae'));
       }
     } catch (err) {
-      onChangeToast?.(`旋转失败：${(err as Error).message || '未知错误'}`);
+      onChangeToast?.(i18n.t('k9410e943', { p0: (err as Error).message || i18n.t('k974e7484') }));
     } finally {
       setRotating(null);
     }
@@ -960,36 +961,36 @@ export default function Lightbox({
   }[] = [
     {
       key: 'enhance',
-      label: enhancing ? '增强中…' : '画质增强',
+      label: enhancing ? i18n.t('k15b69940') : i18n.t('kfd5e4c21'),
       icon: <IconWand />,
-      title: '按「设置 → 画质增强」里的目标标准与模型放大（AI 模型需先下载运行库），结果覆盖原文件',
+      title: i18n.t('k7c8097d5'),
       disabled: !isImage || !!rotating || !!enhancing,
       group: 'edit',
       run: () => onEnhance(item),
     },
     {
       key: 'edit-ops',
-      label: `非破坏编辑${item.editOps ? `（${item.editOps}）` : ''}…`,
+      label: i18n.t('k85a409ea', { p0: item.editOps ? `（${item.editOps}）` : '' }),
       icon: <IconSliders />,
-      title: '查看已记录但未写回原图的裁切 / 旋转 / 调色，可一次性应用到底片或整体还原',
+      title: i18n.t('k182f21db'),
       disabled: !isImage || !item.editOps,
       group: 'edit',
       run: () => setOpsOpen(true),
     },
     {
       key: 'watermark',
-      label: '水印 / 相框…',
+      label: i18n.t('ka450c5a3'),
       icon: <IconType />,
-      title: '读取拍摄信息（品牌型号 / 光圈 / 快门 / ISO / 时间 / 地点）加水印，或加白框黑框等相框',
+      title: i18n.t('kd13b8a67'),
       disabled: !isImage,
       group: 'edit',
       run: () => setWmOpen(true),
     },
     {
       key: 'anno',
-      label: `图上标注${annoCount > 0 ? `（${annoCount}）` : ''}`,
+      label: i18n.t('kd4b7ab9b', { p0: annoCount > 0 ? `（${annoCount}）` : '' }),
       icon: <IconPencil />,
-      title: '图上标注：矩形 / 箭头 / 文字 / 马赛克 / 画笔，自动保存',
+      title: i18n.t('k30141fcd'),
       group: 'edit',
       show: isAnnotatable,
       run: () => {
@@ -999,71 +1000,71 @@ export default function Lightbox({
     },
     {
       key: 'matte-ai',
-      label: matting ? '抠图中…' : 'AI 抠图（人像 / 宠物）',
+      label: matting ? i18n.t('kaea5345b') : i18n.t('kb3faecb7'),
       icon: <IconScissors />,
-      title: 'AI 抠图（U-2-Net 人像分割）：适合人物/宠物，风景与物体效果差；模型约 4.5MB，没下载会自动开始下载',
+      title: i18n.t('k6c15e0c5'),
       disabled: !isImage || matting,
       group: 'edit',
       run: () => void runCut('ai'),
     },
     {
       key: 'matte-flat',
-      label: '纯底图抠图（白底 / 灰底）',
+      label: i18n.t('k898dea8a'),
       icon: <IconScissors />,
-      title: '纯底图抠图：白底、灰底、蓝底、绿幕等单一颜色背景，纯像素处理、不用模型、秒出',
+      title: i18n.t('k30fdfd54'),
       disabled: !isImage || matting,
       group: 'edit',
       run: () => void runCut('flat'),
     },
     {
       key: 'wallpaper',
-      label: '设为桌面壁纸',
+      label: i18n.t('k25843df6'),
       icon: <IconWallpaper />,
-      title: '设为桌面壁纸（竖版图会合成为「完整竖图居中 + 模糊同图铺底」，不裁切）',
+      title: i18n.t('k1f478968'),
       group: 'wall',
       run: () => onSetWallpaper(item),
     },
     {
       key: 'wallpaper-preview',
-      label: '壁纸效果预览…',
+      label: i18n.t('k18d5b5e2'),
       icon: <IconMonitor />,
-      title: '先看看这张图在实际屏幕上合成后的样子（不裁切、不拉伸），再决定是否设置',
+      title: i18n.t('kf3a181ca'),
       group: 'wall',
       run: () => setWpPreviewOpen(true),
     },
     {
       key: 'toolbox',
-      label: '素材工具箱…',
+      label: i18n.t('k30dff965'),
       icon: <IconTool />,
-      title: '看尺寸 / 格式 / EXIF，或识别图里的文字、查来源、恢复旧版本',
+      title: i18n.t('k247c463e'),
       group: 'tool',
       run: () => setToolkit('info'),
     },
     {
       key: 'ocr',
-      label: '图内文字（OCR）…',
+      label: i18n.t('kb40ee7b3'),
       short: 'OCR',
       icon: <IconType />,
-      title: '复制图里的文字（识别后也能用关键词搜到）',
+      title: i18n.t('ke2cb0e24'),
       group: 'tool',
       run: () => setToolkit('ocr'),
     },
     {
       key: 'source',
-      label: '来源 / 换大图…',
-      short: '换大图',
+      label: i18n.t('k87edf025'),
+      short: i18n.t('k98e1611e'),
       icon: <IconGlobe />,
-      title: '以图搜图找原出处，或检测并替换成更大的版本',
+      title: i18n.t('k819bb213'),
       group: 'tool',
       show: isImage,
       run: () => setToolkit('source'),
     },
     {
       key: 'reverse',
-      label: '全网搜图…',
-      short: '搜图',
+      label: i18n.t('k375e3ed7'),
+      short: i18n.t('k84ea34ec'),
       icon: <IconSearch />,
-      title: '把这张图同时丢给国内外的以图搜图引擎（Yandex / SauceNAO / 百度 / 搜狗 / 360 / Lens / TinEye），国外引擎会先体检国际网络',
+      title: i18n.t('ke7ab2ed0'),
       group: 'tool',
       show: isImage,
       run: () => {
@@ -1077,88 +1078,88 @@ export default function Lightbox({
     },
     {
       key: 'versions',
-      label: '版本历史…',
-      short: '版本',
+      label: i18n.t('k34c8cf7e'),
+      short: i18n.t('kfe2df04a'),
       icon: <IconClock />,
-      title: '每次裁切 / 调色 / 换大图前的原图都留着，可随时换回',
+      title: i18n.t('k0708fc3f'),
       group: 'tool',
       run: () => setToolkit('versions'),
     },
     {
       key: 'inpaint',
-      label: '擦除修复…',
-      short: '擦除',
+      label: i18n.t('k22498c9b'),
+      short: i18n.t('kce03b0ad'),
       icon: <IconEraser />,
-      title: '涂掉划痕、水印、小物件（内容感知扩散，可撤销）',
+      title: i18n.t('k9b33234c'),
       group: 'tool',
       show: isImage,
       run: () => setToolkit('inpaint'),
     },
     {
       key: 'compare',
-      label: '图片对比…',
-      short: '对比',
+      label: i18n.t('k29272efa'),
+      short: i18n.t('kf5deaa17'),
       icon: <IconCompare />,
-      title: '并排 / 分割 / 重叠三种方式与另一张对比',
+      title: i18n.t('k8703f9e7'),
       group: 'tool',
       show: isImage && items.length > 1,
       run: () => setCmpIds({ left: item.id, right: items[(index + 1) % items.length].id }),
     },
     {
       key: 'download',
-      label: '下载',
+      label: i18n.t('kf26ef914'),
       icon: <IconDownload />,
-      title: '另存为',
+      title: i18n.t('k4d554a90'),
       group: 'io',
       show: !!onDownload,
       run: () => onDownload?.(item),
     },
     {
       key: 'copy',
-      label: '复制图片',
-      short: '复制',
+      label: i18n.t('k1819ff01'),
+      short: i18n.t('k79d3abe9'),
       icon: <IconCopy />,
-      title: '复制到系统剪贴板，可直接粘到微信 / PPT / 文档里',
+      title: i18n.t('k3f7b25e1'),
       group: 'io',
       run: () => {
         void copyImageToClipboard(item.url).then(
-          () => onChangeToast?.('已复制到剪贴板'),
-          (err: Error) => onChangeToast?.(`复制失败：${err.message}`)
+          () => onChangeToast?.(i18n.t('k4fb42e6e')),
+          (err: Error) => onChangeToast?.(i18n.t('k2c3115d0', { p0: err.message }))
         );
       },
     },
     {
       key: 'export',
-      label: '导出为图片…',
-      short: '导出',
+      label: i18n.t('k053a58f4'),
+      short: i18n.t('k55405ea6'),
       icon: <IconDownload />,
-      title: '转成 JPEG / PNG / WebP / AVIF 另存，可改质量和尺寸',
+      title: i18n.t('k9d50ac92'),
       group: 'io',
       show: isImage,
       run: () => setExportOpen(true),
     },
     {
       key: 'reveal',
-      label: '在文件夹中显示',
+      label: i18n.t('k69c50ffd'),
       icon: <IconFolder />,
-      title: '在文件夹中显示',
+      title: i18n.t('k69c50ffd'),
       group: 'io',
       run: () => revealFile(item.path),
     },
     {
       key: 'slideshow',
-      label: playing ? '暂停幻灯片' : '幻灯片播放',
+      label: playing ? i18n.t('ke30538f0') : i18n.t('k00822dd1'),
       icon: playing ? <IconPause /> : <IconPlay />,
-      title: '幻灯片自动播放（空格切换）',
+      title: i18n.t('k34a799f3'),
       group: 'view',
       run: () => setPlaying((p) => !p),
     },
     {
       key: 'thumbs',
-      label: showThumbs ? '隐藏底部缩略图' : '显示底部缩略图',
-      short: '缩略图',
+      label: showThumbs ? i18n.t('k53d341ca') : i18n.t('ke0ff25bb'),
+      short: i18n.t('k0f088d8f'),
       icon: <IconStrip />,
-      title: '显示/隐藏底部缩略图条',
+      title: i18n.t('kd9c2ebfe'),
       group: 'view',
       run: () => setShowThumbs((v) => !v),
     },
@@ -1166,11 +1167,11 @@ export default function Lightbox({
   const visible = acts.filter((a) => a.show !== false);
   const pinned = visible.filter((a) => pinnedActs.includes(a.key));
   const groupOrder: { key: 'edit' | 'wall' | 'tool' | 'io' | 'view'; name: string }[] = [
-    { key: 'edit', name: '编辑' },
-    { key: 'wall', name: '壁纸' },
-    { key: 'tool', name: '工具' },
-    { key: 'io', name: '导出与文件' },
-    { key: 'view', name: '浏览' },
+    { key: 'edit', name: i18n.t('k95b351c8') },
+    { key: 'wall', name: i18n.t('k8e92193d') },
+    { key: 'tool', name: i18n.t('k20dce2c6') },
+    { key: 'io', name: i18n.t('k98b13cbd') },
+    { key: 'view', name: i18n.t('k9c5c5cdb') },
   ];
   // 菜单里剩下的（没被挪到顶栏的），空分组不渲染也不留分隔线
   const menuGroups = groupOrder
@@ -1182,17 +1183,17 @@ export default function Lightbox({
       ref={rootRef}
       className={`lightbox${playing ? ' playing' : ''}${chrome ? '' : ' hide-chrome'}`}
       data-a11y-dialog
-      aria-label={`预览：${item.title || '未命名'}`}
+      aria-label={i18n.t('k57262ea8', { p0: item.title || i18n.t('k7f0425a8') })}
       onMouseMove={onMouseMove}
       onMouseUp={endDrag}
       onMouseLeave={endDrag}
     >
       <div className="lightbox-top" onClick={(e) => e.stopPropagation()}>
         <div className="lb-top-left">
-          <button className="btn ghost sm" onClick={onClose} title={'关闭（ESC）'}>
+          <button className="btn ghost sm" onClick={onClose} title={i18n.t('k806092ad')}>
             <IconClose />
-            <span className="lb-txt">{'关闭'}</span>
-            <span className="lb-txt-short">{'关闭'}</span>
+            <span className="lb-txt">{i18n.t('kb15d9127')}</span>
+            <span className="lb-txt-short">{i18n.t('kb15d9127')}</span>
           </button>
           <span className="lb-counter">
             {index + 1} / {items.length}
@@ -1201,7 +1202,7 @@ export default function Lightbox({
               点它在资源管理器里定位（和卡片右键「打开所在文件夹」同一件事，这里更好找） */}
           <span
             className="lb-title is-clickable"
-            title={`${item.title}\n点击在文件夹中显示`}
+            title={i18n.t('k6d89daf9', { p0: item.title })}
             role="button"
             tabIndex={0}
             onKeyDown={(e) => {
@@ -1209,12 +1210,12 @@ export default function Lightbox({
               e.preventDefault();
               e.stopPropagation();
               revealFile(item.path).catch((err: Error) =>
-                onChangeToast?.(`打开所在文件夹失败：${err.message}`)
+                onChangeToast?.(i18n.t('k22c7225f', { p0: err.message }))
               );
             }}
             onClick={() =>
               revealFile(item.path).catch((err: Error) =>
-                onChangeToast?.(`打开所在文件夹失败：${err.message}`)
+                onChangeToast?.(i18n.t('k22c7225f', { p0: err.message }))
               )
             }
           >
@@ -1226,46 +1227,46 @@ export default function Lightbox({
           <button
             className={`btn sm${item.favorite ? ' primary' : ''}`}
             onClick={() => onToggleFavorite(item)}
-            title={item.favorite ? '取消收藏' : '加入收藏'}
+            title={item.favorite ? i18n.t('kf22cec28') : i18n.t('k05b72da9')}
             aria-pressed={!!item.favorite}
           >
             <IconHeart filled={item.favorite} />
-            <span className="lb-txt">{item.favorite ? '已收藏' : '收藏'}</span>
-            <span className="lb-txt-short">{item.favorite ? '已收藏' : '收藏'}</span>
+            <span className="lb-txt">{item.favorite ? i18n.t('k934ebd87') : i18n.t('kae336cd0')}</span>
+            <span className="lb-txt-short">{item.favorite ? i18n.t('k934ebd87') : i18n.t('kae336cd0')}</span>
           </button>
           <span className="lb-divider" />
           {/* 高频编辑只留三个：裁切 / 调色 / 旋转（左转右转合成一个下拉） */}
           <button
             className={`btn sm${editor === 'crop' ? ' primary' : ''}`}
-            title={'裁切：预设比例或自由框选，可覆盖原图或另存副本'}
+            title={i18n.t('k61aa5612')}
             disabled={!isImage || !!rotating || !!enhancing}
             onClick={() => (editor === 'crop' ? closeEditor() : openEditor('crop'))}
           >
             <IconExpand />
-            <span className="lb-txt">{'裁切'}</span>
-            <span className="lb-txt-short">{'裁切'}</span>
+            <span className="lb-txt">{i18n.t('k096cbe88')}</span>
+            <span className="lb-txt-short">{i18n.t('k096cbe88')}</span>
           </button>
           <button
             className={`btn sm${colorRoom ? ' primary' : ''}`}
-            title={'打开独立调色台：白平衡吸管 + 直方图 + 影调/色彩/细节 + RGB 曲线，可覆盖原图或另存副本'}
+            title={i18n.t('k44a93c0b')}
             disabled={!isImage || !!rotating || !!enhancing}
             onClick={() => (colorRoom ? setColorRoom(false) : openEditor('color'))}
           >
             <IconSun />
-            <span className="lb-txt">{'调色'}</span>
-            <span className="lb-txt-short">{'调色'}</span>
+            <span className="lb-txt">{i18n.t('k9e368d03')}</span>
+            <span className="lb-txt-short">{i18n.t('k9e368d03')}</span>
           </button>
           <div className="lb-more-wrap">
             <button
               className={`btn sm${rotOpen ? ' primary' : ''}`}
-              title={'旋转 90° 并保存（左转 / 右转）'}
+              title={i18n.t('k605f30a2')}
               aria-expanded={rotOpen}
               disabled={!isImage || !!rotating}
               onClick={() => setRotOpen((v) => !v)}
             >
               <IconRotateCw />
-              <span className="lb-txt">{rotating ? '保存中…' : '旋转'}</span>
-              <span className="lb-txt-short">{rotating ? '保存中…' : '旋转'}</span>
+              <span className="lb-txt">{rotating ? i18n.t('k9b5d32d1') : i18n.t('k79b5a656')}</span>
+              <span className="lb-txt-short">{rotating ? i18n.t('k9b5d32d1') : i18n.t('k79b5a656')}</span>
               <span className="lb-icon-only">
                 <IconRotateCw size={14} />
               </span>
@@ -1274,50 +1275,50 @@ export default function Lightbox({
               <div className="lb-more-menu" onMouseDown={(e) => e.stopPropagation()}>
                 <button
                   className="btn sm ghost"
-                  title={'逆时针旋转 90° 并保存'}
+                  title={i18n.t('kef8895c7')}
                   onClick={() => {
                     setRotOpen(false);
                     rotate('ccw');
                   }}
                 >
-                  <IconRotateCcw /> {'向左转 90°'}
+                  <IconRotateCcw /> {i18n.t('kb3852620')}
                 </button>
                 <button
                   className="btn sm ghost"
-                  title={'顺时针旋转 90° 并保存'}
+                  title={i18n.t('kcff2412d')}
                   onClick={() => {
                     setRotOpen(false);
                     rotate('cw');
                   }}
                 >
-                  <IconRotateCw /> {'向右转 90°'}
+                  <IconRotateCw /> {i18n.t('k328a58c6')}
                 </button>
               </div>
             )}
           </div>
           <button
             className={`btn sm${commentsOpen ? ' primary' : ''}`}
-            title={'评论：记录用途、修改意见（Ctrl+Enter 发送）'}
+            title={i18n.t('k375442ad')}
             aria-expanded={commentsOpen}
             onClick={() => setCommentsOpen((v) => !v)}
           >
             <span className="lb-icon-only">
               <IconComment size={14} />
             </span>
-            <span className="lb-txt">{'评论'}{cmtCount > 0 ? ` ${cmtCount}` : ''}</span>
-            <span className="lb-txt-short">{'评论'}{cmtCount > 0 ? ` ${cmtCount}` : ''}</span>
+            <span className="lb-txt">{i18n.t('k55374d7b')}{cmtCount > 0 ? ` ${cmtCount}` : ''}</span>
+            <span className="lb-txt-short">{i18n.t('k55374d7b')}{cmtCount > 0 ? ` ${cmtCount}` : ''}</span>
           </button>
           <button
             className={`btn sm${infoOpen ? ' lb-on' : ''}`}
-            title={'显示 / 隐藏详情信息（I）'}
+            title={i18n.t('kf2afaf4d')}
             aria-expanded={infoOpen}
             onClick={() => setInfoOpen((v) => !v)}
           >
             <span className="lb-icon-only">
               <IconInfo size={14} />
             </span>
-            <span className="lb-txt">{'信息'}</span>
-            <span className="lb-txt-short">{'信息'}</span>
+            <span className="lb-txt">{i18n.t('kd8c7e04c')}</span>
+            <span className="lb-txt-short">{i18n.t('kd8c7e04c')}</span>
           </button>
           <span className="lb-divider" />
           {/* 用户自己挪到顶栏的常用项：由「更多 → 自定义工具栏」控制 */}
@@ -1333,14 +1334,14 @@ export default function Lightbox({
             <button
               className={`btn sm${moreOpen ? ' primary' : ''}`}
               onClick={() => setMoreOpen((v) => !v)}
-              title={'更多操作（可在菜单底部自定义顶栏显示哪些）'}
+              title={i18n.t('kec89f68a')}
               aria-expanded={moreOpen}
             >
               <span className="lb-icon-only">
                 <IconMore size={14} />
               </span>
-              <span className="lb-txt">{'更多'}</span>
-              <span className="lb-txt-short">{'更多'}</span>
+              <span className="lb-txt">{i18n.t('k0ec9eaf9')}</span>
+              <span className="lb-txt-short">{i18n.t('k0ec9eaf9')}</span>
             </button>
             {moreOpen && (
               <div className="lb-more-menu" onMouseDown={(e) => e.stopPropagation()}>
@@ -1370,7 +1371,7 @@ export default function Lightbox({
                     className="select-sm"
                     value={slideSec}
                     onChange={(v) => setSlideSec(Number(v))}
-                    title="幻灯片间隔"
+                    title={i18n.t('kd07e0032')}
                   >
                     {SLIDE_SECONDS.map((s) => (
                       <option key={s} value={s}>
@@ -1381,7 +1382,7 @@ export default function Lightbox({
                 </div>
                 <button
                   className="btn sm ghost"
-                  title="选择哪些常用功能放到顶栏、按什么顺序排"
+                  title={i18n.t('kd37ecc61')}
                   onClick={() => {
                     setMoreOpen(false);
                     setTczOpen(true);
@@ -1392,10 +1393,10 @@ export default function Lightbox({
               </div>
             )}
           </div>
-          <button className="btn sm danger" onClick={() => onDelete(item)} title={'删除（可撤销）'}>
+          <button className="btn sm danger" onClick={() => onDelete(item)} title={i18n.t('k007a5315')}>
             <IconTrash />
-            <span className="lb-txt">{'删除'}</span>
-            <span className="lb-txt-short">{'删除'}</span>
+            <span className="lb-txt">{i18n.t('k2f4aaddd')}</span>
+            <span className="lb-txt-short">{i18n.t('k2f4aaddd')}</span>
           </button>
         </div>
       </div>
@@ -1531,8 +1532,8 @@ export default function Lightbox({
             </span>
             <button
               className="btn sm ghost"
-              aria-label="关闭相似搜索"
-              title="关闭"
+              aria-label={i18n.t('k1cce8c40')}
+              title={i18n.t('kb15d9127')}
               onClick={() => setSim((s) => ({ ...s, open: false }))}
             >
               <IconClose size={14} />
@@ -1568,8 +1569,8 @@ export default function Lightbox({
             <button
               className="btn sm ghost"
               onClick={closeEditor}
-              title="放弃本次编辑"
-              aria-label="放弃本次编辑"
+              title={i18n.t('k4ede3d3e')}
+              aria-label={i18n.t('k4ede3d3e')}
             >
               <IconClose size={14} />
             </button>
@@ -1584,12 +1585,12 @@ export default function Lightbox({
             }}
             busy={cropFocusBusy}
             outputHint={
-              cropOut ? `输出 ${cropOut.w} × ${cropOut.h} px` : `裁切后 ${cropPixels.w} × ${cropPixels.h} px`
+              cropOut ? i18n.t('k9169a065', { p0: cropOut.w, p1: cropOut.h }) : i18n.t('kc7fddbb3', { p0: cropPixels.w, p1: cropPixels.h })
             }
             onCenter={() => setCropRect(initialRect(cropRatio, imageAspect))}
             onFocus={() => void runCropFocus()}
-            centerLabel="重置居中"
-            focusLabel="按焦点重新取景"
+            centerLabel={i18n.t('k942414c4')}
+            focusLabel={i18n.t('k5df941c3')}
           />
           <div className="lb-edit-hint">拖动选框内部平移，拖四边/四角调整大小</div>
 
@@ -1599,8 +1600,8 @@ export default function Lightbox({
             count={1}
             overwriteHint={
               ndOn
-                ? '非破坏编辑已开启：保存只记入操作链，原图不动；随时可在「更多 → 非破坏编辑」应用到底片或还原。'
-                : '裁切会直接写回原文件（可用 Ctrl+Z 撤销最近一次）。'
+                ? i18n.t('kdd63949f')
+                : i18n.t('k68ff08a7')
             }
             onChange={(p: Partial<SaveModeState>) => {
               if (p.saveMode !== undefined) setSaveMode(p.saveMode);
@@ -1620,7 +1621,7 @@ export default function Lightbox({
               重置
             </button>
             <button className="btn sm primary" disabled={saving} onClick={saveCrop}>
-              {saving ? '保存中…' : saveMode === 'copy' ? '另存裁切' : '保存裁切'}
+              {saving ? i18n.t('k9b5d32d1') : saveMode === 'copy' ? i18n.t('kdf3bb6a7') : i18n.t('kba2046f3')}
             </button>
           </div>
         </div>
@@ -1678,7 +1679,7 @@ export default function Lightbox({
             );
           })}
           {to - from < items.length && (
-            <span className="lb-thumb-more" title={`共 ${items.length} 张，左右滚动切换到的缩略图会随之更新`}>
+            <span className="lb-thumb-more" title={i18n.t('ka281efcf', { p0: items.length })}>
               共 {items.length} 张
             </span>
           )}
@@ -1725,7 +1726,7 @@ export default function Lightbox({
                     <input
                       className="input"
                       value={targetDir}
-                      placeholder="留空 = 存到原图旁边（可选）"
+                      placeholder={i18n.t('k5dc8aaa9')}
                       readOnly={isDesktop}
                       onChange={(e) => setTargetDir(e.target.value)}
                     />
@@ -1762,7 +1763,7 @@ export default function Lightbox({
                   disabled={saving || (saveMode === 'overwrite' && isAdjustDefault(adjust))}
                   onClick={saveAdjust}
                 >
-                  {saving ? '保存中…' : saveMode === 'copy' ? '另存调色' : '保存调色'}
+                  {saving ? i18n.t('k9b5d32d1') : saveMode === 'copy' ? i18n.t('k476e5b62') : i18n.t('k8a562d6a')}
                 </button>
               </div>
             </>
@@ -1827,7 +1828,7 @@ export default function Lightbox({
           onToast={(m) => onChangeToast?.(m)}
           onReplaced={(next) => {
             onReplaceItem?.(next);
-            onChangeToast?.('原图已更新，缩略图与指纹已重建');
+            onChangeToast?.(i18n.t('ke7fabae5'));
           }}
         />
       )}
@@ -1864,8 +1865,8 @@ export default function Lightbox({
 
       <ToolbarCustomizer
         open={tczOpen}
-        title="自定义大图顶栏"
-        hint="左边是顶栏按钮（按从上到下的顺序显示），右边收在「更多」菜单里。点条目即可在两栏之间移动。"
+        title={i18n.t('k15a52f9e')}
+        hint={i18n.t('kfd86e269')}
         all={visible.map((a) => ({ key: a.key, label: a.label }))}
         pinned={pinnedActs}
         defaults={LB_PINNED_DEFAULT}

@@ -2,6 +2,7 @@ import { IconClose } from './Icons';
 import React, { useEffect, useRef, useState } from 'react';
 import { formatSize } from '../api';
 import type { ImageItem } from '../types';
+import i18n from '../i18n';
 
 interface Props {
   items: ImageItem[];
@@ -138,16 +139,16 @@ export default function CompareView({ items, leftId, rightId, onKeep, onClose, r
   return (
     <div className="cmp-overlay">
       <div className="cmp-head">
-        <b>图片对比</b>
+        <b>{i18n.t('k1e4fb5b5')}</b>
         <div className="cmp-modes">
           <button className={`btn sm${mode === 'side' ? ' primary' : ''}`} onClick={() => setMode('side')}>
-            并排
+            {i18n.t('k51cd0e75')}
           </button>
           <button className={`btn sm${mode === 'split' ? ' primary' : ''}`} onClick={() => setMode('split')}>
-            分割
+            {i18n.t('k203fc5f2')}
           </button>
           <button className={`btn sm${mode === 'overlay' ? ' primary' : ''}`} onClick={() => setMode('overlay')}>
-            重叠
+            {i18n.t('kf9d1f508')}
           </button>
         </div>
         <div className="cmp-thumbs">
@@ -155,7 +156,7 @@ export default function CompareView({ items, leftId, rightId, onKeep, onClose, r
             <button
               key={it.id}
               className={`cmp-thumb${it.id === left.id || it.id === right.id ? ' used' : ''}`}
-              title={`替换到${active === 'left' ? '左' : '右'}侧`}
+              title={i18n.t('kd0d1ef43', { p0: active === 'left' ? i18n.t('kd2aff141') : i18n.t('k4d9c32c2') })}
               onClick={() => assign(it)}
             >
               <img src={it.thumbUrl} alt="" draggable={false} />
@@ -164,10 +165,10 @@ export default function CompareView({ items, leftId, rightId, onKeep, onClose, r
         </div>
         <span className="cmp-hint">
           {mode === 'side'
-            ? '滚轮缩放 / 按住拖动两侧同步 · 点缩略图换到活动半区（点画面选择活动侧）'
+            ? i18n.t('kc22fa7c7')
             : mode === 'split'
-              ? '拖动中间的分界线，左边是前者、右边是后者 · 滚轮缩放 / 拖动平移'
-              : '拖动滑杆调整不透明度，叠着看差异 · 滚轮缩放 / 拖动平移'}
+              ? i18n.t('k24e7dafe')
+              : i18n.t('k6f1b6e83')}
         </span>
         <div className="cmp-actions">
           {mode === 'overlay' && (
@@ -178,14 +179,14 @@ export default function CompareView({ items, leftId, rightId, onKeep, onClose, r
               max={100}
               value={pos}
               onChange={(e) => setPos(Number(e.target.value))}
-              title="后一张的不透明度"
+              title={i18n.t('kef2ff436')}
             />
           )}
-          <button className="btn sm" onClick={() => setView(RESET)} title="恢复 1:1（快捷键 0）">
-            重置视图
+          <button className="btn sm" onClick={() => setView(RESET)} title={i18n.t('kfb6bd756')}>
+            {i18n.t('ke1dfa659')}
           </button>
-          <button className="btn sm danger" onClick={onClose} title="退出对比（快捷键 Esc）">
-            <IconClose size={13} /> 退出对比 (Esc)
+          <button className="btn sm danger" onClick={onClose} title={i18n.t('k384578a1')}>
+            <IconClose size={13} /> {i18n.t('k17eb5cc6')}
           </button>
         </div>
       </div>
@@ -225,7 +226,7 @@ export default function CompareView({ items, leftId, rightId, onKeep, onClose, r
                   onPointerDown={onSplitDown}
                   onPointerMove={onSplitMove}
                   onPointerUp={onSplitUp}
-                  title="拖动分界线"
+                  title={i18n.t('k2678be43')}
                 >
                   <span />
                 </div>
@@ -274,7 +275,7 @@ function Meta({
             Promise.resolve(onKeep(item.id)).finally(() => setKeeping(false));
           }}
         >
-          保留这张
+          {i18n.t('kd6349f46')}
         </button>
       )}
     </div>

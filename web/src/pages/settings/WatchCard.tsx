@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { api } from '../../api';
 import Card from './Card';
+import i18n from '../../i18n';
 
 /**
  * 文件夹监控自动导入。
@@ -33,7 +34,7 @@ export default function WatchCard({ onToast }: { onToast: (msg: string, kind?: '
       const s = await api.saveSettings({ watchEnabled: next });
       setEnabled(s.watchEnabled !== false);
       setDir(s.storageDir || '');
-      onToast(next ? '已开启文件夹监控：丢进素材文件夹即自动入库' : '已暂停文件夹监控');
+      onToast(next ? i18n.t('kd64c4135') : i18n.t('k66ddd911'));
     } catch (err) {
       setEnabled(!next);
       onToast((err as Error).message, 'error');
@@ -44,21 +45,21 @@ export default function WatchCard({ onToast }: { onToast: (msg: string, kind?: '
 
   return (
     <Card
-      title="文件夹监控（自动导入）"
-      desc="往素材文件夹里拖文件、截图工具直接存进去、外部程序改名——不用回软件点导入，几秒后列表自己更新。"
+      title={i18n.t('k3e93f4b7')}
+      desc={i18n.t('ka054c844')}
     >
       <div className="switch-row">
         <span>
-          自动导入新文件
-          <span className="hint">　递归监听整个素材文件夹；回收站/缩略图/.tuku/.library 已排除</span>
+          {i18n.t('kaa3ca655')}
+          <span className="hint">　{i18n.t('k12901b47')}</span>
         </span>
         <input type="checkbox" checked={enabled} disabled={busy} onChange={(e) => void toggle(e.target.checked)} />
       </div>
       <div className="settings-desc" style={{ marginTop: 10 }}>
-        当前监控目录：<code>{dir || '未设置（先在「数据与维护」里选择素材文件夹）'}</code>
+        {i18n.t('k401ad153')}<code>{dir || i18n.t('kc9be43d3')}</code>
       </div>
       <div className="settings-desc" style={{ marginBottom: 0 }}>
-        停用后不会再自动登记，但已经入库的素材不受影响；重新开启不需要重启。
+        {i18n.t('kb8371f20')}
       </div>
     </Card>
   );

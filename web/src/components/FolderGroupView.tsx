@@ -21,6 +21,7 @@ import {
 import { api } from '../api';
 import { IMAGE_MIME } from '../lib/dnd';
 import type { FolderNode, ImageItem } from '../types';
+import i18n from '../i18n';
 
 /** 每组最多展示的缩略图数；超出部分用「+N 张」进入文件夹查看 */
 const PREVIEW_LIMIT = 18;
@@ -134,7 +135,7 @@ function FolderGroup({
           type="button"
           className="fg-chevron"
           onClick={onToggle}
-          title={open ? '收起这组图片' : '就地展开这组图片'}
+          title={open ? i18n.t('k02f9cf28') : i18n.t('k361132c7')}
           aria-expanded={open}
         >
           {open ? '▾' : '▸'}
@@ -143,7 +144,7 @@ function FolderGroup({
           type="button"
           className="fg-cover"
           onClick={() => onOpenFolder(folder.id)}
-          title={`进入「${folder.name}」`}
+          title={i18n.t('k00625712', { p0: folder.name })}
         >
           {folder.cover?.thumbUrl ? (
             <img src={folder.cover.thumbUrl} alt="" loading="lazy" decoding="async" />
@@ -151,37 +152,37 @@ function FolderGroup({
             <span>{folder.icon || <IconFolder size={18} />}</span>
           )}
         </button>
-        <button type="button" className="fg-title" onClick={() => onOpenFolder(folder.id)} title={`进入「${folder.name}」`}>
+        <button type="button" className="fg-title" onClick={() => onOpenFolder(folder.id)} title={i18n.t('k00625712', { p0: folder.name })}>
           <span className="fg-name">
             {folder.color && <i className="fg-dot" style={{ background: folder.color }} />}
             {folder.name}
           </span>
           {pathText && <span className="fg-path">{pathText}</span>}
           <span className="fg-meta">
-            {folder.total} 张图片{childCount ? ` · ${childCount} 个子文件夹` : ''}
-            {folder.locked ? ' · 已加锁' : ''}
+            {folder.total} 张图片{childCount ? i18n.t('k37ba4836', { p0: childCount }) : ''}
+            {folder.locked ? i18n.t('ka25d13d6') : ''}
           </span>
         </button>
         <button type="button" className="fg-expand" onClick={onToggle}>
-          {open ? '收起图片' : '展开图片'}
+          {open ? i18n.t('k0801974e') : i18n.t('k9a6a38ab')}
         </button>
         <button type="button" className="fg-enter" onClick={() => onOpenFolder(folder.id)}>
-          进入 →
+          {i18n.t('kdbabb2ca')}
         </button>
       </div>
 
       {open && (
         <div className="fg-body">
-          {loading && !preview && <div className="fg-status">正在载入这组图片…</div>}
+          {loading && !preview && <div className="fg-status">{i18n.t('k963b547e')}</div>}
           {failed && (
             <div className="fg-status">
-              这组图片没加载出来
+              {i18n.t('kdddf147f')}
               <button type="button" className="btn sm" onClick={onRetry}>
-                重试
+                {i18n.t('k132c5cdc')}
               </button>
             </div>
           )}
-          {preview && !preview.items.length && <div className="fg-status">这个文件夹还没有图片</div>}
+          {preview && !preview.items.length && <div className="fg-status">{i18n.t('k80571566')}</div>}
           {preview && preview.items.length > 0 && (
             <div className="fg-thumbs">
               {preview.items.map((it) => (
@@ -368,7 +369,7 @@ export default function FolderGroupView({
     <div className="folder-groups" data-tour="folder-view">
       <div className="fg-crumbs">
         <button type="button" className="fg-crumb" onClick={onOpenRoot}>
-          全部素材
+          {i18n.t('k9e91cbd3')}
         </button>
         {crumbs.map((f) => (
           <span key={f.id} className="fg-crumb-seg">
@@ -382,18 +383,18 @@ export default function FolderGroupView({
             </button>
           </span>
         ))}
-        <span className="fg-crumb-note">按文件夹收纳 · 点箭头就地展开图片</span>
+        <span className="fg-crumb-note">{i18n.t('kcde920b9')}</span>
       </div>
 
       <div className="fg-bar">
         <div className="fg-bar-title">
           {searching ? (
             <>
-              {matches.length} 个文件夹匹配「{query.trim()}」<span className="fg-bar-sub"> · 已在全库所有层级里找</span>
+              {matches.length} 个文件夹匹配「{query.trim()}」<span className="fg-bar-sub"> {i18n.t('kec06e47e')}</span>
             </>
           ) : (
             <>
-              {children.length} 个文件夹{crumbs.length ? `位于「${crumbs[crumbs.length - 1].name}」` : '（顶层）'}
+              {children.length} 个文件夹{crumbs.length ? i18n.t('k9a2e8343', { p0: crumbs[crumbs.length - 1].name }) : i18n.t('k0900fb88')}
             </>
           )}
           {!folderId && totalImages > 0 && <span className="fg-bar-sub"> · 全库 {totalImages.toLocaleString('zh-CN')} 张</span>}
@@ -401,8 +402,8 @@ export default function FolderGroupView({
         <input
           className="input fg-search"
           value={query}
-          placeholder="按名称找文件夹（不限层级）"
-          aria-label="按名称在全库各层级里找文件夹"
+          placeholder={i18n.t('kbbb4ae60')}
+          aria-label={i18n.t('ke98d53a5')}
           onChange={(e) => setQuery(e.target.value)}
         />
         <div className="fg-bar-acts">
@@ -412,7 +413,7 @@ export default function FolderGroupView({
             onClick={() => setExpanded(allExpanded ? new Set() : new Set(shown.map((f) => f.id)))}
             disabled={!shown.length}
           >
-            {allExpanded ? '全部收起' : '全部展开'}
+            {allExpanded ? i18n.t('kb772951b') : i18n.t('k699371fa')}
           </button>
         </div>
       </div>
@@ -438,8 +439,8 @@ export default function FolderGroupView({
 
       {!shown.length && (
         <div className="fg-blank">
-          {searching ? `全库没有名称包含「${query.trim()}」的文件夹` : '这一层还没有子文件夹'}
-          <span>在左侧「文件夹」旁的 ＋ 新建，或把图片拖进左侧文件夹树归档。</span>
+          {searching ? i18n.t('k303fd758', { p0: query.trim() }) : i18n.t('kccecbd05')}
+          <span>{i18n.t('k171f5440')}</span>
         </div>
       )}
 
@@ -447,10 +448,10 @@ export default function FolderGroupView({
         <div className="fg-unfiled">
           <span className="fg-unfiled-icon"><IconFolder size={22} /></span>
           <span className="fg-unfiled-text">
-            还有 <b>{unfiledCount.toLocaleString('zh-CN')}</b> 张素材没放进任何文件夹
+            {i18n.t('k8a5139fc')} <b>{unfiledCount.toLocaleString('zh-CN')}</b> {i18n.t('k0e8feea7')}
           </span>
           <button type="button" className="btn sm" onClick={onShowUnfiled}>
-            展开查看 →
+            {i18n.t('kc349674d')}
           </button>
         </div>
       )}

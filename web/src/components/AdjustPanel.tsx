@@ -23,6 +23,7 @@ import {
 import ColorWheel from './ColorWheel';
 import CurveEditor from './CurveEditor';
 import { IconRotateCcw, IconRotateCw, IconWand } from './Icons';
+import i18n from '../i18n';
 
 type NumericKey = Exclude<keyof AdjustParams, 'curves' | 'hueSat' | 'colorMixer' | 'colorGrade'>;
 
@@ -37,38 +38,38 @@ interface SliderDef {
 /** 分组顺序参考 Camera Raw 的「基本」面板：白平衡 → 影调 → 色彩 → 细节 → 曲线 */
 const GROUPS: { title: string; wb?: boolean; sliders: SliderDef[] }[] = [
   {
-    title: '白平衡',
+    title: i18n.t('k49fce4d0'),
     wb: true,
     sliders: [
-      { key: 'temperature', label: '色温 冷←→暖', accent: 'linear-gradient(90deg,#5b9dff,#c9d4e6,#ffb357)' },
-      { key: 'tint', label: '色调 绿←→品红', accent: 'linear-gradient(90deg,#4ade80,#c9d4e6,#e879f9)' },
+      { key: 'temperature', label: i18n.t('k15544d7a'), accent: 'linear-gradient(90deg,#5b9dff,#c9d4e6,#ffb357)' },
+      { key: 'tint', label: i18n.t('ke27fa2b1'), accent: 'linear-gradient(90deg,#4ade80,#c9d4e6,#e879f9)' },
     ],
   },
   {
-    title: '影调',
+    title: i18n.t('k22f17027'),
     sliders: [
-      { key: 'exposure', label: '曝光' },
-      { key: 'contrast', label: '对比度' },
-      { key: 'highlights', label: '高光' },
-      { key: 'shadows', label: '阴影' },
-      { key: 'whites', label: '白色' },
-      { key: 'blacks', label: '黑色' },
+      { key: 'exposure', label: i18n.t('k131f6f6b') },
+      { key: 'contrast', label: i18n.t('kadc0d88f') },
+      { key: 'highlights', label: i18n.t('k57b026b7') },
+      { key: 'shadows', label: i18n.t('k803205e3') },
+      { key: 'whites', label: i18n.t('k2fc96b27') },
+      { key: 'blacks', label: i18n.t('k9d2d1f62') },
     ],
   },
   {
-    title: '色彩',
+    title: i18n.t('k88b1d5ce'),
     sliders: [
-      { key: 'saturation', label: '饱和度' },
-      { key: 'vibrance', label: '自然饱和度' },
-      { key: 'hue', label: '色相' },
+      { key: 'saturation', label: i18n.t('kbd05021d') },
+      { key: 'vibrance', label: i18n.t('k2fcb9a85') },
+      { key: 'hue', label: i18n.t('k8b232299') },
     ],
   },
 ];
 
 /** 细节组放在混色器/颜色分级之后（Camera Raw 面板顺序：基本 → 曲线 → 混色器 → 颜色分级 → 细节） */
 const DETAIL_SLIDERS: SliderDef[] = [
-  { key: 'clarity', label: '清晰度', min: 0 },
-  { key: 'sharpen', label: '锐化', min: 0 },
+  { key: 'clarity', label: i18n.t('k48f1cd8c'), min: 0 },
+  { key: 'sharpen', label: i18n.t('kab3312d7'), min: 0 },
 ];
 
 export interface WbSample {
@@ -249,7 +250,7 @@ function AdjustPanelInner(
         onFocus={() => setFocusKey(s.key)}
         onBlur={() => setFocusKey((k) => (k === s.key ? null : k))}
         onDoubleClick={() => set(s.key, 0)}
-        title="双击归零；↑↓ 微调，Shift+↑↓ 十倍"
+        title={i18n.t('kdb45e463')}
       />
       <b>{value[s.key]}</b>
     </label>
@@ -266,9 +267,9 @@ function AdjustPanelInner(
               className="btn sm primary auto-tone-btn"
               disabled={disabled}
               onClick={onAutoTone}
-              title="全自动调色：按场景定白平衡与曝光，自动写一条去灰通透的曲线，压住高光、保住肤色，最后补饱和（会覆盖当前这一版参数，可 Ctrl+Z 撤回）"
+              title={i18n.t('k994057ac')}
             >
-              <IconWand /> 全自动
+              <IconWand /> {i18n.t('ke2839be5')}
             </button>
           )}
           {/* 撤销/重做与 Ctrl+Z / Ctrl+Y 是同一套历史：拖坏了直接退回去 */}
@@ -278,8 +279,8 @@ function AdjustPanelInner(
                 className="btn sm icon"
                 disabled={disabled || !canUndo}
                 onClick={onUndo}
-                title="撤销上一步调色（Ctrl+Z）"
-                aria-label="撤销"
+                title={i18n.t('k2273c51d')}
+                aria-label={i18n.t('kbd9fcf46')}
               >
                 <IconRotateCcw />
               </button>
@@ -287,15 +288,15 @@ function AdjustPanelInner(
                 className="btn sm icon"
                 disabled={disabled || !canRedo}
                 onClick={onRedo}
-                title="重做（Ctrl+Y）"
-                aria-label="重做"
+                title={i18n.t('kfb9ac565')}
+                aria-label={i18n.t('kc3c873d3')}
               >
                 <IconRotateCw />
               </button>
             </div>
           )}
           <span className="auto-tone-hint">
-            {onUndo ? 'Ctrl+Z 撤销 / Ctrl+Y 重做' : '按这张图的直方图一次算好，拖错了随时再点一次'}
+            {onUndo ? i18n.t('kdefa1c2d') : i18n.t('k5bbdb2ca')}
           </span>
         </div>
       )}
@@ -311,9 +312,9 @@ function AdjustPanelInner(
                     className="btn sm"
                     disabled={disabled || picking}
                     onClick={onAutoWhite}
-                    title="自动白平衡：统计画面里的中性像素与高光白点，自动抵消偏色（与 Camera Raw 的自动同思路）"
+                    title={i18n.t('kd47aae92')}
                   >
-                    自动
+                    {i18n.t('k3aed2c11')}
                   </button>
                 )}
                 {onPickWhite && (
@@ -321,9 +322,9 @@ function AdjustPanelInner(
                     className={`btn sm${picking ? ' primary' : ''}`}
                     disabled={disabled}
                     onClick={onPickWhite}
-                    title="白平衡吸管：在图上点一下应该是中性灰/白色的位置，自动抵消偏色"
+                    title={i18n.t('kf1cdf768')}
                   >
-                    {picking ? '点图中性灰…' : '吸管'}
+                    {picking ? i18n.t('k2d3ddc24') : i18n.t('ke705a4cd')}
                   </button>
                 )}
                 {/* Camera Raw 的「原照设置」：只把白平衡退回原图，曝光/色彩那些调整照样保留 */}
@@ -331,16 +332,16 @@ function AdjustPanelInner(
                   className="btn sm"
                   disabled={disabled || picking || (value.temperature === 0 && value.tint === 0)}
                   onClick={() => onChange({ ...value, temperature: 0, tint: 0 })}
-                  title="原照设置：白平衡恢复原样（色温、色调归零），其他调整项保持不变"
+                  title={i18n.t('kf8975f1b')}
                 >
-                  原照
+                  {i18n.t('k453d59a6')}
                 </button>
               </div>
             )}
           </div>
 
           {g.wb && sample && (
-            <div className="adjust-sample" title="吸管取到的原始颜色">
+            <div className="adjust-sample" title={i18n.t('k03cf1d0f')}>
               <i style={{ background: sampleHex(sample) }} />
               <span className="adjust-sample-hex">{sampleHex(sample).toUpperCase()}</span>
               <span className="adjust-sample-rgb">
@@ -348,7 +349,7 @@ function AdjustPanelInner(
               </span>
               {onClearSample && (
                 <button className="btn xs ghost" type="button" disabled={disabled} onClick={onClearSample}>
-                  清除
+                  {i18n.t('k4403fca0')}
                 </button>
               )}
             </div>
@@ -361,14 +362,14 @@ function AdjustPanelInner(
       {/* ---------- Camera Raw 混色器：8 色带 × 色相/饱和度/明亮度 ---------- */}
       <div className="adjust-group cm-group">
         <div className="adjust-group-head">
-          <span>混色器</span>
+          <span>{i18n.t('kc6ac64d9')}</span>
           <button
             className="btn xs ghost"
             disabled={disabled || !MIX_BANDS.some(({ key }) => mixDirty(key))}
             onClick={() => onChange({ ...value, colorMixer: makeColorMixer() })}
-            title="8 个色带全部归零"
+            title={i18n.t('k1df47bd2')}
           >
-            归零
+            {i18n.t('kcf2baeb0')}
           </button>
         </div>
 
@@ -409,7 +410,7 @@ function AdjustPanelInner(
                   style={{ background: track }}
                   onChange={(e) => setMix(b.key, Number(e.target.value))}
                   onDoubleClick={() => setMix(b.key, 0)}
-                  title={`${b.label} · 双击归零`}
+                  title={i18n.t('ke1ae7ae8', { p0: b.label })}
                 />
                 <b className={mixDirty(b.key) ? 'on' : ''}>{v}</b>
               </div>
@@ -421,14 +422,14 @@ function AdjustPanelInner(
       {/* ---------- Camera Raw 颜色分级：四区色轮 + 混合/平衡 ---------- */}
       <div className="adjust-group cg-group">
         <div className="adjust-group-head">
-          <span>颜色分级</span>
+          <span>{i18n.t('k5e41d36a')}</span>
           <button
             className="btn xs ghost"
             disabled={disabled || !GRADE_ZONES.some(({ key }) => zoneDirty(key))}
             onClick={() => onChange({ ...value, colorGrade: { ...cg, zones: makeColorGrade().zones } })}
-            title="四个区域全部归零（保留混合/平衡）"
+            title={i18n.t('k0548e2b0')}
           >
-            归零
+            {i18n.t('kcf2baeb0')}
           </button>
         </div>
 
@@ -440,7 +441,7 @@ function AdjustPanelInner(
                 sat={cg.zones[z.key]?.sat ?? 0}
                 size={54}
                 disabled={disabled}
-                title={`${z.label}：拖动设置色相/饱和度，双击取消染色`}
+                title={i18n.t('k01a53bc9', { p0: z.label })}
                 onChange={(hue, sat) => {
                   setZoneKey(z.key);
                   patchGrade({ zones: { ...cg.zones, [z.key]: { ...(cg.zones[z.key] || { hue: 0, sat: 0, lum: 0 }), hue, sat } } });
@@ -460,7 +461,7 @@ function AdjustPanelInner(
         </div>
 
         <label className="lb-slider">
-          <span>色相</span>
+          <span>{i18n.t('k8b232299')}</span>
           <input
             type="range"
             min={0}
@@ -471,13 +472,13 @@ function AdjustPanelInner(
             style={{ background: 'linear-gradient(90deg,#ff4d4d,#ffd93d,#4ade80,#38d6e0,#5b9dff,#a78bfa,#e879f9,#ff4d4d)' }}
             onChange={(e) => patchZone({ hue: Number(e.target.value) })}
             onDoubleClick={() => patchZone({ hue: 0 })}
-            title="双击归零"
+            title={i18n.t('k04b2e348')}
           />
           <b>{Math.round(zone.hue)}°</b>
         </label>
 
         <label className="lb-slider">
-          <span>饱和度</span>
+          <span>{i18n.t('kbd05021d')}</span>
           <input
             type="range"
             min={0}
@@ -488,13 +489,13 @@ function AdjustPanelInner(
             style={{ background: `linear-gradient(90deg,#2a2c33,hsl(${zone.hue},90%,55%))` }}
             onChange={(e) => patchZone({ sat: Number(e.target.value) })}
             onDoubleClick={() => patchZone({ sat: 0 })}
-            title="双击归零"
+            title={i18n.t('k04b2e348')}
           />
           <b>{zone.sat}</b>
         </label>
 
         <label className="lb-slider">
-          <span>明度</span>
+          <span>{i18n.t('kad2eab72')}</span>
           <input
             type="range"
             min={-100}
@@ -505,13 +506,13 @@ function AdjustPanelInner(
             style={{ background: `linear-gradient(90deg,#0d0e12,hsl(${zone.hue},85%,55%),#f4f6ff)` }}
             onChange={(e) => patchZone({ lum: Number(e.target.value) })}
             onDoubleClick={() => patchZone({ lum: 0 })}
-            title="双击归零"
+            title={i18n.t('k04b2e348')}
           />
           <b>{zone.lum}</b>
         </label>
 
         <label className="lb-slider">
-          <span>混合</span>
+          <span>{i18n.t('k41ce131a')}</span>
           <input
             type="range"
             min={0}
@@ -521,13 +522,13 @@ function AdjustPanelInner(
             disabled={disabled}
             onChange={(e) => patchGrade({ blending: Number(e.target.value) })}
             onDoubleClick={() => patchGrade({ blending: COLOR_GRADE_DEFAULTS.blending })}
-            title="三个亮度区域之间的过渡柔度，双击回到 50"
+            title={i18n.t('ke2234058')}
           />
           <b>{cg.blending}</b>
         </label>
 
         <label className="lb-slider">
-          <span>平衡</span>
+          <span>{i18n.t('k2028f7a5')}</span>
           <input
             type="range"
             min={-100}
@@ -537,7 +538,7 @@ function AdjustPanelInner(
             disabled={disabled}
             onChange={(e) => patchGrade({ balance: Number(e.target.value) })}
             onDoubleClick={() => patchGrade({ balance: 0 })}
-            title="把阴影/中间调/高光的分界往暗（负）或往亮（正）推"
+            title={i18n.t('k5a546d5e')}
           />
           <b>{cg.balance}</b>
         </label>
@@ -545,16 +546,16 @@ function AdjustPanelInner(
 
       <div className="adjust-group">
         <div className="adjust-group-head">
-          <span>细节</span>
+          <span>{i18n.t('k74718689')}</span>
         </div>
         {DETAIL_SLIDERS.map(sliderRow)}
       </div>
 
       <div className="adjust-group hs-group">
         <div className="adjust-group-head">
-          <span>色相/饱和度</span>
-          <button className="btn xs ghost" disabled={disabled} onClick={resetChannel} title="当前通道归零">
-            归零
+          <span>{i18n.t('k0a2ef31f')}</span>
+          <button className="btn xs ghost" disabled={disabled} onClick={resetChannel} title={i18n.t('ka4dbfaab')}>
+            {i18n.t('kcf2baeb0')}
           </button>
         </div>
 
@@ -571,7 +572,7 @@ function AdjustPanelInner(
                 if (colorize && b.key === 'master') return;
                 if (b.key !== 'master') patchHs({ colorize: false });
               }}
-              title={`${b.label}通道`}
+              title={i18n.t('k26098cca', { p0: b.label })}
             >
               {b.label}
             </button>
@@ -579,7 +580,7 @@ function AdjustPanelInner(
         </div>
 
         <label className="lb-slider">
-          <span>色相</span>
+          <span>{i18n.t('k8b232299')}</span>
           <input
             type="range"
             min={colorize ? 0 : -180}
@@ -590,13 +591,13 @@ function AdjustPanelInner(
             style={{ background: 'linear-gradient(90deg,#ff5c5c,#ffd93d,#4ade80,#38d6e0,#5b9dff,#e879f9,#ff5c5c)' }}
             onChange={(e) => setHue(Number(e.target.value))}
             onDoubleClick={() => setHue(colorize ? 210 : 0)}
-            title="双击归零"
+            title={i18n.t('k04b2e348')}
           />
           <b>{colorize ? `${Math.round(hs.colorizeHue)}°` : band.h}</b>
         </label>
 
         <label className="lb-slider">
-          <span>饱和度</span>
+          <span>{i18n.t('kbd05021d')}</span>
           <input
             type="range"
             min={colorize ? 0 : -100}
@@ -606,13 +607,13 @@ function AdjustPanelInner(
             disabled={disabled}
             onChange={(e) => setSat(Number(e.target.value))}
             onDoubleClick={() => setSat(colorize ? 25 : 0)}
-            title="双击归零"
+            title={i18n.t('k04b2e348')}
           />
           <b>{satValue}</b>
         </label>
 
         <label className="lb-slider">
-          <span>明度</span>
+          <span>{i18n.t('kad2eab72')}</span>
           <input
             type="range"
             min={-100}
@@ -622,12 +623,12 @@ function AdjustPanelInner(
             disabled={disabled}
             onChange={(e) => setLight(Number(e.target.value))}
             onDoubleClick={() => setLight(0)}
-            title="双击归零"
+            title={i18n.t('k04b2e348')}
           />
           <b>{lightValue}</b>
         </label>
 
-        <label className="hs-colorize" title="着色：整幅图归到单一色相（通道锁死全图）">
+        <label className="hs-colorize" title={i18n.t('k30c98b5a')}>
           <input
             type="checkbox"
             checked={colorize}
@@ -637,15 +638,15 @@ function AdjustPanelInner(
               if (e.target.checked) setChannel('master');
             }}
           />
-          <span>着色</span>
+          <span>{i18n.t('kbbed11a8')}</span>
         </label>
       </div>
 
       <div className="adjust-group">
         <div className="adjust-group-head">
-          <span>曲线</span>
+          <span>{i18n.t('k586dc275')}</span>
           <button className="btn sm ghost" disabled={disabled} onClick={() => onChange({ ...value, curves: { ...CURVES_DEFAULTS } })}>
-            重置全部
+            {i18n.t('k07db6e06')}
           </button>
         </div>
         <CurveEditor value={value.curves} onChange={(curves) => onChange({ ...value, curves })} disabled={disabled} />

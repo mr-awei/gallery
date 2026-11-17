@@ -6,6 +6,7 @@ import { BUCKET_LABELS, ORIENTATION_LABELS, SOURCE_LABELS, api, desktop, quiet }
 import { IconColumns, IconFolder, IconGrid, IconSearch } from './Icons';
 import { THUMB_DEFAULT, THUMB_MAX, THUMB_MIN, THUMB_PRESETS, clampThumbWidth, thumbPresetOf } from '../lib/thumb-size';
 import ColorPad from './ColorPad';
+import i18n from '../i18n';
 
 interface Props {
   filters: Filters;
@@ -24,48 +25,48 @@ interface Props {
 
 /** 「待整理」智能视图（Eagle 式固定入口） */
 const PENDING_LABEL: Record<string, string> = {
-  noFolder: '待整理·未分类',
-  noTags: '待整理·无标签',
-  noRating: '待整理·未评分',
+  noFolder: i18n.t('kb77b7afb'),
+  noTags: i18n.t('k78e16a87'),
+  noRating: i18n.t('kd0648c72'),
 };
 
 /** 支持入库的素材类型（Eagle 多格式） */
 const KINDS: { key: string; label: string }[] = [
-  { key: 'image', label: '图片' },
+  { key: 'image', label: i18n.t('k20def794') },
   { key: 'gif', label: 'GIF' },
-  { key: 'video', label: '视频' },
-  { key: 'audio', label: '音频' },
-  { key: 'font', label: '字体' },
+  { key: 'video', label: i18n.t('k7fcf42ed') },
+  { key: 'audio', label: i18n.t('k726dd5df') },
+  { key: 'font', label: i18n.t('k8456bc40') },
   { key: 'pdf', label: 'PDF' },
   { key: 'office', label: 'Office' },
-  { key: 'model', label: '3D 模型' },
+  { key: 'model', label: i18n.t('kd9b444f7') },
 ];
 
 const BUCKETS = ['sd', 'fhd', '2k', '4k'];
 /** 12 个色相区间 + 黑白灰（粗筛快捷键）。
  *  区间 i 对应色相 [i*30, (i+1)*30)：0红 1橙 2黄 3黄绿 4绿 5青绿 6青 7蓝 8靛 9紫 10品红 11玫粉 */
 const HUES: { v: string; c: string; label: string }[] = [
-  { v: '0', c: '#ff4d4d', label: '红' },
-  { v: '1', c: '#ff9a4d', label: '橙' },
-  { v: '2', c: '#ffe04d', label: '黄' },
-  { v: '3', c: '#c8ff4d', label: '黄绿' },
-  { v: '4', c: '#4dff6a', label: '绿' },
-  { v: '5', c: '#4dffcf', label: '青绿' },
-  { v: '6', c: '#4defff', label: '青' },
-  { v: '7', c: '#4da6ff', label: '蓝' },
-  { v: '8', c: '#5c4dff', label: '靛' },
-  { v: '9', c: '#a64dff', label: '紫' },
-  { v: '10', c: '#ff4dd2', label: '品红' },
-  { v: '11', c: '#ff4d88', label: '玫粉' },
+  { v: '0', c: '#ff4d4d', label: i18n.t('kd088e652') },
+  { v: '1', c: '#ff9a4d', label: i18n.t('kb990b42b') },
+  { v: '2', c: '#ffe04d', label: i18n.t('k12401e34') },
+  { v: '3', c: '#c8ff4d', label: i18n.t('k84a6ec5a') },
+  { v: '4', c: '#4dff6a', label: i18n.t('k806c4388') },
+  { v: '5', c: '#4dffcf', label: i18n.t('k795167fa') },
+  { v: '6', c: '#4defff', label: i18n.t('k1ca69c4b') },
+  { v: '7', c: '#4da6ff', label: i18n.t('k2fc8da52') },
+  { v: '8', c: '#5c4dff', label: i18n.t('k78f51aff') },
+  { v: '9', c: '#a64dff', label: i18n.t('k34e66c72') },
+  { v: '10', c: '#ff4dd2', label: i18n.t('ka2f8c821') },
+  { v: '11', c: '#ff4d88', label: i18n.t('kd0c283b0') },
 ];
 
 /** 缩略图档位的中文名（档位数值来自 lib/thumb-size） */
 const PRESET_LABEL: Record<string, string> = {
-  xs: '小',
-  sm: '中小',
-  md: '中',
-  lg: '中大',
-  xl: '大',
+  xs: i18n.t('k391b8fa9'),
+  sm: i18n.t('k412419fc'),
+  md: i18n.t('kaed1dfbc'),
+  lg: i18n.t('k6bed0cda'),
+  xl: i18n.t('kab18e30c'),
 };
 
 /** 下拉筛选（Google Photos / Eagle 的通行做法）：
@@ -101,12 +102,12 @@ function Drop(props: {
  * 列表视图按用户要求从切换组移除：一行一张看不出画面，整理场景由侧栏与筛选器承担。
  */
 const VIEW_MODES: { key: ViewMode; label: string; hint: string; icon: React.ReactNode }[] = [
-  { key: 'masonry', label: '瀑布流', hint: '图片展开 · 保留原比例', icon: <IconColumns /> },
-  { key: 'grid', label: '网格', hint: '图片展开 · 等高裁切', icon: <IconGrid /> },
+  { key: 'masonry', label: i18n.t('kf290f3bb'), hint: i18n.t('k3f32a10c'), icon: <IconColumns /> },
+  { key: 'grid', label: i18n.t('k16bf955c'), hint: i18n.t('k98de8f0c'), icon: <IconGrid /> },
   {
     key: 'folder',
-    label: '文件夹收纳',
-    hint: '按文件夹分组收纳，可就地展开组内图片',
+    label: i18n.t('kd74309f0'),
+    hint: i18n.t('k68587abd'),
     icon: <IconFolder />,
   },
 ];
@@ -114,7 +115,7 @@ const VIEW_MODES: { key: ViewMode; label: string; hint: string; icon: React.Reac
 /** 分段式视图切换：三个入口收在一组里，顶部不再散落一排小方块 */
 function ViewSwitch({ value, onChange }: { value: ViewMode; onChange: (m: ViewMode) => void }) {
   return (
-    <div className="view-switch" role="group" aria-label={'展示方式'}>
+    <div className="view-switch" role="group" aria-label={i18n.t('kcde2cca4')}>
       {VIEW_MODES.map((m) => (
         <button
           key={m.key}
@@ -300,23 +301,23 @@ export default function FilterBar({
   const chips: { label: string; swatch?: string; clear: () => void }[] = [];
   if (filters.favorite !== 'all')
     chips.push({
-      label: filters.favorite === 'yes' ? '已收藏' : '未收藏',
+      label: filters.favorite === 'yes' ? i18n.t('k934ebd87') : i18n.t('k1a994188'),
       clear: () => onChange({ favorite: 'all' }),
     });
   filters.source.forEach((s) =>
     chips.push({
-      label: `来源·${SOURCE_LABELS[s] || s}`,
+      label: i18n.t('k9cc375b3', { p0: SOURCE_LABELS[s] || s }),
       clear: () => onChange({ source: filters.source.filter((x) => x !== s) }),
     })
   );
   if (filters.orientation !== 'all')
     chips.push({
-      label: `画幅·${ORIENTATION_LABELS[filters.orientation]}`,
+      label: i18n.t('k203475ef', { p0: ORIENTATION_LABELS[filters.orientation] }),
       clear: () => onChange({ orientation: 'all' }),
     });
   if ((filters.seen || 'all') !== 'all')
     chips.push({
-      label: filters.seen === 'unseen' ? '未看过' : '已看过',
+      label: filters.seen === 'unseen' ? i18n.t('kb588550f') : i18n.t('ke047c4cd'),
       clear: () => onChange({ seen: 'all' }),
     });
   if (filters.minRating)
@@ -330,23 +331,23 @@ export default function FilterBar({
     const h = HUES.find((x) => x.v === selectedHues[0]);
     const label =
       selectedHues.length > 1
-        ? `色系·${selectedHues.length} 项`
+        ? i18n.t('k13886c89', { p0: selectedHues.length })
         : h
-          ? `色系·${h.label}`
-          : '黑白灰';
+          ? i18n.t('k018ce117', { p0: h.label })
+          : i18n.t('k4b90efb3');
     chips.push({ label, clear: () => onChange({ hue: '' }) });
   }
   if (filters.kind && filters.kind !== 'all') {
     const k = kinds.find((x) => x.key === filters.kind);
     chips.push({
-      label: `类型·${k?.label || filters.kind}`,
+      label: i18n.t('k1a24a352', { p0: k?.label || filters.kind }),
       clear: () => onChange({ kind: 'all' }),
     });
   }
   if (filters.pending) {
     const pending = PENDING_LABEL[filters.pending];
     chips.push({
-      label: pending ? pending : '待整理',
+      label: pending ? pending : i18n.t('ke723910f'),
       clear: () => onChange({ pending: '' }),
     });
   }
@@ -356,8 +357,8 @@ export default function FilterBar({
     chips.push({
       label:
         Number.isFinite(minLat) && Number.isFinite(minLon)
-          ? `地点·${minLat.toFixed(1)}°, ${minLon.toFixed(1)}°`
-          : '地点',
+          ? i18n.t('k59c00af6', { p0: minLat.toFixed(1), p1: minLon.toFixed(1) })
+          : i18n.t('kfc1a7d3c'),
       clear: () => onChange({ bbox: '' }),
     });
   }
@@ -382,7 +383,7 @@ export default function FilterBar({
       <div className={`toolbar toolbar-main${viewMode === 'folder' ? ' folder-mode-bar' : ''}`}>
         {viewMode === 'folder' ? (
           <div className="folder-mode-tip">
-            {'按文件夹收纳浏览 · 点文件夹进入，点箭头就地展开图片；切到「图片展开」可用搜索与筛选'}
+            {i18n.t('kd662de96')}
           </div>
         ) : (
           <>
@@ -392,16 +393,16 @@ export default function FilterBar({
           </span>
           <input
             className="input"
-            placeholder={'搜索文件名 / 标签…（支持 tag: color: rating: folder:）'}
+            placeholder={i18n.t('k0ea0e973')}
             title={
-              '搜索语法（可与关键词混用）：' +
+              i18n.t('kd6c6ee90') +
               '\n' +
-              'tag:风景            按标签（别名也算）\n' +
-                  'color:红 / color:#ff0000   按色系或精确色号\n' +
-                  'rating:>=4          按星级（>= / <= / > / < / =）\n' +
-                  'folder:参考         按文件夹（含子夹）\n' +
-                  'kind:video          按类型\n' +
-                  'is:favorite / is:unseen    收藏 / 未看过'
+              i18n.t('k0c9155d1') +
+                  i18n.t('kac9443ff') +
+                  i18n.t('k6a152be3') +
+                  i18n.t('k58fa5654') +
+                  i18n.t('k74f2541d') +
+                  i18n.t('k68fbf778')
             }
             value={qDraft}
             onChange={(e) => setQDraft(e.target.value)}
@@ -413,26 +414,26 @@ export default function FilterBar({
           value={filters.sort}
           onChange={(e) => onChange({ sort: e.target.value })}
         >
-          <option value="newest">{'最新采集'}</option>
-          <option value="name">{'名称 A → Z'}</option>
-          <option value="nameDesc">{'名称 Z → A'}</option>
-          <option value="recommend">{'推荐（个人偏好 + 评分）'}</option>
-          <option value="rating">{'我的星级优先'}</option>
-          <option value="smart">{'评分排序（知识库打分优先）'}</option>
-          <option value="worst">{'低分优先（待清理）'}</option>
-          <option value="oldest">{'最早采集'}</option>
-          <option value="resolution">{'分辨率最高'}</option>
-          <option value="largest">{'文件最大'}</option>
-          <option value="random">{'随机'}</option>
+          <option value="newest">{i18n.t('kb6a079ce')}</option>
+          <option value="name">{i18n.t('kc1791e45')}</option>
+          <option value="nameDesc">{i18n.t('k556fa041')}</option>
+          <option value="recommend">{i18n.t('k65a98423')}</option>
+          <option value="rating">{i18n.t('k949950d3')}</option>
+          <option value="smart">{i18n.t('kd2013939')}</option>
+          <option value="worst">{i18n.t('k71c071af')}</option>
+          <option value="oldest">{i18n.t('kea4518f8')}</option>
+          <option value="resolution">{i18n.t('k53f1230d')}</option>
+          <option value="largest">{i18n.t('kf31cc09e')}</option>
+          <option value="random">{i18n.t('k3bde446e')}</option>
           {(canManualSort || filters.sort === 'manual') && (
             <option value="manual" disabled={!canManualSort}>
-              {'手动排序（拖拽定序）'}
+              {i18n.t('k8c60391a')}
             </option>
           )}
         </select>
 
         <select className="select" value={filters.tag} onChange={(e) => onChange({ tag: e.target.value })}>
-          <option value="">{'全部标签'}</option>
+          <option value="">{i18n.t('k37c39667')}</option>
           {tags.map((tg) => (
             <option key={tg.tag} value={tg.tag}>
               {tg.tag}（{tg.count}）
@@ -446,7 +447,7 @@ export default function FilterBar({
           {desktop?.captureScreenshot && (
             <button
               className="btn sm"
-              title={'截图入库：框选屏幕区域存进图库（全局快捷键 Ctrl+Shift+S）'}
+              title={i18n.t('ke9579eaa')}
               onClick={() => {
                 // 统一入口：桌面端由主进程抓底图，浏览器端给提示
                 if (desktop?.grabScreen) window.dispatchEvent(new Event('tuku:screenshot'));
@@ -459,7 +460,7 @@ export default function FilterBar({
           {/* Eagle 式缩略图尺寸：五档预设 + 无极滑块，只在图片展开的缩略视图下可用 */}
           {onColWidth && viewMode !== 'folder' && (
             <div className="thumb-size-group">
-              <div className="thumb-presets" role="group" aria-label={'缩略图预设尺寸'}>
+              <div className="thumb-presets" role="group" aria-label={i18n.t('k79eba84b')}>
                 {THUMB_PRESETS.map((p) => {
                   const label = PRESET_LABEL[p.key] ?? p.label;
                   return (
@@ -468,7 +469,7 @@ export default function FilterBar({
                       type="button"
                       className={`thumb-preset${thumbPresetOf(curW)?.key === p.key ? ' on' : ''}`}
                       onClick={() => onColWidth(p.width)}
-                      title={`${label}：列宽约 ${p.width}px`}
+                      title={i18n.t('kcb168277', { p0: label, p1: p.width })}
                       aria-pressed={thumbPresetOf(curW)?.key === p.key}
                     >
                       {label}
@@ -484,8 +485,8 @@ export default function FilterBar({
                 step={1}
                 value={curW}
                 onChange={(e) => onColWidth(Number(e.target.value))}
-                title={`缩略图大小：${curW}px（可无极拖动）`}
-                aria-label={'缩略图大小'}
+                title={i18n.t('k4afd892b', { p0: curW })}
+                aria-label={i18n.t('k6e3ed07f')}
               />
             </div>
           )}
@@ -497,21 +498,21 @@ export default function FilterBar({
         <>
       <div className="toolbar toolbar-filters" ref={rootRef}>
         {!hideFavorite && (
-          <Drop label={'收藏'} active={filters.favorite !== 'all'} open={openKey === 'fav'} onToggle={() => toggleDrop('fav')}>
+          <Drop label={i18n.t('kae336cd0')} active={filters.favorite !== 'all'} open={openKey === 'fav'} onToggle={() => toggleDrop('fav')}>
             {(['all', 'yes', 'no'] as const).map((v) => (
               <button
                 key={v}
                 className={`chip${filters.favorite === v ? ' active' : ''}`}
                 onClick={() => onChange({ favorite: v })}
               >
-                {v === 'all' ? '全部' : v === 'yes' ? '已收藏' : '未收藏'}
+                {v === 'all' ? i18n.t('ka8b0c204') : v === 'yes' ? i18n.t('k934ebd87') : i18n.t('k1a994188')}
               </button>
             ))}
           </Drop>
         )}
 
         <Drop
-          label={'来源'}
+          label={i18n.t('k26ca20b1')}
           active={!!filters.source.length}
           badge={filters.source.length || undefined}
           open={openKey === 'source'}
@@ -529,7 +530,7 @@ export default function FilterBar({
         </Drop>
 
         <Drop
-          label={'画幅'}
+          label={i18n.t('kc9cf5c3e')}
           active={filters.orientation !== 'all'}
           open={openKey === 'orient'}
           onToggle={() => toggleDrop('orient')}
@@ -546,7 +547,7 @@ export default function FilterBar({
         </Drop>
 
         <Drop
-          label={'浏览'}
+          label={i18n.t('k9c5c5cdb')}
           active={(filters.seen || 'all') !== 'all'}
           open={openKey === 'seen'}
           onToggle={() => toggleDrop('seen')}
@@ -556,24 +557,24 @@ export default function FilterBar({
               key={v}
               className={`chip${(filters.seen || 'all') === v ? ' active' : ''}`}
               onClick={() => onChange({ seen: v })}
-              title={v === 'unseen' ? '还没在大图预览里看过的图片' : undefined}
+              title={v === 'unseen' ? i18n.t('k749adfb7') : undefined}
             >
-              {v === 'all' ? '全部' : v === 'unseen' ? '未看过' : '已看过'}
+              {v === 'all' ? i18n.t('ka8b0c204') : v === 'unseen' ? i18n.t('kb588550f') : i18n.t('ke047c4cd')}
             </button>
           ))}
           {onMarkAllSeen && filters.seen === 'unseen' && (
             <button
               className="chip ghost-chip"
               onClick={onMarkAllSeen}
-              title={'把当前筛选结果全部标记为已看'}
+              title={i18n.t('k397e7d02')}
             >
-              {'全部标记为已看'}
+              {i18n.t('k5f182f24')}
             </button>
           )}
         </Drop>
 
         <Drop
-          label={'星级'}
+          label={i18n.t('k5f510057')}
           active={!!filters.minRating}
           open={openKey === 'rating'}
           onToggle={() => toggleDrop('rating')}
@@ -583,15 +584,15 @@ export default function FilterBar({
               key={n}
               className={`chip${(filters.minRating || 0) === n ? ' active' : ''}`}
               onClick={() => onChange({ minRating: n })}
-              title={n === 0 ? '不限星级' : `只看 ${n} 星及以上`}
+              title={n === 0 ? i18n.t('ke10ea519') : i18n.t('k74a013fe', { p0: n })}
             >
-              {n === 0 ? '不限' : `${'★'.repeat(n)}+`}
+              {n === 0 ? i18n.t('k8441b348') : `${'★'.repeat(n)}+`}
             </button>
           ))}
         </Drop>
 
         <Drop
-          label={'分辨率'}
+          label={i18n.t('k874a5816')}
           active={!!filters.bucket.length}
           badge={filters.bucket.length || undefined}
           open={openKey === 'bucket'}
@@ -609,12 +610,12 @@ export default function FilterBar({
         </Drop>
 
         <Drop
-          label={'类型'}
+          label={i18n.t('k226b0912')}
           active={!!filters.kind && filters.kind !== 'all'}
           open={openKey === 'kind'}
           onToggle={() => toggleDrop('kind')}
         >
-          {[{ key: 'all', label: '全部' }, ...kinds].map((k) => (
+          {[{ key: 'all', label: i18n.t('ka8b0c204') }, ...kinds].map((k) => (
             <button
               key={k.key}
               className={`chip${(filters.kind || 'all') === k.key ? ' active' : ''}`}
@@ -626,14 +627,14 @@ export default function FilterBar({
         </Drop>
 
         <Drop
-          label={'颜色'}
+          label={i18n.t('k6b36c6f7')}
           active={!!filters.colorHex || !!selectedHues.length}
           badge={selectedHues.length || (filters.colorHex ? 1 : undefined)}
           swatch={filters.colorHex || undefined}
           open={openKey === 'color'}
           onToggle={() => toggleDrop('color')}
         >
-          <div className="sec-label">{'色系快筛 · 可多选（黑白灰单独一项）'}</div>
+          <div className="sec-label">{i18n.t('k93c2ce70')}</div>
           <div className="hue-row">
             {HUES.map((h) => (
               <button
@@ -641,8 +642,8 @@ export default function FilterBar({
                 type="button"
                 className={`hue-chip${selectedHues.includes(h.v) ? ' on' : ''}`}
                 style={{ background: h.c }}
-                title={`只看${h.label}色系`}
-                aria-label={`只看${h.label}色系`}
+                title={i18n.t('k2b85fa69', { p0: h.label })}
+                aria-label={i18n.t('k2b85fa69', { p0: h.label })}
                 aria-pressed={selectedHues.includes(h.v)}
                 onClick={() => toggleHue(h.v)}
               />
@@ -650,14 +651,14 @@ export default function FilterBar({
             <button
               type="button"
               className={`chip hue-gray${selectedHues.includes('gray') ? ' active' : ''}`}
-              title={'只看黑白灰（无彩度）图片'}
+              title={i18n.t('ke3e8c240')}
               onClick={() => toggleHue('gray')}
             >
-              {'黑白灰'}
+              {i18n.t('k4b90efb3')}
             </button>
           </div>
           <div className="sec-label" style={{ marginTop: 14 }}>
-            {'精确颜色 · 拖动色盘 / 输入色号 / 吸管取色'}
+            {i18n.t('kca8096f2')}
           </div>
           <div className="cpad-sm">
             <ColorPad
@@ -701,23 +702,23 @@ export default function FilterBar({
             <button
               className="btn sm"
               disabled={picking || (!desktop && !eyeDropperOk)}
-              title={'从屏幕任意位置取色：左键取色 · 右键取消'}
+              title={i18n.t('kd40d0078')}
               onClick={startPick}
             >
-              {picking ? '截图中…' : (<><IconEyedropper size={13} /> 吸管</>)}
+              {picking ? i18n.t('k6ebd1c8e') : (<><IconEyedropper size={13} /> {i18n.t('ke705a4cd')}</>)}
             </button>
           </div>
           {cap && (
             <div className="hint" style={{ marginTop: 6 }}>
-              {'取色中：'}
-              <b>{'左键'}</b>
-              {'点击取色 · '}
-              <b>{'右键'}</b>
-              {'单击或 Esc 取消'}
+              {i18n.t('k85f4d0a4')}
+              <b>{i18n.t('k8b363070')}</b>
+              {i18n.t('ka9c2527e')}
+              <b>{i18n.t('k97df311b')}</b>
+              {i18n.t('k9ed142aa')}
             </div>
           )}
           <label className="tol" style={{ marginTop: 10 }}>
-            {'准确度'}
+            {i18n.t('k3777c73e')}
             <input
               type="range"
               min={0}
@@ -733,14 +734,14 @@ export default function FilterBar({
           </label>
           {(!!filters.colorHex || !!selectedHues.length) && (
             <button className="chip ghost-chip" style={{ marginTop: 10 }} onClick={() => onChange({ colorHex: '', hue: '' })}>
-              {'清除颜色筛选'}
+              {i18n.t('kfc922882')}
             </button>
           )}
         </Drop>
 
         {chips.length > 0 && (
           <button className="chip ghost-chip" style={{ marginLeft: 'auto' }} onClick={resetAll}>
-            {'清空全部筛选'}
+            {i18n.t('k4cdf84f5')}
           </button>
         )}
       </div>
@@ -748,7 +749,7 @@ export default function FilterBar({
       {chips.length > 0 && (
         <div className="active-chips">
           {chips.map((c, i) => (
-            <button key={i} className="chip chip-active" onClick={c.clear} title={'点击移除该筛选'}>
+            <button key={i} className="chip chip-active" onClick={c.clear} title={i18n.t('k8d6804eb')}>
               {c.swatch && <span className="chip-swatch" style={{ background: c.swatch }} />}
               {c.label}
               <span className="x">×</span>
@@ -822,12 +823,12 @@ export default function FilterBar({
                 <div className="pick-chip" style={{ left: pickPos.x + 18, top: pickPos.y + 18 + 150 }}>
                   <span className="pick-swatch" style={{ background: liveHex }} />
                   {liveHex.toUpperCase()}
-                  <small>{'左键取色'}</small>
+                  <small>{i18n.t('kba81ff8a')}</small>
                 </div>
               </>
             )}
             <div className="pick-tip">
-              {'左键点击取色 · 右键单击取消 · Esc 取消'}
+              {i18n.t('ka8d58996')}
             </div>
           </div>,
           document.body

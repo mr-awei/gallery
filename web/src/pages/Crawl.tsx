@@ -4,6 +4,7 @@ import type { CrawlConfig, JobItem } from '../api';
 import { subscribeEvents } from '../events';
 import type { CrawlStatus, Keyword } from '../types';
 import { IconPlay, IconStop, IconTrash } from '../components/Icons';
+import i18n from '../i18n';
 
 export default function Crawl({ onToast }: { onToast: (msg: string, kind?: 'info' | 'error') => void }) {
   const [keywords, setKeywords] = useState<Keyword[]>([]);
@@ -24,7 +25,7 @@ export default function Crawl({ onToast }: { onToast: (msg: string, kind?: 'info
    * 用户以为记住了，下次启动才发现又回到旧参数。至少要说一句。
    */
   const saveCfg = (patch: Record<string, unknown>) => {
-    api.saveSettings(patch).catch((err) => onToast(`采集设置保存失败：${(err as Error).message}`));
+    api.saveSettings(patch).catch((err) => onToast(i18n.t('ke0c0abb5', { p0: (err as Error).message })));
   };
   /** 上次没跑完的采集任务（进程退出 / 取消 / 失败），可一键接着采 */
   const [resumable, setResumable] = useState<JobItem | null>(null);
@@ -94,29 +95,29 @@ export default function Crawl({ onToast }: { onToast: (msg: string, kind?: 'info
     const list = keywords.filter((k) => picked.has(k.id)).map((k) => k.text);
     // 以前空选也会发请求：把「全不勾」的空数组丢给服务端，服务端要么回一句
     // 干巴巴的报错，要么（旧逻辑）回落成设置里的源，勾掉的东西等于没生效
-    if (!list.length) return onToast('请先勾选至少一个关键词');
-    if (!sources.size) return onToast('请先勾选至少一个采集源');
+    if (!list.length) return onToast(i18n.t('k54361528'));
+    if (!sources.size) return onToast(i18n.t('kbd6c86d5'));
     try {
       const res = await api.crawlStart({ keywords: list, sources: [...sources], pages });
       if (!res.ok) {
-        onToast(res.message || '启动失败');
+        onToast(res.message || i18n.t('kefb08e91'));
         return;
       }
-      onToast(`已启动：${list.length} 个关键词 × ${sources.size} 个来源 × ${pages} 页`);
+      onToast(i18n.t('k33b9face', { p0: list.length, p1: sources.size, p2: pages }));
       setTab('log');
       refresh();
     } catch (err) {
-      onToast(`启动失败：${(err as Error).message}`, 'error');
+      onToast(i18n.t('kd96e3f54', { p0: (err as Error).message }), 'error');
     }
   };
 
   const stop = async () => {
     try {
       await api.crawlStop();
-      onToast('正在停止…');
+      onToast(i18n.t('ka7ad5d41'));
       refresh();
     } catch (err) {
-      onToast(`停止失败：${(err as Error).message}`, 'error');
+      onToast(i18n.t('k8ce513f7', { p0: (err as Error).message }), 'error');
     }
   };
 
@@ -129,7 +130,7 @@ export default function Crawl({ onToast }: { onToast: (msg: string, kind?: 'info
       setPicked((prev) => new Set([...prev, ...res.keywords.filter((k) => k.text === text).map((k) => k.id)]));
       setNewKw('');
     } catch (err) {
-      onToast(`添加关键词失败：${(err as Error).message}`, 'error');
+      onToast(i18n.t('kf900d86b', { p0: (err as Error).message }), 'error');
     }
   };
 
@@ -143,7 +144,7 @@ export default function Crawl({ onToast }: { onToast: (msg: string, kind?: 'info
         return next;
       });
     } catch (err) {
-      onToast(`删除关键词失败：${(err as Error).message}`, 'error');
+      onToast(i18n.t('k417c440d', { p0: (err as Error).message }), 'error');
     }
   };
 
@@ -155,25 +156,25 @@ export default function Crawl({ onToast }: { onToast: (msg: string, kind?: 'info
   const downloadPct = download.queued ? Math.min(100, (download.done / download.queued) * 100) : 0;
   const phaseText = running
     ? status?.current
-      ? `搜索中：${status.current.keyword} · ${status.current.source} 第 ${status.current.page} 页`
-      : '准备中…'
-    : '空闲';
+      ? i18n.t('k39158c8e', { p0: status.current.keyword, p1: status.current.source, p2: status.current.page })
+      : i18n.t('kdcfb6890')
+    : i18n.t('k87bb5bbc');
 
   return (
     <div>
       <div className="page-head">
         <div>
-          <h1 className="page-title">采集</h1>
-          <div className="page-sub">必应 / 百度 / 搜狗 / Wallhaven / Wikimedia / 豆瓣 / 贴吧并发抓取，边搜边下载，自动去重与画质过滤</div>
+          <h1 className="page-title">{i18n.t('ke8bc2616')}</h1>
+          <div className="page-sub">{i18n.t('k212894dc')}</div>
         </div>
         <div style={{ display: 'flex', gap: 8 }}>
           {running ? (
             <button className="btn danger" onClick={stop}>
-              <IconStop /> 停止采集
+              <IconStop /> {i18n.t('kfa3b4b21')}
             </button>
           ) : (
             <button className="btn primary" onClick={start}>
-              <IconPlay /> 开始采集
+              <IconPlay /> {i18n.t('k4b75b162')}
             </button>
           )}
         </div>
@@ -183,7 +184,7 @@ export default function Crawl({ onToast }: { onToast: (msg: string, kind?: 'info
       {resumable && !running && (
         <div className="card" style={{ marginBottom: 12, display: 'flex', alignItems: 'center', gap: 12 }}>
           <span style={{ flex: 1, fontSize: 12.5 }}>
-            上次采集未完成（{resumable.title || '采集任务'}，已采 {resumable.done}/{resumable.total || '?'}），
+            上次采集未完成（{resumable.title || i18n.t('k9a93158c')}，已采 {resumable.done}/{resumable.total || '?'}），
             可以继续采完剩下的关键词。
           </span>
           <button
@@ -191,17 +192,17 @@ export default function Crawl({ onToast }: { onToast: (msg: string, kind?: 'info
             onClick={async () => {
               try {
                 await api.retryJob(resumable.id);
-                onToast('已继续上次的采集');
+                onToast(i18n.t('k4c767e26'));
                 setResumable(null);
               } catch (err) {
                 onToast((err as Error).message, 'error');
               }
             }}
           >
-            继续采集
+            {i18n.t('k10b3b81c')}
           </button>
           <button className="btn sm" onClick={() => setResumable(null)}>
-            忽略
+            {i18n.t('kc0d5d68f')}
           </button>
         </div>
       )}
@@ -225,7 +226,7 @@ export default function Crawl({ onToast }: { onToast: (msg: string, kind?: 'info
                   }
                 />
                 <span>{k.text}</span>
-                <button className="del" onClick={() => removeKeyword(k.id)} title="删除">
+                <button className="del" onClick={() => removeKeyword(k.id)} title={i18n.t('k2f4aaddd')}>
                   <IconTrash />
                 </button>
               </div>
@@ -235,24 +236,24 @@ export default function Crawl({ onToast }: { onToast: (msg: string, kind?: 'info
             <input
               className="input"
               style={{ flex: 1 }}
-              placeholder="新增关键词…"
+              placeholder={i18n.t('k9715b09d')}
               value={newKw}
               onChange={(e) => setNewKw(e.target.value)}
               onKeyDown={(e) => e.key === 'Enter' && addKeyword()}
             />
             <button className="btn" onClick={addKeyword}>
-              添加
+              {i18n.t('kb58c7549')}
             </button>
           </div>
 
           <h4 className="section-title" style={{ marginTop: 20 }}>
-            采集源
+            {i18n.t('kad00783c')}
           </h4>
           {crawlSources.map((s) => (
             <div className="switch-row" key={s.key} title={s.hint}>
               <span>
                 {s.label}
-                {s.needsCookie && <span className="src-hint">需配置</span>}
+                {s.needsCookie && <span className="src-hint">{i18n.t('k47d2f2f9')}</span>}
               </span>
               <input
                 type="checkbox"
@@ -271,7 +272,7 @@ export default function Crawl({ onToast }: { onToast: (msg: string, kind?: 'info
           ))}
 
           <div className="field" style={{ marginTop: 16 }}>
-            <label>每个关键词采集页数</label>
+            <label>{i18n.t('k5d6b0386')}</label>
             <input
               className="input"
               type="number"
@@ -282,7 +283,7 @@ export default function Crawl({ onToast }: { onToast: (msg: string, kind?: 'info
               // 记住页数选择：blur 再落盘，避免每敲一个数字就写一次设置
               onBlur={() => saveCfg({ pagesPerKeyword: pages })}
             />
-            <div className="hint">页数越多耗时越长，建议 3-5 页</div>
+            <div className="hint">{i18n.t('k36c80b5f')}</div>
           </div>
 
           {/* 并发与画质阈值：后端一直支持（settings.concurrency / minResolution / minFileSize /
@@ -300,11 +301,11 @@ export default function Crawl({ onToast }: { onToast: (msg: string, kind?: 'info
               }
               onBlur={() => saveCfg({ concurrency })}
             />
-            <div className="hint">并发越高越快，但对源站压力与被封风险也越大，建议 4-6</div>
+            <div className="hint">{i18n.t('k26bbcec6')}</div>
           </div>
 
           <div className="field">
-            <label>最低分辨率（短边像素，0 = 不过滤）</label>
+            <label>{i18n.t('k6c6abedf')}</label>
             <input
               className="input"
               type="number"
@@ -315,11 +316,11 @@ export default function Crawl({ onToast }: { onToast: (msg: string, kind?: 'info
               onChange={(e) => setMinResolution(Math.max(0, Number(e.target.value) || 0))}
               onBlur={() => saveCfg({ minResolution })}
             />
-            <div className="hint">例如 1080：短边不足 1080 的图直接丢弃，省带宽也省库</div>
+            <div className="hint">{i18n.t('k1918f87b')}</div>
           </div>
 
           <div className="field">
-            <label>文件体积区间（MB，0 = 不限）</label>
+            <label>{i18n.t('k950c41d4')}</label>
             <div style={{ display: 'flex', gap: 8 }}>
               <input
                 className="input"
@@ -329,7 +330,7 @@ export default function Crawl({ onToast }: { onToast: (msg: string, kind?: 'info
                 value={sizeRange.min}
                 onChange={(e) => setSizeRange({ ...sizeRange, min: Math.max(0, Number(e.target.value) || 0) })}
                 onBlur={() => saveCfg({ minFileSize: sizeRange.min })}
-                placeholder="最小"
+                placeholder={i18n.t('k5e02aac4')}
               />
               <input
                 className="input"
@@ -339,16 +340,16 @@ export default function Crawl({ onToast }: { onToast: (msg: string, kind?: 'info
                 value={sizeRange.max}
                 onChange={(e) => setSizeRange({ ...sizeRange, max: Math.max(0, Number(e.target.value) || 0) })}
                 onBlur={() => saveCfg({ maxFileSize: sizeRange.max })}
-                placeholder="最大"
+                placeholder={i18n.t('kf98b9af1')}
               />
             </div>
-            <div className="hint">太大/太小的图通常在拼图站和缩略图上，限制后入库质量更稳定</div>
+            <div className="hint">{i18n.t('k5323e1a8')}</div>
           </div>
         </div>
 
         <div className="card">
           <h4 className="section-title">
-            实时进度
+            {i18n.t('k55845271')}
             <span style={{ color: 'var(--muted)', fontWeight: 400, fontSize: 12 }}>{phaseText}</span>
           </h4>
 
@@ -381,31 +382,31 @@ export default function Crawl({ onToast }: { onToast: (msg: string, kind?: 'info
 
           <div className="counter-grid" style={{ marginTop: 14 }}>
             <div className="counter">
-              <div className="k">候选</div>
+              <div className="k">{i18n.t('kf21434be')}</div>
               <div className="v">{stats?.candidates ?? 0}</div>
             </div>
             <div className="counter">
-              <div className="k">待下载</div>
+              <div className="k">{i18n.t('k044526b2')}</div>
               <div className="v">{download.queued}</div>
             </div>
             <div className="counter">
-              <div className="k">已下载</div>
+              <div className="k">{i18n.t('k9719fec8')}</div>
               <div className="v">{download.done}</div>
             </div>
             <div className="counter">
-              <div className="k">已保存</div>
+              <div className="k">{i18n.t('kf8dfedcd')}</div>
               <div className="v" style={{ color: 'var(--ok)' }}>
                 {download.saved}
               </div>
             </div>
             <div className="counter">
-              <div className="k">重复</div>
+              <div className="k">{i18n.t('k33e3c0d2')}</div>
               <div className="v" style={{ color: 'var(--warn)' }}>
                 {stats?.dropped?.duplicate ?? 0}
               </div>
             </div>
             <div className="counter">
-              <div className="k">低质/过滤</div>
+              <div className="k">{i18n.t('k15218acc')}</div>
               <div className="v" style={{ color: 'var(--warn)' }}>
                 {(stats?.dropped?.lowres ?? 0) +
                   (stats?.dropped?.small ?? 0) +
@@ -414,12 +415,12 @@ export default function Crawl({ onToast }: { onToast: (msg: string, kind?: 'info
               </div>
             </div>
             <div className="counter">
-              <div className="k">失败</div>
+              <div className="k">{i18n.t('kacd5cb84')}</div>
               <div
                 className="v"
                 style={{ color: status?.failureCount ? 'var(--err)' : undefined, cursor: status?.failureCount ? 'pointer' : undefined }}
                 onClick={() => status?.failureCount && setTab('fail')}
-                title={status?.failureCount ? '点击查看失败明细' : undefined}
+                title={status?.failureCount ? i18n.t('k974a6b93') : undefined}
               >
                 {status?.failureCount ?? 0}
               </div>
@@ -436,7 +437,7 @@ export default function Crawl({ onToast }: { onToast: (msg: string, kind?: 'info
 
           <div style={{ display: 'flex', gap: 6, margin: '12px 0 8px' }}>
             <button className={`chip${tab === 'log' ? ' active' : ''}`} onClick={() => setTab('log')}>
-              实时日志
+              {i18n.t('ka94180c2')}
             </button>
             <button
               className={`chip${tab === 'fail' ? ' active' : ''}`}
@@ -459,7 +460,7 @@ export default function Crawl({ onToast }: { onToast: (msg: string, kind?: 'info
                 ))
               ) : (
                 <div style={{ color: '#6f6f8c' }}>
-                  暂无日志。点击「开始采集」后这里会实时输出：搜索进度 → 下载进度 → 成功/失败。
+                  {i18n.t('kdc4179a6')}
                 </div>
               )}
             </div>
@@ -486,7 +487,7 @@ export default function Crawl({ onToast }: { onToast: (msg: string, kind?: 'info
                     </div>
                   ))
               ) : (
-                <div style={{ color: '#6f6f8c' }}>没有失败记录</div>
+                <div style={{ color: '#6f6f8c' }}>{i18n.t('k6cabb785')}</div>
               )}
             </div>
           )}

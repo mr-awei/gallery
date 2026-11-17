@@ -9,6 +9,7 @@ import {
   type KeyAction,
 } from '../../lib/keymap';
 import Card from './Card';
+import i18n from '../../i18n';
 
 /**
  * 快捷键自定义。
@@ -35,7 +36,7 @@ export default function ShortcutSection() {
     const clash = findConflict(keymap, action, binding);
     if (clash) {
       const other = KEY_ACTIONS.find((x) => x.id === clash);
-      setError(`「${displayBinding(binding)}」已经被「${other?.label || clash}」占用，换一个吧`);
+      setError(i18n.t('k87dd29f3', { p0: displayBinding(binding), p1: other?.label || clash }));
       return;
     }
     setKey(action, binding);
@@ -44,7 +45,7 @@ export default function ShortcutSection() {
   };
 
   return (
-    <Card title="快捷键" desc="点「录制」后直接按下想要的组合键；Esc 取消。改完立即生效，无需重启。">
+    <Card title={i18n.t('kf7d29966')} desc={i18n.t('kc26b4d65')}>
       <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
         {KEY_ACTIONS.map((a) => (
           <div
@@ -64,7 +65,7 @@ export default function ShortcutSection() {
               <div style={{ fontSize: 12, color: 'var(--muted)' }}>{a.desc}</div>
             </div>
             <kbd style={{ minWidth: 72, textAlign: 'center' }}>
-              {recording === a.id ? '按下组合键…' : displayBinding(keymap[a.id])}
+              {recording === a.id ? i18n.t('kb308eff6') : displayBinding(keymap[a.id])}
             </kbd>
             <button
               className={`btn sm${recording === a.id ? ' primary' : ''}`}
@@ -73,19 +74,19 @@ export default function ShortcutSection() {
                 setError('');
               }}
               onKeyDown={(e) => recording === a.id && capture(e, a.id)}
-              title={recording === a.id ? '按下要绑定的键（Esc 取消）' : '重新绑定'}
+              title={recording === a.id ? i18n.t('kdb0be38b') : i18n.t('k2eb89a4a')}
             >
-              {recording === a.id ? '取消' : '录制'}
+              {recording === a.id ? i18n.t('k625fb26b') : i18n.t('kedf74d55')}
             </button>
             <button
               className="btn sm"
-              title="恢复这个动作的默认键位"
+              title={i18n.t('k71a2274c')}
               onClick={() => {
                 setKey(a.id, DEFAULT_KEYMAP[a.id]);
                 setError('');
               }}
             >
-              默认
+              {i18n.t('k18c63459')}
             </button>
           </div>
         ))}
@@ -94,12 +95,12 @@ export default function ShortcutSection() {
       {error && <div className="settings-desc" style={{ color: 'var(--err)', marginTop: 10 }}>{error}</div>}
 
       <div style={{ display: 'flex', gap: 8, marginTop: 12 }}>
-        <button className="btn" onClick={reset} title="把全部动作恢复成出厂键位">
-          全部恢复默认
+        <button className="btn" onClick={reset} title={i18n.t('k21bf7024')}>
+          {i18n.t('ka09e58c6')}
         </button>
       </div>
       <div className="settings-desc" style={{ marginTop: 8 }}>
-        大图预览 / 标注 / 裁切台内部的按键是场景专用的，不在这里改。
+        {i18n.t('k162e57b0')}
       </div>
     </Card>
   );

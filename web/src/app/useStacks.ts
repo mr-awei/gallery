@@ -3,6 +3,7 @@ import type { Dispatch, MutableRefObject, SetStateAction } from 'react';
 import { api } from '../api';
 import type { ImageItem } from '../types';
 import type { LoadGallery, Toast } from './types';
+import i18n from '../i18n';
 
 type Options = {
   selected: Set<number>;
@@ -16,10 +17,10 @@ type Options = {
 export function useStacks({ selected, setSelected, pageRef, load, showToast }: Options) {
   const stackSelection = useCallback(async () => {
     const ids = [...selected];
-    if (ids.length < 2) return showToast('至少选两张素材才能堆叠');
+    if (ids.length < 2) return showToast(i18n.t('k7418fd30'));
     try {
       await api.createStack(ids);
-      showToast(`已把 ${ids.length} 张合成一个堆叠`);
+      showToast(i18n.t('kf9ec1a72', { p0: ids.length }));
       setSelected(new Set());
       pageRef.current = 1;
       load(1, true);
@@ -39,10 +40,10 @@ export function useStacks({ selected, setSelected, pageRef, load, showToast }: O
       try {
         if ((target.stackCount || 0) > 1 && target.stackId) {
           const r = await api.addToStack(target.stackId, ids);
-          showToast(`已把 ${ids.length} 张并入这一堆（共 ${r.stacks.length} 张）`);
+          showToast(i18n.t('k8b818440', { p0: ids.length, p1: r.stacks.length }));
         } else {
           await api.createStack([target.id, ...ids]);
-          showToast(`已把 ${ids.length + 1} 张叠成一堆`);
+          showToast(i18n.t('k0c200918', { p0: ids.length + 1 }));
         }
         setSelected(new Set());
         pageRef.current = 1;
@@ -58,7 +59,7 @@ export function useStacks({ selected, setSelected, pageRef, load, showToast }: O
     async (stackId: number) => {
       try {
         const r = await api.ungroupStack(stackId);
-        showToast(`已解散堆叠（${r.removed} 张恢复为独立素材）`);
+        showToast(i18n.t('k0403886e', { p0: r.removed }));
         pageRef.current = 1;
         load(1, true);
       } catch (err) {

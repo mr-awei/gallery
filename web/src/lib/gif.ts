@@ -1,3 +1,4 @@
+import i18n from '../i18n';
 /**
  * 纯 JS GIF89a 编码器（视频截帧导出用）。
  *
@@ -161,13 +162,13 @@ function pushSubBlocks(out: number[], data: number[]) {
  * 所有帧必须同尺寸；不同尺寸直接抛错，避免产出无法解码的文件。
  */
 export function encodeGif(frames: GifFrame[], options: { loop?: number } = {}): Uint8Array {
-  if (!frames.length) throw new Error('没有可导出的帧');
+  if (!frames.length) throw new Error(i18n.t('k9a6c3df9'));
   const width = frames[0].width;
   const height = frames[0].height;
-  if (width < 1 || height < 1 || width > 65535 || height > 65535) throw new Error('帧尺寸不合法');
+  if (width < 1 || height < 1 || width > 65535 || height > 65535) throw new Error(i18n.t('kf55207ee'));
   for (const f of frames) {
-    if (f.width !== width || f.height !== height) throw new Error('所有帧尺寸必须一致');
-    if (f.data.length < width * height * 4) throw new Error('帧像素数据不完整');
+    if (f.width !== width || f.height !== height) throw new Error(i18n.t('kee7a37b8'));
+    if (f.data.length < width * height * 4) throw new Error(i18n.t('kb1584263'));
   }
 
   const out: number[] = [];
@@ -221,7 +222,7 @@ export function blobToDataUrl(blob: Blob): Promise<string> {
   return new Promise((resolve, reject) => {
     const reader = new FileReader();
     reader.onload = () => resolve(String(reader.result || ''));
-    reader.onerror = () => reject(new Error('读取导出数据失败'));
+    reader.onerror = () => reject(new Error(i18n.t('k089e2215')));
     reader.readAsDataURL(blob);
   });
 }

@@ -6,6 +6,7 @@
  * 用户调过一次之后就保持自己的习惯。
  */
 import { useCallback, useEffect, useState, type ReactNode } from 'react';
+import i18n from '../i18n';
 
 export type SideSectionKey = 'pending' | 'saved' | 'tags';
 
@@ -80,7 +81,7 @@ export function SideSection({ title, open, onToggle, summary, actions, children,
           className="side-section-toggle"
           onClick={onToggle}
           aria-expanded={open}
-          title={open ? `收起${title}` : `展开${title}`}
+          title={open ? i18n.t('k8da4c8c8', { p0: title }) : i18n.t('k89bcc084', { p0: title })}
         >
           <span className="side-section-chevron">{open ? '▾' : '▸'}</span>
           <span className="side-section-label">{title}</span>

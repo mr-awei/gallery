@@ -24,6 +24,8 @@ contextBridge.exposeInMainWorld('desktopAPI', {
   weiboLogin: () => ipcRenderer.invoke('weibo-login'),
   // 同步原生控件（下拉弹层等）主题：dark / light / system
   setTheme: (theme) => ipcRenderer.invoke('set-theme', theme),
+  // 界面语言：让托盘菜单 / 原生对话框跟随界面（zh-CN / en-US）
+  setLocale: (lang) => ipcRenderer.invoke('set-locale', lang),
   // 全屏截图（吸管取色）：返回 { dataUrl, x, y, width, height, scale }
   screenCapture: () => ipcRenderer.invoke('screen-capture'),
   // 截图入库（Eagle 式）：唤起主窗口进入区域框选态，返回 { ok, pending }

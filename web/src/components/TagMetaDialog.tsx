@@ -2,6 +2,7 @@ import { useMemo, useState } from 'react';
 import { api } from '../api';
 import type { TagNode } from '../types';
 import { IconClose } from './Icons';
+import i18n from '../i18n';
 
 /**
  * 标签元数据编辑（Eagle 式：分组 / 颜色 / 父标签）。
@@ -60,7 +61,7 @@ export default function TagMetaDialog({ tag, tags, onClose, onSaved, onToast }: 
     try {
       const r = await api.tagMeta({ tag: tag.tag, group: group.trim(), color: color.trim(), parent });
       onSaved({ tags: r.tags, groups: r.groups });
-      onToast('标签设置已保存');
+      onToast(i18n.t('k64fc29d7'));
     } catch (err) {
       onToast((err as Error).message, 'error');
       setBusy(false);
@@ -74,20 +75,20 @@ export default function TagMetaDialog({ tag, tags, onClose, onSaved, onToast }: 
           <b>
             <span className="tag-dot" style={color ? { background: color } : undefined} /> 标签设置 · {tag.tag}
           </b>
-          <button className="btn ghost sm" onClick={onClose} aria-label={'关闭'}>
+          <button className="btn ghost sm" onClick={onClose} aria-label={i18n.t('kb15d9127')}>
             <IconClose />
           </button>
         </div>
 
         <div className="modal-body" style={{ display: 'block' }}>
           <div className="field">
-            <label>分组（留空 = 未分组，可输入新分组名）</label>
+            <label>{i18n.t('k3ad33dab')}</label>
             <input
               className="input"
               style={{ width: '100%' }}
               value={group}
               list="tuku-tag-groups"
-              placeholder="例如：人物 / 场景 / 服装"
+              placeholder={i18n.t('kc902e066')}
               autoFocus
               onChange={(e) => setGroup(e.target.value)}
             />
@@ -99,12 +100,12 @@ export default function TagMetaDialog({ tag, tags, onClose, onSaved, onToast }: 
           </div>
 
           <div className="field">
-            <label>颜色</label>
+            <label>{i18n.t('k6b36c6f7')}</label>
             <div className="tag-color-row">
               <button
                 className={`tag-color-chip${!color ? ' active' : ''}`}
                 onClick={() => setColor('')}
-                title="不设置颜色"
+                title={i18n.t('k36fdab3a')}
               >
                 ∅
               </button>
@@ -128,9 +129,9 @@ export default function TagMetaDialog({ tag, tags, onClose, onSaved, onToast }: 
           </div>
 
           <div className="field">
-            <label>父标签（做二级层级，留空 = 顶层）</label>
+            <label>{i18n.t('k4edfa9f2')}</label>
             <select className="input" style={{ width: '100%' }} value={parent} onChange={(e) => setParent(e.target.value)}>
-              <option value="">（顶层）</option>
+              <option value="">{i18n.t('k0900fb88')}</option>
               {parentOptions.map((p) => (
                 <option key={p} value={p}>
                   {p}
@@ -141,10 +142,10 @@ export default function TagMetaDialog({ tag, tags, onClose, onSaved, onToast }: 
         </div>
 
         <div className="modal-foot">
-          <span style={{ fontSize: 12, color: 'var(--muted)' }}>改动只影响侧栏展示与筛选，不改变已打的标签</span>
+          <span style={{ fontSize: 12, color: 'var(--muted)' }}>{i18n.t('kf3d6bfad')}</span>
           <div style={{ display: 'flex', gap: 8 }}>
             <button className="btn" onClick={onClose}>
-              取消
+              {i18n.t('k625fb26b')}
             </button>
             <button
               className="btn"
@@ -152,7 +153,7 @@ export default function TagMetaDialog({ tag, tags, onClose, onSaved, onToast }: 
               disabled={busy}
               onClick={save}
             >
-              {busy ? '保存中…' : '保存'}
+              {busy ? i18n.t('k9b5d32d1') : i18n.t('kbe5fbbe3')}
             </button>
           </div>
         </div>

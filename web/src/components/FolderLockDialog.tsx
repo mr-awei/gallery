@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { api } from '../api';
 import type { FolderNode } from '../types';
 import { IconClose } from './Icons';
+import i18n from '../i18n';
 
 /**
  * 文件夹密码锁 / 隐私空间。
@@ -47,11 +48,11 @@ export default function FolderLockDialog({
 
   const need = () => {
     if (!pwd) {
-      onToast('请输入密码', 'error');
+      onToast(i18n.t('ke39ffe99'), 'error');
       return false;
     }
     if ((mode === 'set' || mode === 'change') && pwd !== pwd2) {
-      onToast('两次输入的密码不一致', 'error');
+      onToast(i18n.t('k6046d642'), 'error');
       return false;
     }
     return true;
@@ -61,27 +62,27 @@ export default function FolderLockDialog({
     if (!need()) return;
     // 改密码 / 移除密码都要旧密码，第二个输入框在那种模式下装的就是旧密码
     const old = mode === 'change' || mode === 'remove' ? pwd2 : '';
-    if (mode === 'unlock') return void run(() => api.unlockFolder(folder.id, pwd), '已解锁（仅本次会话）');
-    if (mode === 'set') return void run(() => api.setFolderPassword(folder.id, pwd), '已加锁');
-    if (mode === 'change') return void run(() => api.setFolderPassword(folder.id, pwd, old), '密码已更新');
-    return void run(() => api.clearFolderPassword(folder.id, old), '已移除密码');
+    if (mode === 'unlock') return void run(() => api.unlockFolder(folder.id, pwd), i18n.t('k050c7433'));
+    if (mode === 'set') return void run(() => api.setFolderPassword(folder.id, pwd), i18n.t('k3dc28e89'));
+    if (mode === 'change') return void run(() => api.setFolderPassword(folder.id, pwd, old), i18n.t('kfd5a3cf1'));
+    return void run(() => api.clearFolderPassword(folder.id, old), i18n.t('kabc87225'));
   };
 
   const title =
     mode === 'unlock'
-      ? `解锁「${folder.name}」`
+      ? i18n.t('kf7469344', { p0: folder.name })
       : mode === 'set'
-        ? `给「${folder.name}」加锁`
+        ? i18n.t('ke6205fc0', { p0: folder.name })
         : mode === 'change'
-          ? `修改「${folder.name}」的密码`
-          : `移除「${folder.name}」的密码`;
+          ? i18n.t('k40aab159', { p0: folder.name })
+          : i18n.t('k5badf86c', { p0: folder.name });
 
   return (
     <div className="modal-backdrop" onClick={onClose}>
       <div className="modal-card" style={{ width: 400 }} onClick={(e) => e.stopPropagation()}>
         <div className="modal-head">
           <b>{title}</b>
-          <button className="icon-btn" onClick={onClose} title="关闭">
+          <button className="icon-btn" onClick={onClose} title={i18n.t('kb15d9127')}>
             <IconClose />
           </button>
         </div>
@@ -91,47 +92,47 @@ export default function FolderLockDialog({
               <button
                 className="btn sm"
                 disabled={busy}
-                onClick={() => void run(() => api.sealFolder(folder.id), '已重新上锁')}
+                onClick={() => void run(() => api.sealFolder(folder.id), i18n.t('k10eff0fb'))}
               >
-                重新上锁
+                {i18n.t('k81db78dc')}
               </button>
               <button className="btn sm" onClick={() => setMode('remove')}>
-                移除密码
+                {i18n.t('k7134b8c3')}
               </button>
             </div>
           )}
 
           {(mode === 'set' || mode === 'change') && (
             <div className="field">
-              <label>{mode === 'change' ? '新密码' : '密码'}</label>
+              <label>{mode === 'change' ? i18n.t('kbf7da0bf') : i18n.t('ka8105204')}</label>
               <input
                 className="input"
                 type="password"
                 autoFocus
                 value={pwd}
                 onChange={(e) => setPwd(e.target.value)}
-                placeholder="至少 4 位"
+                placeholder={i18n.t('k552fd502')}
               />
             </div>
           )}
 
           {mode !== 'unlock' && (
             <div className="field">
-              <label>{mode === 'set' ? '再输一次' : mode === 'change' ? '原密码' : '密码'}</label>
+              <label>{mode === 'set' ? i18n.t('k33372d21') : mode === 'change' ? i18n.t('k01e94436') : i18n.t('ka8105204')}</label>
               <input
                 className="input"
                 type="password"
                 value={pwd2}
                 onChange={(e) => setPwd2(e.target.value)}
                 onKeyDown={(e) => e.key === 'Enter' && submit()}
-                placeholder={mode === 'set' ? '确认密码' : '当前密码'}
+                placeholder={mode === 'set' ? i18n.t('k3fbdde13') : i18n.t('ka806ce95')}
               />
             </div>
           )}
 
           {mode === 'unlock' && (
             <div className="field">
-              <label>密码</label>
+              <label>{i18n.t('ka8105204')}</label>
               <input
                 className="input"
                 type="password"
@@ -139,23 +140,23 @@ export default function FolderLockDialog({
                 value={pwd}
                 onChange={(e) => setPwd(e.target.value)}
                 onKeyDown={(e) => e.key === 'Enter' && submit()}
-                placeholder="输入文件夹密码"
+                placeholder={i18n.t('k238bc5c4')}
               />
             </div>
           )}
 
           <div className="settings-desc" style={{ margin: '4px 0 0' }}>
             {mode === 'set' || mode === 'change'
-              ? '密码只保存在本机（scrypt 哈希），忘记后只能从磁盘上删库解锁，请记牢。'
-              : '解锁只在本次运行期间有效；重启应用会自动回到锁定状态。'}
+              ? i18n.t('k90f81d9d')
+              : i18n.t('kb36cd4ac')}
           </div>
         </div>
         <div className="modal-foot">
           <button className="btn sm" onClick={onClose}>
-            取消
+            {i18n.t('k625fb26b')}
           </button>
           <button className="btn sm primary" disabled={busy} onClick={submit}>
-            {busy ? '处理中…' : mode === 'unlock' ? '解锁' : mode === 'set' ? '加锁' : mode === 'change' ? '保存' : '确认移除'}
+            {busy ? i18n.t('kcf978c02') : mode === 'unlock' ? i18n.t('kfa7ffa2d') : mode === 'set' ? i18n.t('kbba1928e') : mode === 'change' ? i18n.t('kbe5fbbe3') : i18n.t('ke2cfe794')}
           </button>
         </div>
       </div>

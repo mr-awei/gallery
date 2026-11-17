@@ -7,6 +7,7 @@
 import { useEffect, useState } from 'react';
 import { api } from '../../api';
 import type { ImageNote } from '../../types';
+import i18n from '../../i18n';
 
 /** 秒 → 0:00 / 0:00:00 */
 function fmt(sec: number) {
@@ -58,7 +59,7 @@ export default function NotesPanel({ imageId, duration = 0, onToast }: Props) {
       const r = await api.addImageNote(imageId, body, ts);
       setNotes((prev) => [...prev, r.note].sort((a, b) => a.ts - b.ts || a.id - b.id));
       setText('');
-      onToast?.(ts > 0 ? `已记录 ${fmt(ts)} 的笔记` : '笔记已保存');
+      onToast?.(ts > 0 ? i18n.t('k17e7df60', { p0: fmt(ts) }) : i18n.t('k68631187'));
     } catch (e) {
       onToast?.((e as Error).message, 'error');
     } finally {
@@ -78,7 +79,7 @@ export default function NotesPanel({ imageId, duration = 0, onToast }: Props) {
   const jump = (n: ImageNote) => {
     if (!n.ts) return;
     const el = mediaEl();
-    if (!el) return onToast?.('先打开这张素材的音视频预览');
+    if (!el) return onToast?.(i18n.t('k104b5680'));
     el.currentTime = Math.min(n.ts, el.duration || n.ts);
     void el.play?.().catch(() => undefined);
   };
@@ -87,26 +88,26 @@ export default function NotesPanel({ imageId, duration = 0, onToast }: Props) {
 
   return (
     <div className="lb-kv" style={{ alignItems: 'flex-start' }}>
-      <b>笔记</b>
+      <b>{i18n.t('k7051dc52')}</b>
       <div style={{ flex: 1, minWidth: 0 }}>
         {err && <div className="qc-hint">{err}</div>}
         <div className="notes-list">
           {notes.map((n) => (
             <div className="note-item" key={n.id}>
               {n.ts > 0 && (
-                <button className="note-ts" title="跳到这个时间点" onClick={() => jump(n)}>
+                <button className="note-ts" title={i18n.t('k7f389ad9')} onClick={() => jump(n)}>
                   {fmt(n.ts)}
                 </button>
               )}
               <span className="note-body">{n.body}</span>
-              <button className="note-del" title="删除这条笔记" onClick={() => void remove(n)}>
+              <button className="note-del" title={i18n.t('k14fade62')} onClick={() => void remove(n)}>
                 ×
               </button>
             </div>
           ))}
           {!notes.length && !err && (
             <div className="qc-hint">
-              {canStick ? '拉片时随手记：点「钉在此刻」把笔记挂到当前播放位置。' : '还没有笔记。'}
+              {canStick ? i18n.t('ka16f2003') : i18n.t('k07172653')}
             </div>
           )}
         </div>
@@ -114,7 +115,7 @@ export default function NotesPanel({ imageId, duration = 0, onToast }: Props) {
           <input
             className="input input-sm"
             style={{ flex: 1 }}
-            placeholder={canStick ? '在当前位置记一条…（回车保存）' : '添加一条笔记…（回车保存）'}
+            placeholder={canStick ? i18n.t('k34c96521') : i18n.t('k53607300')}
             value={text}
             onChange={(e) => setText(e.target.value)}
             onKeyDown={(e) => {
@@ -124,14 +125,14 @@ export default function NotesPanel({ imageId, duration = 0, onToast }: Props) {
           {canStick && (
             <button
               className={`btn sm${stickTs ? ' primary' : ' ghost'}`}
-              title={stickTs ? '保存时带上当前播放时间' : '保存为纯文本笔记'}
+              title={stickTs ? i18n.t('k77e07a65') : i18n.t('kbf68459f')}
               onClick={() => setStickTs((v) => !v)}
             >
-              ⏱ {stickTs ? '钉在此刻' : '纯文本'}
+              ⏱ {stickTs ? i18n.t('k8e2e2479') : i18n.t('kffb01e5b')}
             </button>
           )}
           <button className="btn sm" disabled={busy || !text.trim()} onClick={() => void add()}>
-            添加
+            {i18n.t('kb58c7549')}
           </button>
         </div>
       </div>

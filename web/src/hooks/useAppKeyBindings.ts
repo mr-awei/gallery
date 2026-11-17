@@ -4,6 +4,7 @@ import { desktop } from '../api';
 import type { ImageItem, View } from '../types';
 import { matchesBinding, useKeymap } from '../lib/keymap';
 import type { LightboxState } from './useLightbox';
+import i18n from '../i18n';
 
 type Toast = (msg: string, kind?: 'info' | 'error') => void;
 
@@ -86,10 +87,10 @@ export function useAppKeyBindings({
         e.preventDefault();
         if (desktop?.openNewWindow) {
           void desktop.openNewWindow().then((r) => {
-            if (!r?.ok) showToast(r?.error || '打开新窗口失败');
+            if (!r?.ok) showToast(r?.error || i18n.t('k2a6b5886'));
           });
         } else {
-          showToast('多窗口仅在桌面端可用');
+          showToast(i18n.t('k1baec35b'));
         }
         return;
       }
@@ -113,7 +114,7 @@ export function useAppKeyBindings({
       }
       // 搜索框：Ctrl+F（可自定义），另外保留「/」这个手顺的备用入口
       if (matchesBinding(e, keymap.search) || (e.key === '/' && !mod)) {
-        const el = document.querySelector<HTMLInputElement>('input[placeholder*="搜索"]');
+        const el = document.querySelector<HTMLInputElement>(i18n.t('k1192b08f'));
         if (el) {
           e.preventDefault();
           el.focus();

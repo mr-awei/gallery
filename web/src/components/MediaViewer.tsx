@@ -5,6 +5,7 @@ import { fontFrameDataUrl, imageFrameDataUrl } from '../lib/coverFrame';
 import ModelViewer from './ModelViewer';
 import VideoTrimExport from './VideoTrimExport';
 import type { ImageItem } from '../types';
+import i18n from '../i18n';
 
 /**
  * Office 预览要带上 SheetJS / mammoth / JSZip（压缩后仍近 600KB），
@@ -49,7 +50,7 @@ function useWaveform(url: string, bars = 80) {
     (async () => {
       try {
         const res = await fetch(url);
-        if (!res.ok) throw new Error(`音频读取失败（${res.status}）`);
+        if (!res.ok) throw new Error(i18n.t('k32238818', { p0: res.status }));
         const buf = await res.arrayBuffer();
         const AC: typeof OfflineAudioContext =
           window.OfflineAudioContext || (window as unknown as { webkitOfflineAudioContext: typeof OfflineAudioContext }).webkitOfflineAudioContext;
@@ -137,7 +138,7 @@ function PdfViewer({ item, onToast }: { item: ImageItem; onToast?: (m: string, k
       .then((r) => {
         if (!alive) return;
         setPages(r.pages);
-        if (!r.exact) setNote('页数为估算值（PDF 目录压缩或加密时无法精确统计）');
+        if (!r.exact) setNote(i18n.t('k41ed1778'));
       })
       .catch((e) => alive && setNote((e as Error).message));
     return () => {
@@ -155,7 +156,7 @@ function PdfViewer({ item, onToast }: { item: ImageItem; onToast?: (m: string, k
   return (
     <div className="mv-wrap" onClick={(e) => e.stopPropagation()}>
       <div className="pdf-bar">
-        <button className="btn sm ghost" disabled={page <= 1} onClick={() => jump(page - 1)} title="上一页">
+        <button className="btn sm ghost" disabled={page <= 1} onClick={() => jump(page - 1)} title={i18n.t('kf4f85316')}>
           ‹
         </button>
         <span className="pdf-pages">
@@ -170,7 +171,7 @@ function PdfViewer({ item, onToast }: { item: ImageItem; onToast?: (m: string, k
           />{' '}
           / {pages || '?'} 页
         </span>
-        <button className="btn sm ghost" disabled={!!pages && page >= pages} onClick={() => jump(page + 1)} title="下一页">
+        <button className="btn sm ghost" disabled={!!pages && page >= pages} onClick={() => jump(page + 1)} title={i18n.t('kb4e1b508')}>
           ›
         </button>
         {pages > 1 && (
@@ -180,7 +181,7 @@ function PdfViewer({ item, onToast }: { item: ImageItem; onToast?: (m: string, k
                 key={n}
                 className={`pdf-thumb${n === page ? ' on' : ''}`}
                 onClick={() => jump(n)}
-                title={`跳到第 ${n} 页`}
+                title={i18n.t('kd6c2c042', { p0: n })}
               >
                 {n}
               </button>
@@ -188,8 +189,8 @@ function PdfViewer({ item, onToast }: { item: ImageItem; onToast?: (m: string, k
             {pages > 60 && <span className="pdf-pages">…共 {pages} 页</span>}
           </div>
         )}
-        <button className="btn sm ghost" onClick={() => revealFile(item.path)} title="用系统默认阅读器打开原文件">
-          系统打开
+        <button className="btn sm ghost" onClick={() => revealFile(item.path)} title={i18n.t('k08c3f4df')}>
+          {i18n.t('k28398c2d')}
         </button>
         {note && <span className="pdf-pages" title={note}>{note}</span>}
       </div>
@@ -198,7 +199,7 @@ function PdfViewer({ item, onToast }: { item: ImageItem; onToast?: (m: string, k
           className="mv-frame"
           src={`${item.url}#page=${page}&view=FitH&toolbar=1`}
           title={item.title}
-          onError={() => onToast?.('内嵌阅读器加载失败，可点「系统打开」')}
+          onError={() => onToast?.(i18n.t('k7b256bf4'))}
         />
       </div>
     </div>
@@ -209,7 +210,7 @@ export default function MediaViewer({ item, onReplaceItem, onToast }: Props) {
   const kind = item.mediaKind || 'image';
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const audioRef = useRef<HTMLAudioElement | null>(null);
-  const [fontText, setFontText] = useState('永远相信美好的事情即将发生 Aa Bb 123');
+  const [fontText, setFontText] = useState(i18n.t('k5fcdce51'));
   const [fontSize, setFontSize] = useState(48);
   const [coverBusy, setCoverBusy] = useState(false);
   const [progress, setProgress] = useState(0);
@@ -246,14 +247,14 @@ export default function MediaViewer({ item, onReplaceItem, onToast }: Props) {
       canvas.width = v.videoWidth || 640;
       canvas.height = v.videoHeight || 360;
       const ctx = canvas.getContext('2d');
-      if (!ctx) throw new Error('无法获取画布');
+      if (!ctx) throw new Error(i18n.t('k6cf6e4bd'));
       ctx.drawImage(v, 0, 0, canvas.width, canvas.height);
       const dataUrl = canvas.toDataURL('image/jpeg', 0.86);
       const r = await api.setCover(item.id, dataUrl, v.currentTime);
       if (r.image) onReplaceItem?.(r.image);
-      onToast?.(`已设为封面（第 ${Math.round(v.currentTime)} 秒）`);
+      onToast?.(i18n.t('k042d36e2', { p0: Math.round(v.currentTime) }));
     } catch (err) {
-      onToast?.(`设置封面失败：${(err as Error).message}`);
+      onToast?.(i18n.t('k55bd00a1', { p0: (err as Error).message }));
     } finally {
       setCoverBusy(false);
     }
@@ -267,12 +268,12 @@ export default function MediaViewer({ item, onReplaceItem, onToast }: Props) {
             <div className="mv-fallback-icon"><IconFilm size={48} /></div>
             <b>{item.title}</b>
             <p>
-              这个视频的编码无法内联解码（常见于 mkv / avi / flv / wmv）
+              {i18n.t('ka4272407')}
               <br />
-              文件已存到本地，可用系统播放器打开。
+              {i18n.t('k29d9cf58')}
             </p>
             <button className="btn" onClick={() => revealFile(item.path)}>
-              用系统应用打开
+              {i18n.t('ka0f822d9')}
             </button>
           </div>
         </div>
@@ -289,7 +290,7 @@ export default function MediaViewer({ item, onReplaceItem, onToast }: Props) {
           preload="metadata"
           onError={() => {
             setVideoError(true);
-            onToast?.('这个视频的编码无法内联播放，已切换为外部打开');
+            onToast?.(i18n.t('k43c94ac8'));
           }}
           onLoadedMetadata={(e) => {
             const v = e.currentTarget;
@@ -307,13 +308,13 @@ export default function MediaViewer({ item, onReplaceItem, onToast }: Props) {
           }}
         />
         <div className="mv-bar">
-          <span>{item.width > 0 ? `${item.width} × ${item.height}` : '分辨率待播放后写入'}</span>
+          <span>{item.width > 0 ? `${item.width} × ${item.height}` : i18n.t('k7ee19436')}</span>
           {Number(item.trimEnd || 0) > Number(item.trimStart || 0) && (
             <span>已保存区间 {Number(item.trimStart || 0).toFixed(1)}–{Number(item.trimEnd || 0).toFixed(1)}s，播放到此自动暂停</span>
           )}
           <span>{formatSize(item.sizeBytes)}</span>
-          <button className="btn sm" disabled={coverBusy} onClick={setCoverFromFrame} title="把当前画面存为这张素材的封面缩略图">
-            {coverBusy ? '保存中…' : '用当前帧做封面'}
+          <button className="btn sm" disabled={coverBusy} onClick={setCoverFromFrame} title={i18n.t('k64c1f9ed')}>
+            {coverBusy ? i18n.t('k9b5d32d1') : i18n.t('kd3ac3424')}
           </button>
           {item.coverTs > 0 && (
             <button
@@ -324,19 +325,19 @@ export default function MediaViewer({ item, onReplaceItem, onToast }: Props) {
                 try {
                   const r = await api.resetCover(item.id);
                   if (r.image) onReplaceItem?.(r.image);
-                  onToast?.('已恢复默认缩略图');
+                  onToast?.(i18n.t('k84eae279'));
                 } catch (err) {
-                  onToast?.(`恢复失败：${(err as Error).message}`);
+                  onToast?.(i18n.t('k29923a84', { p0: (err as Error).message }));
                 } finally {
                   setCoverBusy(false);
                 }
               }}
             >
-              恢复默认缩略图
+              {i18n.t('kb7220f6e')}
             </button>
           )}
           <button className="btn sm ghost" onClick={() => revealFile(item.path)}>
-            在文件夹中显示
+            {i18n.t('k69c50ffd')}
           </button>
         </div>
         <VideoTrimExport item={item} videoRef={videoRef} onReplaceItem={onReplaceItem} onToast={onToast} />
@@ -354,7 +355,7 @@ export default function MediaViewer({ item, onReplaceItem, onToast }: Props) {
       if (r.image) onReplaceItem?.(r.image);
       onToast?.(tip);
     } catch (err) {
-      onToast?.(`设置封面失败：${(err as Error).message}`);
+      onToast?.(i18n.t('k55bd00a1', { p0: (err as Error).message }));
     } finally {
       setCoverBusy(false);
     }
@@ -366,9 +367,9 @@ export default function MediaViewer({ item, onReplaceItem, onToast }: Props) {
     try {
       const r = await api.resetCover(item.id);
       if (r.image) onReplaceItem?.(r.image);
-      onToast?.('已恢复默认缩略图');
+      onToast?.(i18n.t('k84eae279'));
     } catch (err) {
-      onToast?.(`恢复失败：${(err as Error).message}`);
+      onToast?.(i18n.t('k29923a84', { p0: (err as Error).message }));
     } finally {
       setCoverBusy(false);
     }
@@ -383,18 +384,18 @@ export default function MediaViewer({ item, onReplaceItem, onToast }: Props) {
           <button
             className="btn sm"
             disabled={coverBusy}
-            onClick={() => applyCover(() => imageFrameDataUrl(item.url), '已用首帧设为封面')}
-            title="取 GIF 第一帧存为缩略图，图库里更稳定不再逐帧播放"
+            onClick={() => applyCover(() => imageFrameDataUrl(item.url), i18n.t('k018b3ebb'))}
+            title={i18n.t('k379683f0')}
           >
-            {coverBusy ? '保存中…' : '用首帧做封面'}
+            {coverBusy ? i18n.t('k9b5d32d1') : i18n.t('k72425b5f')}
           </button>
           {item.coverTs > 0 && (
             <button className="btn sm ghost" disabled={coverBusy} onClick={resetCover}>
-              恢复默认缩略图
+              {i18n.t('kb7220f6e')}
             </button>
           )}
           <button className="btn sm ghost" onClick={() => revealFile(item.path)}>
-            在文件夹中显示
+            {i18n.t('k69c50ffd')}
           </button>
         </div>
       </div>
@@ -420,11 +421,11 @@ export default function MediaViewer({ item, onReplaceItem, onToast }: Props) {
             className="mv-wave"
             role="slider"
             tabIndex={0}
-            aria-label="音频波形，点击跳转"
+            aria-label={i18n.t('k9db047de')}
             aria-valuemin={0}
             aria-valuemax={100}
             aria-valuenow={Math.round(progress * 100)}
-            title="点击波形任意位置跳转播放"
+            title={i18n.t('k7feda921')}
             onClick={seekByClick}
             // 键盘可达：左右 5 秒，Home/End 首尾（滑块类控件的常规约定）
             onKeyDown={(e) => {
@@ -450,7 +451,7 @@ export default function MediaViewer({ item, onReplaceItem, onToast }: Props) {
           </div>
           {wave.status === 'failed' && (
             <div className="hint" style={{ margin: '4px 0 0' }}>
-              这段音频的波形解析不了（编码可能不受支持），进度以播放器为准。
+              {i18n.t('kdc30b00b')}
             </div>
           )}
           <audio
@@ -466,10 +467,10 @@ export default function MediaViewer({ item, onReplaceItem, onToast }: Props) {
             onEnded={() => setProgress(0)}
           />
           <div className="mv-bar">
-            <span>{item.duration > 0 ? `${Math.round(item.duration)} 秒` : '时长待播放后写入'}</span>
+            <span>{item.duration > 0 ? i18n.t('ked6e7d9c', { p0: Math.round(item.duration) }) : i18n.t('k0b9f5dc8')}</span>
             <span>{formatSize(item.sizeBytes)}</span>
             <button className="btn sm ghost" onClick={() => revealFile(item.path)}>
-              在文件夹中显示
+              {i18n.t('k69c50ffd')}
             </button>
           </div>
         </div>
@@ -485,7 +486,7 @@ export default function MediaViewer({ item, onReplaceItem, onToast }: Props) {
             className="mv-font-preview"
             style={{ fontFamily: family ? `"${family}", sans-serif` : undefined, fontSize }}
           >
-            {fontText || 'Aa 字体预览'}
+            {fontText || i18n.t('kec102a04')}
           </div>
           <div className="mv-bar">
             <input
@@ -493,7 +494,7 @@ export default function MediaViewer({ item, onReplaceItem, onToast }: Props) {
               style={{ flex: 1, minWidth: 180 }}
               value={fontText}
               onChange={(e) => setFontText(e.target.value)}
-              placeholder="改文案实时预览字体效果…"
+              placeholder={i18n.t('kf8f999d2')}
             />
             <input
               type="range"
@@ -501,21 +502,21 @@ export default function MediaViewer({ item, onReplaceItem, onToast }: Props) {
               max={140}
               value={fontSize}
               onChange={(e) => setFontSize(Number(e.target.value))}
-              title={`字号 ${fontSize}px`}
+              title={i18n.t('kc661c45d', { p0: fontSize })}
             />
             <span>{item.title}</span>
             <button
               className="btn sm"
               disabled={coverBusy}
               onClick={() =>
-                applyCover(() => fontFrameDataUrl(item.url, fontText, { size: fontSize }), '已用当前文案设为封面')
+                applyCover(() => fontFrameDataUrl(item.url, fontText, { size: fontSize }), i18n.t('k463b202f'))
               }
-              title="把当前文案与字号渲染成封面，图库里直接看出字形风格"
+              title={i18n.t('k8fb8800b')}
             >
-              {coverBusy ? '保存中…' : '用当前文案做封面'}
+              {coverBusy ? i18n.t('k9b5d32d1') : i18n.t('k84263f6f')}
             </button>
             <button className="btn sm ghost" onClick={() => revealFile(item.path)}>
-              在文件夹中显示
+              {i18n.t('k69c50ffd')}
             </button>
           </div>
         </div>
@@ -530,7 +531,7 @@ export default function MediaViewer({ item, onReplaceItem, onToast }: Props) {
   if (kind === 'office' && /\.epub$/i.test(item.path || '')) {
     return (
       <div className="mv-wrap mv-epub" onClick={(e) => e.stopPropagation()}>
-        <Suspense fallback={<div className="mv-fallback">{'正在打开电子书…'}</div>}>
+        <Suspense fallback={<div className="mv-fallback">{i18n.t('k5e6742b3')}</div>}>
           <EpubViewer item={item} onToast={onToast} />
         </Suspense>
       </div>
@@ -541,13 +542,13 @@ export default function MediaViewer({ item, onReplaceItem, onToast }: Props) {
   if (kind === 'office') {
     return (
       <div className="mv-wrap" onClick={(e) => e.stopPropagation()}>
-        <Suspense fallback={<div className="mv-fallback">{'正在解析文档…'}</div>}>
+        <Suspense fallback={<div className="mv-fallback">{i18n.t('k660ce95d')}</div>}>
           <OfficeViewer item={item} onToast={onToast} />
         </Suspense>
         <div className="mv-bar">
           <span>{item.title}</span>
           <button className="btn sm ghost" onClick={() => revealFile(item.path)}>
-            在文件夹中显示
+            {i18n.t('k69c50ffd')}
           </button>
         </div>
       </div>
@@ -557,7 +558,7 @@ export default function MediaViewer({ item, onReplaceItem, onToast }: Props) {
   /* 设计文件 / RAW：浏览器渲染不了原文件，但入库时已把文件内嵌的预览图抽成缩略图。
    * 有些文件压根没写内嵌预览（或解析失败），这时不能说「文件缺失」——文件好端端在磁盘上。 */
   if (kind === 'design' || kind === 'raw') {
-    const kindLabel = kind === 'raw' ? 'RAW' : '设计稿';
+    const kindLabel = kind === 'raw' ? 'RAW' : i18n.t('kfdb21fa1');
     const ext = (item.title.split('.').pop() || '').toUpperCase();
     return (
       <div className="mv-wrap" onClick={(e) => e.stopPropagation()}>
@@ -571,7 +572,7 @@ export default function MediaViewer({ item, onReplaceItem, onToast }: Props) {
               文件本身正常{ext ? `（${ext}）` : ''}，可用原软件打开查看或编辑。
             </p>
             <button className="btn" onClick={() => revealFile(item.path)}>
-              用系统应用打开
+              {i18n.t('ka0f822d9')}
             </button>
           </div>
         ) : (
@@ -587,10 +588,10 @@ export default function MediaViewer({ item, onReplaceItem, onToast }: Props) {
           <span>
             {item.title}
             {item.width > 0 ? ` · ${item.width}×${item.height}` : ''} · {formatSize(item.sizeBytes)}
-            {!thumbFailed && <span style={{ opacity: 0.6 }}> · 预览图取自原文件内嵌画面</span>}
+            {!thumbFailed && <span style={{ opacity: 0.6 }}> {i18n.t('k8ca2a856')}</span>}
           </span>
           <button className="btn sm ghost" onClick={() => revealFile(item.path)}>
-            用系统应用打开
+            {i18n.t('ka0f822d9')}
           </button>
         </div>
       </div>
@@ -607,7 +608,7 @@ export default function MediaViewer({ item, onReplaceItem, onToast }: Props) {
             {item.title} · {formatSize(item.sizeBytes)}
           </span>
           <button className="btn sm ghost" onClick={() => revealFile(item.path)}>
-            在文件夹中显示
+            {i18n.t('k69c50ffd')}
           </button>
         </div>
       </div>
@@ -622,10 +623,10 @@ export default function MediaViewer({ item, onReplaceItem, onToast }: Props) {
         <p>
           文件：{formatSize(item.sizeBytes)}
           <br />
-          已存到本地，可用系统应用打开。
+          {i18n.t('k2d5d6742')}
         </p>
         <button className="btn" onClick={() => revealFile(item.path)}>
-          用系统应用打开
+          {i18n.t('ka0f822d9')}
         </button>
       </div>
     </div>

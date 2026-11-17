@@ -1,21 +1,22 @@
 import { useEffect, useState } from 'react';
 import type { ActionConditions } from '../api';
+import i18n from '../i18n';
 
 type Rules = ActionConditions['rules'];
 type ListKey = 'tagsInclude' | 'tagsExclude' | 'keywords' | 'aiKeywords';
 type NumKey = 'minRating' | 'minScore' | 'minWidth';
 
 const LISTS: { key: ListKey; placeholder: string }[] = [
-  { key: 'tagsInclude', placeholder: '标签包含，逗号分隔' },
-  { key: 'tagsExclude', placeholder: '标签排除' },
-  { key: 'keywords', placeholder: '关键词（标题/标签/备注）' },
-  { key: 'aiKeywords', placeholder: 'AI 关键词（语义命中，如「海边日落」）' },
+  { key: 'tagsInclude', placeholder: i18n.t('k0b0d3ba0') },
+  { key: 'tagsExclude', placeholder: i18n.t('k8807c44d') },
+  { key: 'keywords', placeholder: i18n.t('k3d8c72cb') },
+  { key: 'aiKeywords', placeholder: i18n.t('kd4f03624') },
 ];
 
 const NUMS: { key: NumKey; placeholder: string; width: number }[] = [
-  { key: 'minRating', placeholder: '评分≥', width: 96 },
-  { key: 'minScore', placeholder: '匹配度≥', width: 106 },
-  { key: 'minWidth', placeholder: '长边≥px', width: 110 },
+  { key: 'minRating', placeholder: i18n.t('k420e3742'), width: 96 },
+  { key: 'minScore', placeholder: i18n.t('k71907238'), width: 106 },
+  { key: 'minWidth', placeholder: i18n.t('kac953386'), width: 110 },
 ];
 
 /** 与后端同语义：中英文逗号都算分隔符 */
@@ -87,19 +88,19 @@ export default function ConditionEditor({
           className="input"
           value={value.combine}
           onChange={(e) => onChange({ ...value, combine: e.target.value === 'or' ? 'or' : 'and' })}
-          title="多个条件之间怎么组合"
+          title={i18n.t('k999d46b2')}
         >
-          <option value="and">全部满足（AND）</option>
-          <option value="or">满足任一（OR）</option>
+          <option value="and">{i18n.t('kd6cd3f42')}</option>
+          <option value="or">{i18n.t('k4f0f980f')}</option>
         </select>
         <select
           className="input"
           value={rules.favorite || ''}
           onChange={(e) => setRule('favorite', (e.target.value || undefined) as Rules['favorite'])}
         >
-          <option value="">收藏：不限</option>
-          <option value="yes">只处理已收藏</option>
-          <option value="no">只处理未收藏</option>
+          <option value="">{i18n.t('k326c052e')}</option>
+          <option value="yes">{i18n.t('keb0ee242')}</option>
+          <option value="no">{i18n.t('k9471ac48')}</option>
         </select>
         {NUMS.map((f) => (
           <input
@@ -119,10 +120,10 @@ export default function ConditionEditor({
           value={rules.orientation || ''}
           onChange={(e) => setRule('orientation', (e.target.value || undefined) as Rules['orientation'])}
         >
-          <option value="">画幅：不限</option>
-          <option value="landscape">横图</option>
-          <option value="portrait">竖图</option>
-          <option value="square">方图</option>
+          <option value="">{i18n.t('kc587a1fd')}</option>
+          <option value="landscape">{i18n.t('kaffd00f2')}</option>
+          <option value="portrait">{i18n.t('k1d4b5f79')}</option>
+          <option value="square">{i18n.t('k5c036336')}</option>
         </select>
         {LISTS.map((f) => (
           <ListInput

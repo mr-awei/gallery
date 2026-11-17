@@ -3,6 +3,7 @@ import { api } from '../api';
 import type { ImageItem } from '../types';
 import { blobToDataUrl, bytesToDataUrl } from '../lib/gif';
 import { captureFrames, encodeGifWorker, planFrameTimes, recordClip, saveExport } from '../lib/video-export';
+import i18n from '../i18n';
 
 interface Props {
   item: ImageItem;
@@ -79,16 +80,16 @@ export default function VideoTrimExport({ item, videoRef, onReplaceItem, onToast
     try {
       const r = await api.patchMedia(item.id, { trimStart: start, trimEnd: effectiveEnd });
       if (r.image) onReplaceItem?.(r.image);
-      toast('裁剪区间已保存到这张素材');
+      toast(i18n.t('k1b8dfdab'));
     } catch (err) {
-      toast(`保存区间失败：${(err as Error).message}`, 'error');
+      toast(i18n.t('k637690e0', { p0: (err as Error).message }), 'error');
     }
   };
 
   const exportClip = async () => {
     if (busy) return;
     if (!duration) {
-      toast('还没读到视频时长，请先播放一次让应用记录元数据', 'error');
+      toast(i18n.t('kb2d0d83a'), 'error');
       return;
     }
     setBusy(true);
@@ -111,9 +112,9 @@ export default function VideoTrimExport({ item, videoRef, onReplaceItem, onToast
         dataUrl = await blobToDataUrl(blob);
       }
       const saved = await saveExport(dataUrl, `${safeStem(item.title)}-${start.toFixed(1)}-${effectiveEnd.toFixed(1)}.${format}`);
-      toast(`已导出 ${format.toUpperCase()}：${saved}`);
+      toast(i18n.t('k8cb960b5', { p0: format.toUpperCase(), p1: saved }));
     } catch (err) {
-      toast(`导出失败：${(err as Error).message}`, 'error');
+      toast(i18n.t('k246e218d', { p0: (err as Error).message }), 'error');
     } finally {
       setBusy(false);
     }
@@ -123,7 +124,7 @@ export default function VideoTrimExport({ item, videoRef, onReplaceItem, onToast
     <div className="mv-trim" onClick={(e) => e.stopPropagation()}>
       <div className="mv-bar">
         <button className="btn sm ghost" onClick={() => setOpen((v) => !v)}>
-          {open ? '收起片段裁剪' : '首尾裁剪 / 导出 GIF'}
+          {open ? i18n.t('k06235c17') : i18n.t('k198f4904')}
         </button>
         {open && (
           <span style={{ color: 'var(--muted)' }}>
@@ -214,7 +215,7 @@ export default function VideoTrimExport({ item, videoRef, onReplaceItem, onToast
             保存区间
           </button>
           <button className="btn sm" disabled={busy} onClick={exportClip}>
-            {busy ? `导出中 ${Math.round(progress * 100)}%` : '导出片段'}
+            {busy ? i18n.t('k0ee80fdf', { p0: Math.round(progress * 100) }) : i18n.t('k9b0f06a1')}
           </button>
           {busy && (
             <div style={{ width: '100%', height: 4, background: 'var(--border)', borderRadius: 2 }}>

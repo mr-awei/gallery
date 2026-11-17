@@ -1,6 +1,7 @@
 import { IconClose, IconArrowUp, IconArrowDown } from './Icons';
 import { useEffect, useState } from 'react';
 import { createPortal } from 'react-dom';
+import i18n from '../i18n';
 
 /**
  * 工具栏自定义面板：左边是「顶栏显示（按这个顺序）」，右边是「收在更多菜单里」。
@@ -23,14 +24,14 @@ type Props = {
 
 export default function ToolbarCustomizer({
   open,
-  title = '自定义工具栏',
+  title = i18n.t('k85c9076e'),
   hint,
   all,
   pinned,
   onChange,
   onClose,
   defaults,
-  barName = '顶栏',
+  barName = i18n.t('k37f00ec5'),
 }: Props) {
   const [draft, setDraft] = useState<string[]>(pinned);
 
@@ -70,12 +71,12 @@ export default function ToolbarCustomizer({
       <div className="tcz-card" onMouseDown={(e) => e.stopPropagation()}>
         <header className="tcz-head">
           <h4>{title}</h4>
-          <button className="icon-btn" title="关闭" onClick={onClose}>
+          <button className="icon-btn" title={i18n.t('kb15d9127')} onClick={onClose}>
             <IconClose size={13} />
           </button>
         </header>
         <p className="tcz-hint">
-          {hint || '点条目在两栏之间移动；顶栏按左边从上到下的顺序显示，放不下时会自动收成图标。'}
+          {hint || i18n.t('k088d4c16')}
         </p>
         <div className="tcz-body">
           <section className="tcz-col">
@@ -83,20 +84,20 @@ export default function ToolbarCustomizer({
               {barName}显示 <em>{inBar.length}</em>
             </h5>
             <div className="tcz-list">
-              {inBar.length === 0 && <div className="tcz-empty">全部收进「更多」了</div>}
+              {inBar.length === 0 && <div className="tcz-empty">{i18n.t('k9f98e5c5')}</div>}
               {inBar.map((k, i) => (
                 <div className="tcz-row" key={k}>
                   <span className="tcz-name">{labelOf(k)}</span>
                   <span className="tcz-ops">
-                    <button title="上移" disabled={i === 0} onClick={() => move(i, -1)}>
+                    <button title={i18n.t('k315eacd1')} disabled={i === 0} onClick={() => move(i, -1)}>
                       <IconArrowUp size={13} />
                     </button>
-                    <button title="下移" disabled={i === inBar.length - 1} onClick={() => move(i, 1)}>
+                    <button title={i18n.t('k17acd250')} disabled={i === inBar.length - 1} onClick={() => move(i, 1)}>
                       <IconArrowDown size={13} />
                     </button>
                     <button
-                      title="收进「更多」"
-                      aria-label={`把「${labelOf(k)}」收进更多`}
+                      title={i18n.t('k5650aaaa')}
+                      aria-label={i18n.t('k51897d56', { p0: labelOf(k) })}
                       onClick={() =>
                         setDraft((cur) => {
                           const n = cur.filter((x) => x !== k);
@@ -113,15 +114,15 @@ export default function ToolbarCustomizer({
           </section>
           <section className="tcz-col">
             <h5>
-              收在「更多」里 <em>{rest.length}</em>
+              {i18n.t('kf8b68377')} <em>{rest.length}</em>
             </h5>
             <div className="tcz-list">
-              {rest.length === 0 && <div className="tcz-empty">全部都在顶栏上了</div>}
+              {rest.length === 0 && <div className="tcz-empty">{i18n.t('k57a5c75e')}</div>}
               {rest.map((a) => (
                 <div className="tcz-row muted" key={a.key}>
                   <span className="tcz-name">{a.label}</span>
                   <span className="tcz-ops">
-                    <button title="放到顶栏" onClick={() => setDraft((cur) => [...cur.filter((x) => x !== a.key), a.key])}>
+                    <button title={i18n.t('k3bb3203f')} onClick={() => setDraft((cur) => [...cur.filter((x) => x !== a.key), a.key])}>
                       +
                     </button>
                   </span>
@@ -132,11 +133,11 @@ export default function ToolbarCustomizer({
         </div>
         <footer className="tcz-foot">
           <button className="btn ghost" onClick={() => setDraft(defaults)}>
-            恢复默认
+            {i18n.t('k7468f3e5')}
           </button>
           <div style={{ flex: 1 }} />
           <button className="btn ghost" onClick={onClose}>
-            取消
+            {i18n.t('k625fb26b')}
           </button>
           <button
             className="btn primary"
@@ -145,7 +146,7 @@ export default function ToolbarCustomizer({
               onClose();
             }}
           >
-            保存
+            {i18n.t('kbe5fbbe3')}
           </button>
         </footer>
       </div>

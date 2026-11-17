@@ -4,6 +4,7 @@ import { ApiError, api, quiet } from '../api';
 import type { FolderNode, Library, SwitchLibraryResult, View } from '../types';
 import { confirmDialog } from '../components/Dialogs';
 import type { LoadGallery, Toast } from './types';
+import i18n from '../i18n';
 
 type Options = {
   showToast: Toast;
@@ -197,11 +198,11 @@ export function useLibraries({
   // 只删库自建产物，素材图片保留；默认库不可删。删当前库则切回剩余库并重载）
   const deleteLibraryAt = useCallback(
     async (lib: Library) => {
-      if (!lib.deletable) return showToast('默认资源库不可删除');
+      if (!lib.deletable) return showToast(i18n.t('k90fa3792'));
       const isCurrent = lib.id === activeLibId;
       const ok = await confirmDialog(
-        `从列表删除资源库「${lib.name}」？将移除注册并删除库目录（gallery.db + 缩略图），素材图片会保留。` +
-          (isCurrent ? '\n\n这是当前打开的资源库，删除后会切换到其他库。' : '')
+        i18n.t('k3d78afe5', { p0: lib.name }) +
+          (isCurrent ? i18n.t('k6552bd98') : '')
       );
       if (!ok) return;
       try {
@@ -220,7 +221,7 @@ export function useLibraries({
           setActiveSavedId(null);
           reloadSavedFilters();
         }
-        showToast(`已删除资源库「${lib.name}」`);
+        showToast(i18n.t('k1a0f04b5', { p0: lib.name }));
       } catch (err) {
         showToast((err as Error).message);
       }
@@ -267,7 +268,7 @@ export function useLibraries({
       reloadFolders();
       setActiveSavedId(null);
       reloadSavedFilters();
-      showToast('已创建并切换到新资源库');
+      showToast(i18n.t('k77e86b13'));
     },
     [
       load,

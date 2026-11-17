@@ -1,5 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import type { SmartFolder } from '../api';
+import i18n from '../i18n';
 
 interface Props {
   /** 传入 = 编辑既有智能文件夹；不传 = 新建 */
@@ -158,12 +159,12 @@ export default function SmartFolderEditor({ initial, onClose, onSubmit }: Props)
 
   const submit = async () => {
     if (!form.name.trim()) {
-      setErr('请填写名称');
+      setErr(i18n.t('k856d0df5'));
       return;
     }
     // 没有条件就不是「全库」而是「什么都没配」：后端会直接拒绝，这里先说清楚
     if (condCount === 0) {
-      setErr('请至少添加一个筛选条件（不设条件的文件夹会命中整库，没有意义）');
+      setErr(i18n.t('kd384dc66'));
       return;
     }
     setBusy(true);
@@ -185,50 +186,50 @@ export default function SmartFolderEditor({ initial, onClose, onSubmit }: Props)
     <div className="modal-backdrop" onClick={onClose}>
       <div className="modal-card" style={{ maxWidth: 620 }} onClick={(e) => e.stopPropagation()}>
         <div className="modal-head">
-          <b>{initial ? '编辑智能文件夹' : '新建智能文件夹'}</b>
+          <b>{initial ? i18n.t('k607a8da0') : i18n.t('k1bc362a1')}</b>
           <button className="btn ghost sm" onClick={onClose}>
-            关闭
+            {i18n.t('kb15d9127')}
           </button>
         </div>
         <div className="modal-body" style={{ display: 'block' }}>
           <div className="field">
-            <label>名称</label>
+            <label>{i18n.t('kd7ec2d3f')}</label>
             <input
               className="input"
               value={form.name}
-              placeholder="如「高清演唱会」"
+              placeholder={i18n.t('k33f77c3b')}
               onChange={(e) => set('name', e.target.value)}
             />
           </div>
 
           <div className="sf-grid">
             <div className="field">
-              <label>收藏状态</label>
+              <label>{i18n.t('kdd53170d')}</label>
               <select
                 className="input"
                 value={form.favorite}
                 onChange={(e) => set('favorite', e.target.value as Form['favorite'])}
               >
-                <option value="">不限</option>
-                <option value="yes">仅收藏</option>
-                <option value="no">未收藏</option>
+                <option value="">{i18n.t('k8441b348')}</option>
+                <option value="yes">{i18n.t('k9dd8a82d')}</option>
+                <option value="no">{i18n.t('k1a994188')}</option>
               </select>
             </div>
             <div className="field">
-              <label>方向</label>
+              <label>{i18n.t('ka465db53')}</label>
               <select
                 className="input"
                 value={form.orientation}
                 onChange={(e) => set('orientation', e.target.value as Form['orientation'])}
               >
-                <option value="">不限</option>
-                <option value="landscape">横图</option>
-                <option value="portrait">竖图</option>
-                <option value="square">方图</option>
+                <option value="">{i18n.t('k8441b348')}</option>
+                <option value="landscape">{i18n.t('kaffd00f2')}</option>
+                <option value="portrait">{i18n.t('k1d4b5f79')}</option>
+                <option value="square">{i18n.t('k5c036336')}</option>
               </select>
             </div>
             <div className="field">
-              <label>最低星级（0-5）</label>
+              <label>{i18n.t('keec808f1')}</label>
               <input
                 className="input"
                 type="number"
@@ -239,7 +240,7 @@ export default function SmartFolderEditor({ initial, onClose, onSubmit }: Props)
               />
             </div>
             <div className="field">
-              <label>最低评分（0-100）</label>
+              <label>{i18n.t('kfd9ee7dd')}</label>
               <input
                 className="input"
                 type="number"
@@ -250,7 +251,7 @@ export default function SmartFolderEditor({ initial, onClose, onSubmit }: Props)
               />
             </div>
             <div className="field">
-              <label>最短边不小于（px）</label>
+              <label>{i18n.t('k0adbf68e')}</label>
               <input
                 className="input"
                 type="number"
@@ -262,38 +263,38 @@ export default function SmartFolderEditor({ initial, onClose, onSubmit }: Props)
           </div>
 
           <div className="field">
-            <label>包含标签（逗号分隔，需全部命中）</label>
+            <label>{i18n.t('ke0cf3b39')}</label>
             <input
               className="input"
               value={form.tagsInclude}
-              placeholder="演唱会，live"
+              placeholder={i18n.t('k860c201e')}
               onChange={(e) => set('tagsInclude', e.target.value)}
             />
           </div>
           <div className="field">
-            <label>排除标签（含任意一个即排除）</label>
+            <label>{i18n.t('k86ba5e32')}</label>
             <input
               className="input"
               value={form.tagsExclude}
-              placeholder="截图，表情包"
+              placeholder={i18n.t('k3ec735a7')}
               onChange={(e) => set('tagsExclude', e.target.value)}
             />
           </div>
           <div className="field">
-            <label>关键词（标题 / 标签 / 备注里包含）</label>
+            <label>{i18n.t('k0dcd0044')}</label>
             <input
               className="input"
               value={form.keywords}
-              placeholder="风景 壁纸"
+              placeholder={i18n.t('k6ba6853a')}
               onChange={(e) => set('keywords', e.target.value)}
             />
           </div>
           <div className="field">
-            <label>AI 描述关键词</label>
+            <label>{i18n.t('k569ab0f2')}</label>
             <input
               className="input"
               value={form.aiKeywords}
-              placeholder="舞台 / 灯光"
+              placeholder={i18n.t('k4d008f56')}
               onChange={(e) => set('aiKeywords', e.target.value)}
             />
           </div>
@@ -307,13 +308,13 @@ export default function SmartFolderEditor({ initial, onClose, onSubmit }: Props)
                   value={form.combine}
                   onChange={(e) => set('combine', e.target.value as Form['combine'])}
                 >
-                  <option value="and">组间：全部满足</option>
-                  <option value="or">组间：任一满足</option>
+                  <option value="and">{i18n.t('k462da310')}</option>
+                  <option value="or">{i18n.t('k73187dea')}</option>
                 </select>
               )}
             </label>
             <p className="muted small" style={{ margin: '2px 0 6px' }}>
-              上面的条件算第一组；下面的每行是一组，组内可选「全部满足 / 任一满足」。例：(标签 UI 或 图标) 且 (蓝色 或 绿色)。
+              {i18n.t('k9826b041')}
             </p>
             {form.groups.map((g, i) => (
               <div key={i} className="sf-grid" style={{ marginBottom: 6 }}>
@@ -322,25 +323,25 @@ export default function SmartFolderEditor({ initial, onClose, onSubmit }: Props)
                   value={g.op}
                   onChange={(e) => setGroup(i, { op: e.target.value as GroupForm['op'] })}
                 >
-                  <option value="and">组内：全部</option>
-                  <option value="or">组内：任一</option>
+                  <option value="and">{i18n.t('k5f6ec1c3')}</option>
+                  <option value="or">{i18n.t('k52bf3bbf')}</option>
                 </select>
                 <input
                   className="input"
                   value={g.tagsInclude}
-                  placeholder="包含标签，逗号分隔"
+                  placeholder={i18n.t('kcbf2934d')}
                   onChange={(e) => setGroup(i, { tagsInclude: e.target.value })}
                 />
                 <input
                   className="input"
                   value={g.tagsExclude}
-                  placeholder="排除标签"
+                  placeholder={i18n.t('ke8d7cd76')}
                   onChange={(e) => setGroup(i, { tagsExclude: e.target.value })}
                 />
                 <input
                   className="input"
                   value={g.keywords}
-                  placeholder="关键词"
+                  placeholder={i18n.t('k9699a50e')}
                   onChange={(e) => setGroup(i, { keywords: e.target.value })}
                 />
                 <input
@@ -349,14 +350,14 @@ export default function SmartFolderEditor({ initial, onClose, onSubmit }: Props)
                   min={0}
                   max={5}
                   value={g.minRating}
-                  placeholder="最低星"
+                  placeholder={i18n.t('k23db77cb')}
                   onChange={(e) => setGroup(i, { minRating: e.target.value })}
                 />
                 <button
                   className="btn ghost sm"
                   onClick={() => setForm((p) => ({ ...p, groups: p.groups.filter((_, idx) => idx !== i) }))}
                 >
-                  删除
+                  {i18n.t('k2f4aaddd')}
                 </button>
               </div>
             ))}
@@ -364,30 +365,30 @@ export default function SmartFolderEditor({ initial, onClose, onSubmit }: Props)
               className="btn ghost sm"
               onClick={() => setForm((p) => ({ ...p, groups: [...p.groups, { ...GROUP_EMPTY }] }))}
             >
-              + 加一组条件
+              {i18n.t('kbbb7bb51')}
             </button>
           </div>
           <div className="field">
-            <label>自动标签（命中的图片可一键继承这些标签）</label>
+            <label>{i18n.t('k09ea41e2')}</label>
             <input
               className="input"
               value={form.autoTags}
-              placeholder="演唱会，live"
+              placeholder={i18n.t('k860c201e')}
               onChange={(e) => set('autoTags', e.target.value)}
             />
           </div>
 
           <p className="muted small">
-            共 {condCount} 个条件{condCount === 0 ? '（至少要有一条，否则不能保存）' : ''}
+            共 {condCount} 个条件{condCount === 0 ? i18n.t('k40399d8d') : ''}
           </p>
           {err && <p className="danger small">{err}</p>}
         </div>
         <div className="modal-foot">
           <button className="btn ghost" onClick={onClose}>
-            取消
+            {i18n.t('k625fb26b')}
           </button>
           <button className="btn primary" disabled={busy} onClick={submit}>
-            {busy ? '保存中…' : initial ? '保存修改' : '创建'}
+            {busy ? i18n.t('k9b5d32d1') : initial ? i18n.t('kc5575b3f') : i18n.t('kd9ac9228')}
           </button>
         </div>
       </div>

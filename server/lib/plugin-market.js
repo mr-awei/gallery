@@ -19,6 +19,7 @@ import { httpFetch } from '../http.js';
 import { readBodyLimited } from './safe-url.js';
 import { PLUGIN_PERMISSIONS, resolvePluginEntry, validateManifest } from './plugin-manifest.js';
 import { ensureUserPluginDir, findPlugin, listPlugins, PLUGIN_DIRS } from './plugin-host.js';
+import { translate } from './i18n.js';
 
 const MARKET_DIR = path.join(APP_ROOT, 'plugins', '_market');
 const MAX_PACKAGE_BYTES = 512 * 1024;
@@ -225,6 +226,11 @@ export function marketView() {
     remote: !!remoteIndex,
     plugins: index.plugins.map((p) => ({
       ...p,
+      // 市场条目名称 / 说明 / 作者 / 标签只做展示翻译，安装与匹配仍用 id
+      name: translate(p.name),
+      description: translate(p.description),
+      author: translate(p.author),
+      tags: p.tags.map((t) => translate(t)),
       installed: installed.has(p.id),
       installedVersion: installed.get(p.id)?.version || '',
       installedBuiltin: !!installed.get(p.id)?.builtin,

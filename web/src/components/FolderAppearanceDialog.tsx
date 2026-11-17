@@ -10,6 +10,7 @@ import { api } from '../api';
 import { useEscClose } from '../lib/useEscClose';
 import type { FolderNode } from '../types';
 import { IconClose } from './Icons';
+import i18n from '../i18n';
 
 const EMOJIS = [
   '📁', '📂', '🗂️', '🎨', '🖼️', '📷', '🎬', '🎵', '🔤', '🧊',
@@ -40,7 +41,7 @@ export default function FolderAppearanceDialog({ folder, onClose, onSaved, onToa
     try {
       const r = await api.setFolderAppearance(folder.id, { icon, color });
       onSaved(r.folders);
-      onToast(`已更新「${folder.name}」的外观`);
+      onToast(i18n.t('kf7f7145c', { p0: folder.name }));
       onClose();
     } catch (err) {
       onToast((err as Error).message, 'error');
@@ -53,7 +54,7 @@ export default function FolderAppearanceDialog({ folder, onClose, onSaved, onToa
       <div className="modal-card" style={{ maxWidth: 520 }} onClick={(e) => e.stopPropagation()}>
         <div className="modal-head">
           <b><IconPalette size={14} /> 文件夹外观 · {folder.name}</b>
-          <button className="btn ghost sm" onClick={onClose} title="关闭">
+          <button className="btn ghost sm" onClick={onClose} title={i18n.t('kb15d9127')}>
             <IconClose />
           </button>
         </div>
@@ -70,7 +71,7 @@ export default function FolderAppearanceDialog({ folder, onClose, onSaved, onToa
           </div>
 
           <div className="field" style={{ marginBottom: 14 }}>
-            <label>图标 / emoji</label>
+            <label>{i18n.t('kbc16aaa0')}</label>
             <div className="emoji-grid" style={{ marginBottom: 8 }}>
               {EMOJIS.map((e) => (
                 <button
@@ -78,7 +79,7 @@ export default function FolderAppearanceDialog({ folder, onClose, onSaved, onToa
                   type="button"
                   className={`emoji-cell${icon === e ? ' on' : ''}`}
                   onClick={() => setIcon(icon === e ? '' : e)}
-                  title={icon === e ? '再点一次清除' : '用这个图标'}
+                  title={icon === e ? i18n.t('k654a6ff1') : i18n.t('kd16c6047')}
                 >
                   {e}
                 </button>
@@ -89,19 +90,19 @@ export default function FolderAppearanceDialog({ folder, onClose, onSaved, onToa
               style={{ width: '100%' }}
               value={icon}
               maxLength={4}
-              placeholder="也可以直接输入一个字符（留空 = 显示封面缩略图）"
+              placeholder={i18n.t('kf928d9c4')}
               onChange={(e) => setIcon(e.target.value)}
             />
           </div>
 
           <div className="field">
-            <label>主题色</label>
+            <label>{i18n.t('kb47707f0')}</label>
             <div className="color-swatches">
               <button
                 type="button"
                 className={`color-swatch clear${color ? '' : ' on'}`}
                 onClick={() => setColor('')}
-                title="跟随主题（清除颜色）"
+                title={i18n.t('k06a78f0d')}
               >
                 <IconClose size={14} />
               </button>
@@ -121,17 +122,17 @@ export default function FolderAppearanceDialog({ folder, onClose, onSaved, onToa
                 style={{ width: 42, height: 26, padding: 0, border: 'none', background: 'transparent' }}
                 value={color || '#3c9ad9'}
                 onChange={(e) => setColor(e.target.value)}
-                title="自定义颜色"
+                title={i18n.t('k255f442c')}
               />
             </div>
           </div>
         </div>
 
         <div className="modal-foot">
-          <span style={{ fontSize: 12, color: 'var(--muted)' }}>只改库里的展示，不动磁盘目录名</span>
+          <span style={{ fontSize: 12, color: 'var(--muted)' }}>{i18n.t('kbb2d06b7')}</span>
           <div style={{ display: 'flex', gap: 8 }}>
             <button className="btn" onClick={onClose} disabled={busy}>
-              取消
+              {i18n.t('k625fb26b')}
             </button>
             <button
               className="btn"
@@ -139,7 +140,7 @@ export default function FolderAppearanceDialog({ folder, onClose, onSaved, onToa
               disabled={busy}
               onClick={() => void save()}
             >
-              {busy ? '保存中…' : '保存'}
+              {busy ? i18n.t('k9b5d32d1') : i18n.t('kbe5fbbe3')}
             </button>
           </div>
         </div>

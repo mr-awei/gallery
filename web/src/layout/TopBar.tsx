@@ -16,6 +16,7 @@ import {
   IconWand,
 } from '../components/Icons';
 import { TOOLS, navLabel } from './nav';
+import i18n from '../i18n';
 
 interface Props {
   activeLibName: string;
@@ -62,7 +63,7 @@ export default function TopBar({
           </svg>
         </div>
         <div className="topbar-title">
-          <b>图库</b>
+          <b>{i18n.t('k6084bc4b')}</b>
           <span>{activeLibName}</span>
         </div>
       </div>
@@ -71,10 +72,10 @@ export default function TopBar({
           <button
             className={`btn ghost sm tools-btn${toolsActive ? ' tools-btn-active' : ''}`}
             onClick={() => onToolsOpen(!toolsOpen)}
-            title="整理与分析工具"
+            title={i18n.t('k3f625409')}
           >
             <IconWand />
-            <span>工具箱</span>
+            <span>{i18n.t('k59ddf3cc')}</span>
             <span className="tools-chev">
               <IconChevronDown size={13} />
             </span>
@@ -97,19 +98,19 @@ export default function TopBar({
             </div>
           )}
         </div>
-        <button className="icon-btn" onClick={onBookmark} title="保存网页（URL + 快照）">
+        <button className="icon-btn" onClick={onBookmark} title={i18n.t('kdc09b8c4')}>
           <IconLink />
         </button>
-        <button className="icon-btn" onClick={onShareLink} title="生成只读分享链接（手机扫码浏览）">
+        <button className="icon-btn" onClick={onShareLink} title={i18n.t('kb03671ff')}>
           <IconGlobe />
         </button>
-        <button className="icon-btn" onClick={onExportGallery} title="导出为 HTML 网页画廊">
+        <button className="icon-btn" onClick={onExportGallery} title={i18n.t('kf2d11f17')}>
           <IconDownload />
         </button>
         <button
           className={`icon-btn${view === 'tutorial' ? ' icon-btn-active' : ''}`}
           onClick={() => onView('tutorial')}
-          title="使用教程（F1）"
+          title={i18n.t('k86e19b14')}
           data-tour="tutorial-btn"
         >
           <IconBook />
@@ -117,7 +118,7 @@ export default function TopBar({
         <button
           className={`icon-btn${view === 'settings' ? ' icon-btn-active' : ''}`}
           onClick={() => onView('settings')}
-          title="设置"
+          title={i18n.t('ke366ccf1')}
           data-tour="settings-btn"
         >
           <IconGear />
@@ -125,7 +126,7 @@ export default function TopBar({
         <button
           className="icon-btn"
           onClick={onToggleTheme}
-          title={theme === 'dark' ? '切换到明亮模式' : '切换到暗色模式'}
+          title={theme === 'dark' ? i18n.t('kecffeb15') : i18n.t('k3abec43f')}
         >
           {theme === 'dark' ? <IconSun /> : <IconMoon />}
         </button>

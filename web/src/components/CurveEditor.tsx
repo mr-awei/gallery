@@ -2,6 +2,7 @@ import React, { useMemo, useRef, useState } from 'react';
 import type { CurveChannel, CurvePoint, CurveSet } from '../types';
 import { CURVE_CHANNELS, CURVES_DEFAULTS, isCurveIdentity } from '../types';
 import { curveFn } from '../lib/tone';
+import i18n from '../i18n';
 
 const SIZE = 200;
 const PAD = 8;
@@ -136,13 +137,13 @@ export default function CurveEditor({ value, onChange, disabled }: Props) {
               setChannel(ch.key);
               setDrag(null);
             }}
-            title={`${ch.label} 通道曲线`}
+            title={i18n.t('ke0e77dea', { p0: ch.label })}
           >
             {ch.label}
           </button>
         ))}
-        <button type="button" className="curve-tab reset" disabled={disabled} onClick={resetChannel} title="只清空当前通道">
-          清空
+        <button type="button" className="curve-tab reset" disabled={disabled} onClick={resetChannel} title={i18n.t('k974d7e46')}>
+          {i18n.t('k288f0c40')}
         </button>
       </div>
 

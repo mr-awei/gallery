@@ -7,6 +7,7 @@
  * 去 grep 源码。手写文档必然和代码漂移，所以这里改为「运行时自省」：
  * 路由注册完，向 app.router.stack 要一遍，分组、鉴权口径都在本文件里定。
  */
+import { translate } from './i18n.js';
 
 /** 分组规则：按前缀从长到短匹配，第一条命中为准 */
 export const GROUPS = [
@@ -183,10 +184,10 @@ export function groupOf(path) {
  * - 其余 /api/*：本机令牌（桌面端由前端自动带上，脚本从 .api-token 读）
  */
 export function authOf(path) {
-  if (path.startsWith('/api/v1')) return 'Bearer 令牌 + scope';
-  if (path.startsWith('/api/lan')) return '局域网令牌';
-  if (path.startsWith('/api/')) return '本机令牌';
-  return '无';
+  if (path.startsWith('/api/v1')) return translate('Bearer 令牌 + scope');
+  if (path.startsWith('/api/lan')) return translate('局域网令牌');
+  if (path.startsWith('/api/')) return translate('本机令牌');
+  return translate('无');
 }
 
 /**
@@ -206,7 +207,7 @@ export function samplePath(path) {
 }
 
 /** 写操作给一个可解析的空对象，并提醒字段要按接口填 */
-const BODY_HINT = '{"": "按这个接口的实际字段填"}';
+const bodyHint = () => `{"": "${translate('按这个接口的实际字段填')}"}`;
 
 /**
  * 生成三条可直接复制的调用示例（curl / JavaScript / Python）。
@@ -220,21 +221,21 @@ const BODY_HINT = '{"": "按这个接口的实际字段填"}';
 export function examplesOf(route, baseUrl = 'http://127.0.0.1:3001') {
   const url = `${baseUrl}${samplePath(route.path)}`;
   const isWrite = route.method !== 'GET' && route.method !== 'HEAD';
-  const needAuth = route.auth !== '无';
-  const authLine = route.auth === '局域网令牌' ? 'Bearer <lan-token>' : 'Bearer <token>';
+  const needAuth = route.auth !== translate('无');
+  const authLine = route.auth === translate('局域网令牌') ? 'Bearer <lan-token>' : 'Bearer <token>';
 
   const curl = [
     `curl -X ${route.method} "${url}"`,
     ...(needAuth ? [`-H "Authorization: ${authLine}"`] : []),
-    ...(isWrite ? [`-H "Content-Type: application/json"`, `-d '${BODY_HINT}'`] : []),
+    ...(isWrite ? [`-H "Content-Type: application/json"`, `-d '${bodyHint()}'`] : []),
   ].join(' \\\n  ');
 
   const js = [
-    `const token = process.env.TUKU_TOKEN; // 数据目录下 .api-token`,
+    `const token = process.env.TUKU_TOKEN; // ${translate('数据目录下 .api-token')}`,
     `const res = await fetch('${url}', {`,
     `  method: '${route.method}',`,
     ...(needAuth ? [`  headers: { Authorization: \`Bearer \${token}\`${isWrite ? ', \'Content-Type\': \'application/json\'' : ''} },`] : []),
-    ...(isWrite ? [`  body: JSON.stringify(${BODY_HINT}),`] : []),
+    ...(isWrite ? [`  body: JSON.stringify(${bodyHint()}),`] : []),
     `});`,
     `console.log(res.status, await res.json());`,
   ].join('\n');
@@ -246,7 +247,7 @@ export function examplesOf(route, baseUrl = 'http://127.0.0.1:3001') {
     `res = requests.${route.method.toLowerCase()}(`,
     `    "${url}",`,
     ...(needAuth ? [`    headers={"Authorization": f"Bearer {token}"},`] : []),
-    ...(isWrite ? [`    json=${BODY_HINT},`] : []),
+    ...(isWrite ? [`    json=${bodyHint()},`] : []),
     `    timeout=30,`,
     `)`,
     `print(res.status_code, res.text[:200])`,
@@ -335,5 +336,5 @@ export function renderMarkdown(routes, meta = {}) {
     lines.push(...groupExamples(list, meta.baseUrl));
     lines.push('');
   }
-  return lines.join('\n');
+  return lines.map((line) => translate(line)).join('\n');
 }

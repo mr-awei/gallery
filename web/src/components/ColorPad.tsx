@@ -1,5 +1,6 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { buildASE, buildPngSheet, downloadBlob } from '../lib/palette';
+import i18n from '../i18n';
 
 /* ---------------------------- HSV <-> HEX 工具 ---------------------------- */
 
@@ -203,15 +204,15 @@ export default function ColorPad({ value, onChange, palette, title }: Props) {
         <button
           type="button"
           className="btn sm"
-          title="导出 Adobe 色板（.ase），Photoshop / Illustrator / Affinity 可直接导入"
-          onClick={() => downloadBlob(buildASE(swatches, title || '图库'), `${slug}.ase`)}
+          title={i18n.t('k4dd10728')}
+          onClick={() => downloadBlob(buildASE(swatches, title || i18n.t('k6084bc4b')), `${slug}.ase`)}
         >
           导出 ASE
         </button>
         <button
           type="button"
           className="btn sm"
-          title="导出色块 + 色值的长图 PNG"
+          title={i18n.t('k372272d8')}
           onClick={async () => {
             try {
               downloadBlob(await buildPngSheet(swatches), `${slug}.png`);

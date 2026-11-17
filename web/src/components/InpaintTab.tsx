@@ -3,6 +3,7 @@ import type { PointerEvent as ReactPointerEvent } from 'react';
 import { api } from '../api';
 import type { ImageItem } from '../types';
 import { ensureHardware } from '../lib/hardware';
+import i18n from '../i18n';
 
 /** 擦除修复面板：在原图上涂白色蒙版，白色区域由内容感知扩散补上。 */
 interface Props {
@@ -107,10 +108,10 @@ export default function InpaintTab({ item, onToast, onReplaced }: Props) {
         addToLibrary: copy,
       });
       setCoverage(r.coverage);
-      onToast?.(`擦除完成（覆盖 ${(r.coverage * 100).toFixed(1)}%）`, 'info');
+      onToast?.(i18n.t('k29c71509', { p0: (r.coverage * 100).toFixed(1) }), 'info');
       if (r.item) onReplaced?.(r.item);
     } catch (err) {
-      onToast?.(`擦除失败：${(err as Error).message}`, 'error');
+      onToast?.(i18n.t('k8237fe7a', { p0: (err as Error).message }), 'error');
     } finally {
       setBusy(false);
     }
@@ -119,15 +120,14 @@ export default function InpaintTab({ item, onToast, onReplaced }: Props) {
   return (
     <div>
       <div className="hint" style={{ marginBottom: 10 }}>
-        用白色画笔涂出要擦掉的部分（划痕、水印、电线、小物件），再点「擦除并写回」。
-        这是<b>内容感知扩散</b>，不是生成式 AI：大面积缺失只会得到平滑过渡，建议改用裁切。
+        {i18n.t('kb0268885')}<b>{i18n.t('k9e32acf7')}</b>，不是生成式 AI：大面积缺失只会得到平滑过渡，建议改用裁切。
         写回原图前会自动留备份，可用「撤销上次编辑」回退。
       </div>
       <div style={{ display: 'flex', gap: 14, alignItems: 'flex-start', flexWrap: 'wrap' }}>
         <div style={{ position: 'relative', flex: '1 1 420px', minWidth: 280, maxWidth: 760 }}>
           <img
             src={`/api/images/${item.id}/preview?v=${Date.now()}`}
-            alt="待修复图片"
+            alt={i18n.t('kcb6ed3a0')}
             style={{ width: '100%', display: 'block', borderRadius: 6 }}
             onLoad={(e) => {
               const img = e.currentTarget;
@@ -165,13 +165,13 @@ export default function InpaintTab({ item, onToast, onReplaced }: Props) {
             <input type="range" min={4} max={80} value={strength} onChange={(e) => setStrength(Number(e.target.value))} />
           </div>
           <div className="switch-row">
-            <span>另存副本（不动原图）</span>
+            <span>{i18n.t('k033bb13c')}</span>
             <input type="checkbox" checked={saveCopy} onChange={(e) => setSaveCopy(e.target.checked)} />
           </div>
           <div style={{ display: 'flex', gap: 8, marginTop: 12, flexWrap: 'wrap' }}>
-            <button className="btn sm" onClick={clearMask} disabled={busy}>清空画笔</button>
+            <button className="btn sm" onClick={clearMask} disabled={busy}>{i18n.t('kd20909cb')}</button>
             <button className="btn sm primary" onClick={() => apply(saveCopy)} disabled={busy}>
-              {busy ? '处理中…' : saveCopy ? '擦除并另存' : '擦除并写回'}
+              {busy ? i18n.t('kcf978c02') : saveCopy ? i18n.t('k481cc0ae') : i18n.t('ka0bab1a9')}
             </button>
           </div>
           {coverage !== null && <div className="hint" style={{ marginTop: 10 }}>本次擦除面积：{(coverage * 100).toFixed(1)}%</div>}

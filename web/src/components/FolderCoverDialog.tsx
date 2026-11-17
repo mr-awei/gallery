@@ -6,6 +6,7 @@ import { useEffect, useState } from 'react';
 import { api } from '../api';
 import type { FolderNode, ImageItem } from '../types';
 import { IconClose } from './Icons';
+import i18n from '../i18n';
 
 interface Props {
   folder: FolderNode;
@@ -40,7 +41,7 @@ export default function FolderCoverDialog({ folder, onClose, onSaved, onToast }:
     setBusy(true);
     try {
       const r = await api.setFolderCover(folder.id, imageId);
-      onSaved(r.folders, imageId ? '已设为文件夹封面' : '已恢复自动封面（夹内最新一张）');
+      onSaved(r.folders, imageId ? i18n.t('keacc4bb9') : i18n.t('k416bde20'));
       onClose();
     } catch (err) {
       onToast((err as Error).message, 'error');
@@ -55,7 +56,7 @@ export default function FolderCoverDialog({ folder, onClose, onSaved, onToast }:
       <div className="modal-card" style={{ maxWidth: 720 }} onClick={(e) => e.stopPropagation()}>
         <div className="modal-head">
           <b>「{folder.name}」的封面</b>
-          <button className="btn ghost sm" onClick={onClose} title="关闭">
+          <button className="btn ghost sm" onClick={onClose} title={i18n.t('kb15d9127')}>
             <IconClose />
           </button>
         </div>
@@ -63,12 +64,12 @@ export default function FolderCoverDialog({ folder, onClose, onSaved, onToast }:
         <div className="modal-body" style={{ display: 'block' }}>
           <div style={{ fontSize: 13, lineHeight: 1.7, color: 'var(--muted)', marginBottom: 12 }}>
             点一张图设为封面。不手动设置时，侧栏会自动用这个夹里最新的一张
-            {total > items.length ? `（这里只列出最新 ${items.length} 张，共 ${total} 张）` : ''}。
+            {total > items.length ? i18n.t('ke3fe2e1b', { p0: items.length, p1: total }) : ''}。
           </div>
 
           {loading ? (
             <div className="muted small" style={{ padding: 24 }}>
-              读取中…
+              {i18n.t('k8b5015f0')}
             </div>
           ) : items.length ? (
             <div className="cover-pick-grid">
@@ -87,18 +88,18 @@ export default function FolderCoverDialog({ folder, onClose, onSaved, onToast }:
             </div>
           ) : (
             <div className="muted small" style={{ padding: 24 }}>
-              这个文件夹还没有素材，先往里面加几张再挑封面。
+              {i18n.t('k72cde129')}
             </div>
           )}
         </div>
 
         <div className="modal-foot">
           <button className="btn" disabled={busy} onClick={() => void apply(null)}>
-            恢复自动封面
+            {i18n.t('k93ed17ac')}
           </button>
           <div style={{ display: 'flex', gap: 8 }}>
             <button className="btn" onClick={onClose} disabled={busy}>
-              取消
+              {i18n.t('k625fb26b')}
             </button>
           </div>
         </div>

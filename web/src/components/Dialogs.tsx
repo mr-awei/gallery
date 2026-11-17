@@ -1,6 +1,7 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { formatSize } from '../api';
 import type { HardwareFeature, HardwareInfo } from '../types';
+import i18n from '../i18n';
 
 const MB = 1048576;
 /** 硬件门槛里的内存数字（服务端给的是 MB）走全站唯一的体积格式化 */
@@ -108,7 +109,7 @@ export default function DialogHost() {
   const feature = req.feature;
   const hw = req.hardware;
   // 配置偏低但能试时，主按钮才是「仍然继续」；硬性不可用时只给「知道了」
-  const primaryLabel = isHardware ? (feature?.canProceedAnyway ? '仍然继续' : '知道了') : '确定';
+  const primaryLabel = isHardware ? (feature?.canProceedAnyway ? i18n.t('k170a741a') : i18n.t('kce26955a')) : i18n.t('k38cf16f2');
   const primaryValue = isHardware ? Boolean(feature?.canProceedAnyway) : isPrompt ? val.trim() : true;
 
   const gpuNames = (hw?.gpu?.devices || []).map((d) => (d.vramMB ? `${d.name}（${fmtMB(d.vramMB)}）` : d.name));
@@ -136,7 +137,7 @@ export default function DialogHost() {
       >
         <div className="modal-body" style={{ display: 'block' }}>
           <div style={{ fontWeight: 600, lineHeight: 1.6 }}>
-            {isHardware ? `这台机器可能跑不动「${req.title}」` : req.title}
+            {isHardware ? i18n.t('kd9252cb7', { p0: req.title }) : req.title}
           </div>
           {isPrompt && (
             <input
@@ -157,9 +158,9 @@ export default function DialogHost() {
               <table className="hw-table">
                 <thead>
                   <tr>
-                    <th>项目</th>
-                    <th>最低要求</th>
-                    <th>你这台</th>
+                    <th>{i18n.t('k31ecc0e6')}</th>
+                    <th>{i18n.t('kd9eb9322')}</th>
+                    <th>{i18n.t('k78eef992')}</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -179,13 +180,13 @@ export default function DialogHost() {
                 <div className="hint" style={{ marginTop: 8 }}>
                   本机：{hw.cpu.model}（{hw.cpu.cores} 核）· 内存 {fmtMB(hw.ram.totalMB)}
                   ，可用 {fmtMB(hw.ram.freeMB)} ·{' '}
-                  {gpuNames.length ? `显卡 ${gpuNames.join(' / ')}` : '显卡 未读到'}
-                  {hw.ort ? ` · 推理 ${hw.ort.backend ? (hw.ort.backend === 'directml' ? 'DirectML（显卡）' : hw.ort.backend === 'cuda' ? 'CUDA（显卡）' : 'CPU') : hw.ort.note}` : ''}
+                  {gpuNames.length ? i18n.t('k9982475c', { p0: gpuNames.join(' / ') }) : i18n.t('k1a533d97')}
+                  {hw.ort ? i18n.t('kaeafaa9a', { p0: hw.ort.backend ? (hw.ort.backend === 'directml' ? i18n.t('k6c5a3cbe') : hw.ort.backend === 'cuda' ? i18n.t('k82f6b9be') : 'CPU') : hw.ort.note }) : ''}
                 </div>
               )}
               {feature.basis.length > 0 && (
                 <div className="hw-basis">
-                  <strong>门槛依据</strong>
+                  <strong>{i18n.t('ka711d49e')}</strong>
                   {feature.basis.map((b) => (
                     <div key={b}>· {b}</div>
                   ))}
@@ -193,8 +194,8 @@ export default function DialogHost() {
               )}
               <div className="hint" style={{ marginTop: 8 }}>
                 {feature.canProceedAnyway
-                  ? '低于最低配置不是不能跑，但可能很慢、占满内存，甚至中途失败。'
-                  : '这一档在当前机器上点了也跑不起来，先换用不需要 GPU 的方式（比如内置插值放大）。'}
+                  ? i18n.t('kd246e967')
+                  : i18n.t('k6a912e3d')}
               </div>
             </div>
           )}
@@ -221,7 +222,7 @@ export default function DialogHost() {
           <div />
           <div style={{ display: 'flex', gap: 8 }}>
             <button className="btn" onClick={() => close(dismiss)}>
-              {isHardware && !feature?.canProceedAnyway ? '关闭' : '取消'}
+              {isHardware && !feature?.canProceedAnyway ? i18n.t('kb15d9127') : i18n.t('k625fb26b')}
             </button>
             <button
               className="btn"

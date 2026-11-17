@@ -1,5 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { api } from '../api';
+import i18n from '../i18n';
 
 /**
  * 地点视图：按 EXIF 经纬度把素材铺到一张世界地图上。
@@ -85,15 +86,15 @@ export default function Places({ onToast, onOpenPlace }: Props) {
     setBusy(true);
     try {
       const r = await api.maintenanceGpsBackfill(200);
-      const tail = r.remain ? `（还剩 ${r.remain} 张待扫描）` : '';
+      const tail = r.remain ? i18n.t('k06106731', { p0: r.remain }) : '';
       onToast(
         r.scanned
-          ? `已扫描 ${r.scanned} 张，其中 ${r.found} 张有 GPS${tail}`
-          : '没有待扫描的素材'
+          ? i18n.t('k3ae7ff34', { p0: r.scanned, p1: r.found, p2: tail })
+          : i18n.t('k84f0d93f')
       );
       await load();
     } catch (err) {
-      onToast(`补算地点失败：${(err as Error).message}`, 'error');
+      onToast(i18n.t('k0509faed', { p0: (err as Error).message }), 'error');
     } finally {
       setBusy(false);
     }
@@ -106,31 +107,31 @@ export default function Places({ onToast, onOpenPlace }: Props) {
   return (
     <div>
       <div style={{ display: 'flex', alignItems: 'baseline', gap: 12, flexWrap: 'wrap', marginBottom: 12 }}>
-        <h3 style={{ margin: 0 }}>{'地点'}</h3>
+        <h3 style={{ margin: 0 }}>{i18n.t('kfc1a7d3c')}</h3>
         <span className="hint" style={{ flex: 1 }}>
           {total
-            ? `${total} 张带 GPS 的素材，聚成 ${points.length} 个地点`
-            : '还没有带经纬度的素材：地图是空的'}
+            ? i18n.t('k81813f9e', { p0: total, p1: points.length })
+            : i18n.t('kc3b1f9c7')}
         </span>
         <button className="btn sm" disabled={busy} onClick={() => void load()}>
-          {loading ? '刷新中…' : '刷新'}
+          {loading ? i18n.t('kbfb2e454') : i18n.t('k694fc5ef')}
         </button>
         <button
           className="btn sm ghost"
           disabled={busy}
-          title={'读历史素材的 EXIF，把经纬度补进库（按批进行，可多次点）'}
+          title={i18n.t('k24acd5d6')}
           onClick={() => void backfill()}
         >
-          {busy ? '补算中…' : '补算历史素材的位置'}
+          {busy ? i18n.t('k961476db') : i18n.t('kcf95fe8f')}
         </button>
       </div>
 
-      {error && <div className="danger small" style={{ marginBottom: 10 }}>{'读取地点失败：'}{error}</div>}
+      {error && <div className="danger small" style={{ marginBottom: 10 }}>{i18n.t('ke6a72d57')}{error}</div>}
 
       <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1fr) 260px', gap: 16, alignItems: 'start' }}>
         <div className="card" style={{ padding: 10 }}>
           <svg viewBox={`0 0 ${W} ${H}`} style={{ width: '100%', height: 'auto', display: 'block' }} role="img"
-            aria-label={'素材拍摄地点分布图'}>
+            aria-label={i18n.t('k4e3ed633')}>
             <rect x={0} y={0} width={W} height={H} fill="var(--panel-strong, #141821)" rx={8} />
             {/* 经纬网：每 30° 一条，够定位又不会糊住图 */}
             {[-150, -120, -90, -60, -30, 0, 30, 60, 90, 120, 150].map((lon) => (
@@ -159,16 +160,16 @@ export default function Places({ onToast, onOpenPlace }: Props) {
             ))}
           </svg>
           <div className="hint" style={{ marginTop: 8 }}>
-            {'圆点大小 = 该处的素材张数；点一下就在图库里筛出这一带的照片。地图为离线简图，不含街道级细节。'}
+            {i18n.t('k419ac790')}
           </div>
         </div>
 
         <div className="card" style={{ padding: 12 }}>
-          <b style={{ fontSize: 13 }}>{'地点排行'}</b>
-          {loading && !points.length && <div className="hint" style={{ marginTop: 8 }}>{'读取中…'}</div>}
+          <b style={{ fontSize: 13 }}>{i18n.t('kb5386cdc')}</b>
+          {loading && !points.length && <div className="hint" style={{ marginTop: 8 }}>{i18n.t('k8b5015f0')}</div>}
           {!loading && !points.length && (
             <div className="hint" style={{ marginTop: 8, lineHeight: 1.8 }}>
-              {'没有带 GPS 的素材。相机拍的照片通常带经纬度，截图 / 网图一般没有。老库可以点上方「补算历史素材的位置」。'}
+              {i18n.t('ke3c705a5')}
             </div>
           )}
           {top.map((p) => (
@@ -176,7 +177,7 @@ export default function Places({ onToast, onOpenPlace }: Props) {
               key={`${p.lat},${p.lon}`}
               className="btn sm ghost"
               style={{ display: 'flex', justifyContent: 'space-between', width: '100%', marginTop: 6, gap: 8 }}
-              title={'筛选这一带的素材'}
+              title={i18n.t('kea8e7de0')}
               onClick={() =>
                 onOpenPlace(
                   `${p.lat - DELTA},${p.lon - DELTA},${p.lat + DELTA},${p.lon + DELTA}`,

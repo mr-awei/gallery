@@ -1,3 +1,4 @@
+import i18n from '../i18n';
 /**
  * 主内容区上方的「有数据没能加载出来」错误条。
  * 明确说没加载出来，而不是让界面装作「没有数据」。
@@ -29,12 +30,12 @@ export default function LoadErrorBar({
       }}
     >
       <span style={{ flex: 1, minWidth: 0, wordBreak: 'break-all' }}>
-        {'有数据没能加载出来：'}{error}
+        {i18n.t('k0dda54a3')}{error}
       </span>
       <button className="btn sm" onClick={onRetry}>
-        {'重试'}
+        {i18n.t('k132c5cdc')}
       </button>
-      <button className="icon-btn" title={'关闭'} onClick={onClose}>
+      <button className="icon-btn" title={i18n.t('kb15d9127')} onClick={onClose}>
         ×
       </button>
     </div>

@@ -3,6 +3,7 @@ import React, { useEffect, useState } from 'react';
 import type { ImageItem, Stats } from '../types';
 import { Bars, Donut, TrendLine } from '../components/Charts';
 import { BUCKET_LABELS, ORIENTATION_LABELS, SOURCE_LABELS, api, formatSize } from '../api';
+import i18n from '../i18n';
 
 /** 使用统计：最常复制 / 导出的素材。没有记录时整块不出现，别占着版面说「暂无」。 */
 function UsageBoard() {
@@ -27,7 +28,7 @@ function UsageBoard() {
   if (error) {
     return (
       <div className="card" style={{ marginTop: 14 }}>
-        <h4 className="section-title">使用统计</h4>
+        <h4 className="section-title">{i18n.t('kd389aac2')}</h4>
         <div className="hint" style={{ color: 'var(--err, #e5484d)' }}>读取失败：{error}</div>
       </div>
     );
@@ -36,7 +37,7 @@ function UsageBoard() {
   return (
     <div className="card" style={{ marginTop: 14 }}>
       <h4 className="section-title">
-        使用统计
+        {i18n.t('kd389aac2')}
         <span style={{ color: 'var(--muted)', fontWeight: 400, fontSize: 12 }}>
           累计复制 {Number(data.totals.copies) || 0} 次 · 导出 {Number(data.totals.exports) || 0} 次
         </span>
@@ -81,14 +82,14 @@ export default function Dashboard({ stats, error, onOpen, onNavigate }: Props) {
         {error ? (
           <>
             <div className="big"><IconWarning size={40} /></div>
-            <h3>统计没能加载出来</h3>
+            <h3>{i18n.t('kb1051019')}</h3>
             <p>{error}</p>
-            <p style={{ color: 'var(--muted)' }}>用顶部错误条上的「重试」再拉一次；持续失败请查看日志。</p>
+            <p style={{ color: 'var(--muted)' }}>{i18n.t('k252de463')}</p>
           </>
         ) : (
           <>
             <span className="spinner" />
-            <p style={{ marginTop: 14 }}>加载中…</p>
+            <p style={{ marginTop: 14 }}>{i18n.t('kfb4ca1cf')}</p>
           </>
         )}
       </div>
@@ -111,52 +112,52 @@ export default function Dashboard({ stats, error, onOpen, onNavigate }: Props) {
     <div>
       <div className="page-head">
         <div>
-          <h1 className="page-title">仪表盘</h1>
-          <div className="page-sub">图库总览 · 实时统计</div>
+          <h1 className="page-title">{i18n.t('k3fa8b34a')}</h1>
+          <div className="page-sub">{i18n.t('k3e789ed1')}</div>
         </div>
         <button className="btn primary" onClick={() => onNavigate('crawl')}>
-          开始采集
+          {i18n.t('k4b75b162')}
         </button>
       </div>
 
       <div className="stat-grid">
         <div className="card stat-card">
-          <div className="label">总图片数</div>
+          <div className="label">{i18n.t('k19726aee')}</div>
           <div className="value">{stats.total}</div>
-          <div className="hint">已通过 pHash 去重</div>
+          <div className="hint">{i18n.t('k98405dd1')}</div>
         </div>
         <div className="card stat-card">
-          <div className="label">收藏数</div>
+          <div className="label">{i18n.t('k35337eb4')}</div>
           <div className="value">{stats.favorite}</div>
           <div className="hint">
             占比 {stats.total ? Math.round((stats.favorite / stats.total) * 100) : 0}%
           </div>
         </div>
         <div className="card stat-card">
-          <div className="label">图库体积</div>
+          <div className="label">{i18n.t('k21691f6d')}</div>
           <div className="value">{formatSize(stats.totalSize)}</div>
           <div className="hint">
             平均 {stats.total ? formatSize(Math.round(stats.totalSize / stats.total)) : '0 B'} / 张
           </div>
         </div>
         <div className="card stat-card">
-          <div className="label">采集状态</div>
+          <div className="label">{i18n.t('kd9e813ce')}</div>
           <div className="value" style={{ fontSize: 20 }}>
-            {stats.crawling ? '采集中…' : '空闲'}
+            {stats.crawling ? i18n.t('k595892a3') : i18n.t('k87bb5bbc')}
           </div>
           <div className="hint">
-            {stats.trend.length ? `最近采集 ${stats.trend[stats.trend.length - 1].date}` : '暂无采集记录'}
+            {stats.trend.length ? i18n.t('k9b676227', { p0: stats.trend[stats.trend.length - 1].date }) : i18n.t('k9cdba42a')}
           </div>
         </div>
       </div>
 
       <div className="chart-grid">
         <div className="card chart-card">
-          <h4>来源分布</h4>
+          <h4>{i18n.t('k26a88820')}</h4>
           <Donut data={sourceData} total={stats.total} />
         </div>
         <div className="card chart-card">
-          <h4>分辨率分布</h4>
+          <h4>{i18n.t('kde338de2')}</h4>
           <Bars data={bucketData} />
           <div style={{ marginTop: 14, display: 'flex', gap: 14, flexWrap: 'wrap' }}>
             {stats.byOrientation.map((o) => (
@@ -169,15 +170,15 @@ export default function Dashboard({ stats, error, onOpen, onNavigate }: Props) {
         </div>
         <div className="card chart-card">
           <h4>
-            采集趋势
-            <span style={{ color: 'var(--muted)', fontWeight: 400, fontSize: 12 }}>近 14 天</span>
+            {i18n.t('k29acb917')}
+            <span style={{ color: 'var(--muted)', fontWeight: 400, fontSize: 12 }}>{i18n.t('k2f48e5d9')}</span>
           </h4>
           <TrendLine data={stats.trend} />
         </div>
       </div>
 
       <div className="card" style={{ marginBottom: 14 }}>
-        <h4 className="section-title">最近采集</h4>
+        <h4 className="section-title">{i18n.t('k8f98e6d4')}</h4>
         {stats.recent.length ? (
           <div className="recent-grid">
             {stats.recent.map((item) => (
@@ -192,14 +193,14 @@ export default function Dashboard({ stats, error, onOpen, onNavigate }: Props) {
           </div>
         ) : (
           <div style={{ color: 'var(--muted)', fontSize: 13 }}>
-            还没有图片，去「采集」页面抓一批高清图吧。
+            {i18n.t('kf08510ca')}
           </div>
         )}
       </div>
 
       {stats.largest.length > 0 && (
         <div className="card">
-          <h4 className="section-title">最高画质</h4>
+          <h4 className="section-title">{i18n.t('k30a18c19')}</h4>
           <div className="recent-grid">
             {stats.largest.map((item) => (
               <img

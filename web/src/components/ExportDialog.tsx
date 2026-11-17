@@ -3,6 +3,7 @@ import { createPortal } from 'react-dom';
 import { api, downloadFile, exportImageUrl, exportZipUrl, formatSize } from '../api';
 import type { ImageItem } from '../types';
 import { IconClose } from './Icons';
+import i18n from '../i18n';
 
 /**
  * 导出为图片（对标 Eagle「导出」）：格式 / 质量 / 最长边。
@@ -19,18 +20,18 @@ interface Props {
 }
 
 const FORMATS = [
-  { key: 'jpeg', label: 'JPEG', note: '体积小，适合分享' },
-  { key: 'png', label: 'PNG', note: '无损，透明图首选' },
-  { key: 'webp', label: 'WebP', note: '同画质更小' },
-  { key: 'avif', label: 'AVIF', note: '压缩率最高' },
+  { key: 'jpeg', label: 'JPEG', note: i18n.t('k08f88e16') },
+  { key: 'png', label: 'PNG', note: i18n.t('k6c43040c') },
+  { key: 'webp', label: 'WebP', note: i18n.t('kc1bf7ca1') },
+  { key: 'avif', label: 'AVIF', note: i18n.t('k59de65f2') },
 ];
 const QUALITIES = [100, 95, 90, 82];
 const SIDES = [
-  { v: 0, l: '原始尺寸' },
-  { v: 4096, l: '最长边 4096' },
-  { v: 2048, l: '最长边 2048' },
-  { v: 1024, l: '最长边 1024' },
-  { v: 512, l: '最长边 512' },
+  { v: 0, l: i18n.t('k21f3929a') },
+  { v: 4096, l: i18n.t('k1b520a63') },
+  { v: 2048, l: i18n.t('k379265ce') },
+  { v: 1024, l: i18n.t('k292f7fcc') },
+  { v: 512, l: i18n.t('kb915080b') },
 ];
 
 export default function ExportDialog({ item, ids, onClose, onToast }: Props) {
@@ -64,23 +65,23 @@ export default function ExportDialog({ item, ids, onClose, onToast }: Props) {
   const lossy = format !== 'png' && format !== '';
   const outSize = useMemo(() => {
     if (batch) {
-      return maxSide ? `共 ${list!.length} 张 · 最长边限制 ${maxSide}` : `共 ${list!.length} 张 · 保持原始尺寸`;
+      return maxSide ? i18n.t('kaa7763ca', { p0: list!.length, p1: maxSide }) : i18n.t('k540b88c9', { p0: list!.length });
     }
     const w = item?.width || 0;
     const h = item?.height || 0;
     if (!maxSide || Math.max(w, h) <= maxSide) return `${w} × ${h}`;
     const k = maxSide / Math.max(w, h);
-    return `${Math.round(w * k)} × ${Math.round(h * k)}（原 ${w} × ${h}）`;
+    return i18n.t('kf336f851', { p0: Math.round(w * k), p1: Math.round(h * k), p2: w, p3: h });
   }, [batch, list, item?.width, item?.height, maxSide]);
 
   const go = async () => {
     setBusy(true);
     try {
       await downloadFile(url);
-      onToast?.(batch ? `已开始打包导出 ${list!.length} 张` : '已开始导出');
+      onToast?.(batch ? i18n.t('k73c6336d', { p0: list!.length }) : i18n.t('k02386ca9'));
       onClose();
     } catch (err) {
-      onToast?.(`导出失败：${(err as Error).message}`);
+      onToast?.(i18n.t('k246e218d', { p0: (err as Error).message }));
     } finally {
       setBusy(false);
     }
@@ -91,8 +92,8 @@ export default function ExportDialog({ item, ids, onClose, onToast }: Props) {
     <div className="modal-backdrop" onMouseDown={(e) => e.stopPropagation()} onClick={onClose}>
       <div className="modal-card exp-card" onClick={(e) => e.stopPropagation()}>
         <div className="modal-head">
-          <b>{batch ? `批量导出 ${list!.length} 张` : '导出图片'}</b>
-          <button className="icon-btn" onClick={onClose} title="关闭">
+          <b>{batch ? i18n.t('k7308e29b', { p0: list!.length }) : i18n.t('k0130accd')}</b>
+          <button className="icon-btn" onClick={onClose} title={i18n.t('kb15d9127')}>
             <IconClose />
           </button>
         </div>
@@ -100,22 +101,22 @@ export default function ExportDialog({ item, ids, onClose, onToast }: Props) {
           {batch ? (
             <div className="exp-batch-thumb" aria-hidden>
               {list!.length}
-              <span>张</span>
+              <span>{i18n.t('k6499fc74')}</span>
             </div>
           ) : (
             item && <img src={item.thumbUrl || item.url} alt="" loading="lazy" decoding="async" />
           )}
           <div className="exp-form">
             <div className="exp-field">
-              <label>格式</label>
+              <label>{i18n.t('ke3127cc1')}</label>
               <div className="exp-chips">
                 {batch && (
                   <button
                     className={`exp-chip${format === '' ? ' on' : ''}`}
-                    title="不重新编码，直接打包原文件（最快，画质零损失）"
+                    title={i18n.t('k959afe84')}
                     onClick={() => setFormat('')}
                   >
-                    保持原格式
+                    {i18n.t('k8392fec0')}
                   </button>
                 )}
                 {Fs.map((f) => (
@@ -126,24 +127,24 @@ export default function ExportDialog({ item, ids, onClose, onToast }: Props) {
               </div>
             </div>
             <div className="exp-field">
-              <label>质量</label>
+              <label>{i18n.t('k3a7170b9')}</label>
               <div className="exp-chips">
                 {Qs.map((q) => (
                   <button
                     key={q}
                     className={`exp-chip${quality === q ? ' on' : ''}`}
                     disabled={!lossy}
-                    title={lossy ? '数值越高画质越好、体积越大' : 'PNG / 原格式无需设置质量'}
+                    title={lossy ? i18n.t('k5e4bc6df') : i18n.t('k62de648c')}
                     onClick={() => setQuality(q)}
                   >
                     {q}
                   </button>
                 ))}
-                {!lossy && <span className="exp-hint">{format === 'png' ? 'PNG 无损，忽略此项' : '保持原格式时忽略此项'}</span>}
+                {!lossy && <span className="exp-hint">{format === 'png' ? i18n.t('kdaa0d585') : i18n.t('k6b82cb61')}</span>}
               </div>
             </div>
             <div className="exp-field">
-              <label>尺寸</label>
+              <label>{i18n.t('kc8339fd2')}</label>
               <div className="exp-chips">
                 {Ss.map((s) => (
                   <button key={s.v} className={`exp-chip${maxSide === s.v ? ' on' : ''}`} onClick={() => setMaxSide(s.v)}>
@@ -154,18 +155,18 @@ export default function ExportDialog({ item, ids, onClose, onToast }: Props) {
             </div>
             <div className="exp-hint">
               输出 {outSize}
-              {!batch && item ? ` · 源文件 ${formatSize(item.sizeBytes)}` : ''}
+              {!batch && item ? i18n.t('k8f1ad508', { p0: formatSize(item.sizeBytes) }) : ''}
             </div>
           </div>
         </div>
         <div className="modal-foot">
-          <span className="exp-hint">{batch ? '打包成 zip 下载，不改动原文件' : '导出不改动原图，可放心试不同格式'}</span>
+          <span className="exp-hint">{batch ? i18n.t('k624a347a') : i18n.t('k2888feec')}</span>
           <div style={{ display: 'flex', gap: 8 }}>
             <button className="btn sm ghost" onClick={onClose}>
-              取消
+              {i18n.t('k625fb26b')}
             </button>
             <button className="btn sm primary" disabled={busy} onClick={go}>
-              {busy ? '导出中…' : batch ? '打包导出' : '导出'}
+              {busy ? i18n.t('k86f99e94') : batch ? i18n.t('kf71a15e9') : i18n.t('k55405ea6')}
             </button>
           </div>
         </div>

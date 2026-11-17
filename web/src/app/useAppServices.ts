@@ -4,6 +4,7 @@ import { desktop, onApiError } from '../api';
 import type { ReverseTarget } from '../components/ReverseSearchDialog';
 import type { ImageItem, View } from '../types';
 import type { Toast } from './types';
+import i18n from '../i18n';
 
 type Options = {
   setLoadError: Dispatch<SetStateAction<string>>;
@@ -49,7 +50,7 @@ export function useAppServices({
       // dead 态不遮罩锁死，但要常驻一条离线横幅，别让用户对着「点不动」猜原因
       setServiceOffline(!!s.dead);
       setServiceError(String(s.error || ''));
-      if (s.error) setLoadError(`本地服务重启失败：${s.error}`);
+      if (s.error) setLoadError(i18n.t('kc409134c', { p0: s.error }));
     });
   }, [setLoadError, setServiceError, setServiceOffline, setServiceRestarting]);
 
@@ -58,7 +59,7 @@ export function useAppServices({
   useEffect(() => {
     const onErr = (e: Event) => {
       const msg = (e as CustomEvent).detail;
-      if (typeof msg === 'string' && msg) showToast(`出现异常：${msg}`, 'error');
+      if (typeof msg === 'string' && msg) showToast(i18n.t('k3f19d5cc', { p0: msg }), 'error');
     };
     window.addEventListener('tuku:error', onErr);
     return () => window.removeEventListener('tuku:error', onErr);

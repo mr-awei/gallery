@@ -12,6 +12,7 @@ import {
   type ReactNode,
 } from 'react';
 import { createPortal } from 'react-dom';
+import i18n from '../i18n';
 
 /**
  * 自绘下拉框。
@@ -86,7 +87,7 @@ export default function Select({
   className,
   style,
   disabled,
-  placeholder = '请选择',
+  placeholder = i18n.t('k708c9d6d'),
   title,
   searchThreshold = 12,
 }: Props) {
@@ -260,7 +261,7 @@ export default function Select({
                 <input
                   autoFocus
                   value={q}
-                  placeholder="搜索…"
+                  placeholder={i18n.t('k88552f1f')}
                   onChange={(e) => {
                     setQ(e.target.value);
                     setActive(0);
@@ -270,7 +271,7 @@ export default function Select({
               </div>
             )}
             <div className="sel-list">
-              {filtered.length === 0 && <div className="sel-empty">没有匹配项</div>}
+              {filtered.length === 0 && <div className="sel-empty">{i18n.t('kfb08d1b8')}</div>}
               {filtered.map((it, idx) => {
                 const head = it.group && it.group !== lastGroup ? it.group : null;
                 lastGroup = it.group;

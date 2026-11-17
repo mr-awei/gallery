@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState, type MouseEvent as ReactMouseEvent } from 'react';
 import { api, desktop } from '../api';
+import i18n from '../i18n';
 
 interface Props {
   onImported: (count: number) => void;
@@ -35,7 +36,7 @@ export default function ScreenshotOverlay({ onImported, onToast }: Props) {
 
   const open = useCallback(async () => {
     if (!desktop?.grabScreen) {
-      onToast?.('截图仅在桌面端可用');
+      onToast?.(i18n.t('k4fa631a5'));
       return;
     }
     try {
@@ -44,7 +45,7 @@ export default function ScreenshotOverlay({ onImported, onToast }: Props) {
       setShot({ src: g.dataUrl, w: g.width, h: g.height });
       setRect(null);
     } catch (err) {
-      onToast?.(`截图失败：${(err as Error).message}`);
+      onToast?.(i18n.t('k6da53556', { p0: (err as Error).message }));
     }
   }, [onToast]);
 
@@ -96,7 +97,7 @@ export default function ScreenshotOverlay({ onImported, onToast }: Props) {
       const vh = window.innerHeight;
       const target: Rect = area ?? { x: 0, y: 0, w: vw, h: vh };
       if (target.w < MIN_SIZE || target.h < MIN_SIZE) {
-        onToast?.('选区太小，拖出一块区域再保存');
+        onToast?.(i18n.t('k73391509'));
         return;
       }
       setBusy(true);
@@ -107,12 +108,12 @@ export default function ScreenshotOverlay({ onImported, onToast }: Props) {
         canvas.width = Math.max(1, Math.round(target.w * scaleX));
         canvas.height = Math.max(1, Math.round(target.h * scaleY));
         const ctx = canvas.getContext('2d');
-        if (!ctx) throw new Error('无法创建画布');
+        if (!ctx) throw new Error(i18n.t('k2352bf26'));
         const img = new Image();
         img.src = shot.src;
         await new Promise<void>((resolve, reject) => {
           img.onload = () => resolve();
-          img.onerror = () => reject(new Error('底图解码失败'));
+          img.onerror = () => reject(new Error(i18n.t('ka2b7ddb1')));
         });
         ctx.drawImage(
           img,
@@ -126,19 +127,19 @@ export default function ScreenshotOverlay({ onImported, onToast }: Props) {
           canvas.height
         );
         const blob = await new Promise<Blob>((resolve, reject) =>
-          canvas.toBlob((b) => (b ? resolve(b) : reject(new Error('导出失败'))), 'image/png')
+          canvas.toBlob((b) => (b ? resolve(b) : reject(new Error(i18n.t('kdd51ab50')))), 'image/png')
         );
         const t = new Date();
         const p2 = (n: number) => String(n).padStart(2, '0');
         const name = `Screenshot_${t.getFullYear()}${p2(t.getMonth() + 1)}${p2(t.getDate())}_${p2(t.getHours())}${p2(
           t.getMinutes()
         )}${p2(t.getSeconds())}.png`;
-        await api.uploadFile(new File([blob], name, { type: 'image/png' }), { tags: '截图' });
+        await api.uploadFile(new File([blob], name, { type: 'image/png' }), { tags: i18n.t('k369abff3') });
         onImported(1);
-        onToast?.(`截图已入库：${name}`);
+        onToast?.(i18n.t('k38b1b0e9', { p0: name }));
         close();
       } catch (err) {
-        onToast?.(`截图入库失败：${(err as Error).message}`);
+        onToast?.(i18n.t('k8676af8d', { p0: (err as Error).message }));
       } finally {
         setBusy(false);
       }
@@ -198,15 +199,15 @@ export default function ScreenshotOverlay({ onImported, onToast }: Props) {
         </>
       )}
       <div className="shot-bar" onMouseDown={(e) => e.stopPropagation()}>
-        <span className="shot-hint">拖动鼠标框选区域 · Enter 截取 · Esc 取消</span>
+        <span className="shot-hint">{i18n.t('kbcef2bc8')}</span>
         <button className="btn sm" disabled={busy || r.w < MIN_SIZE} onClick={() => void save(r)}>
-          {busy ? '保存中…' : '截取选区'}
+          {busy ? i18n.t('k9b5d32d1') : i18n.t('k3add5f84')}
         </button>
         <button className="btn sm ghost" disabled={busy} onClick={() => void save()}>
-          整屏截图
+          {i18n.t('k7851c887')}
         </button>
         <button className="btn sm ghost" disabled={busy} onClick={close}>
-          取消
+          {i18n.t('k625fb26b')}
         </button>
       </div>
     </div>

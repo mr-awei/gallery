@@ -6,6 +6,7 @@ import type { AppInfo, DesktopAPI } from './types';
 import type { Filters } from '../types';
 export const desktop = (window as unknown as { desktopAPI?: DesktopAPI }).desktopAPI;
 export const isDesktop = !!desktop;
+import i18n, { currentLocale } from '../i18n';
 
 /** 桌面端信息（浏览器模式返回 null） */
 export async function getAppInfo(): Promise<AppInfo | null> {
@@ -62,23 +63,23 @@ export function downloadFile(url: string) {
  */
 export async function copyImageToClipboard(url: string) {
   if (!navigator.clipboard || typeof ClipboardItem === 'undefined') {
-    throw new Error('当前环境不支持写入剪贴板，请用「下载」');
+    throw new Error(i18n.t('ka4b82856'));
   }
   const img = await new Promise<HTMLImageElement>((resolve, reject) => {
     const el = new Image();
     el.crossOrigin = 'anonymous';
     el.onload = () => resolve(el);
-    el.onerror = () => reject(new Error('图片加载失败'));
+    el.onerror = () => reject(new Error(i18n.t('kb3b83e12')));
     el.src = url;
   });
   const canvas = document.createElement('canvas');
   canvas.width = img.naturalWidth;
   canvas.height = img.naturalHeight;
   const ctx = canvas.getContext('2d');
-  if (!ctx) throw new Error('无法创建画布');
+  if (!ctx) throw new Error(i18n.t('k2352bf26'));
   ctx.drawImage(img, 0, 0);
   const blob = await new Promise<Blob>((resolve, reject) => {
-    canvas.toBlob((b) => (b ? resolve(b) : reject(new Error('转换 PNG 失败'))), 'image/png');
+    canvas.toBlob((b) => (b ? resolve(b) : reject(new Error(i18n.t('k760db351')))), 'image/png');
   });
   await navigator.clipboard.write([new ClipboardItem({ 'image/png': blob })]);
 }
@@ -224,6 +225,8 @@ export async function postBlobWithNote(
 ): Promise<{ blob: Blob; note: string }> {
   const token = await getApiToken();
   const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+  // 服务端按这个头决定 error / msg 文案的语言（本地服务没有别的语言来源）
+  headers['Accept-Language'] = currentLocale();
   if (token) headers.Authorization = `Bearer ${token}`;
   const ctrl = new AbortController();
   const timedOut = { v: false };
@@ -235,14 +238,14 @@ export async function postBlobWithNote(
   try {
     res = await fetch(BASE + path, { method: 'POST', headers, body: JSON.stringify(payload), signal: ctrl.signal });
   } catch (err) {
-    if (timedOut.v) throw new Error(`预览生成超时（${Math.round(timeoutMs / 1000)}s）：${path}`);
+    if (timedOut.v) throw new Error(i18n.t('kd705c2fc', { p0: Math.round(timeoutMs / 1000), p1: path }));
     throw networkError(err, path);
   } finally {
     clearTimeout(timer);
   }
   if (!res.ok) {
-    if (res.status === 401) throw new Error('登录令牌已失效：请重启应用后重试');
-    let message = `请求失败 ${res.status}`;
+    if (res.status === 401) throw new Error(i18n.t('kb54b9280'));
+    let message = i18n.t('k6b43688f', { p0: res.status });
     try {
       const data = await res.json();
       if (data?.error) message = data.error;
@@ -302,7 +305,7 @@ const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
  */
 function networkError(err: unknown, path: string): Error {
   if (err instanceof TypeError) {
-    return new Error(`连不上本地服务（${path}）：服务可能已退出，请重启「图库」后再试`);
+    return new Error(i18n.t('kf87b09ba', { p0: path }));
   }
   return err as Error;
 }
@@ -374,6 +377,7 @@ export async function request<T>(path: string, init?: RequestOptions): Promise<T
   const headers: Record<string, string> = {
     ...((init?.headers as Record<string, string>) || {}),
   };
+  headers['Accept-Language'] = currentLocale();
   if (token) headers.Authorization = `Bearer ${token}`;
   if (init?.body && !headers['Content-Type']) headers['Content-Type'] = 'application/json';
 
@@ -398,9 +402,9 @@ export async function request<T>(path: string, init?: RequestOptions): Promise<T
       if (!res.ok) {
         // 401 单独说清楚：令牌存在 localStorage / preload 里，服务端重启换了令牌时
         // 后面每个请求都会 401，笼统的「请求失败 401」根本没法据此排查
-        if (res.status === 401) throw new Error('登录令牌已失效：请重启应用后重试');
-        if (res.status === 403) throw new Error('没有权限执行这个操作');
-        let message = `请求失败 ${res.status}`;
+        if (res.status === 401) throw new Error(i18n.t('kb54b9280'));
+        if (res.status === 403) throw new Error(i18n.t('k61e3699e'));
+        let message = i18n.t('k6b43688f', { p0: res.status });
         let code = '';
         try {
           const data = await res.json();
@@ -429,7 +433,7 @@ export async function request<T>(path: string, init?: RequestOptions): Promise<T
       try {
         return JSON.parse(text) as T;
       } catch {
-        throw new Error('服务端返回了无效数据');
+        throw new Error(i18n.t('k56447f78'));
       }
     } catch (err) {
       // 调用方主动取消：原样抛出，绝不重试
@@ -441,8 +445,8 @@ export async function request<T>(path: string, init?: RequestOptions): Promise<T
         await sleep(250 * 2 ** attempt);
         continue;
       }
-      if (timedOut.v) throw new Error(`请求超时（${Math.round(timeoutMs / 1000)}s）：${path}`);
-      if (err instanceof SyntaxError) throw new Error('服务端返回了无效数据');
+      if (timedOut.v) throw new Error(i18n.t('ke88692c1', { p0: Math.round(timeoutMs / 1000), p1: path }));
+      if (err instanceof SyntaxError) throw new Error(i18n.t('k56447f78'));
       throw networkError(err, path);
     } finally {
       clearTimeout(timer);
@@ -510,17 +514,17 @@ export function formatDate(iso: string) {
 }
 
 export const SOURCE_LABELS: Record<string, string> = {
-  bing: '必应',
-  baidu: '百度',
-  sogou: '搜狗',
-  image360: '360 图片',
-  duitang: '堆糖',
-  weibo: '微博',
+  bing: i18n.t('k34382541'),
+  baidu: i18n.t('ka3f4a5b0'),
+  sogou: i18n.t('k10d247e0'),
+  image360: i18n.t('k4444fca8'),
+  duitang: i18n.t('k2ebe7e4f'),
+  weibo: i18n.t('kfb050d6c'),
   wallhaven: 'Wallhaven',
   commons: 'Wikimedia',
-  douban: '豆瓣',
-  tieba: '贴吧',
-  local: '本地素材',
+  douban: i18n.t('k0112b119'),
+  tieba: i18n.t('kf0694566'),
+  local: i18n.t('ke2d96131'),
 };
 
 export const BUCKET_LABELS: Record<string, string> = {
@@ -531,7 +535,7 @@ export const BUCKET_LABELS: Record<string, string> = {
 };
 
 export const ORIENTATION_LABELS: Record<string, string> = {
-  portrait: '竖版',
-  landscape: '横版',
-  square: '方图',
+  portrait: i18n.t('kf02ee187'),
+  landscape: i18n.t('k2cfab0df'),
+  square: i18n.t('k5c036336'),
 };

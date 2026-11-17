@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { api } from '../../api';
 import Card from './Card';
+import i18n from '../../i18n';
 
 /**
  * 标签别名 / 同义词。
@@ -34,7 +35,7 @@ export default function AliasCard({ onToast }: { onToast: (msg: string, kind?: '
     const a = alias.trim();
     const t = tag.trim();
     if (!a || !t) {
-      onToast('别名和目标标签都要填', 'error');
+      onToast(i18n.t('k0ee4020f'), 'error');
       return;
     }
     setBusy(true);
@@ -42,7 +43,7 @@ export default function AliasCard({ onToast }: { onToast: (msg: string, kind?: '
       const r = await api.setTagAlias(a, t);
       setAliases(r.aliases);
       setAlias('');
-      onToast(`已把「${a}」设为「${t}」的同义词`);
+      onToast(i18n.t('k146cd5e5', { p0: a, p1: t }));
     } catch (err) {
       onToast((err as Error).message, 'error');
     } finally {
@@ -54,7 +55,7 @@ export default function AliasCard({ onToast }: { onToast: (msg: string, kind?: '
     try {
       const r = await api.deleteTagAlias(a);
       setAliases(r.aliases);
-      onToast(`已删除同义词「${a}」`);
+      onToast(i18n.t('ke9331623', { p0: a }));
     } catch (err) {
       onToast((err as Error).message, 'error');
     }
@@ -62,13 +63,13 @@ export default function AliasCard({ onToast }: { onToast: (msg: string, kind?: '
 
   return (
     <Card
-      title="标签别名 / 同义词"
-      desc="搜「写真」也能搜到标了「人像」的素材。别名只影响搜索，不改动图片上的标签。"
+      title={i18n.t('k7c0d5b34')}
+      desc={i18n.t('k54f313e6')}
     >
       <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center' }}>
         <input
           className="input"
-          placeholder="别名，如：写真"
+          placeholder={i18n.t('ka2d2419d')}
           value={alias}
           onChange={(e) => setAlias(e.target.value)}
           onKeyDown={(e) => e.key === 'Enter' && void submit()}
@@ -78,7 +79,7 @@ export default function AliasCard({ onToast }: { onToast: (msg: string, kind?: '
         <input
           className="input"
           list="alias-tag-options"
-          placeholder="目标标签，如：人像"
+          placeholder={i18n.t('k62624bdd')}
           value={tag}
           onChange={(e) => setTag(e.target.value)}
           onKeyDown={(e) => e.key === 'Enter' && void submit()}
@@ -92,7 +93,7 @@ export default function AliasCard({ onToast }: { onToast: (msg: string, kind?: '
           ))}
         </datalist>
         <button className="btn primary" onClick={submit} disabled={busy}>
-          {busy ? '保存中…' : '添加'}
+          {busy ? i18n.t('k9b5d32d1') : i18n.t('kb58c7549')}
         </button>
       </div>
 
@@ -118,16 +119,16 @@ export default function AliasCard({ onToast }: { onToast: (msg: string, kind?: '
                   className="btn sm"
                   style={{ marginLeft: 'auto' }}
                   onClick={() => void remove(a.alias)}
-                  title="删除这个同义词（图片上的标签不受影响）"
+                  title={i18n.t('kc7119e36')}
                 >
-                  删除
+                  {i18n.t('k2f4aaddd')}
                 </button>
               </div>
             ))}
           </div>
         ) : (
           <div className="settings-desc" style={{ margin: 0 }}>
-            还没有同义词。适合放「英文/中文」「俗称/正名」这类成对说法。
+            {i18n.t('k63bbd6ed')}
           </div>
         )}
       </div>

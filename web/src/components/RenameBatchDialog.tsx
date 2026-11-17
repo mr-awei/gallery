@@ -2,6 +2,7 @@ import { useMemo, useState } from 'react';
 import { api } from '../api';
 import type { ImageItem } from '../types';
 import { IconClose } from './Icons';
+import i18n from '../i18n';
 
 /**
  * 批量重命名（对标 Eagle Batch Rename）：
@@ -18,14 +19,14 @@ interface Props {
 }
 
 const TOKENS = [
-  { key: '{name}', label: '原名' },
-  { key: '{keyword}', label: '关键词' },
-  { key: '{source}', label: '来源' },
-  { key: '{date}', label: '日期' },
-  { key: '{index}', label: '序号' },
-  { key: '{width}', label: '宽' },
-  { key: '{height}', label: '高' },
-  { key: '{ext}', label: '扩展名' },
+  { key: '{name}', label: i18n.t('k0e9f870c') },
+  { key: '{keyword}', label: i18n.t('k9699a50e') },
+  { key: '{source}', label: i18n.t('k26ca20b1') },
+  { key: '{date}', label: i18n.t('k4ff1e74e') },
+  { key: '{index}', label: i18n.t('kfaaadc44') },
+  { key: '{width}', label: i18n.t('kea5a1c75') },
+  { key: '{height}', label: i18n.t('k4296d7d2') },
+  { key: '{ext}', label: i18n.t('k4a63edba') },
 ];
 
 interface ExtraOpts {
@@ -61,10 +62,10 @@ function renderPreview(tpl: string, item: ImageItem | undefined, index: number, 
 }
 
 const CASE_OPTIONS: Array<{ value: ExtraOpts['caseMode']; label: string }> = [
-  { value: 'keep', label: '保持原样' },
-  { value: 'lower', label: '全小写' },
-  { value: 'upper', label: '全大写' },
-  { value: 'title', label: '首字母大写' },
+  { value: 'keep', label: i18n.t('kc73bc7a0') },
+  { value: 'lower', label: i18n.t('kdd1f167e') },
+  { value: 'upper', label: i18n.t('kfc57029c') },
+  { value: 'title', label: i18n.t('k24ef528e') },
 ];
 
 export default function RenameBatchDialog({ ids, items, onClose, onToast, onDone }: Props) {
@@ -88,11 +89,11 @@ export default function RenameBatchDialog({ ids, items, onClose, onToast, onDone
 
   const submit = async () => {
     if (busy) return;
-    if (!template.trim()) return onToast('模板不能为空');
+    if (!template.trim()) return onToast(i18n.t('kd3fb7e2f'));
     setBusy(true);
     try {
       const r = await api.renameBatch(ids, template.trim(), start, opts);
-      onToast(r.failed ? `重命名完成：成功 ${r.renamed}，失败 ${r.failed}` : `已重命名 ${r.renamed} 张`);
+      onToast(r.failed ? i18n.t('k19ed8f90', { p0: r.renamed, p1: r.failed }) : i18n.t('k2ad8faec', { p0: r.renamed }));
       onDone();
       onClose();
     } catch (err) {
@@ -106,7 +107,7 @@ export default function RenameBatchDialog({ ids, items, onClose, onToast, onDone
       <div className="modal-card" style={{ maxWidth: 560 }} onClick={(e) => e.stopPropagation()}>
         <div className="modal-head">
           <b>批量重命名 · 已选 {ids.length} 张</b>
-          <button className="btn ghost sm" onClick={onClose} disabled={busy} aria-label={'关闭'}>
+          <button className="btn ghost sm" onClick={onClose} disabled={busy} aria-label={i18n.t('kb15d9127')}>
             <IconClose />
           </button>
         </div>
@@ -119,7 +120,7 @@ export default function RenameBatchDialog({ ids, items, onClose, onToast, onDone
               style={{ width: '100%' }}
               value={template}
               autoFocus
-              placeholder="例如：{date}_{keyword}_{index}"
+              placeholder={i18n.t('ka82a6796')}
               onChange={(e) => setTemplate(e.target.value)}
             />
           </div>
@@ -171,7 +172,7 @@ export default function RenameBatchDialog({ ids, items, onClose, onToast, onDone
               <input
                 className="input"
                 style={{ flex: 1, minWidth: 120 }}
-                placeholder="查找"
+                placeholder={i18n.t('kdc5d07a1')}
                 value={find}
                 onChange={(e) => setFind(e.target.value)}
               />
@@ -179,7 +180,7 @@ export default function RenameBatchDialog({ ids, items, onClose, onToast, onDone
               <input
                 className="input"
                 style={{ flex: 1, minWidth: 120 }}
-                placeholder="替换为（留空即删除）"
+                placeholder={i18n.t('kda9e5e18')}
                 value={replaceText}
                 onChange={(e) => setReplaceText(e.target.value)}
               />
@@ -208,7 +209,7 @@ export default function RenameBatchDialog({ ids, items, onClose, onToast, onDone
               {previews.map((p, i) => (
                 <div key={i} className="rename-preview-row">
                   <span className="n">{i + 1}</span>
-                  <span className="t">{p || '（空名称会被跳过）'}</span>
+                  <span className="t">{p || i18n.t('kb8a317ce')}</span>
                 </div>
               ))}
               {!previews.length && <div className="rename-preview-row">当前页没有可预览的选中项</div>}
@@ -228,7 +229,7 @@ export default function RenameBatchDialog({ ids, items, onClose, onToast, onDone
               disabled={busy}
               onClick={submit}
             >
-              {busy ? '重命名中…' : '开始重命名'}
+              {busy ? i18n.t('k2a0ffdba') : i18n.t('k19ee42ac')}
             </button>
           </div>
         </div>

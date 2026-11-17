@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { api, isDesktop, pickFolder } from '../api';
 import type { Library } from '../types';
 import { IconClose, IconFolder } from './Icons';
+import i18n from '../i18n';
 
 /**
  * 新建资源库对话框。
@@ -59,11 +60,11 @@ export default function CreateLibraryDialog({ onCancel, onDone, onToast, welcome
     const root = rootPath.trim();
     const dataDir = advanced ? libFolder.trim() : '';
     if (!libName) {
-      onToast('请填写资源库名称');
+      onToast(i18n.t('k7ad9df88'));
       return;
     }
     if (!root) {
-      onToast('请选择素材文件夹');
+      onToast(i18n.t('k5fc44333'));
       return;
     }
     setBusy(true);
@@ -95,7 +96,7 @@ export default function CreateLibraryDialog({ onCancel, onDone, onToast, welcome
       >
         <div className="modal-head">
           <b>
-            <IconFolder /> {welcome ? '欢迎使用图库' : '新建资源库'}
+            <IconFolder /> {welcome ? i18n.t('ka5ecd271') : i18n.t('k8466b68e')}
           </b>
           {!welcome && (
             <button className="btn ghost sm" onClick={onCancel}>
@@ -107,17 +108,17 @@ export default function CreateLibraryDialog({ onCancel, onDone, onToast, welcome
         <div className="modal-body" style={{ display: 'block' }}>
           {welcome && (
             <div style={{ marginBottom: 14, fontSize: 13, lineHeight: 1.7, color: 'var(--muted)' }}>
-              先建一个资源库：起个名字，再选图片所在的文件夹。之后随时能再建或切换。
+              {i18n.t('k42619b08')}
             </div>
           )}
 
           <div className="field">
-            <label>资源库名称</label>
+            <label>{i18n.t('kc19baaac')}</label>
             <input
               className="input"
               style={{ width: '100%' }}
               value={name}
-              placeholder="选完文件夹会自动填"
+              placeholder={i18n.t('k9b363cf3')}
               autoFocus
               onChange={(e) => {
                 setName(e.target.value);
@@ -127,24 +128,24 @@ export default function CreateLibraryDialog({ onCancel, onDone, onToast, welcome
           </div>
 
           <div className="field">
-            <label>素材文件夹</label>
+            <label>{i18n.t('k250a53c9')}</label>
             <div style={{ display: 'flex', gap: 8 }}>
               <input
                 className="input"
                 style={{ flex: 1 }}
                 value={rootPath}
-                placeholder={isDesktop ? '选择放图片的文件夹' : '例如 E:\\白底图'}
+                placeholder={isDesktop ? i18n.t('k5ade9ca6') : i18n.t('k723e93fb')}
                 readOnly={isDesktop}
                 onChange={(e) => setRootPath(e.target.value)}
               />
               {isDesktop && (
                 <button className="btn" onClick={chooseRoot} disabled={busy}>
-                  选择…
+                  {i18n.t('k4f05519a')}
                 </button>
               )}
             </div>
             <div style={{ fontSize: 12, color: 'var(--muted)', marginTop: 6, lineHeight: 1.6 }}>
-              这个文件夹就是资源库的全部内容，之后也能在设置里更改。
+              {i18n.t('k96ad28c2')}
             </div>
           </div>
 
@@ -161,26 +162,26 @@ export default function CreateLibraryDialog({ onCancel, onDone, onToast, welcome
 
           {advanced && (
             <div className="field" style={{ marginTop: 8 }}>
-              <label>库数据目录（gallery.db / 缩略图）</label>
+              <label>{i18n.t('kd88f9681')}</label>
               <div style={{ display: 'flex', gap: 8 }}>
                 <input
                   className="input"
                   style={{ flex: 1 }}
                   value={libFolder}
                   placeholder={
-                    rootPath ? `默认：${defaultDataDir(rootPath)}` : '默认建在素材文件夹下的 .tuku 里'
+                    rootPath ? i18n.t('k9c6a9c5e', { p0: defaultDataDir(rootPath) }) : i18n.t('kf3c58bd0')
                   }
                   readOnly={isDesktop}
                   onChange={(e) => setLibFolder(e.target.value)}
                 />
                 {isDesktop && (
                   <button className="btn" onClick={chooseLibFolder} disabled={busy}>
-                    选择…
+                    {i18n.t('k4f05519a')}
                   </button>
                 )}
               </div>
               <div style={{ fontSize: 12, color: 'var(--muted)', marginTop: 6, lineHeight: 1.6 }}>
-                留空就用默认位置；填了之后库数据和素材分开存放，迁移时要各拷一次。
+                {i18n.t('k094b3405')}
               </div>
             </div>
           )}
@@ -189,15 +190,15 @@ export default function CreateLibraryDialog({ onCancel, onDone, onToast, welcome
         <div className="modal-foot">
           {welcome ? (
             <button className="btn ghost" onClick={onCancel} disabled={busy}>
-              跳过
+              {i18n.t('k92636e8c')}
             </button>
           ) : (
-            <span style={{ fontSize: 12, color: 'var(--muted)' }}>创建后自动切换到该库</span>
+            <span style={{ fontSize: 12, color: 'var(--muted)' }}>{i18n.t('k9cbf39d8')}</span>
           )}
           <div style={{ display: 'flex', gap: 8 }}>
             {!welcome && (
               <button className="btn" onClick={onCancel}>
-                取消
+                {i18n.t('k625fb26b')}
               </button>
             )}
             <button
@@ -206,7 +207,7 @@ export default function CreateLibraryDialog({ onCancel, onDone, onToast, welcome
               disabled={busy}
               onClick={submit}
             >
-              {busy ? '创建中…' : welcome ? '创建并开始使用' : '创建并切换'}
+              {busy ? i18n.t('kd156b373') : welcome ? i18n.t('k014b37f4') : i18n.t('k73b3f88e')}
             </button>
           </div>
         </div>

@@ -7,6 +7,7 @@
  */
 import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { getTutorial, getTutorialCategories, getTutorialSections, getTutorialTotal } from '../lib/tutorial-content';
+import i18n from '../i18n';
 
 const INLINE = /(\*\*[^*]+\*\*|`[^`]+`)/g;
 
@@ -69,7 +70,7 @@ function snippetOf(body: string, tokens: string[]) {
 }
 
 export default function Tutorial({ initialQuery = '' }: { initialQuery?: string }) {
-  // 语料是纯中文常量集，挂载时取一次即可
+  // 语料是 i18n 词条，挂载时取值一次即可（切换语言会整页重载）
   const TUTORIAL = useMemo(() => getTutorial(), []);
   const TUTORIAL_CATEGORIES = useMemo(() => getTutorialCategories(TUTORIAL), [TUTORIAL]);
   const TUTORIAL_TOTAL = getTutorialTotal(TUTORIAL);
@@ -124,9 +125,9 @@ export default function Tutorial({ initialQuery = '' }: { initialQuery?: string 
     <div className="tut-page">
       <header className="tut-head">
         <div>
-          <h2>{'使用教程'}</h2>
+          <h2>{i18n.t('k658b4cfd')}</h2>
           <p className="tut-sub">
-            {`共 ${TUTORIAL_TOTAL} 条功能说明，覆盖 ${TUTORIAL_CATEGORIES.length} 个分类。输入关键词搜索，或从左侧分类进入。`}
+            {i18n.t('kff68910d', { p0: TUTORIAL_TOTAL, p1: TUTORIAL_CATEGORIES.length })}
           </p>
         </div>
         <div className="tut-search">
@@ -141,11 +142,11 @@ export default function Tutorial({ initialQuery = '' }: { initialQuery?: string 
                 else inputRef.current?.blur();
               }
             }}
-            placeholder={'搜功能：堆叠、水印、时间点笔记、壁纸…'}
-            aria-label={'搜索教程'}
+            placeholder={i18n.t('k8fc9537f')}
+            aria-label={i18n.t('kdc0d39a8')}
           />
           {q && (
-            <button className="tut-clear" onClick={() => setQ('')} title={'清空搜索'}>
+            <button className="tut-clear" onClick={() => setQ('')} title={i18n.t('k0fb64722')}>
               ×
             </button>
           )}
@@ -153,9 +154,9 @@ export default function Tutorial({ initialQuery = '' }: { initialQuery?: string 
       </header>
 
       <div className="tut-layout">
-        <nav className="tut-nav" aria-label={'教程分类'}>
+        <nav className="tut-nav" aria-label={i18n.t('k1e942c11')}>
           <button className={`tut-nav-item${cat === null ? ' on' : ''}`} onClick={() => setCat(null)}>
-            {'全部'}
+            {i18n.t('ka8b0c204')}
             <span>{TUTORIAL_TOTAL}</span>
           </button>
           {TUTORIAL_CATEGORIES.map((c) => (
@@ -174,12 +175,12 @@ export default function Tutorial({ initialQuery = '' }: { initialQuery?: string 
           {results ? (
             <>
               <div className="tut-result-head">
-                {'找到 '}
+                {i18n.t('kd7b1fd5f')}
                 <b>{results.length}</b>
-                {' 条'}
+                {i18n.t('kcc1bacb5')}
                 {cat ? ` (${TUTORIAL_CATEGORIES.find((c) => c.id === cat)?.title})` : ''}
                 {results.length === 0 && (
-                  <span className="tut-empty-hint">{'换个词试试，比如「堆叠」「导出」「快捷键」'}</span>
+                  <span className="tut-empty-hint">{i18n.t('ka97a0e5b')}</span>
                 )}
               </div>
               {results.map(({ s }) => (
@@ -190,7 +191,7 @@ export default function Tutorial({ initialQuery = '' }: { initialQuery?: string 
                       <span className="tut-chip">{s.categoryTitle}</span>
                     </div>
                     <button className="tut-toggle" onClick={() => toggle(s.id)} aria-expanded={open.has(s.id)}>
-                      {open.has(s.id) ? '收起' : '查看全文'}
+                      {open.has(s.id) ? i18n.t('kdef9e98b') : i18n.t('ka6eebb90')}
                     </button>
                   </div>
                   <p className="tut-summary">{highlight(snippetOf(s.body, tokens), tokens)}</p>
@@ -213,7 +214,7 @@ export default function Tutorial({ initialQuery = '' }: { initialQuery?: string 
               <section className="tut-group" key={c.id}>
                 <h3 className="tut-group-title">
                   {c.title}
-                  <span>{`${c.sections.length} 条`}</span>
+                  <span>{i18n.t('kc2234681', { p0: c.sections.length })}</span>
                 </h3>
                 {c.sections.map((s) => {
                   const isOpen = open.has(s.id);
@@ -228,9 +229,9 @@ export default function Tutorial({ initialQuery = '' }: { initialQuery?: string 
                           className="tut-toggle"
                           onClick={() => toggle(s.id)}
                           aria-expanded={isOpen}
-                          title={isOpen ? '收起' : '展开'}
+                          title={isOpen ? i18n.t('kdef9e98b') : i18n.t('ke2edde5a')}
                         >
-                          {isOpen ? '收起' : '展开'}
+                          {isOpen ? i18n.t('kdef9e98b') : i18n.t('ke2edde5a')}
                         </button>
                       </div>
                       {isOpen && (

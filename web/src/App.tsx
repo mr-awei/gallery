@@ -1,4 +1,5 @@
 import { Suspense, lazy, useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import i18n from './i18n';
 
 import { isDesktop, openFolder, openFolderById, quiet } from './api';
 import type { Filters, View, ViewMode } from './types';
@@ -284,7 +285,7 @@ export default function App() {
   const crawling = !!stats?.crawling || importing;
   const activeFolder = folders.find((f) => f.id === folderId) || null;
   const activeLib = libraries.find((l) => l.id === activeLibId) || null;
-  const activeLibName = activeLib?.name || '默认图库';
+  const activeLibName = activeLib?.name || i18n.t('k5435325b');
   // 当前视图若属于工具菜单项，则顶栏「工具箱」按钮保持高亮
   const toolsActive = TOOLS.some((t) => t.key === view);
 
@@ -298,12 +299,12 @@ export default function App() {
     <div className="app">
       {/* 键盘用户不必逐个 Tab 过侧栏 40 多个入口：Tab 第一下就能跳到主内容 */}
       <a className="skip-link" href="#main">
-        {'跳到主内容'}
+        {i18n.t('kcbe32105')}
       </a>
       {/* 任意页面都能拖入 / 粘贴入库（Eagle 三件套）；图库页接管时这里自动让位 */}
       <GlobalImport
         onImported={(n) => {
-          showToast(`已入库 ${n} 个文件`);
+          showToast(i18n.t('k092eb236', { p0: n }));
           void refreshGallery();
         }}
         onToast={showToast}
@@ -334,7 +335,7 @@ export default function App() {
         <Sidebar
           libraries={libraries}
           activeLibId={activeLibId}
-          activeLibName={activeLib?.name ?? '全部'}
+          activeLibName={activeLib?.name ?? i18n.t('ka8b0c204')}
           activeLibRoot={activeLib?.root_path ?? ''}
           onSwitchLibrary={switchLibrary}
           onReloadLibraries={reloadLibraries}
@@ -482,10 +483,10 @@ export default function App() {
                 return;
               }
               openFolderById(folderId).catch((err) => {
-                const msg = (err as Error).message || '打开文件夹失败';
-                if (activeFolder.anchor_path) showToast(`打开失败：${msg}`, 'error');
+                const msg = (err as Error).message || i18n.t('k7d17ec8b');
+                if (activeFolder.anchor_path) showToast(i18n.t('k8230b634', { p0: msg }), 'error');
                 // 虚拟文件夹本来就没有磁盘目录，退回打开库根并说清楚原因
-                else showToast('这个文件夹只是虚拟分类，没有对应的磁盘目录，已打开素材库根目录');
+                else showToast(i18n.t('kdb9ccd24'));
                 openFolder().catch(quiet);
               });
             }}

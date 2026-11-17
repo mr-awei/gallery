@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import type { Filters, FolderNode } from '../types';
+import i18n from '../i18n';
 
 export interface PaletteCommand {
   id: string;
@@ -60,7 +61,7 @@ export default function CommandPalette({
     const set = (patch: Partial<Filters>, label: string): Row => ({
       id: `f:${label}`,
       label,
-      group: '筛选',
+      group: i18n.t('kc2fe6253'),
       run: () => {
         onFilter(patch);
         onClose();
@@ -68,58 +69,58 @@ export default function CommandPalette({
     });
     const rows: Row[] = [];
     const kinds: [string, string][] = [
-      ['image', '图片'],
-      ['video', '视频'],
+      ['image', i18n.t('k20def794')],
+      ['video', i18n.t('k7fcf42ed')],
       ['gif', 'GIF'],
       ['pdf', 'PDF'],
-      ['office', 'Office 文档'],
-      ['audio', '音频'],
-      ['font', '字体'],
-      ['model', '3D 模型'],
-      ['design', '设计稿'],
-      ['bookmark', '书签'],
+      ['office', i18n.t('k3739eae5')],
+      ['audio', i18n.t('k726dd5df')],
+      ['font', i18n.t('k8456bc40')],
+      ['model', i18n.t('kd9b444f7')],
+      ['design', i18n.t('kfdb21fa1')],
+      ['bookmark', i18n.t('k46779389')],
     ];
-    rows.push(set({ kind: 'all' }, '类型：全部'));
-    for (const [k, label] of kinds) rows.push(set({ kind: k }, `类型：${label}`));
-    rows.push(set({ favorite: 'yes' }, '收藏：仅收藏'));
-    rows.push(set({ favorite: 'no' }, '收藏：未收藏'));
-    rows.push(set({ seen: 'unseen' }, '查看：未看过'));
-    rows.push(set({ seen: 'seen' }, '查看：已看过'));
-    rows.push(set({ orientation: 'landscape' }, '方向：横图'));
-    rows.push(set({ orientation: 'portrait' }, '方向：竖图'));
-    rows.push(set({ orientation: 'square' }, '方向：方图'));
-    for (const n of [1, 2, 3, 4, 5]) rows.push(set({ minRating: n }, `星级：${n} 星及以上`));
-    rows.push(set({ minRating: 0 }, '星级：不限'));
+    rows.push(set({ kind: 'all' }, i18n.t('k97809a52')));
+    for (const [k, label] of kinds) rows.push(set({ kind: k }, i18n.t('k71388c2a', { p0: label })));
+    rows.push(set({ favorite: 'yes' }, i18n.t('k4af19084')));
+    rows.push(set({ favorite: 'no' }, i18n.t('k2ec83e1d')));
+    rows.push(set({ seen: 'unseen' }, i18n.t('k73c15dd2')));
+    rows.push(set({ seen: 'seen' }, i18n.t('k400ef62a')));
+    rows.push(set({ orientation: 'landscape' }, i18n.t('k69f44e15')));
+    rows.push(set({ orientation: 'portrait' }, i18n.t('kfcaf3870')));
+    rows.push(set({ orientation: 'square' }, i18n.t('kb245b8da')));
+    for (const n of [1, 2, 3, 4, 5]) rows.push(set({ minRating: n }, i18n.t('k933366aa', { p0: n })));
+    rows.push(set({ minRating: 0 }, i18n.t('k0c96438c')));
     const hues: [string, string][] = [
-      ['0', '红'],
-      ['1', '橙'],
-      ['2', '黄'],
-      ['3', '黄绿'],
-      ['4', '绿'],
-      ['5', '青绿'],
-      ['6', '青'],
-      ['7', '蓝'],
-      ['8', '蓝紫'],
-      ['9', '紫'],
-      ['10', '品红'],
-      ['11', '粉红'],
-      ['gray', '黑白灰'],
+      ['0', i18n.t('kd088e652')],
+      ['1', i18n.t('kb990b42b')],
+      ['2', i18n.t('k12401e34')],
+      ['3', i18n.t('k84a6ec5a')],
+      ['4', i18n.t('k806c4388')],
+      ['5', i18n.t('k795167fa')],
+      ['6', i18n.t('k1ca69c4b')],
+      ['7', i18n.t('k2fc8da52')],
+      ['8', i18n.t('kcb2aab0f')],
+      ['9', i18n.t('k34e66c72')],
+      ['10', i18n.t('ka2f8c821')],
+      ['11', i18n.t('k28a3700b')],
+      ['gray', i18n.t('k4b90efb3')],
     ];
-    for (const [h, label] of hues) rows.push(set({ hue: h, colorHex: '' }, `色系：${label}`));
-    rows.push(set({ pending: 'noFolder' }, '待整理：未分类'));
-    rows.push(set({ pending: 'noTags' }, '待整理：无标签'));
-    rows.push(set({ pending: 'noRating' }, '待整理：未评分'));
-    rows.push(set({ sort: 'new' }, '排序：最新入库'));
-    rows.push(set({ sort: 'old' }, '排序：最早入库'));
-    rows.push(set({ sort: 'size' }, '排序：文件最大'));
-    rows.push(set({ sort: 'name' }, '排序：按名称'));
-    if (filters.q) rows.push(set({ q: '' }, `清除关键词「${filters.q}」`));
+    for (const [h, label] of hues) rows.push(set({ hue: h, colorHex: '' }, i18n.t('k36bf323a', { p0: label })));
+    rows.push(set({ pending: 'noFolder' }, i18n.t('k6df3f102')));
+    rows.push(set({ pending: 'noTags' }, i18n.t('kad893a18')));
+    rows.push(set({ pending: 'noRating' }, i18n.t('k6c63a137')));
+    rows.push(set({ sort: 'new' }, i18n.t('k82d37452')));
+    rows.push(set({ sort: 'old' }, i18n.t('k637746c1')));
+    rows.push(set({ sort: 'size' }, i18n.t('k8b4d4693')));
+    rows.push(set({ sort: 'name' }, i18n.t('kf2316f58')));
+    if (filters.q) rows.push(set({ q: '' }, i18n.t('k3962e25d', { p0: filters.q })));
     for (const f of folders || []) {
       rows.push({
         id: `folder:${f.id}`,
         label: f.name,
-        group: '文件夹',
-        hint: `${f.count ?? 0} 张`,
+        group: i18n.t('k1f4c1042'),
+        hint: i18n.t('k1bff293f', { p0: f.count ?? 0 }),
         run: () => {
           onOpenFolder?.(f.id);
           onClose();
@@ -157,7 +158,7 @@ export default function CommandPalette({
         <input
           ref={inputRef}
           className="cmd-input"
-          placeholder={mode === 'filter' ? '搜筛选条件：类型 / 星级 / 色系 / 文件夹…' : '输入命令：导出 / 拼接 / 对比 / 工具箱 / 设置…'}
+          placeholder={mode === 'filter' ? i18n.t('kdac1f6ff') : i18n.t('ka9dbf199')}
           value={q}
           onChange={(e) => setQ(e.target.value)}
           onKeyDown={(e) => {
@@ -177,7 +178,7 @@ export default function CommandPalette({
           }}
         />
         <div className="cmd-list" ref={listRef}>
-          {rows.length === 0 && <div className="cmd-empty">没有匹配的{mode === 'filter' ? '筛选条件' : '命令'}</div>}
+          {rows.length === 0 && <div className="cmd-empty">没有匹配的{mode === 'filter' ? i18n.t('k5148fcc0') : i18n.t('kddf7d2a5')}</div>}
           {rows.map((r, i) => {
             const prev = rows[i - 1];
             return (

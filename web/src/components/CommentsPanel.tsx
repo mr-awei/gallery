@@ -2,6 +2,7 @@ import { IconClose } from './Icons';
 import { useEffect, useState } from 'react';
 import { api, formatDate } from '../api';
 import type { ImageComment } from '../types';
+import i18n from '../i18n';
 
 /** 图上评论（对标 Eagle 的 Annotations 里「评论」部分）：按时间正序，可删除 */
 interface Props {
@@ -44,7 +45,7 @@ export default function CommentsPanel({ imageId, onCount, onClose, onToast }: Pr
       onCount?.([...list, r.comment].length);
       setBody('');
     } catch (err) {
-      onToast?.(`评论失败：${(err as Error).message}`);
+      onToast?.(i18n.t('k283aa40b', { p0: (err as Error).message }));
     } finally {
       setBusy(false);
     }
@@ -57,7 +58,7 @@ export default function CommentsPanel({ imageId, onCount, onClose, onToast }: Pr
       setList(next);
       onCount?.(next.length);
     } catch (err) {
-      onToast?.(`删除失败：${(err as Error).message}`);
+      onToast?.(i18n.t('k94229cac', { p0: (err as Error).message }));
     }
   };
 
@@ -65,19 +66,19 @@ export default function CommentsPanel({ imageId, onCount, onClose, onToast }: Pr
     <div className="cmt-panel" onClick={(e) => e.stopPropagation()}>
       <div className="cmt-head">
         <b>评论 · {list.length}</b>
-        <button className="btn sm ghost" onClick={onClose} title="收起评论面板">
+        <button className="btn sm ghost" onClick={onClose} title={i18n.t('kddf26bba')}>
           <IconClose size={14} />
         </button>
       </div>
 
       <div className="cmt-list">
-        {!list.length && <div className="cmt-empty">还没有评论，记录一下这张图的用途或修改意见吧。</div>}
+        {!list.length && <div className="cmt-empty">{i18n.t('k61b100b8')}</div>}
         {list.map((c) => (
           <div key={c.id} className="cmt-item">
             <div className="cmt-meta">
-              <b>{c.author || '匿名'}</b>
+              <b>{c.author || i18n.t('k1a75c1c8')}</b>
               <span>{c.createdAt ? formatDate(c.createdAt) : ''}</span>
-              <button className="cmt-del" onClick={() => remove(c.id)} title="删除这条评论">
+              <button className="cmt-del" onClick={() => remove(c.id)} title={i18n.t('k5b8542ce')}>
                 ×
               </button>
             </div>
@@ -90,13 +91,13 @@ export default function CommentsPanel({ imageId, onCount, onClose, onToast }: Pr
         <input
           className="input"
           style={{ width: 96, padding: '4px 9px', fontSize: 12 }}
-          placeholder="署名"
+          placeholder={i18n.t('k4f64c69f')}
           value={author}
           onChange={(e) => setAuthor(e.target.value)}
         />
         <textarea
           className="input cmt-textarea"
-          placeholder="写评论…（Ctrl+Enter 发送）"
+          placeholder={i18n.t('kc64e0471')}
           value={body}
           onChange={(e) => setBody(e.target.value)}
           onKeyDown={(e) => {
@@ -107,7 +108,7 @@ export default function CommentsPanel({ imageId, onCount, onClose, onToast }: Pr
           }}
         />
         <button className="btn sm primary" disabled={busy || !body.trim()} onClick={submit}>
-          {busy ? '发送中…' : '发表评论'}
+          {busy ? i18n.t('k08815707') : i18n.t('k7451eb17')}
         </button>
       </div>
     </div>

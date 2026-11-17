@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { IconClose, IconWand } from './Icons';
+import i18n from '../i18n';
 
 /**
  * 教程：分步高亮导览。
@@ -25,51 +26,51 @@ interface Step {
 const STEPS: Step[] = [
   {
     key: 'welcome',
-    title: '欢迎：这是你自己家的图库',
-    body: '图库把硬盘上的图片文件夹变成一个可搜索、可整理的素材库：文件还在原来的地方，索引、标签、评分都存在本地，不上传任何地方。',
-    tip: '整套导览共 7 步，大约 2 分钟。任何时候都能点「跳过教程」，之后在 设置 → 教程 里重新看。',
+    title: i18n.t('kb25985ac'),
+    body: i18n.t('kea82c8ce'),
+    tip: i18n.t('ke920773a'),
   },
   {
     key: 'sidebar',
-    title: '左边是全部内容入口',
-    body: '仪表盘看规模与增长；图库 / 收藏 / 清单放素材；采集和书签负责把网上的图收进来；「待整理」会列出还没有文件夹、标签或评分的图。',
-    tip: '侧栏顶部的「资源库」可以切换或新建多个库，每个库有独立的索引与设置。',
+    title: i18n.t('k628a1a07'),
+    body: i18n.t('k73f8d14f'),
+    tip: i18n.t('k5c463dc0'),
     target: 'sidebar',
     placement: 'right',
   },
   {
     key: 'topbar',
-    title: '工具箱：分析、检索与增强',
-    body: '工具箱里是更进阶的入口：裁切拼接、智能检索、画质增强、知识库、AI 打标等。右侧一排是保存网页、导出 HTML 画廊、设置和明暗切换。',
+    title: i18n.t('kcfeccff5'),
+    body: i18n.t('k91e85ddc'),
     target: 'topbar-actions',
     placement: 'bottom',
   },
   {
     key: 'filterbar',
-    title: '用筛选找图，而不是往下翻',
-    body: '搜索框同时匹配文件名、标签和关键词；后面可以叠加来源、评分、颜色、画幅、格式和文件夹。合适的组合能存成智能文件夹，下次一键回到同一批图。',
+    title: i18n.t('kba3cc0b1'),
+    body: i18n.t('k0306e145'),
     target: 'filterbar',
     placement: 'bottom',
   },
   {
     key: 'grid',
-    title: '悬停看操作，勾选做批量',
-    body: '单击卡片进大图；鼠标悬停能直接收藏、下载、删除。勾选多张后底部会浮出批量条，可以批量裁切、调色、加水印相框、移动文件夹或删除。',
-    tip: 'Ctrl / ⌘ + A 全选当前筛选下的所有图，不只是屏幕上这几张。',
+    title: i18n.t('kef19ab3c'),
+    body: i18n.t('k944d1b2d'),
+    tip: i18n.t('k15338ba0'),
     target: 'gallery-grid',
     placement: 'top',
   },
   {
     key: 'lightbox',
-    title: '大图里做真正的工作',
-    body: '双击或按 Enter 打开大图：← → 翻页，1~5 打星，顶栏「更多」里有裁切、旋转、Camera Raw 调色、水印 / 相框和图上标注。',
-    tip: '每次写回都会自动存一份版本：Ctrl / ⌘ + Z 或版本历史随时能回滚。按 ? 可以看到全部快捷键。',
+    title: i18n.t('kc9041d00'),
+    body: i18n.t('k36c40512'),
+    tip: i18n.t('kb3af5dff'),
   },
   {
     key: 'settings',
-    title: '个性化、备份与教程都在设置里',
-    body: '设置里能改存储位置、导入与采集参数、AI 接入、删除策略、外观与缩放，也能导出数据、检查重复。这个教程以后就在这里重新播放。',
-    tip: '现在就可以去 设置 → 教程 试一次，或直接开始用。',
+    title: i18n.t('k96834f68'),
+    body: i18n.t('k94a70376'),
+    tip: i18n.t('ke7b7783f'),
     target: 'settings-btn',
     placement: 'bottom',
   },
@@ -212,7 +213,7 @@ export default function OnboardingTour({ open, onClose }: { open: boolean; onClo
   const last = index === STEPS.length - 1;
 
   return (
-    <div className="tour-root" role="dialog" aria-modal="true" aria-label="教程">
+    <div className="tour-root" role="dialog" aria-modal="true" aria-label={i18n.t('kb7824d5c')}>
       {hole ? (
         <div
           className="tour-hole"
@@ -235,7 +236,7 @@ export default function OnboardingTour({ open, onClose }: { open: boolean; onClo
           <span className="tour-count">
             {index + 1} / {STEPS.length}
           </span>
-          <button className="tour-x" onClick={close} title="跳过教程（Esc）">
+          <button className="tour-x" onClick={close} title={i18n.t('kfbedd4c1')}>
             <IconClose />
           </button>
         </div>
@@ -251,22 +252,22 @@ export default function OnboardingTour({ open, onClose }: { open: boolean; onClo
                 key={s.key}
                 className={`tour-dot${k === index ? ' on' : ''}`}
                 onClick={() => setIndex(k)}
-                title={`第 ${k + 1} 步：${s.title}`}
+                title={i18n.t('k893571d0', { p0: k + 1, p1: s.title })}
               />
             ))}
           </div>
           {index > 0 && (
             <button className="btn ghost sm" onClick={() => setIndex((v) => v - 1)}>
-              上一步
+              {i18n.t('keeb69088')}
             </button>
           )}
           {!last && (
             <button className="btn ghost sm tour-skip" onClick={close}>
-              跳过
+              {i18n.t('k92636e8c')}
             </button>
           )}
           <button className="btn primary sm" onClick={next}>
-            {last ? '开始使用' : '下一步'}
+            {last ? i18n.t('k85d22db7') : i18n.t('k38ce27d8')}
           </button>
         </div>
       </div>

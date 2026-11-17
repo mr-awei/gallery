@@ -6,6 +6,7 @@ import type { LightboxState } from '../hooks/useLightbox';
 import { applyTheme, type Theme } from '../theme';
 import type { Filters, View } from '../types';
 import type { LoadGallery } from './types';
+import i18n from '../i18n';
 
 type Options = {
   theme: Theme;
@@ -48,7 +49,7 @@ export function usePaletteCommands({
     const go = (v: View, label: string, hint?: string): PaletteCommand => ({
       id: `nav:${v}`,
       label,
-      group: '前往',
+      group: i18n.t('k60233828'),
       hint,
       run: () => {
         setView(v);
@@ -56,52 +57,52 @@ export function usePaletteCommands({
       },
     });
     return [
-      go('gallery', '图库'),
-      go('dashboard', '仪表盘'),
-      go('people', '人物（人脸分组）'),
-      go('search', '语义搜索'),
-      go('tidy', '整理（重复 / 相似）'),
-      go('smart', '智能文件夹'),
-      go('enhance', '画质增强'),
-      go('crawl', '采集'),
-      go('bookmarks', '书签'),
-      go('playlists', '播放列表'),
-      go('knowledge', '知识库'),
-      go('settings', '设置'),
+      go('gallery', i18n.t('k6084bc4b')),
+      go('dashboard', i18n.t('k3fa8b34a')),
+      go('people', i18n.t('k215ffde6')),
+      go('search', i18n.t('k16d27cb3')),
+      go('tidy', i18n.t('kc461222f')),
+      go('smart', i18n.t('k04ff0a57')),
+      go('enhance', i18n.t('kfd5e4c21')),
+      go('crawl', i18n.t('ke8bc2616')),
+      go('bookmarks', i18n.t('k46779389')),
+      go('playlists', i18n.t('k3d7d51f5')),
+      go('knowledge', i18n.t('k7e433388')),
+      go('settings', i18n.t('ke366ccf1')),
       {
         id: 'act:bookmark',
-        label: '新建书签…',
-        group: '操作',
+        label: i18n.t('k2778ded6'),
+        group: i18n.t('k2b6bc0f2'),
         run: () => setBookmarkOpen(true),
       },
       ...(desktop?.openNewWindow
         ? [
             {
               id: 'act:new-window',
-              label: '新建窗口',
-              group: '窗口',
-              hint: '同一图库开第二个窗口，可一边挑选一边整理',
+              label: i18n.t('kededdc48'),
+              group: i18n.t('k5e68f591'),
+              hint: i18n.t('k7786ddc1'),
               run: () => void desktop?.openNewWindow?.(),
             } satisfies PaletteCommand,
           ]
         : []),
       {
         id: 'act:export-gallery',
-        label: '导出画廊 HTML…',
-        group: '操作',
+        label: i18n.t('k6a1a37bc'),
+        group: i18n.t('k2b6bc0f2'),
         run: () => setExportOpen(true),
       },
       {
         id: 'act:select-all',
-        label: '全选当前筛选结果',
-        group: '操作',
+        label: i18n.t('k07ca2aa1'),
+        group: i18n.t('k2b6bc0f2'),
         hint: 'Ctrl+A',
         run: () => void selectAllMatching(),
       },
       {
         id: 'act:clear-filters',
-        label: '清空全部筛选条件',
-        group: '操作',
+        label: i18n.t('k396f2616'),
+        group: i18n.t('k2b6bc0f2'),
         run: () => {
           setFilters(defaultFilters);
           setFolderId(null);
@@ -109,8 +110,8 @@ export function usePaletteCommands({
       },
       {
         id: 'act:refresh',
-        label: '刷新列表与统计',
-        group: '操作',
+        label: i18n.t('k22b07e82'),
+        group: i18n.t('k2b6bc0f2'),
         run: () => {
           void load(1, true);
           void refreshStats();
@@ -118,8 +119,8 @@ export function usePaletteCommands({
       },
       {
         id: 'ui:theme',
-        label: theme === 'dark' ? '切换到浅色主题' : '切换到深色主题',
-        group: '界面',
+        label: theme === 'dark' ? i18n.t('kff4fce81') : i18n.t('kc7163389'),
+        group: i18n.t('k785abc97'),
         run: () => {
           const next: Theme = theme === 'dark' ? 'light' : 'dark';
           setTheme(next);
@@ -128,8 +129,8 @@ export function usePaletteCommands({
       },
       {
         id: 'ui:tutorial',
-        label: '使用教程（按功能查找）',
-        group: '帮助',
+        label: i18n.t('kaec406cf'),
+        group: i18n.t('k92e3a830'),
         hint: 'F1',
         run: () => {
           setLb(null);
@@ -138,8 +139,8 @@ export function usePaletteCommands({
       },
       {
         id: 'ui:help',
-        label: '快捷键速查',
-        group: '帮助',
+        label: i18n.t('k053d9261'),
+        group: i18n.t('k92e3a830'),
         hint: '?',
         run: () => setHelpOpen(true),
       },

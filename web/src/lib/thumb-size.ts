@@ -1,3 +1,4 @@
+import i18n from '../i18n';
 /**
  * 图库缩略图尺寸：滑块（无极）与五档预设共用同一套数值。
  *
@@ -19,11 +20,11 @@ export interface ThumbPreset {
  * 「大」给到 640，宽屏下一屏大约两三列，用来挑细节够用。
  */
 export const THUMB_PRESETS: ThumbPreset[] = [
-  { key: 'xs', label: '小', width: 170 },
-  { key: 'sm', label: '中小', width: THUMB_DEFAULT },
-  { key: 'md', label: '中', width: 340 },
-  { key: 'lg', label: '中大', width: 450 },
-  { key: 'xl', label: '大', width: 640 },
+  { key: 'xs', label: i18n.t('k391b8fa9'), width: 170 },
+  { key: 'sm', label: i18n.t('k412419fc'), width: THUMB_DEFAULT },
+  { key: 'md', label: i18n.t('kaed1dfbc'), width: 340 },
+  { key: 'lg', label: i18n.t('k6bed0cda'), width: 450 },
+  { key: 'xl', label: i18n.t('kab18e30c'), width: 640 },
 ];
 
 /** 当前列宽落在哪一档（滑块拖到档位附近也算，避免差 1px 就显示「自定义」） */

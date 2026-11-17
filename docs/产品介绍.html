@@ -481,7 +481,7 @@
       <li><b>只有 Windows。</b>mac / Linux 有构建脚本，但没做过真机验收，所以不对外宣称支持。</li>
       <li><b>没有云同步，没有手机 App。</b>最接近的替代是局域网只读分享——同一网络里能看图，出了网络就不行。</li>
       <li><b>没有多人协作。</b>没有账号体系、成员权限、审批流；替代方式是导出包 + 只读链接。</li>
-      <li><b>只有中文界面。</b>没有翻译层，界面文案直接写在组件里。</li>
+      <li><b>英文界面还有盲区。</b>界面、教程与文档已双语，但配置项显示名（AI 服务商 / 模型 / 采集源）仍是中文。</li>
       <li><b>2 万张实测良好，百万级没验收。</b>时间线、清单、人物与图库主网格都已窗口化渲染，布局计算也改成了增量追加——滚动不再随库变大而变慢；但百万级仍是目标而非承诺。</li>
       <li><b>第一次导入并开启 AI 会很慢。</b>模型在你本机 CPU 上跑，首次还要下载模型文件；白天来不及算的语义与人脸索引可以交给「夜间批处理」在闲置时段补，但第一晚仍要等。</li>
       <li><b>安装包偏大，且没有代码签名。</b>v1.2.16 已裁掉约 200MB 用不上的跨平台推理库，但整体仍偏大；首次运行会被 Windows SmartScreen 拦一下，需要手动放行。</li>
@@ -495,20 +495,20 @@
     </div>
 
     <div class="targets">
-      <p class="t-head">这四项的顺序（先做不花钱的，再按收入决定云做到哪一档）：</p>
+      <p class="t-head">接下来三项的顺序（多语言已交付，先做不花钱的，再按收入决定云做到哪一档）：</p>
       <div class="tbl-wrap">
         <table>
           <thead><tr><th>远期目标</th><th style="width:92px">现在</th><th style="width:92px">目标值</th><th>兑现顺序</th></tr></thead>
           <tbody>
-            <tr><td>多语言界面</td><td class="num">5</td><td class="num">90</td><td>第一步：文案抽成词条并冻结，不花钱、不依赖云</td></tr>
-            <tr><td>跨平台（mac 优先）</td><td class="num">20</td><td class="num">85</td><td>第二步：真机冒烟 → 安装包 → 平台差异清单；Linux 顺延</td></tr>
-            <tr><td>云与多端</td><td class="num">15</td><td class="num">80</td><td>第三步：只读多端 → 账号与增量同步 → 冲突合并</td></tr>
-            <tr><td>协作与社区</td><td class="num">20</td><td class="num">60</td><td>第四步：批注 → 成员权限 → 审批流（插件市场不承诺）</td></tr>
+            <tr><td>多语言界面</td><td class="num">90</td><td class="num">90</td><td>已完成（1.2.23）：界面 / 教程 / 文档中英双语，可一键切换，托盘与原生对话框同步</td></tr>
+            <tr><td>跨平台（mac 优先）</td><td class="num">20</td><td class="num">85</td><td>下一步：真机冒烟 → 安装包 → 平台差异清单；Linux 顺延</td></tr>
+            <tr><td>云与多端</td><td class="num">15</td><td class="num">80</td><td>然后：只读多端 → 账号与增量同步 → 冲突合并</td></tr>
+            <tr><td>协作与社区</td><td class="num">20</td><td class="num">60</td><td>最后：批注 → 成员权限 → 审批流（插件市场不承诺）</td></tr>
           </tbody>
         </table>
       </div>
       <p class="sec-sub" style="margin:12px 0 0;font-size:13px">
-        把这四项也算进评分，17 项的成绩是 <b>71.2</b>，在 8 款产品里排第 3（单机场景是第 1）。
+        把这四项也算进评分，17 项的成绩是 <b>75.5</b>，在 8 款产品里排第 3（单机场景是第 1）。
         四项都做到目标值后是 <b>87.1</b>。这些数字与算法都写在
         <a href="./评测与路线图.html">完整评测报告</a>里，可以逐项核对。
       </p>
@@ -530,10 +530,37 @@
 </div>
 
 <div class="foot">
-  图库 TuKu 1.2.22 · 文档更新于 2026-11-16 · 评分与实测数据来自《评测与路线图》，实测环境为 Windows + 2 万张素材库。<br>
-  竞品分数为同一框架下的估算（依据公开功能面），不构成购买建议；本页只讲单机场景的成绩，17 项口径与四项远期目标见评测报告第 01、09 节。
+  图库 TuKu 1.2.23 · 文档更新于 2026-11-17 · 评分与实测数据来自《评测与路线图》，实测环境为 Windows + 2 万张素材库。<br>
+  竞品分数为同一框架下的估算（依据公开功能面），不构成购买建议；本页只讲单机场景的成绩，17 项口径与剩余三项远期目标见评测报告第 01、09 节。
 </div>
 
 </div>
+
+
+
+
+
+
+
+
+
+<div class="doc-lang-switch" style="position:fixed;right:18px;bottom:18px;z-index:9999;display:flex;gap:2px;padding:4px;border-radius:999px;background:rgba(255,255,255,.92);border:1px solid #e4e9f2;box-shadow:0 6px 18px -10px rgba(15,23,42,.45);font:12.5px/1 system-ui,-apple-system,'Segoe UI',sans-serif">
+  <a href="产品介绍.html" data-doc-lang="zh" style="padding:6px 11px;border-radius:999px;text-decoration:none;color:#fff;background:#4f46e5;font-weight:600">中文</a>
+  <a href="产品介绍.en.html" data-doc-lang="en" style="padding:6px 11px;border-radius:999px;text-decoration:none;color:#475569">English</a>
+</div>
+<script>
+(function(){
+  var KEY='doc-scroll-y';
+  function save(){ try{ sessionStorage.setItem(KEY, String(window.scrollY||0)); }catch(e){ /* storage disabled in private mode; ignore */ } }
+  document.querySelectorAll('[data-doc-lang]').forEach(function(a){ a.addEventListener('click', save); });
+  try{
+    var y=sessionStorage.getItem(KEY);
+    if(y!==null){ sessionStorage.removeItem(KEY);
+      window.addEventListener('load', function(){ window.scrollTo(0, Number(y)||0); });
+    }
+  }catch(e){ /* storage disabled in private mode; ignore */ }
+})();
+</script>
+
 </body>
 </html>

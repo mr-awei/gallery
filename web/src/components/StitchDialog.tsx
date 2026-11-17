@@ -6,6 +6,7 @@ import type { ImageItem } from '../types';
 import { IconClose, IconDownload } from './Icons';
 import { applyOrder, normalizeOrder, swapAt } from '../lib/stitchOrder';
 import StitchCropEditor from './StitchCropEditor';
+import i18n from '../i18n';
 
 interface Props {
   items: ImageItem[];
@@ -14,10 +15,10 @@ interface Props {
 }
 
 const flowFallback = () => [
-  { id: 'auto', name: '智能铺满', hint: '按张数自动在满版 / 整齐行之间选' },
-  { id: 'mosaic', name: '满版拼贴', hint: '递归切分铺满整张，没有白缝' },
-  { id: 'justified', name: '整齐行', hint: '行高一致、宽度吃满，按原图比例' },
-  { id: 'grid', name: '联系表', hint: '等大格子、图片完整显示，适合核对素材' },
+  { id: 'auto', name: i18n.t('k362ee5ad'), hint: i18n.t('k759c3e1d') },
+  { id: 'mosaic', name: i18n.t('k4f8f6438'), hint: i18n.t('k7cd27cfd') },
+  { id: 'justified', name: i18n.t('k662e8baa'), hint: i18n.t('k9665ec70') },
+  { id: 'grid', name: i18n.t('ka9fa785e'), hint: i18n.t('k2d0a30a0') },
 ];
 
 const RATIO_OPTIONS = ['auto', '1:1', '4:5', '3:4', '16:9', '9:16'];
@@ -179,7 +180,7 @@ export default function StitchDialog({ items, onClose, onToast }: Props) {
           if (!alive) return;
           // 拿不到坐标就退回整图预览（不挡住出图），但要说明白为什么不能逐格调
           setPlan(null);
-          setPlanErr(e?.message || '读不到版面坐标');
+          setPlanErr(e?.message || i18n.t('k9902e055'));
         });
     }, 120);
     return () => {
@@ -200,7 +201,7 @@ export default function StitchDialog({ items, onClose, onToast }: Props) {
         if (alive) setFonts(r.fonts || []);
       })
       .catch((e: any) => {
-        if (alive) setFontErr(e?.message || '读不到本机字体，可先用默认字体');
+        if (alive) setFontErr(e?.message || i18n.t('kbfd59028'));
       });
     return () => {
       alive = false;
@@ -254,9 +255,9 @@ export default function StitchDialog({ items, onClose, onToast }: Props) {
       })
       .catch((e: any) => {
         if (!alive) return;
-        const msg = e?.message || '模板列表读取失败';
+        const msg = e?.message || i18n.t('k094d97a7');
         // 服务端是新进程才有这个接口；旧进程/旧版本会 404，给一句能自己解决的话
-        setTplErr(/404|不存在|Not Found/i.test(msg) ? '服务端还没有模板接口（多半是没重启）' : msg);
+        setTplErr(/404|不存在|Not Found/i.test(msg) ? i18n.t('kc3e1e10b') : msg);
       });
     return () => {
       alive = false;
@@ -312,7 +313,7 @@ export default function StitchDialog({ items, onClose, onToast }: Props) {
     setLoading(false);
   };
   const onImgError = () => {
-    setErr('生成失败：可能包含损坏或非图片素材');
+    setErr(i18n.t('k96969d9e'));
     setLoading(false);
   };
 
@@ -337,9 +338,9 @@ export default function StitchDialog({ items, onClose, onToast }: Props) {
     try {
       const r = await api.stitchAutoCrops(orderedIds, tpl.id);
       setCrops(orderedItems.map((_, i) => r.crops[i] || centerCrop()));
-      onToast?.('已按主体位置自动构图，可继续手调');
+      onToast?.(i18n.t('k6257418f'));
     } catch (e: any) {
-      onToast?.(e?.message || '自动构图失败', 'error');
+      onToast?.(e?.message || i18n.t('k245e9177'), 'error');
     } finally {
       setAutoBusy(false);
     }
@@ -432,12 +433,12 @@ export default function StitchDialog({ items, onClose, onToast }: Props) {
     >
       <div className={`modal-card st-card${dragThumb ? ' st-dragging' : ''}`} onClick={(e) => e.stopPropagation()}>
         <div className="modal-head">
-          <b>{'拼图 / 版面'}</b>
+          <b>{i18n.t('kcdbb0115')}</b>
           <span className="tk-title">
-            {`${items.length} 张 · 原图合计 ${formatSize(totalBytes)}`}
-            {size ? ` · 成品 ${size}` : ''}
+            {i18n.t('ked8ded0a', { p0: items.length, p1: formatSize(totalBytes) })}
+            {size ? i18n.t('k7295eb8d', { p0: size }) : ''}
           </span>
-          <button className="icon-btn" onClick={onClose} title={'关闭（Esc）'}>
+          <button className="icon-btn" onClick={onClose} title={i18n.t('k01aadfea')}>
             <IconClose />
           </button>
         </div>
@@ -468,7 +469,7 @@ export default function StitchDialog({ items, onClose, onToast }: Props) {
                     ref={imgRef}
                     className="st-img"
                     src={previewUrl || url}
-                    alt={'拼图预览'}
+                    alt={i18n.t('k63d7ac22')}
                     style={{ opacity: loading ? 0.35 : 1 }}
                     onLoad={(e) => onImgLoad(e.currentTarget)}
                     onError={onImgError}
@@ -488,19 +489,19 @@ export default function StitchDialog({ items, onClose, onToast }: Props) {
                 {!cells && loading && !err && <span className="spinner st-spin" />}
               </div>
               <div className="st-meta">
-                <span>{`${items.length} 张`}</span>
-                <span>{`原图 ${formatSize(totalBytes)}`}</span>
-                {size && <span className="st-meta-out">{`成品 ${size}`}</span>}
+                <span>{i18n.t('k1bff293f', { p0: items.length })}</span>
+                <span>{i18n.t('k51913b72', { p0: formatSize(totalBytes) })}</span>
+                {size && <span className="st-meta-out">{i18n.t('kcbe08da5', { p0: size })}</span>}
                 <span className="st-meta-tip">
-                  {cells ? '左图可拖动构图 · 拖角标或缩略图到别格＝换位置' : '预览即导出结果'}
+                  {cells ? i18n.t('k1c52a175') : i18n.t('k48970816')}
                 </span>
               </div>
               {planErr && (
-                <div className="st-warnline">{`读不到版面坐标（${planErr}），暂时只能按整图预览；刷新页面再试逐格构图。`}</div>
+                <div className="st-warnline">{i18n.t('kd2acc93d', { p0: planErr })}</div>
               )}
               <div className="st-order">
-                <span className="st-order-label" title={'拖动缩略图（或左图各格左上角的编号）到别的格子上，松手即互换'}>
-                  {'顺序'}
+                <span className="st-order-label" title={i18n.t('k5e79a16f')}>
+                  {i18n.t('k6367e715')}
                 </span>
                 <div className="st-picked">
                   {orderedItems.slice(0, 24).map((it, i) => (
@@ -508,7 +509,7 @@ export default function StitchDialog({ items, onClose, onToast }: Props) {
                       className="st-pick"
                       key={it.id}
                       data-slot={i}
-                      title={`第 ${i + 1} 格${it.title ? ` · ${it.title}` : ''}｜拖动可换位置`}
+                      title={i18n.t('k467ca31f', { p0: i + 1, p1: it.title ? ` · ${it.title}` : '' })}
                       onPointerDown={(e) => beginSlotDrag(e, i)}
                     >
                       <img src={it.thumbUrl} alt="" loading="lazy" decoding="async" draggable={false} />
@@ -516,7 +517,7 @@ export default function StitchDialog({ items, onClose, onToast }: Props) {
                     </span>
                   ))}
                   {orderedItems.length > 24 && (
-                    <span className="tk-hint">{`还有 ${orderedItems.length - 24} 张…`}</span>
+                    <span className="tk-hint">{i18n.t('kf402dda0', { p0: orderedItems.length - 24 })}</span>
                   )}
                 </div>
               </div>
@@ -525,8 +526,8 @@ export default function StitchDialog({ items, onClose, onToast }: Props) {
             <div className="st-side">
               <div className="st-group">
                 <h5>
-                  {'版面模板'}
-                  <em>{tpl ? `${tpl.ratio} · 逐格可调` : '算法版式 · 逐格可调'}</em>
+                  {i18n.t('k131a0f4c')}
+                  <em>{tpl ? i18n.t('k95aa4459', { p0: tpl.ratio }) : i18n.t('kd4941798')}</em>
                 </h5>
                 {tplErr ? (
                   <div className="st-hintline st-errline">
@@ -539,11 +540,11 @@ export default function StitchDialog({ items, onClose, onToast }: Props) {
                         setTplTry((n) => n + 1);
                       }}
                     >
-                      {'重试'}
+                      {i18n.t('k132c5cdc')}
                     </button>
                   </div>
                 ) : null}
-                {!tplList && !tplErr ? <div className="st-hintline">{'正在读取版面模板…'}</div> : null}
+                {!tplList && !tplErr ? <div className="st-hintline">{i18n.t('k649d6b56')}</div> : null}
                 {availTemplates.length > 0 && (
                   <div className="st-tpl-grid">
                     {availTemplates.map((t) => (
@@ -579,12 +580,12 @@ export default function StitchDialog({ items, onClose, onToast }: Props) {
                 )}
                 {tplList && availTemplates.length === 0 && (
                   <div className="st-hintline">
-                    {`当前 ${items.length} 张没有对应的海报模板（模板是给固定张数排的版），下面挑一种算法版式。`}
+                    {i18n.t('kaa01e886', { p0: items.length })}
                   </div>
                 )}
                 {tpl && <div className="st-hintline">{tpl.hint}</div>}
                 <div className="st-row">
-                  <span className="st-row-label">{'算法版式'}</span>
+                  <span className="st-row-label">{i18n.t('k103701c5')}</span>
                   <div className="st-seg">
                     {flowList.map((l) => (
                       <button
@@ -610,15 +611,15 @@ export default function StitchDialog({ items, onClose, onToast }: Props) {
               {hasText && (
                 <div className="st-group">
                   <h5>
-                    {'海报文字'}
-                    <em>{'留空不显示'}</em>
+                    {i18n.t('keaf0bf88')}
+                    <em>{i18n.t('kd9dbc619')}</em>
                   </h5>
                   {(tpl?.title || tpl?.masthead) && (
                     <input
                       className="input"
                       value={title}
                       maxLength={40}
-                      placeholder={tpl?.masthead ? '刊名 / 片名' : '片名'}
+                      placeholder={tpl?.masthead ? i18n.t('kfbc34bbf') : i18n.t('k6171ab37')}
                       onChange={(e) => setTitle(e.target.value)}
                     />
                   )}
@@ -627,7 +628,7 @@ export default function StitchDialog({ items, onClose, onToast }: Props) {
                       className="input"
                       value={subtitle}
                       maxLength={60}
-                      placeholder={'副标题（如：十月十七日 全球上映）'}
+                      placeholder={i18n.t('k9755aa64')}
                       onChange={(e) => setSubtitle(e.target.value)}
                     />
                   )}
@@ -636,19 +637,19 @@ export default function StitchDialog({ items, onClose, onToast }: Props) {
                       className="input"
                       value={billing}
                       maxLength={120}
-                      placeholder={'演职员条，用 | 分行'}
+                      placeholder={i18n.t('k222ae845')}
                       onChange={(e) => setBilling(e.target.value)}
                     />
                   )}
                   <div className="st-row">
-                    <span className="st-row-label">{'字体'}</span>
+                    <span className="st-row-label">{i18n.t('k8456bc40')}</span>
                     <select
                       className="input"
                       value={font}
                       onChange={(e) => setFont(e.target.value)}
-                      title={fontErr || '本机已安装的字体'}
+                      title={fontErr || i18n.t('kcff173d0')}
                     >
-                      <option value="">{'默认（模板字体）'}</option>
+                      <option value="">{i18n.t('k83e983cf')}</option>
                       {fonts.map((f) => (
                         <option key={f.key} value={f.key}>
                           {f.name}
@@ -658,7 +659,7 @@ export default function StitchDialog({ items, onClose, onToast }: Props) {
                   </div>
                   <label className="st-field">
                     <span>
-                      {'标题字号'}
+                      {i18n.t('k8f3b6cdd')}
                       <b>{` ${Math.round(titleScale * 100)}%`}</b>
                     </span>
                     <input
@@ -672,7 +673,7 @@ export default function StitchDialog({ items, onClose, onToast }: Props) {
                     />
                   </label>
                   <div className="st-row">
-                    <span className="st-row-label">{'标题颜色'}</span>
+                    <span className="st-row-label">{i18n.t('k94e391ba')}</span>
                     <div className="st-swatches">
                       {TEXT_COLORS.map((c) => (
                         <button
@@ -685,7 +686,7 @@ export default function StitchDialog({ items, onClose, onToast }: Props) {
                           onClick={() => setTitleColor(titleColor === c ? '' : c)}
                         />
                       ))}
-                      <label className="st-swatch st-swatch-custom" title={'自定义颜色'}>
+                      <label className="st-swatch st-swatch-custom" title={i18n.t('k255f442c')}>
                         <input
                           type="color"
                           value={titleColor || '#ffffff'}
@@ -694,7 +695,7 @@ export default function StitchDialog({ items, onClose, onToast }: Props) {
                       </label>
                       {titleColor ? (
                         <button type="button" className="st-swatch-reset" onClick={() => setTitleColor('')}>
-                          {'跟随模板'}
+                          {i18n.t('kc134f58f')}
                         </button>
                       ) : null}
                     </div>
@@ -702,7 +703,7 @@ export default function StitchDialog({ items, onClose, onToast }: Props) {
                   <div className="st-hintline">
                     {fontErr
                       ? fontErr
-                      : '位置由模板定（片名压渐变带、刊名在页眉），字太长会自动缩字号；用 | 拆成多行小字。字体/字号/颜色只管标题，副标题与演职员条跟模板。'}
+                      : i18n.t('k57a89005')}
                   </div>
                 </div>
               )}
@@ -710,17 +711,17 @@ export default function StitchDialog({ items, onClose, onToast }: Props) {
               {cells && (
                 <div className="st-group">
                   <h5>
-                    {'逐格构图'}
-                    <em>{'在左侧大图上操作'}</em>
+                    {i18n.t('kdde96054')}
+                    <em>{i18n.t('k9df9aace')}</em>
                   </h5>
                   <div className="st-hintline">
-                    {'拖动画面挪位置、滚轮缩放、双击复位；每格右上角是当前放大倍数。缩到整图（角标变橙）就到底了，再缩只会更小更糊。'}
+                    {i18n.t('ka923e757')}
                   </div>
                   <div className="st-row">
                     {/* 自动构图要靠模板槽位算主体落点，算法版式没有槽位就不给这个按钮 */}
                     {tpl && (
                       <button type="button" className="btn" onClick={runAuto} disabled={autoBusy}>
-                        {autoBusy ? '检测主体…' : '自动构图'}
+                        {autoBusy ? i18n.t('ka61a89e3') : i18n.t('k9c57f9dc')}
                       </button>
                     )}
                     <button
@@ -731,7 +732,7 @@ export default function StitchDialog({ items, onClose, onToast }: Props) {
                         setCrops(items.map((_, i) => centerCrop(!tplId && layout === 'grid' ? cells.zMin[i] : 1)))
                       }
                     >
-                      {'全部居中'}
+                      {i18n.t('k42330f9b')}
                     </button>
                   </div>
                 </div>
@@ -739,8 +740,8 @@ export default function StitchDialog({ items, onClose, onToast }: Props) {
 
               <div className="st-group">
                 <h5>
-                  {'外观'}
-                  {seamless ? <em>{'无缝'}</em> : null}
+                  {i18n.t('kafcde261')}
+                  {seamless ? <em>{i18n.t('kcc555f4b')}</em> : null}
                 </h5>
                 <label className="st-check">
                   <input
@@ -748,13 +749,13 @@ export default function StitchDialog({ items, onClose, onToast }: Props) {
                     checked={seamless}
                     onChange={(e) => setSeamlessOv(e.target.checked)}
                   />
-                  <span>{'无缝拼接（贴边零缝隙，自动关掉留白与装饰）'}</span>
+                  <span>{i18n.t('kc0784830')}</span>
                 </label>
                 {tpl && !seamless && (
                   <>
                     <label className="st-field">
                       <span>
-                        {'圆角'} <b>{(radius * 100).toFixed(1)}%</b>
+                        {i18n.t('k0103eb2d')} <b>{(radius * 100).toFixed(1)}%</b>
                       </span>
                       <input
                         className="st-range"
@@ -768,7 +769,7 @@ export default function StitchDialog({ items, onClose, onToast }: Props) {
                     </label>
                     <label className="st-field">
                       <span>
-                        {'投影'} <b>{Math.round(shadow * 100)}%</b>
+                        {i18n.t('k16ad4ad5')} <b>{Math.round(shadow * 100)}%</b>
                       </span>
                       <input
                         className="st-range"
@@ -782,14 +783,14 @@ export default function StitchDialog({ items, onClose, onToast }: Props) {
                     </label>
                     <label className="st-check">
                       <input type="checkbox" checked={border} onChange={(e) => setBorderOv(e.target.checked)} />
-                      <span>{'每格描白边'}</span>
+                      <span>{i18n.t('ka2ee8985')}</span>
                     </label>
                     <label className="st-check">
                       <input type="checkbox" checked={backdrop} onChange={(e) => setBackdropOv(e.target.checked)} />
-                      <span>{'主图模糊铺底（留白不再是死白）'}</span>
+                      <span>{i18n.t('kd84a6069')}</span>
                     </label>
                     <div className="st-row">
-                      <span className="st-row-label">{'底色'}</span>
+                      <span className="st-row-label">{i18n.t('kb53d6d1a')}</span>
                       <div className="st-swatches">
                         {swatches.map((c) => (
                           <button
@@ -801,7 +802,7 @@ export default function StitchDialog({ items, onClose, onToast }: Props) {
                             onClick={() => setBgOv(c)}
                           />
                         ))}
-                        <label className="st-swatch st-swatch-custom" title={'自定义颜色'}>
+                        <label className="st-swatch st-swatch-custom" title={i18n.t('k255f442c')}>
                           <input type="color" value={bg} onChange={(e) => setBgOv(e.target.value)} />
                         </label>
                       </div>
@@ -811,16 +812,16 @@ export default function StitchDialog({ items, onClose, onToast }: Props) {
               </div>
 
               <div className="st-group">
-                <h5>{'输出'}</h5>
+                <h5>{i18n.t('k8ba7c3a7')}</h5>
                 <input
                   className="input"
                   value={fileName}
                   maxLength={60}
-                  placeholder={`文件名（默认：${title.trim() || '拼接图'}）`}
+                  placeholder={i18n.t('kb4d9aab0', { p0: title.trim() || i18n.t('kea4483d9') })}
                   onChange={(e) => setFileName(e.target.value)}
                 />
                 <div className="st-row">
-                  <span className="st-row-label">{'宽度'}</span>
+                  <span className="st-row-label">{i18n.t('kc2847901')}</span>
                   <div className="st-seg">
                     {[1600, 2400, 3200, 4000].map((w) => (
                       <button
@@ -836,16 +837,16 @@ export default function StitchDialog({ items, onClose, onToast }: Props) {
                 </div>
                 {tpl ? (
                   <div className="st-row">
-                    <span className="st-row-label">{'画布比例'}</span>
-                    <span className="st-ro">{`${tpl.ratio}（随模板）`}</span>
+                    <span className="st-row-label">{i18n.t('k8c79a1eb')}</span>
+                    <span className="st-ro">{i18n.t('k09fbee01', { p0: tpl.ratio })}</span>
                   </div>
                 ) : (
                   <div className="st-row">
-                    <span className="st-row-label">{'比例'}</span>
+                    <span className="st-row-label">{i18n.t('k15007537')}</span>
                     <div className="st-seg">
                       {RATIO_OPTIONS.map((v) => (
                         <button key={v} type="button" className={ratio === v ? 'on' : ''} onClick={() => setRatio(v)}>
-                          {v === 'auto' ? '自动' : v}
+                          {v === 'auto' ? i18n.t('k3aed2c11') : v}
                         </button>
                       ))}
                     </div>
@@ -854,7 +855,7 @@ export default function StitchDialog({ items, onClose, onToast }: Props) {
                 {!tplId && layout === 'grid' && (
                   <>
                     <div className="st-row">
-                      <span className="st-row-label">{'列数'}</span>
+                      <span className="st-row-label">{i18n.t('keb22d47f')}</span>
                       <div className="st-seg">
                         {colOptions.map((n) => (
                           <button
@@ -870,7 +871,7 @@ export default function StitchDialog({ items, onClose, onToast }: Props) {
                     </div>
                     <label className="st-field">
                       <span>
-                        {'每格最长边'} <b>{cell ? `${cell}px` : '自适应原图'}</b>
+                        {i18n.t('ke1ab7d13')} <b>{cell ? `${cell}px` : i18n.t('kf7f3989b')}</b>
                       </span>
                       <input
                         className="st-range"
@@ -886,7 +887,7 @@ export default function StitchDialog({ items, onClose, onToast }: Props) {
                 )}
                 <label className="st-field">
                   <span>
-                    {'间距'} <b>{seamless ? '无缝' : gap ? `${gap}px` : '自动'}</b>
+                    {i18n.t('k60bac4c0')} <b>{seamless ? i18n.t('kcc555f4b') : gap ? `${gap}px` : i18n.t('k3aed2c11')}</b>
                   </span>
                   <input
                     className="st-range"
@@ -899,7 +900,7 @@ export default function StitchDialog({ items, onClose, onToast }: Props) {
                   />
                 </label>
                 <div className="st-row">
-                  <span className="st-row-label">{'格式'}</span>
+                  <span className="st-row-label">{i18n.t('ke3127cc1')}</span>
                   <div className="st-seg">
                     {(
                       [
@@ -916,7 +917,7 @@ export default function StitchDialog({ items, onClose, onToast }: Props) {
                 </div>
                 {format !== 'png' && (
                   <div className="st-row">
-                    <span className="st-row-label">{'质量'}</span>
+                    <span className="st-row-label">{i18n.t('k3a7170b9')}</span>
                     <div className="st-seg">
                       {[100, 95, 90, 82].map((q) => (
                         <button
@@ -938,7 +939,7 @@ export default function StitchDialog({ items, onClose, onToast }: Props) {
 
         <div className="st-foot">
           <span className="tk-hint">
-            {'模板是按张数定死的构图，张数不对自动回落到算法版式；勾「无缝拼接」就贴边排、不要留白和装饰。成品超过 20000px 会等比缩小；拼图只导出，不改原图。'}
+            {i18n.t('k8c90f32b')}
           </span>
           <button
             className="btn primary"
@@ -949,10 +950,10 @@ export default function StitchDialog({ items, onClose, onToast }: Props) {
               if (now - saveRef.current < 1200) return;
               saveRef.current = now;
               void downloadFile(url);
-              onToast?.('已开始下载拼接图');
+              onToast?.(i18n.t('kc785a04e'));
             }}
           >
-            <IconDownload /> {'下载拼图'}
+            <IconDownload /> {i18n.t('k1dcc1f2e')}
           </button>
         </div>
         {/* 拖动换位时跟着光标的缩略图：位置用 transform 直接改，不参与 React 重渲染 */}

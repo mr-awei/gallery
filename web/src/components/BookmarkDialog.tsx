@@ -6,6 +6,7 @@ import { useState } from 'react';
 import { api } from '../api';
 import type { ImageItem } from '../types';
 import { IconClose, IconLink } from './Icons';
+import i18n from '../i18n';
 
 interface Props {
   onClose: () => void;
@@ -21,7 +22,7 @@ export default function BookmarkDialog({ onClose, onSaved, onToast }: Props) {
 
   const submit = async () => {
     const u = url.trim();
-    if (!u) return onToast('先粘一个网址');
+    if (!u) return onToast(i18n.t('k33832557'));
     setBusy(true);
     try {
       const r = await api.saveBookmark({
@@ -32,7 +33,7 @@ export default function BookmarkDialog({ onClose, onSaved, onToast }: Props) {
           .filter(Boolean),
         note: note.trim(),
       });
-      onToast(r.item?.width ? '已保存网页（含封面和离线快照）' : '已保存网页（这个页面没有封面图）');
+      onToast(r.item?.width ? i18n.t('kff795b05') : i18n.t('k3ec98963'));
       onSaved(r.item);
     } catch (err) {
       onToast((err as Error).message, 'error');
@@ -52,7 +53,7 @@ export default function BookmarkDialog({ onClose, onSaved, onToast }: Props) {
       >
         <div className="modal-head">
           <b>
-            <IconLink /> 保存网页
+            <IconLink /> {i18n.t('k597224e6')}
           </b>
           <button className="btn ghost sm" onClick={onClose}>
             <IconClose />
@@ -61,49 +62,49 @@ export default function BookmarkDialog({ onClose, onSaved, onToast }: Props) {
 
         <div className="modal-body" style={{ display: 'block' }}>
           <div style={{ marginBottom: 14, fontSize: 13, lineHeight: 1.7, color: 'var(--muted)' }}>
-            存下标题、简介、封面图和一份离线 HTML 快照。网页以后改版或删掉，快照还在库里。
+            {i18n.t('kb417ae7f')}
           </div>
 
           <div className="field">
-            <label>网址</label>
+            <label>{i18n.t('kb3b91f77')}</label>
             <input
               className="input"
               style={{ width: '100%' }}
               value={url}
-              placeholder="粘贴网址，例如 https://www.behance.net/…"
+              placeholder={i18n.t('kf0b80a6b')}
               autoFocus
               onChange={(e) => setUrl(e.target.value)}
             />
           </div>
 
           <div className="field">
-            <label>标签（可选，空格或逗号分隔）</label>
+            <label>{i18n.t('kb8322a8f')}</label>
             <input
               className="input"
               style={{ width: '100%' }}
               value={tags}
-              placeholder="灵感 参考"
+              placeholder={i18n.t('k42d18bd1')}
               onChange={(e) => setTags(e.target.value)}
             />
           </div>
 
           <div className="field">
-            <label>备注（可选）</label>
+            <label>{i18n.t('k67f6a89e')}</label>
             <input
               className="input"
               style={{ width: '100%' }}
               value={note}
-              placeholder="为什么存它"
+              placeholder={i18n.t('k0005597b')}
               onChange={(e) => setNote(e.target.value)}
             />
           </div>
         </div>
 
         <div className="modal-foot">
-          <span style={{ fontSize: 12, color: 'var(--muted)' }}>抓取失败时会提示原因，不会留下空记录</span>
+          <span style={{ fontSize: 12, color: 'var(--muted)' }}>{i18n.t('k08278d08')}</span>
           <div style={{ display: 'flex', gap: 8 }}>
             <button className="btn" onClick={onClose} disabled={busy}>
-              取消
+              {i18n.t('k625fb26b')}
             </button>
             <button
               className="btn"
@@ -111,7 +112,7 @@ export default function BookmarkDialog({ onClose, onSaved, onToast }: Props) {
               disabled={busy}
               onClick={() => void submit()}
             >
-              {busy ? '抓取中…' : '保存'}
+              {busy ? i18n.t('ked8c7720') : i18n.t('kbe5fbbe3')}
             </button>
           </div>
         </div>

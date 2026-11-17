@@ -2,6 +2,7 @@ import { useCallback, useState } from 'react';
 import { api, quiet } from '../api';
 import type { Filters, SavedFilter } from '../types';
 import { confirmDialog, promptDialog } from '../components/Dialogs';
+import i18n from '../i18n';
 
 type Toast = (msg: string, kind?: 'info' | 'error') => void;
 
@@ -30,14 +31,14 @@ export function useSavedFilters({
   }, []);
 
   const saveCurrentFilter = useCallback(async () => {
-    const name = await promptDialog('保存当前筛选', '', '给这组筛选起个名字（例：4K 风景待修）');
+    const name = await promptDialog(i18n.t('k0a1293d4'), '', i18n.t('k340fc085'));
     if (name === null) return;
-    if (!name.trim()) return showToast('名称不能为空');
+    if (!name.trim()) return showToast(i18n.t('kdf09fff7'));
     try {
       const r = await api.createSavedFilter(name.trim(), { ...filters, folderId });
       setSavedFilters(r.filters);
       setActiveSavedId(r.id);
-      showToast(`已保存筛选「${name.trim()}」`);
+      showToast(i18n.t('k49cdc5cd', { p0: name.trim() }));
     } catch (err) {
       showToast((err as Error).message);
     }
@@ -45,7 +46,7 @@ export function useSavedFilters({
 
   const editSavedFilter = useCallback(
     async (f: SavedFilter) => {
-      const name = await promptDialog('重命名筛选器', f.name, '新名称');
+      const name = await promptDialog(i18n.t('kb5133207'), f.name, i18n.t('ke4decf94'));
       if (name === null || !name.trim()) return;
       try {
         const r = await api.updateSavedFilter(f.id, { name: name.trim() });
@@ -60,12 +61,12 @@ export function useSavedFilters({
   /** 用当前筛选覆盖已保存的那一条：Eagle 里改完条件顺手存回去，不必删了重存 */
   const overwriteSavedFilter = useCallback(
     async (f: SavedFilter) => {
-      if (!(await confirmDialog(`用当前筛选条件覆盖「${f.name}」？原来的条件会被替换。`))) return;
+      if (!(await confirmDialog(i18n.t('k467039d7', { p0: f.name })))) return;
       try {
         const r = await api.updateSavedFilter(f.id, { query: { ...filters, folderId } });
         setSavedFilters(r.filters);
         setActiveSavedId(f.id);
-        showToast(`已用当前筛选更新「${f.name}」`);
+        showToast(i18n.t('kf90d66ba', { p0: f.name }));
       } catch (err) {
         showToast((err as Error).message, 'error');
       }
@@ -75,7 +76,7 @@ export function useSavedFilters({
 
   const deleteSavedFilter = useCallback(
     async (f: SavedFilter) => {
-      if (!(await confirmDialog(`删除筛选器「${f.name}」？只删这条筛选记录，不会动任何素材。`))) return;
+      if (!(await confirmDialog(i18n.t('k61a52b63', { p0: f.name })))) return;
       try {
         const r = await api.deleteSavedFilter(f.id);
         setSavedFilters(r.filters);

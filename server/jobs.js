@@ -9,6 +9,7 @@
  *   - payload 存够重试所需的最小参数（不存图片内容，只存 id 列表 / 关键词等）
  */
 import { db } from './db.js';
+import { translate } from './lib/i18n.js';
 
 /** 进度写库节流：任务里每张图都会调一次，没必要每次都落盘 */
 const WRITE_GAP_MS = 400;
@@ -112,14 +113,14 @@ function toDto(row) {
   return {
     id: row.id,
     kind: row.kind,
-    title: row.title,
+    title: translate(row.title),
     status: row.status,
     progress: row.progress,
-    message: row.message,
+    message: translate(row.message),
     done: row.done,
     total: row.total,
     failed: row.failed,
-    error: row.error,
+    error: translate(row.error),
     payload,
     result,
     createdAt: row.created_at,

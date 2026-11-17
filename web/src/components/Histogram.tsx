@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import type { AdjustParams } from '../types';
 import { renderPixels } from '../lib/adjust';
+import i18n from '../i18n';
 
 interface Bins {
   r: Uint32Array;
@@ -77,10 +78,10 @@ export default function Histogram({ src, params, height = 96 }: Props) {
       if (dead) return;
       const s = sampleImage(img);
       if (s) setSample(s);
-      else setError('无法读取像素');
+      else setError(i18n.t('k0614a5e7'));
     };
     img.onerror = () => {
-      if (!dead) setError('图片加载失败');
+      if (!dead) setError(i18n.t('kb3b83e12'));
     };
     img.src = src;
     return () => {
@@ -158,7 +159,7 @@ export default function Histogram({ src, params, height = 96 }: Props) {
     <div className="cr-hist" style={{ height }}>
       <canvas ref={canvasRef} className="cr-hist-canvas" />
       <span className="cr-hist-tag">RGB</span>
-      {!bins && <span className="cr-hist-empty">{error || (src ? '分析中…' : '无预览图')}</span>}
+      {!bins && <span className="cr-hist-empty">{error || (src ? i18n.t('k52b48b3e') : i18n.t('ka3c71385'))}</span>}
     </div>
   );
 }

@@ -3,6 +3,7 @@ import { desktop, getAppInfo, quiet } from '../../api';
 import type { AppInfo, HotfixState, UpdateState } from '../../api';
 import type { Settings as SettingsType } from '../../types';
 import Card from './Card';
+import i18n from '../../i18n';
 
 interface Props {
   settings: SettingsType;
@@ -25,7 +26,7 @@ const EMPTY_STATE: UpdateState = {
 const FALLBACK_REPO = 'mr-awei/gallery';
 
 /** 展示名固定写这里：app.getName() 在开发态返回 package.json 的 name（tuku-gallery），不能直接给用户看 */
-const APP_NAME = 'TuKu 图库';
+const APP_NAME = i18n.t('k2e57064f');
 
 const PLATFORM_LABEL: Record<string, string> = {
   win32: 'Windows',
@@ -38,18 +39,18 @@ const PLATFORM_LABEL: Record<string, string> = {
  * 不列传递依赖 —— 长列表没人看，也更容易写错许可。
  */
 const COMPONENTS: { name: string; use: string; license: string }[] = [
-  { name: 'Electron / Chromium', use: '桌面外壳与渲染引擎', license: 'MIT / BSD-3-Clause' },
-  { name: 'React 18', use: '界面框架', license: 'MIT' },
-  { name: 'Express 5', use: '本地 API 服务（只监听 127.0.0.1）', license: 'MIT' },
-  { name: 'SQLite（node:sqlite）', use: '素材索引、标签、设置', license: 'Public Domain' },
-  { name: 'sharp / libvips', use: '缩略图、格式转换、色彩处理', license: 'Apache-2.0 / LGPL-3.0+' },
-  { name: 'libheif-js', use: 'HEIC / AVIF 解码', license: 'LGPL-3.0' },
-  { name: '@huggingface/transformers', use: '中文 CLIP 语义检索（本机推理）', license: 'Apache-2.0' },
-  { name: 'ONNX Runtime（WASM）', use: '人脸检测与相似度（本机推理）', license: 'MIT' },
-  { name: 'three.js', use: '3D 模型查看', license: 'MIT' },
-  { name: 'JSZip / SheetJS / mammoth / @webtoon/psd', use: '插件包、表格导入、Word 导入、PSD 预览', license: 'MIT / Apache-2.0 / BSD-2-Clause' },
-  { name: 'electron-updater', use: '应用内自动更新', license: 'MIT' },
-  { name: 'Vite 7', use: '前端构建（开发期）', license: 'MIT' },
+  { name: 'Electron / Chromium', use: i18n.t('k99ca5e2b'), license: 'MIT / BSD-3-Clause' },
+  { name: 'React 18', use: i18n.t('k7e5d2a58'), license: 'MIT' },
+  { name: 'Express 5', use: i18n.t('k67b2555f'), license: 'MIT' },
+  { name: 'SQLite（node:sqlite）', use: i18n.t('k5550585c'), license: 'Public Domain' },
+  { name: 'sharp / libvips', use: i18n.t('k727a42e4'), license: 'Apache-2.0 / LGPL-3.0+' },
+  { name: 'libheif-js', use: i18n.t('kf8d9116c'), license: 'LGPL-3.0' },
+  { name: '@huggingface/transformers', use: i18n.t('k1320addd'), license: 'Apache-2.0' },
+  { name: 'ONNX Runtime（WASM）', use: i18n.t('k934ffa8c'), license: 'MIT' },
+  { name: 'three.js', use: i18n.t('k289c0fd3'), license: 'MIT' },
+  { name: 'JSZip / SheetJS / mammoth / @webtoon/psd', use: i18n.t('kf251e035'), license: 'MIT / Apache-2.0 / BSD-2-Clause' },
+  { name: 'electron-updater', use: i18n.t('kafd2a275'), license: 'MIT' },
+  { name: 'Vite 7', use: i18n.t('k9d4cb5d5'), license: 'MIT' },
 ];
 
 /** 一行「标签 — 值」，长路径自动换行不撑破面板 */
@@ -97,7 +98,7 @@ export default function AboutSection({ settings, patch, onToast, onOpenTutorial 
   const canSelfUpdate = supported;
 
   const applyMode = settings.hotfixApply || 'next';
-  const applyLabel = applyMode === 'now' ? '下载完立刻生效' : applyMode === 'manual' ? '只手动下载' : '下次启动生效';
+  const applyLabel = applyMode === 'now' ? i18n.t('kdd3312ed') : applyMode === 'manual' ? i18n.t('k50b126e9') : i18n.t('kff5d3ddd');
 
   const refreshHot = () => desktop?.hotfixState?.().then(setHot).catch(quiet);
 
@@ -106,9 +107,9 @@ export default function AboutSection({ settings, patch, onToast, onOpenTutorial 
     setHotMsg('');
     try {
       const r = await desktop?.hotfixCheck?.();
-      if (!r) setHotMsg('浏览器预览模式不支持热更，请在安装版里使用');
-      else if (!r.ok) setHotMsg(r.error || '检查失败，请检查网络或代理设置');
-      else setHotMsg(`热更 #${r.seq} 已下载${r.notes ? `：${r.notes}` : ''}，${applyLabel}`);
+      if (!r) setHotMsg(i18n.t('k6d5d45e6'));
+      else if (!r.ok) setHotMsg(r.error || i18n.t('k7620acaa'));
+      else setHotMsg(i18n.t('ke617ba7e', { p0: r.seq, p1: r.notes ? `：${r.notes}` : '', p2: applyLabel }));
       await refreshHot();
     } finally {
       setHotBusy(false);
@@ -117,11 +118,11 @@ export default function AboutSection({ settings, patch, onToast, onOpenTutorial 
 
   const applyHotfix = async () => {
     setHotBusy(true);
-    setHotMsg('正在换入热更并重启本地服务…');
+    setHotMsg(i18n.t('k8468d21a'));
     try {
       const r = await desktop?.hotfixApply?.();
       // 成功时主进程会重载所有窗口，这里的提示只是刷新失败时的兜底
-      setHotMsg(r?.applied ? `热更 #${r.seq} 已生效` : r?.error || '没有待生效的热更包');
+      setHotMsg(r?.applied ? i18n.t('k417529b9', { p0: r.seq }) : r?.error || i18n.t('kd0c8a173'));
       await refreshHot();
     } finally {
       setHotBusy(false);
@@ -133,8 +134,8 @@ export default function AboutSection({ settings, patch, onToast, onOpenTutorial 
     setHotMsg('');
     try {
       const r = await desktop?.hotfixImport?.();
-      if (r?.ok) setHotMsg(`已导入热更 #${r.seq}${r.notes ? `：${r.notes}` : ''}，${applyLabel}`);
-      else setHotMsg(r?.error || '导入失败');
+      if (r?.ok) setHotMsg(i18n.t('k493bfda2', { p0: r.seq, p1: r.notes ? `：${r.notes}` : '', p2: applyLabel }));
+      else setHotMsg(r?.error || i18n.t('kfddcd7c6'));
       await refreshHot();
     } finally {
       setHotBusy(false);
@@ -148,27 +149,27 @@ export default function AboutSection({ settings, patch, onToast, onOpenTutorial 
     try {
       if (canSelfUpdate) {
         const r = await desktop?.updateCheck?.();
-        if (!r?.ok) setMsg(r?.msg || '检查失败，请检查网络或代理设置');
-        else if (!r.hasUpdate) setMsg(`已是最新版本 v${r.current}`);
-        else setMsg(`发现新版本 v${r.latest}，可下载后一键重启安装`);
+        if (!r?.ok) setMsg(r?.msg || i18n.t('k7620acaa'));
+        else if (!r.hasUpdate) setMsg(i18n.t('k49e4f46d', { p0: r.current }));
+        else setMsg(i18n.t('kb2e90acc', { p0: r.latest }));
         return;
       }
       // 开发态 / 浏览器预览：只比对 GitHub 上的最新 tag，不下载
       if (!desktop?.checkForUpdates) {
-        setMsg('浏览器预览模式不支持检查更新，请在安装版里使用');
+        setMsg(i18n.t('kfe5a7b55'));
         return;
       }
       const r = await desktop.checkForUpdates();
       if (!r?.ok) {
-        setMsg(r?.msg || '检查失败，请检查网络或代理设置');
+        setMsg(r?.msg || i18n.t('k7620acaa'));
         return;
       }
       if (r.url) setWebUrl(r.url);
       if (r.hasUpdate)
         setMsg(
-          `发现新版本 v${r.latest}（当前 v${r.current}），点下面的按钮到发布页下载`,
+          i18n.t('k101343db', { p0: r.latest, p1: r.current }),
         );
-      else setMsg(`已是最新版本 v${r.current}`);
+      else setMsg(i18n.t('k49e4f46d', { p0: r.current }));
     } finally {
       setBusy(false);
     }
@@ -178,8 +179,8 @@ export default function AboutSection({ settings, patch, onToast, onOpenTutorial 
     setBusy(true);
     try {
       const r = await desktop?.updateDownload?.();
-      if (!r?.ok) setMsg(r?.msg || '开始下载失败');
-      else onToast('已开始后台下载更新包，可以继续用');
+      if (!r?.ok) setMsg(r?.msg || i18n.t('kdd26574f'));
+      else onToast(i18n.t('k4c654082'));
     } finally {
       setBusy(false);
     }
@@ -187,32 +188,32 @@ export default function AboutSection({ settings, patch, onToast, onOpenTutorial 
 
   const install = async () => {
     const r = await desktop?.updateInstall?.();
-    if (!r?.ok) setMsg(r?.msg || '安装失败，请稍后重试或到发布页手动下载');
+    if (!r?.ok) setMsg(r?.msg || i18n.t('k3bdcb2ee'));
   };
 
   /** 诊断信息：用户发给开发者时，版本/环境/路径一次说清，不用来回追问 */
   const copyDiagnostics = async () => {
     const text = [
-      `应用：${APP_NAME} v${version || '?'}`,
-      `安装形态：${info?.packaged ? '安装版' : '开发 / 绿色版'}`,
-      `系统：${PLATFORM_LABEL[info?.platform || ''] || info?.platform || '?'} ${info?.arch || ''}`.trim(),
+      i18n.t('k2472ef95', { p0: APP_NAME, p1: version || '?' }),
+      i18n.t('k45e4c01b', { p0: info?.packaged ? i18n.t('k57b2b95e') : i18n.t('ke6f1361d') }),
+      i18n.t('k2ba85bdc', { p0: PLATFORM_LABEL[info?.platform || ''] || info?.platform || '?', p1: info?.arch || '' }).trim(),
       `Electron ${info?.versions?.electron || '?'} / Chromium ${info?.versions?.chromium || '?'} / Node ${info?.versions?.node || '?'}`,
-      `更新通道：${info?.updateChannel || 'release'}（${repo}）`,
-      `数据目录：${info?.paths?.userData || '-'}`,
-      `日志目录：${info?.paths?.logs || '-'}`,
-      `崩溃转储：${info?.paths?.crashDumps || '-'}`,
+      i18n.t('kf7e8bb51', { p0: info?.updateChannel || 'release', p1: repo }),
+      i18n.t('k3f485aa9', { p0: info?.paths?.userData || '-' }),
+      i18n.t('k0a0fc1a8', { p0: info?.paths?.logs || '-' }),
+      i18n.t('ka7c7059d', { p0: info?.paths?.crashDumps || '-' }),
     ].join('\n');
     try {
       await navigator.clipboard.writeText(text);
-      onToast('诊断信息已复制，可直接粘贴给开发者');
+      onToast(i18n.t('k2f3ef2b7'));
     } catch {
-      onToast('复制失败，请手动选中下方文字复制', 'error');
+      onToast(i18n.t('k12263b09'), 'error');
     }
   };
 
   const openDir = async (key: 'userData' | 'logs' | 'crashDumps') => {
     if (!desktop?.openAppDir) {
-      onToast('仅桌面端支持打开目录', 'error');
+      onToast(i18n.t('k63508a02'), 'error');
       return;
     }
     const err = await desktop.openAppDir(key);
@@ -222,74 +223,74 @@ export default function AboutSection({ settings, patch, onToast, onOpenTutorial 
   return (
     <>
       <Card
-        title={'版本'}
-        desc={'检查更新、看上一个大版本改了什么。安装版每次启动都会在后台静默查询，这期间可以照常使用；只有更新包下载完、能立刻安装时才会提示重启。'}
+        title={i18n.t('kfe2df04a')}
+        desc={i18n.t('k93fee306')}
       >
         <div className="about-hero">
-          <div className="about-hero-mark">{'图库'}</div>
+          <div className="about-hero-mark">{i18n.t('k6084bc4b')}</div>
           <div className="about-hero-text">
             <div className="about-hero-name">
               {APP_NAME}
-              <span className="about-hero-ver">{version ? `v${version}` : '浏览器预览'}</span>
+              <span className="about-hero-ver">{version ? `v${version}` : i18n.t('ka03c37a0')}</span>
             </div>
             <div className="hint" style={{ margin: 0 }}>
-              {'本地优先的个人图库：采集、整理、检索、编辑、导出全在本机完成，不上传素材'}
+              {i18n.t('k625585d2')}
             </div>
           </div>
         </div>
 
         <div className="about-actions">
           <button className="btn primary" disabled={busy || up.status === 'checking'} onClick={check}>
-            {busy || up.status === 'checking' ? '检查中…' : '检查更新'}
+            {busy || up.status === 'checking' ? i18n.t('kd6a22312') : i18n.t('k4ff13370')}
           </button>
           {canSelfUpdate && up.status === 'available' && (
             <button className="btn" disabled={busy} onClick={download}>
-              {`下载 v${up.version}`}
+              {i18n.t('k1c036f90', { p0: up.version })}
             </button>
           )}
           {canSelfUpdate && up.status === 'downloaded' && (
             <button className="btn primary" onClick={install}>
-              {`重启并安装 v${up.version}`}
+              {i18n.t('k3d690e80', { p0: up.version })}
             </button>
           )}
           {!canSelfUpdate && webUrl && (
             <button className="btn" onClick={() => window.open(webUrl, '_blank', 'noopener')}>
-              {'打开发布页下载'}
+              {i18n.t('kef532ca9')}
             </button>
           )}
           <button className="btn" onClick={() => window.open(releasesUrl, '_blank', 'noopener')}>
-            {'更新日志'}
+            {i18n.t('k23093bb2')}
           </button>
         </div>
 
         {canSelfUpdate && up.status === 'downloading' && (
           <div style={{ marginTop: 10 }}>
             <div className="hint" style={{ margin: '0 0 4px' }}>
-              {`正在下载 v${up.version}：${up.percent}%（可继续使用，不影响当前操作）`}
+              {i18n.t('kd365fc19', { p0: up.version, p1: up.percent })}
             </div>
             <progress value={up.percent} max={100} style={{ width: '100%', height: 8 }} />
           </div>
         )}
         {canSelfUpdate && up.status === 'downloaded' && (
           <div className="hint" style={{ marginTop: 8 }}>
-            {'更新包已就绪：点「重启并安装」会关闭应用并自动完成升级，库数据与设置都会保留。'}
+            {i18n.t('kdafa99fb')}
           </div>
         )}
         {canSelfUpdate && up.status === 'error' && up.error && (
           <div className="hint" style={{ marginTop: 8, color: 'var(--warn)' }}>
-            {'更新失败：'}
+            {i18n.t('k87ef41fc')}
             {up.error}
           </div>
         )}
         {!canSelfUpdate && (
           <div className="hint" style={{ marginTop: 8 }}>
-            {'当前不是安装版（开发模式或绿色版），只能检查版本并到发布页手动下载；装好的安装版会在应用内直接升级。'}
+            {i18n.t('k073af007')}
           </div>
         )}
         {msg && <div className="hint" style={{ marginTop: 8 }}>{msg}</div>}
         {typeof up.installFailures === 'number' && up.installFailures > 0 && (
           <div className="hint" style={{ marginTop: 8, lineHeight: 1.9, color: 'var(--warn)' }}>
-            {`已连续 ${up.installFailures} 次安装失败：强制更新已自动降级为「可继续使用」，避免每次启动都被装不上的更新挡住。`}
+            {i18n.t('k338dd681', { p0: up.installFailures })}
             <button
               className="btn sm"
               style={{ marginLeft: 8 }}
@@ -297,28 +298,28 @@ export default function AboutSection({ settings, patch, onToast, onOpenTutorial 
                 try {
                   await desktop?.updateResetFailures?.();
                   setUp({ ...up, installFailures: 0 });
-                  onToast('已清零安装失败计数');
+                  onToast(i18n.t('k96f2bfab'));
                 } catch {
-                  onToast('清零失败，请重启应用后再试', 'error');
+                  onToast(i18n.t('kf7674bfc'), 'error');
                 }
               }}
             >
-              {'清零计数'}
+              {i18n.t('kaf8335bc')}
             </button>
           </div>
         )}
 
-        <div className="settings-subhead">{'启动'}</div>
+        <div className="settings-subhead">{i18n.t('k8e54ddfe')}</div>
         <div className="switch-row">
           <span>
-            {'开机自动启动'}
-            <span className="hint">　{'开机后直接进图库，不用再翻开始菜单'}</span>
+            {i18n.t('ka8ca7568')}
+            <span className="hint">　{i18n.t('kdc5456bc')}</span>
           </span>
           <input
             type="checkbox"
             checked={autoLaunch}
             disabled={!desktop}
-            title={desktop ? '' : '仅桌面端支持'}
+            title={desktop ? '' : i18n.t('kc8d639f3')}
             onChange={async (e) => {
               const next = e.target.checked;
               setAutoLaunch(next);
@@ -326,19 +327,19 @@ export default function AboutSection({ settings, patch, onToast, onOpenTutorial 
                 const applied = (await desktop?.setAutoLaunch?.(next)) ?? next;
                 setAutoLaunch(applied);
                 patch({ autoLaunch: applied });
-                onToast(applied ? '已开启开机自启' : '已关闭开机自启');
+                onToast(applied ? i18n.t('kf6c535fd') : i18n.t('k9a351c5a'));
               } catch {
                 setAutoLaunch(!next);
-                onToast('设置开机自启失败，可能被系统策略拦截', 'error');
+                onToast(i18n.t('kab15ab80'), 'error');
               }
             }}
           />
         </div>
         <div className="switch-row">
           <span>
-            {'启动时自动检查更新'}
+            {i18n.t('ka2f7c6d7')}
             <span className="hint">
-              　{'关掉后只在点「检查更新」时才联网（改完点右上角保存）'}
+              　{i18n.t('k11a2aa66')}
             </span>
           </span>
           <input
@@ -349,78 +350,78 @@ export default function AboutSection({ settings, patch, onToast, onOpenTutorial 
         </div>
         <div className="switch-row">
           <span>
-            {'热更生效时机'}
-            <span className="hint">　{'只替换界面与服务端脚本，不用重装安装包'}</span>
+            {i18n.t('k0bd43333')}
+            <span className="hint">　{i18n.t('kc8615791')}</span>
           </span>
           <select
             className="input"
             style={{ flex: '0 0 auto', minWidth: 150 }}
             value={settings.hotfixApply || 'next'}
             onChange={(e) => patch({ hotfixApply: e.target.value as 'next' | 'now' | 'manual' })}
-            aria-label="热更生效时机"
+            aria-label={i18n.t('k0bd43333')}
           >
-            <option value="next">{'下次启动生效'}</option>
-            <option value="now">{'下载完立刻生效'}</option>
-            <option value="manual">{'只手动下载'}</option>
+            <option value="next">{i18n.t('kff5d3ddd')}</option>
+            <option value="now">{i18n.t('kdd3312ed')}</option>
+            <option value="manual">{i18n.t('k50b126e9')}</option>
           </select>
         </div>
       </Card>
 
       <Card
-        title={'热更'}
+        title={i18n.t('k5a07e4e1')}
         desc={
-          '界面、文案、服务端脚本这类小改动走热更直接替换文件，不用每次重新装安装包；' +
-          '涉及外壳与原生模块的改动仍然只能装安装包。'
+          i18n.t('keb714d6e') +
+          i18n.t('k2d5a673b')
         }
       >
         <div className="about-grid">
           <Row
-            label={'当前生效'}
+            label={i18n.t('k4298a6d6')}
             value={
               !hot
                 ? '—'
                 : hot.activeSeq
-                  ? `${version ? `v${version}` : ''} + 热更 #${hot.activeSeq}`
-                  : `${version ? `v${version}` : ''}（仅安装包）`
+                  ? i18n.t('kd5406e69', { p0: version ? `v${version}` : '', p1: hot.activeSeq })
+                  : i18n.t('k5c3b2b3c', { p0: version ? `v${version}` : '' })
             }
           />
           <Row
-            label={'待生效'}
-            value={hot?.pendingSeq ? `#${hot.pendingSeq}${hot.pendingNotes ? ` · ${hot.pendingNotes}` : ''}` : '无'}
+            label={i18n.t('k438aa860')}
+            value={hot?.pendingSeq ? `#${hot.pendingSeq}${hot.pendingNotes ? ` · ${hot.pendingNotes}` : ''}` : i18n.t('kd81bb206')}
           />
-          <Row label={'生效方式'} value={!hot?.enabled ? '未启用（缺少公钥）' : applyLabel} />
+          <Row label={i18n.t('k5a2b4de3')} value={!hot?.enabled ? i18n.t('k69351d53') : applyLabel} />
         </div>
         <div className="about-actions">
           <button className="btn" onClick={checkHotfix} disabled={hotBusy || !hot?.enabled}>
-            {'检查热更'}
+            {i18n.t('k2ce4d684')}
           </button>
           <button
             className="btn primary"
             onClick={applyHotfix}
             disabled={hotBusy || !hot?.pendingSeq}
-            title={hot?.pendingSeq ? '停掉本地服务、换入热更包并刷新界面' : '没有待生效的热更包'}
+            title={hot?.pendingSeq ? i18n.t('k0d9f3334') : i18n.t('kd0c8a173')}
           >
-            {'现在生效'}
+            {i18n.t('k634872c7')}
           </button>
           <button className="btn" onClick={importHotfix} disabled={hotBusy || !hot?.enabled}>
-            {'从文件导入…'}
+            {i18n.t('kb3e75599')}
           </button>
         </div>
         {hotMsg ? <div className="hint" style={{ marginTop: 8 }}>{hotMsg}</div> : null}
       </Card>
 
       <Card
-        title={'运行环境'}
-        desc={'反馈问题时把这几行一起发过来，能省掉大半来回确认。'}
+        title={i18n.t('k158744a8')}
+        desc={i18n.t('k8efcd781')}
       >
         <div className="about-grid">
-          <Row label={'应用版本'} value={version ? `v${version}` : '—'} />
+          <Row label={i18n.t('k7c46d9d1')} value={version ? `v${version}` : '—'} />
           <Row
-            label={'安装形态'}
-            value={info ? (info.packaged ? '安装版（支持应用内更新）' : '开发 / 绿色版') : '—'}
+            label={i18n.t('k3a91c7d2')}
+            value={info ? (info.packaged ? i18n.t('k5b7465ca') : i18n.t('ke6f1361d')) : '—'}
           />
           <Row
-            label={'系统'}
+            label={i18n.t('k8a8b895f')}
             value={`${PLATFORM_LABEL[info?.platform || ''] || info?.platform || '—'}${info?.arch ? ` · ${info.arch}` : ''}`}
           />
           <Row label="Electron" value={info?.versions?.electron || '—'} mono />
@@ -428,84 +429,84 @@ export default function AboutSection({ settings, patch, onToast, onOpenTutorial 
           <Row label="Node.js" value={info?.versions?.node || '—'} mono />
           <Row label="V8" value={info?.versions?.v8 || '—'} mono />
           <Row
-            label={'更新通道'}
-            value={info?.updateChannel === 'release' ? '正式版（GitHub Releases）' : info?.updateChannel || '—'}
+            label={i18n.t('kcae049cb')}
+            value={info?.updateChannel === 'release' ? i18n.t('k9fff2087') : info?.updateChannel || '—'}
           />
         </div>
         {!info && (
           <div className="hint" style={{ marginTop: 8 }}>
-            {'浏览器预览模式下读不到运行环境（这些数字来自桌面端主进程）。'}
+            {i18n.t('k48b3d06a')}
           </div>
         )}
       </Card>
 
       <Card
-        title={'目录与诊断'}
-        desc={'程序自己的数据、运行日志与崩溃转储都放在这里；素材本身在你设置的图片保存文件夹里，不在这里。'}
+        title={i18n.t('k325fdeb4')}
+        desc={i18n.t('k9a437663')}
       >
         <div className="about-paths">
           <div className="about-path">
-            <div className="about-path-label">{'程序数据'}</div>
+            <div className="about-path-label">{i18n.t('kbed1b262')}</div>
             <code>{info?.paths?.userData || '—'}</code>
             <button className="btn sm" disabled={!desktop} onClick={() => openDir('userData')}>
-              {'打开'}
+              {i18n.t('kd7098f50')}
             </button>
           </div>
           <div className="about-path">
-            <div className="about-path-label">{'运行日志'}</div>
+            <div className="about-path-label">{i18n.t('k284a98fa')}</div>
             <code>{info?.paths?.logs || '—'}</code>
             <button className="btn sm" disabled={!desktop} onClick={() => openDir('logs')}>
-              {'打开'}
+              {i18n.t('kd7098f50')}
             </button>
           </div>
           <div className="about-path">
-            <div className="about-path-label">{'崩溃转储'}</div>
+            <div className="about-path-label">{i18n.t('k6b3551c1')}</div>
             <code>{info?.paths?.crashDumps || '—'}</code>
             <button className="btn sm" disabled={!desktop} onClick={() => openDir('crashDumps')}>
-              {'打开'}
+              {i18n.t('kd7098f50')}
             </button>
           </div>
         </div>
         <div className="about-actions">
           <button className="btn" onClick={copyDiagnostics}>
-            {'复制诊断信息'}
+            {i18n.t('ka5b98f67')}
           </button>
         </div>
         <div className="hint" style={{ marginTop: 8 }}>
-          {'崩溃不会自动上报：出问题时在崩溃转储目录里取 dump 文件，连同诊断信息一起发出来即可。'}
+          {i18n.t('k4c45e133')}
         </div>
       </Card>
 
       <Card
-        title={'帮助与反馈'}
-        desc={'遇到问题先查教程；确认是缺陷就到仓库提 issue，附上诊断信息会快很多。'}
+        title={i18n.t('k3f3663e9')}
+        desc={i18n.t('kfe250666')}
       >
         <div className="about-actions">
           <button className="btn" onClick={onOpenTutorial}>
-            {'使用教程（F1）'}
+            {i18n.t('k86e19b14')}
           </button>
           <button className="btn" onClick={() => window.open(`${releasesUrl}/latest`, '_blank', 'noopener')}>
-            {'最新版本说明'}
+            {i18n.t('ke542dfa6')}
           </button>
           <button className="btn" onClick={() => window.open(`https://github.com/${repo}/issues/new`, '_blank', 'noopener')}>
-            {'报告问题'}
+            {i18n.t('kfd05265a')}
           </button>
           <button className="btn" onClick={() => window.open(`https://github.com/${repo}`, '_blank', 'noopener')}>
-            {'源代码'}
+            {i18n.t('k81cb1f5d')}
           </button>
         </div>
         <div className="hint" style={{ marginTop: 8, lineHeight: 1.9 }}>
-          {'· 界面卡住 / 白屏：先看「运行日志」，最近的报错在最末几行'}
+          {i18n.t('kde39a3b9')}
           <br />
-          {'· 缩略图转圈、图看不了：多为文件被移动或改名，「数据与维护 → 图库维护」里可清理失效记录后重新扫描'}
+          {i18n.t('k5eb66a97')}
           <br />
-          {'· 更新装不上：连续失败会自动降级为可继续使用，也可以到发布页手动下载安装包覆盖安装'}
+          {i18n.t('ke5df43d0')}
         </div>
       </Card>
 
       <Card
-        title={'开源组件'}
-        desc={'这个软件站在这些项目上。许可证以各自仓库为准，这里只列对功能有直接影响的主要组件。'}
+        title={i18n.t('k843d86af')}
+        desc={i18n.t('kc2d464ce')}
       >
         <div className="about-components">
           {COMPONENTS.map((c) => (
@@ -517,7 +518,7 @@ export default function AboutSection({ settings, patch, onToast, onOpenTutorial 
           ))}
         </div>
         <div className="hint" style={{ marginTop: 10 }}>
-          {'模型权重（中文 CLIP、人脸检测）来自各自上游项目，随插件包按需下载，不随安装包分发。'}
+          {i18n.t('kc2558fb3')}
         </div>
       </Card>
     </>

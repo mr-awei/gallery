@@ -2,6 +2,7 @@ import { useCallback, useRef, useState } from 'react';
 import type { MutableRefObject } from 'react';
 import { api } from '../api';
 import type { LoadGallery, Toast } from './types';
+import i18n from '../i18n';
 
 export type ImportProgress = {
   progress: number;
@@ -88,7 +89,7 @@ export function useImportWatch({
           // 扫描崩溃不能静默收尾：以前只在 importState 里留一句话，界面上就是
           // 「库是空的、也没有任何提示」，用户只能以为图丢了。
           if (status.error) {
-            showToast(`扫描失败：${status.error}（可到 设置 → 数据维护 重新扫描）`, 'error');
+            showToast(i18n.t('k98cda397', { p0: status.error }), 'error');
           }
           // 收尾强制重载一次：若导入在最后一次对账后才落库，列表会停在旧张数
           pageRef.current = 1;

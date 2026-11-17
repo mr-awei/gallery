@@ -31,6 +31,7 @@ import { APP_DIR_NAME, APP_ROOT_DIR, START_HIDDEN } from './main/constants.js';
 import { ctx } from './main/context.js';
 import { cleanupCrashDumps, initCrashReporting } from './main/crash.js';
 import { registerAppIpc } from './main/ipc-app.js';
+import { t as tMain, switchLocale } from './main/i18n-main.cjs';
 import { registerLiveIpc } from './main/ipc-live.js';
 import { applyLiveWallpaper, destroyLiveWindow } from './main/live.js';
 import { startScreensaverWatch, stopScreensaverWatch } from './main/screensaver.js';
@@ -49,6 +50,7 @@ import {
 } from './main/updates.js';
 import { createWindow, importPathsFromShell, pickImagePathsFromArgv, showMainWindow } from './main/windows.js';
 import { createDownloadDedupe } from './lib/download-dedupe.js';
+import { discardDownloaded, moveDownloaded } from './lib/download-target.js';
 
 // 兼容旧出口：以前这两个常量直接写在 main.js 顶部
 export { APP_ICON, APP_NAME } from './main/constants.js';
@@ -118,6 +120,9 @@ app
     // 第二个实例不再初始化服务与窗口
     if (!gotSingleInstanceLock) return;
 
+    // 主进程文案（托盘 / 原生对话框）默认跟随系统语言
+    switchLocale(String(app.getLocale() || '').toLowerCase().startsWith('en') ? 'en-US' : 'zh-CN');
+
     cleanupCrashDumps();
     // 屏保空闲检测常驻；内部会等 serverPort 就绪，并按设置开关自行启停覆盖窗口
     startScreensaverWatch();
@@ -133,7 +138,11 @@ app
     /* 同一个 URL 的重复下载只留第一个：连点「下载」按钮、或渲染层一次事件被触发两次时，
        每来一次就多建一个下载项，于是叠出好几个「另存为」框（用户只能一个个点取消）。 */
     const downloadDedupe = createDownloadDedupe(1500);
-    session.defaultSession.on('will-download', async (_e, item) => {
+    // 关键：handler 不能用 async！async 函数体还没跑起来就先 return 一个 Promise，
+    // Electron C++ 层收到「已返回」信号，Chromium 默认行为就弹一个空白「另存为」，
+    // 跟我们下面的 dialog.showSaveDialog 叠成两个。所以 setSavePath / pause 必须在
+    // handler 同步返回前就执行完，后面的异步流程再用 IIFE + void 启动。
+    session.defaultSession.on('will-download', (_e, item) => {
       const win = BrowserWindow.getFocusedWindow() || ctx.mainWindow;
       let name = 'download';
       let url = '';
@@ -143,7 +152,40 @@ app
       } catch {
         /* 窗口已销毁或正在退出，这类清理失败无需处理 */
       }
-      console.info('[dl] will-download:', name, url.slice(0, 120));
+      // 根据下载文件的扩展名推断保存对话框的格式过滤器
+      // 这样用户点"保存拼图"时对话框默认列出图片格式，而不是只有 "All Files (*.*)"
+      const lowerName = name.toLowerCase();
+      const dotIdx = lowerName.lastIndexOf('.');
+      const ext = dotIdx > 0 ? lowerName.slice(dotIdx + 1) : '';
+      const IMAGE_EXTS = ['jpg', 'jpeg', 'png', 'webp', 'gif', 'bmp', 'tiff', 'tif', 'heic', 'heif', 'avif', 'svg'];
+      const VIDEO_EXTS = ['mp4', 'mov', 'mkv', 'webm', 'avi', 'wmv', 'm4v', 'mpg', 'mpeg', 'ts', 'mts', 'm2ts'];
+      const AUDIO_EXTS = ['mp3', 'wav', 'flac', 'aac', 'ogg', 'm4a', 'wma'];
+      const ARCHIVE_EXTS = ['zip', 'rar', '7z', 'tar', 'gz'];
+      const filters = [];
+      if (IMAGE_EXTS.includes(ext)) {
+        // 具体格式 + 所有图片 + 所有文件（保留灵活性）
+        const specific = { jpg: 'JPEG 图片', jpeg: 'JPEG 图片', png: 'PNG 图片',
+          webp: 'WebP 图片', gif: 'GIF 动图', bmp: 'BMP 图片', tiff: 'TIFF 图片',
+          tif: 'TIFF 图片', heic: 'HEIC 图片', heif: 'HEIF 图片', avif: 'AVIF 图片',
+          svg: 'SVG 矢量' }[ext];
+        if (specific) filters.push({ name: specific, extensions: [ext] });
+        filters.push({ name: '所有图片', extensions: IMAGE_EXTS });
+      } else if (VIDEO_EXTS.includes(ext)) {
+        filters.push({ name: `${ext.toUpperCase()} 视频`, extensions: [ext] });
+        filters.push({ name: '所有视频', extensions: VIDEO_EXTS });
+      } else if (AUDIO_EXTS.includes(ext)) {
+        filters.push({ name: `${ext.toUpperCase()} 音频`, extensions: [ext] });
+        filters.push({ name: '所有音频', extensions: AUDIO_EXTS });
+      } else if (ARCHIVE_EXTS.includes(ext)) {
+        filters.push({ name: `${ext.toUpperCase()} 压缩包`, extensions: [ext] });
+      } else if (ext === 'pdf') {
+        filters.push({ name: 'PDF 文档', extensions: ['pdf'] });
+      } else if (ext === 'epub') {
+        filters.push({ name: 'EPUB 电子书', extensions: ['epub'] });
+      } else if (ext === 'json' || ext === 'csv' || ext === 'html') {
+        filters.push({ name: '文本文件', extensions: [ext] });
+      }
+      filters.push({ name: '所有文件', extensions: ['*'] });
       if (!downloadDedupe.accept(url)) {
         console.info('[dl] 忽略重复的下载请求：', name);
         try {
@@ -153,28 +195,78 @@ app
         }
         return;
       }
-      // 先暂停：Electron 要求尽早 setSavePath，否则数据已经在临时目录里跑了；
-      // 暂停后等对话框结果，取消就整个撤销，不会留下半截文件。
+      // 占位保存路径：will-download 里不立刻给出路径时，Chromium 会自己再弹一个
+      // 「另存为」（标题是网址、文件名空白），跟我们下面这个框叠成两个。先同步压上
+      // 一个占位路径把它挡掉。放系统临时目录：本机导出太快，pause() 拦不住写入，
+      // 放开在下载目录会让「取消」也留下文件。
+      const downloadsDir = app.getPath('downloads');
+      const tempPath = path.join(app.getPath('temp'), `tuku-dl-${process.pid}-${Date.now()}-${name}`);
+      try {
+        item.setSavePath(tempPath);
+      } catch {
+        /* 窗口已销毁或正在退出，这类清理失败无需处理 */
+      }
       try {
         item.pause();
       } catch {
         /* 窗口已销毁或正在退出，这类清理失败无需处理 */
       }
-      const { canceled, filePath } = await dialog.showSaveDialog(win, {
-        title: '保存文件',
-        defaultPath: path.join(app.getPath('downloads'), name),
-        buttonLabel: '保存',
-      });
-      if (canceled || !filePath) {
-        item.cancel();
-        return;
-      }
-      item.setSavePath(filePath);
-      item.resume();
-      item.once('done', (_ev, state) => {
-        if (state === 'completed') showToastBanner('下载完成', path.basename(filePath));
-        else if (state === 'interrupted') showToastBanner('下载中断', name);
-      });
+      // 异步流程单独启动：不阻塞 handler 返回，上面的 setSavePath + pause 才能真正生效
+      void (async () => {
+        try {
+          const { canceled, filePath } = await dialog.showSaveDialog(win, {
+            title: tMain('dialog.saveFile'),
+            defaultPath: path.join(downloadsDir, name),
+            buttonLabel: tMain('dialog.save'),
+            filters,
+          });
+          if (canceled || !filePath) {
+            try {
+              item.cancel();
+            } catch {
+              /* 已经取消/销毁，重复取消无需处理 */
+            }
+            void discardDownloaded(tempPath);
+            return;
+          }
+          // 保存路径在下载项建好那一刻就定了，这会儿 setSavePath 只改 getSavePath()，
+          // 数据还是往占位路径写。等它下完再挪到用户选的位置。
+          /** @param {string} state */
+          const settle = async (state) => {
+            if (state !== 'completed') {
+              void discardDownloaded(tempPath);
+              if (state === 'interrupted') showToastBanner('下载中断', name);
+              return;
+            }
+            try {
+              const saved = await moveDownloaded(tempPath, filePath);
+              showToastBanner('下载完成', path.basename(saved));
+            } catch (err) {
+              // 挪不过去就说明白，别谎报「下载完成」
+              console.error('[dl] 保存到所选位置失败:', err);
+              void discardDownloaded(tempPath);
+              showToastBanner('保存失败', path.basename(filePath));
+            }
+          };
+          // 对话框开着的时候下载可能已经跑完了，done 不会重放，得自己补一刀
+          const state = item.getState();
+          if (state === 'completed' || state === 'interrupted') await settle(state);
+          else {
+            item.resume();
+            item.once('done', (_ev, doneState) => {
+              void settle(doneState);
+            });
+          }
+        } catch (err) {
+          console.error('[dl] 保存流程异常:', err);
+          try {
+            item.cancel();
+          } catch {
+            /* 已经取消/销毁 */
+          }
+          void discardDownloaded(tempPath);
+        }
+      })();
     });
 
     app.on('child-process-gone', (_e, details) => {

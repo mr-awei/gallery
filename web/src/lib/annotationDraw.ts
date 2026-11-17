@@ -1,4 +1,5 @@
 import type { AnnotationItem } from '../types';
+import i18n from '../i18n';
 
 /** 标注几何与导出绘制：坐标一律是相对原图的 0~1 比例 */
 export type Ann = AnnotationItem;
@@ -155,7 +156,7 @@ export function loadImage(url: string): Promise<HTMLImageElement> {
     const img = new Image();
     img.crossOrigin = 'anonymous';
     img.onload = () => resolve(img);
-    img.onerror = () => reject(new Error('底图加载失败'));
+    img.onerror = () => reject(new Error(i18n.t('k68e6843e')));
     img.src = url;
   });
 }
@@ -244,10 +245,10 @@ export async function composeAnnotated(url: string, items: Ann[]): Promise<Blob>
   canvas.width = img.naturalWidth || 1;
   canvas.height = img.naturalHeight || 1;
   const ctx = canvas.getContext('2d');
-  if (!ctx) throw new Error('无法创建画布');
+  if (!ctx) throw new Error(i18n.t('k2352bf26'));
   ctx.drawImage(img, 0, 0);
   drawAnnotations(ctx, items);
   return new Promise((resolve, reject) => {
-    canvas.toBlob((b) => (b ? resolve(b) : reject(new Error('导出失败'))), 'image/png');
+    canvas.toBlob((b) => (b ? resolve(b) : reject(new Error(i18n.t('kdd51ab50')))), 'image/png');
   });
 }

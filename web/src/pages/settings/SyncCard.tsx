@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { api, pickFolder } from '../../api';
 import Card from './Card';
+import i18n from '../../i18n';
 
 type SyncState = Awaited<ReturnType<typeof api.syncStatus>>;
 
@@ -19,7 +20,7 @@ export default function SyncCard({ onToast, onLibraryChanged }: Props) {
     try {
       setState(await api.syncStatus());
     } catch (err) {
-      onToast?.(`读取同步状态失败：${(err as Error).message}`, 'error');
+      onToast?.(i18n.t('kd6187407', { p0: (err as Error).message }), 'error');
     }
   };
 
@@ -33,10 +34,10 @@ export default function SyncCard({ onToast, onLibraryChanged }: Props) {
     if (!dir) return;
     try {
       await api.syncConfigure(String(dir));
-      onToast?.('同步文件夹已设置', 'info');
+      onToast?.(i18n.t('k6dcba80d'), 'info');
       await refresh();
     } catch (err) {
-      onToast?.(`设置失败：${(err as Error).message}`, 'error');
+      onToast?.(i18n.t('k161e1f3e', { p0: (err as Error).message }), 'error');
     }
   };
 
@@ -48,11 +49,11 @@ export default function SyncCard({ onToast, onLibraryChanged }: Props) {
       if (kind === 'publish') r = await api.syncPublish(force);
       else if (kind === 'pull') r = await api.syncPull(force);
       else r = await api.syncConfigure('');
-      onToast?.(r.note || r.reason || (kind === 'pull' ? `已拉取到 ${r.libraryName || '新资源库'}` : '操作完成'), 'info');
+      onToast?.(r.note || r.reason || (kind === 'pull' ? i18n.t('k93a894e7', { p0: r.libraryName || i18n.t('k8c9c922c') }) : i18n.t('k04fe5af3')), 'info');
       await refresh();
       if (kind === 'pull' && !r.skipped) await onLibraryChanged?.();
     } catch (err) {
-      onToast?.(`${kind === 'publish' ? '发布' : kind === 'pull' ? '拉取' : '关闭'}失败：${(err as Error).message}`, 'error');
+      onToast?.(i18n.t('kddb5e0d1', { p0: kind === 'publish' ? i18n.t('k83611abd') : kind === 'pull' ? i18n.t('k1d0274a5') : i18n.t('kb15d9127'), p1: (err as Error).message }), 'error');
     } finally {
       setBusy(false);
     }
@@ -60,46 +61,46 @@ export default function SyncCard({ onToast, onLibraryChanged }: Props) {
 
   return (
     <Card
-      title="云同步 / 多端"
-      desc="把任意一个网盘 / 共享盘文件夹当传输层：一端发布带版本号的元数据快照，另一端拉取。不做在线账号，也不做实时行级合并。"
+      title={i18n.t('kdb8ad3b5')}
+      desc={i18n.t('k9353a5c4')}
     >
       <div className="hint" style={{ lineHeight: 1.9 }}>
-        · 快照只含数据库与元数据清单（<b>不含原图</b>）；原图请让素材目录自己走同步盘
-        <br />· 内容没变时不写同步盘，已是最新版本时不重复拉取（增量跳过）
-        <br />· 两端都改过时会明确报冲突，只有勾选「强制」才允许放弃本机未发布的改动
-        <br />· 拉取会登记为<b>一个新的资源库</b>，不会覆盖当前库；确认无误后可自行删除旧库
+        {i18n.t('kca4252dd')}<b>{i18n.t('kf5a2b734')}</b>{i18n.t('k63dcd2ae')}
+        <br />{i18n.t('k46b256b3')}
+        <br />{i18n.t('k64c8e437')}
+        <br />{i18n.t('kc3c02037')}<b>{i18n.t('k38284205')}</b>{i18n.t('k4d990baf')}
       </div>
 
       <div className="field" style={{ marginTop: 12 }}>
-        <label>同步文件夹</label>
-        <div className="hint" style={{ wordBreak: 'break-all' }}>{state?.syncDir || '（未设置）'}</div>
+        <label>{i18n.t('k19edb1c3')}</label>
+        <div className="hint" style={{ wordBreak: 'break-all' }}>{state?.syncDir || i18n.t('k19e21887')}</div>
         <div style={{ display: 'flex', gap: 8, marginTop: 8, flexWrap: 'wrap' }}>
-          <button className="btn sm" onClick={() => void choose()} disabled={busy}>选择文件夹…</button>
-          {state?.enabled && <button className="btn sm" onClick={() => void run('off')} disabled={busy}>关闭同步</button>}
-          <button className="btn sm" onClick={() => void refresh()} disabled={busy}>刷新状态</button>
+          <button className="btn sm" onClick={() => void choose()} disabled={busy}>{i18n.t('ka0249eda')}</button>
+          {state?.enabled && <button className="btn sm" onClick={() => void run('off')} disabled={busy}>{i18n.t('kbf971021')}</button>}
+          <button className="btn sm" onClick={() => void refresh()} disabled={busy}>{i18n.t('k4f8d48ef')}</button>
         </div>
       </div>
 
       {state && (
         <div className="field">
-          <label>状态</label>
+          <label>{i18n.t('k3fea7ca7')}</label>
           <div className="hint" style={{ lineHeight: 1.9 }}>
             本机第 {state.localRevision} 版 · 同步盘第 {state.remoteRevision} 版
-            {state.remoteDevice ? `（由 ${state.remoteDevice.slice(0, 8)}… 于 ${state.publishedAt.slice(0, 19).replace('T', ' ')} 发布）` : ''}
+            {state.remoteDevice ? i18n.t('k638c4e11', { p0: state.remoteDevice.slice(0, 8), p1: state.publishedAt.slice(0, 19).replace('T', ' ') }) : ''}
             <br />本机设备：{state.deviceId.slice(0, 8)}…
-            {state.dirty && <><br /><b style={{ color: 'var(--warn, #c47f17)' }}>本机有未发布的改动</b></>}
+            {state.dirty && <><br /><b style={{ color: 'var(--warn, #c47f17)' }}>{i18n.t('k08cd88c0')}</b></>}
             {state.manifestError && <><br /><b style={{ color: 'var(--err, #c33)' }}>{state.manifestError}</b></>}
           </div>
         </div>
       )}
 
       <div className="switch-row">
-        <span>强制操作（发布时忽略「无变化」跳过 / 拉取时放弃本机未发布改动）</span>
+        <span>{i18n.t('k2e1ff4dc')}</span>
         <input type="checkbox" checked={force} onChange={(e) => setForce(e.target.checked)} />
       </div>
       <div style={{ display: 'flex', gap: 8, marginTop: 10, flexWrap: 'wrap' }}>
-        <button className="btn sm primary" onClick={() => void run('publish')} disabled={busy || !state?.enabled}>发布本机快照</button>
-        <button className="btn sm" onClick={() => void run('pull')} disabled={busy || !state?.enabled}>拉取远端快照</button>
+        <button className="btn sm primary" onClick={() => void run('publish')} disabled={busy || !state?.enabled}>{i18n.t('k09fd789c')}</button>
+        <button className="btn sm" onClick={() => void run('pull')} disabled={busy || !state?.enabled}>{i18n.t('k86b82c8d')}</button>
       </div>
     </Card>
   );

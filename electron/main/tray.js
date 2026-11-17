@@ -7,6 +7,7 @@ import { Menu, Tray, app } from 'electron';
 import { getSettingsSnapshot, setSettingsCache } from '../settings-cache.js';
 import { APP_ICON, APP_NAME } from './constants.js';
 import { ctx } from './context.js';
+import { tf } from './i18n-main.cjs';
 import { fetchJson } from './ipc-base.js';
 import { restartLocalServer } from './service.js';
 import { requestRegionShot } from './shot.js';
@@ -16,6 +17,12 @@ import { showMainWindow } from './windows.js';
 
 const getSettings = getSettingsSnapshot;
 
+/** 供主进程其它模块调用：界面语言变了，重建托盘菜单（菜单文字在构建时取 i18n 值） */
+export function refreshTray() {
+  const fn = ctx.trayMenuRefresher;
+  if (fn) void fn();
+}
+
 export function createTray() {
   if (ctx.tray) return;
   try {
@@ -24,11 +31,10 @@ export function createTray() {
     console.error('[tray] 托盘创建失败：', err?.message || err);
     return;
   }
-  ctx.tray.setToolTip(`${APP_NAME} · 本地图片管理`);
+  ctx.tray.setToolTip(tf('tray.tooltip', { app: APP_NAME }));
 
   const refreshMenu = async () => {
-    if (!ctx.tray || ctx.tray.isDestroyed()) return;
-    // 端口还没就绪时去请求 http://127.0.0.1:0/... 只会刷一堆错误日志
+    if (!ctx.tray || ctx.tray.isDestroyed()) return;    // 端口还没就绪时去请求 http://127.0.0.1:0/... 只会刷一堆错误日志
     if (!ctx.serverPort) return;
     let cur = {};
     let auto = {};
@@ -59,31 +65,31 @@ export function createTray() {
       // MenuItemConstructorOptions，会让整条模板的 type 退化成 string
       .../** @type {import('electron').MenuItemConstructorOptions[]} */ (
         ctx.lastTrayNotice
-          ? [{ label: `上次操作：${ctx.lastTrayNotice}`, enabled: false }, { type: 'separator' }]
+          ? [{ label: tf('tray.lastAction', { msg: ctx.lastTrayNotice }), enabled: false }, { type: 'separator' }]
           : []
       ),
-      { label: '打开主窗口', click: showMainWindow },
+      { label: tf('tray.openMain'), click: showMainWindow },
       {
-        label: '框选截图…',
+        label: tf('tray.regionShot'),
         click: () => {
           // 窗口隐藏 / 屏幕抓取被拦时这里会抛，不能静默吞掉
           void Promise.resolve(requestRegionShot())
-            .catch((err) => trayNotify('截图没成功', err?.message || '屏幕抓取不可用，试试打开主窗口再截'))
+            .catch((err) => trayNotify(tf('tray.shotFailed'), err?.message || tf('tray.shotFailedDetail')))
             .finally(() => refreshMenu());
         },
       },
       {
-        label: ctx.restartingServer ? '正在重启本地服务…' : '重启本地服务',
+        label: ctx.restartingServer ? tf('tray.restarting') : tf('tray.restartService'),
         enabled: !ctx.restartingServer,
         click: () => {
           void restartLocalServer().then((ok) => {
-            if (ok) trayNotify('本地服务已重启', '现在可以继续换壁纸、收藏了');
+            if (ok) trayNotify(tf('tray.serviceRestarted'), tf('tray.serviceRestartedDetail'));
             refreshMenu();
           });
         },
       },
       {
-        label: '关闭窗口时最小化到托盘',
+        label: tf('tray.closeToTray'),
         type: 'checkbox',
         checked: getSettings().closeToTray !== false,
         click: async (item) => {
@@ -104,26 +110,26 @@ export function createTray() {
             console.error('[tray] 保存托盘常驻设置失败：', err?.message || err);
             // 保存失败就回滚开关，别让界面显示的和实际行为不一致
             setSettingsCache({ ...getSettingsSnapshot(), closeToTray: !next });
-            trayNotify('设置没保存', err?.message || '本地服务没响应');
+            trayNotify(tf('tray.saveFailed'), err?.message || tf('tray.serviceNoResponse'));
             refreshMenu();
           }
         },
       },
       { type: 'separator' },
-      { label: '换一张壁纸　Ctrl+Alt+W', click: () => wallpaperAction('now') },
+      { label: tf('tray.changeWallpaper'), click: () => wallpaperAction('now') },
       {
-        label: title ? `收藏当前壁纸（${title}）` : '收藏当前壁纸',
+        label: title ? tf('tray.favoriteCurrentWith', { title }) : tf('tray.favoriteCurrent'),
         enabled: !!cur.imageId,
         click: () => wallpaperAction('favorite'),
       },
       {
-        label: '不喜欢，换一张',
+        label: tf('tray.dislike'),
         enabled: !!cur.imageId,
         click: () => wallpaperAction('dislike'),
       },
       { type: 'separator' },
       {
-        label: live.enabled ? '关闭动态壁纸' : '开启动态壁纸',
+        label: live.enabled ? tf('tray.liveOff') : tf('tray.liveOn'),
         click: async () => {
           const next = !live.enabled;
           try {
@@ -137,19 +143,19 @@ export function createTray() {
               }
             );
             trayNotify(
-              next ? '动态壁纸已开启' : '动态壁纸已关闭',
-              next ? '桌面会按当前壁纸动起来；想停就在托盘菜单再点一次' : ''
+              next ? tf('tray.liveEnabled') : tf('tray.liveDisabled'),
+              next ? tf('tray.liveEnabledDetail') : ''
             );
           } catch (err) {
             console.error('[tray] 动态壁纸切换失败：', err?.message || err);
-            trayNotify('动态壁纸没切换', err?.message || '本地服务没响应，试试「重启本地服务」');
+            trayNotify(tf('tray.liveFailed'), err?.message || tf('tray.serviceNoResponse'));
           }
           refreshMenu();
         },
       },
       { type: 'separator' },
       {
-        label: auto.enabled ? '暂停定时切换' : '启用定时切换',
+        label: auto.enabled ? tf('tray.autoPause') : tf('tray.autoEnable'),
         click: async () => {
           const next = !auto.enabled;
           try {
@@ -161,22 +167,22 @@ export function createTray() {
                 body: JSON.stringify({ enabled: next }),
               }
             );
-            if (!data || data.error) throw new Error(data?.error || '服务没有返回结果');
+            if (!data || data.error) throw new Error(data?.error || tf('tray.noResult'));
             const every = data?.config?.intervalMinutes || auto.intervalMinutes;
             trayNotify(
-              next ? '定时切换已开启' : '定时切换已暂停',
-              next && every ? `每 ${every} 分钟换一张` : ''
+              next ? tf('tray.autoOn') : tf('tray.autoPaused'),
+              next && every ? tf('tray.autoEvery', { n: every }) : ''
             );
           } catch (err) {
             console.error('[tray] 切换定时失败：', err?.message || err);
-            trayNotify('定时切换没生效', err?.message || '本地服务没响应');
+            trayNotify(tf('tray.autoFailed'), err?.message || tf('tray.serviceNoResponse'));
           }
           refreshMenu();
         },
       },
       { type: 'separator' },
       {
-        label: '退出',
+        label: tf('tray.quit'),
         click: () => {
           ctx.forceQuit = true;
           app.quit();

@@ -5,6 +5,7 @@ import { reasonLabel } from '../components/DeleteReasonDialog';
 import type { LightboxState } from '../hooks/useLightbox';
 import type { ImageItem, Stats, TagNode } from '../types';
 import type { Toast } from './types';
+import i18n from '../i18n';
 
 type Options = {
   patchItem: (updated: ImageItem) => void;
@@ -72,13 +73,13 @@ export function useItemActions({
       try {
         if (!payload.learn) {
           await api.remove(item.id);
-          showToast('已删除（未记录反馈）');
+          showToast(i18n.t('kabf87487'));
         } else {
           await api.deleteWithReason(item.id, payload);
           showToast(
             payload.reasons.length
-              ? `已删除并记录：${payload.reasons.map(reasonLabel).join('、')}（可在 AI 知识库一键归纳）`
-              : '已删除'
+              ? i18n.t('k9758beef', { p0: payload.reasons.map(reasonLabel).join('、') })
+              : i18n.t('k5cc23262')
           );
         }
       } catch (err) {
@@ -102,8 +103,8 @@ export function useItemActions({
         const res = await api.wallpaper(item.id, style);
         showToast(
           res.generated
-            ? `已设为壁纸：按屏幕 ${res.screen.width}×${res.screen.height} 合成，竖版完整居中不裁切`
-            : '已设为桌面壁纸（原图铺满）'
+            ? i18n.t('kda5d9e82', { p0: res.screen.width, p1: res.screen.height })
+            : i18n.t('k31966daa')
         );
       } catch (err) {
         showToast((err as Error).message);

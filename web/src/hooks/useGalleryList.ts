@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import type { MutableRefObject } from 'react';
 import { api } from '../api';
 import type { Filters, ImageItem } from '../types';
+import i18n from '../i18n';
 
 export const PAGE_SIZE = 48;
 
@@ -128,8 +129,8 @@ export function useGalleryList({
       const dropped = Number(scan?.dropped) || 0;
       showToast(
         saved
-          ? `已导入 ${saved} 张新图片${dropped ? `（${dropped} 张未通过尺寸/体积筛选）` : ''}`
-          : `已刷新（当前筛选 ${totalRef.current} 张）`
+          ? i18n.t('k690e7bef', { p0: saved, p1: dropped ? i18n.t('kc8167703', { p0: dropped }) : '' })
+          : i18n.t('kfc8d85ac', { p0: totalRef.current })
       );
     } catch (err) {
       showToast((err as Error).message);

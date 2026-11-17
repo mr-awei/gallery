@@ -1,5 +1,6 @@
 import React from 'react';
 import { copyText } from '../api';
+import i18n from '../i18n';
 
 /**
  * 错误边界：某个页面在渲染期抛错时，React 会卸载整棵树 —— 用户看到的就是
@@ -34,13 +35,13 @@ export default class ErrorBoundary extends React.Component<
   private copyReport = async () => {
     const { error, info } = this.state;
     const text = [
-      `错误：${error?.message || String(error)}`,
-      `时间：${new Date().toLocaleString()}`,
-      `地址：${window.location.href}`,
+      i18n.t('k3cbd8ca0', { p0: error?.message || String(error) }),
+      i18n.t('kbdb32f86', { p0: new Date().toLocaleString() }),
+      i18n.t('k24a53b48', { p0: window.location.href }),
       '',
       error?.stack || '',
       '',
-      '组件栈：',
+      i18n.t('k992860b1'),
       info,
     ].join('\n');
     const ok = await copyText(text);
@@ -54,25 +55,25 @@ export default class ErrorBoundary extends React.Component<
     return (
       <div className="crash">
         <div className="crash-card">
-          <div className="crash-title">这个页面渲染出错了</div>
+          <div className="crash-title">{i18n.t('k30e99755')}</div>
           <div className="crash-msg">{error.message || String(error)}</div>
           <div className="crash-actions">
             <button className="btn sm" onClick={() => this.setState({ error: null, info: '', copied: false })}>
-              重试
+              {i18n.t('k132c5cdc')}
             </button>
             <button className="btn sm" onClick={this.copyReport}>
-              {copied ? '已复制' : '复制错误信息'}
+              {copied ? i18n.t('k52e6abbe') : i18n.t('kd49ace21')}
             </button>
             <button className="btn sm primary" onClick={() => window.location.reload()}>
-              重新加载界面
+              {i18n.t('k59fcfadb')}
             </button>
           </div>
           <details className="crash-details">
-            <summary>技术细节（反馈问题时贴这段）</summary>
-            <pre>{`${error.stack || error.message}\n\n组件栈：${info}`}</pre>
+            <summary>{i18n.t('ka127c450')}</summary>
+            <pre>{i18n.t('k0666a993', { p0: error.stack || error.message, p1: info })}</pre>
           </details>
           <div className="crash-hint">
-            侧栏和顶栏还能用，可以先切到别的页面；反复出现请把上面的报错复制反馈出来。
+            {i18n.t('k3e1b3918')}
           </div>
         </div>
       </div>

@@ -3,6 +3,7 @@ import type { ImageItem, TimelineSummary } from '../types';
 import type { JobItem } from '../api';
 import { api } from '../api';
 import VirtualGrid from '../components/VirtualGrid';
+import i18n from '../i18n';
 
 /**
  * 时间线视图：按拍摄时间倒序，三级索引「年 → 月 → 日」，图片按天懒加载。
@@ -42,10 +43,10 @@ const PAGE = 120;
 /** '2026-11' → '2026年11月' */
 function monthLabel(month: string) {
   const [y, m] = month.split('-');
-  return `${y} 年 ${Number(m)} 月`;
+  return i18n.t('k1fe22e3a', { p0: y, p1: Number(m) });
 }
 
-const WEEK_ZH = ['周日', '周一', '周二', '周三', '周四', '周五', '周六'];
+const WEEK_ZH = [i18n.t('k562d7476'), i18n.t('k1603b069'), i18n.t('kb5a6a07e'), i18n.t('ke60725e7'), i18n.t('k170fc8e2'), i18n.t('keb79cea6'), i18n.t('k24575130')];
 
 /**
  * '2026-10-05' → '10 月 5 日 · 周一'
@@ -56,7 +57,7 @@ const WEEK_ZH = ['周日', '周一', '周二', '周三', '周四', '周五', '�
 function dayLabel(day: string) {
   const [, m, d] = day.split('-').map(Number);
   const wd = new Date(`${day}T00:00:00Z`).getUTCDay();
-  return `${m} 月 ${d} 日 · ${WEEK_ZH[wd]}`;
+  return i18n.t('k2c429abe', { p0: m, p1: d, p2: WEEK_ZH[wd] });
 }
 
 function DayBlock({
@@ -103,9 +104,9 @@ function DayBlock({
       <header className="tl-day-head">
         <h4>{dayLabel(day)}</h4>
         <span className="tl-day-count">
-          {total} {'张'}
+          {total} {i18n.t('k6499fc74')}
         </span>
-        {state?.loading && !items.length && <span className="tl-month-loading">{'加载中…'}</span>}
+        {state?.loading && !items.length && <span className="tl-month-loading">{i18n.t('kfb4ca1cf')}</span>}
         {state?.error && <span className="tl-month-error">{state.error}</span>}
       </header>
       {items.length > 0 && (
@@ -128,14 +129,14 @@ function DayBlock({
               onClick={() => onOpen(it, items)}
             >
               <img src={it.thumbUrl} alt={it.title} loading="lazy" decoding="async" />
-              {(it.editOps || 0) > 0 && <span className="tl-nondestructive" title={'非破坏编辑未写入原图'}>◐</span>}
+              {(it.editOps || 0) > 0 && <span className="tl-nondestructive" title={i18n.t('k01a40c23')}>◐</span>}
             </button>
           )}
         />
       )}
       {items.length > 0 && items.length < total && (
         <button type="button" className="tl-more" disabled={state?.loading} onClick={onLoadMore}>
-          {state?.loading ? '加载中…' : `加载更多（还有 ${total - items.length} 张）`}
+          {state?.loading ? i18n.t('kfb4ca1cf') : i18n.t('ke59c46c5', { p0: total - items.length })}
         </button>
       )}
     </section>
@@ -190,10 +191,10 @@ function MonthBlock({
       <header className="tl-month-head">
         <h3>{monthLabel(month)}</h3>
         <span className="tl-month-count">
-          {total} {'张'}
+          {total} {i18n.t('k6499fc74')}
           {days.length > 0 && ` · ${days.length} ${'天'}`}
         </span>
-        {state?.loading && !days.length && <span className="tl-month-loading">{'加载中…'}</span>}
+        {state?.loading && !days.length && <span className="tl-month-loading">{i18n.t('kfb4ca1cf')}</span>}
         {state?.error && <span className="tl-month-error">{state.error}</span>}
       </header>
       {days.map((b) => (
@@ -235,7 +236,7 @@ export function Timeline({ onToast, onOpen }: Props) {
       setError('');
       return s;
     } catch (e) {
-      setError((e as Error)?.message || '加载失败');
+      setError((e as Error)?.message || i18n.t('k866b795e'));
       return null;
     } finally {
       setLoading(false);
@@ -267,7 +268,7 @@ export function Timeline({ onToast, onOpen }: Props) {
         const r = await api.timelineDays(month);
         setMonths((prev) => ({ ...prev, [month]: { days: r.days, total: r.total, loading: false } }));
       } catch (e) {
-        const msg = (e as Error)?.message || '加载失败';
+        const msg = (e as Error)?.message || i18n.t('k866b795e');
         setMonths((prev) => ({
           ...prev,
           [month]: { days: prev[month]?.days || [], total: prev[month]?.total || 0, loading: false, error: msg },
@@ -296,7 +297,7 @@ export function Timeline({ onToast, onOpen }: Props) {
           return { ...prev, [day]: { items, total: r.total, loading: false } };
         });
       } catch (e) {
-        const msg = (e as Error)?.message || '加载失败';
+        const msg = (e as Error)?.message || i18n.t('k866b795e');
         setDays((prev) => ({
           ...prev,
           [day]: { items: prev[day]?.items || [], total: prev[day]?.total || 0, loading: false, error: msg },
@@ -432,11 +433,11 @@ export function Timeline({ onToast, onOpen }: Props) {
   const startBackfill = async () => {
     try {
       const r = await api.timelineBackfill();
-      if (r.already) onToast('重建任务已经在跑');
-      else onToast('已开始重建拍摄时间（EXIF → 文件时间），可以继续浏览');
+      if (r.already) onToast(i18n.t('k86a322f4'));
+      else onToast(i18n.t('k33bb104f'));
       pollJob();
     } catch (e) {
-      onToast((e as Error)?.message || '启动失败', 'error');
+      onToast((e as Error)?.message || i18n.t('kefb08e91'), 'error');
     }
   };
 
@@ -455,9 +456,9 @@ export function Timeline({ onToast, onOpen }: Props) {
           setMonths({});
           setDays({});
           await loadSummary();
-          onToast('拍摄时间已重建，时间线已刷新');
+          onToast(i18n.t('k5d87133f'));
         } else if (last && last.status === 'failed') {
-          onToast(last.error || '重建失败', 'error');
+          onToast(last.error || i18n.t('k4b85a28a'), 'error');
         }
       } catch {
         /* 轮询失败不打扰用户，任务中心里有记录 */
@@ -497,7 +498,7 @@ export function Timeline({ onToast, onOpen }: Props) {
   }, [summary]);
 
   if (loading && !summary) {
-    return <div className="tl-empty">{'正在读取拍摄时间…'}</div>;
+    return <div className="tl-empty">{i18n.t('k89780018')}</div>;
   }
 
   if (error && !summary) {
@@ -505,7 +506,7 @@ export function Timeline({ onToast, onOpen }: Props) {
       <div className="tl-empty">
         {error}
         <button type="button" className="btn" onClick={() => { setLoading(true); loadSummary(); }}>
-          {'重试'}
+          {i18n.t('k132c5cdc')}
         </button>
       </div>
     );
@@ -520,23 +521,23 @@ export function Timeline({ onToast, onOpen }: Props) {
     const rebuildable = Number(summary?.pending || 0) || unplaced;
     return (
       <div className="tl-empty">
-        <h2>{'还没有可排入时间线的素材'}</h2>
+        <h2>{i18n.t('k79ca8d27')}</h2>
         <p>
           {total > 0
-            ? `库里 ${total.toLocaleString('zh-CN')} 张素材目前都没算出拍摄时间（多半是旧版本导入时把「收录时间」当成了拍摄时间，v1.2.8 起这个口径已废弃并被清空）。` +
-                  '照片本身的时间还在 EXIF 和文件属性里，点下面的按钮重建一次就会按年归位。'
-            : '导入照片后，会按拍摄时间自动归档到对应年月：优先 EXIF 拍摄时间，没有 EXIF 时用文件的修改 / 创建时间（不会用收录进来的时间）。'}
+            ? i18n.t('k2fbd0824', { p0: total.toLocaleString('zh-CN') }) +
+                  i18n.t('kb05389b4')
+            : i18n.t('k59eb1b69')}
         </p>
         {total > 0 && (
           <div className="tl-empty-acts">
             {!running && rebuildable > 0 && (
               <button type="button" className="btn primary" onClick={startBackfill}>
-                {`重建拍摄时间（${rebuildable} 张待校正）`}
+                {i18n.t('kc67f3cfb', { p0: rebuildable })}
               </button>
             )}
             {running && job && (
               <span className="tl-job">
-                {job.message || '重建中…'}
+                {job.message || i18n.t('k3d99e2cf')}
                 <span className="tl-job-bar">
                   <i style={{ width: `${Math.max(2, Math.min(100, job.progress || 0))}%` }} />
                 </span>
@@ -552,20 +553,20 @@ export function Timeline({ onToast, onOpen }: Props) {
     <div className="tl-root">
       <header className="tl-head">
         <div>
-          <h2>{'时间线'}</h2>
+          <h2>{i18n.t('k4404a8da')}</h2>
           <p className="tl-sub">
-            {`共 ${summary.placed} 张，分布在 ${summary.months.length} 个月 · 按拍摄日期分组（EXIF → 文件修改 / 创建时间）`}
+            {i18n.t('k14efdba8', { p0: summary.placed, p1: summary.months.length })}
           </p>
         </div>
         <div className="tl-head-actions">
           {summary.pending > 0 && !running && (
             <button type="button" className="btn" onClick={startBackfill}>
-              {`重建拍摄时间（${summary.pending} 张待校正）`}
+              {i18n.t('kc67f3cfb', { p0: summary.pending })}
             </button>
           )}
           {running && job && (
             <span className="tl-job">
-              {job.message || '重建中…'}
+              {job.message || i18n.t('k3d99e2cf')}
               <span className="tl-job-bar">
                 <i style={{ width: `${Math.max(2, Math.min(100, job.progress || 0))}%` }} />
               </span>
@@ -575,7 +576,7 @@ export function Timeline({ onToast, onOpen }: Props) {
       </header>
 
       <div className="tl-body">
-        <nav className="tl-years" aria-label={'按年月日跳转'}>
+        <nav className="tl-years" aria-label={i18n.t('kb66025ff')}>
           {years.map((y) => (
             <div key={y.year} className="tl-year">
               <button type="button" className="tl-year-btn" onClick={() => jumpTo(y.months[0])}>
@@ -597,14 +598,14 @@ export function Timeline({ onToast, onOpen }: Props) {
                           jumpTo(m);
                         }}
                       >
-                        {`${Number(m.slice(5))} 月`}
+                        {i18n.t('kd9741bd2', { p0: Number(m.slice(5)) })}
                         <span className="tl-month-link-count">{monthTotals[m]}</span>
                       </button>
                       {open && (
                         <div className="tl-days">
                           {!state?.days.length && (
                             <span className="tl-days-hint">
-                              {state?.loading ? '读取日期…' : state?.error || '没有日期'}
+                              {state?.loading ? i18n.t('kbcd8b04d') : state?.error || i18n.t('k9a704355')}
                             </span>
                           )}
                           {state?.days.map((d) => (
@@ -614,7 +615,7 @@ export function Timeline({ onToast, onOpen }: Props) {
                               className={`tl-day-link${activeDay === d.day ? ' active' : ''}`}
                               onClick={() => jumpToDay(d.day)}
                             >
-                              <span>{`${Number(d.day.slice(8))} 日`}</span>
+                              <span>{i18n.t('k2de59ab4', { p0: Number(d.day.slice(8)) })}</span>
                               <span className="tl-day-link-count">{d.count}</span>
                             </button>
                           ))}
@@ -644,7 +645,7 @@ export function Timeline({ onToast, onOpen }: Props) {
           ))}
           {summary.unplaced > 0 && (
             <p className="tl-note">
-              {`另有 ${summary.unplaced} 张既没有 EXIF 拍摄时间、也读不到文件时间，未排入时间线。点上方「重建拍摄时间」会重新读一次文件。`}
+              {i18n.t('k2c8b9654', { p0: summary.unplaced })}
             </p>
           )}
         </div>

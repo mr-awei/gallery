@@ -14,6 +14,7 @@ import Select from '../components/Select';
 import ToolbarCustomizer from '../components/ToolbarCustomizer';
 import { usePinnedActions } from '../lib/pinned';
 import { IMAGE_MIME, TAG_MIME } from '../lib/dnd';
+import i18n from '../i18n';
 
 /**
  * 低频重浮层全部按需加载：它们只在用户点了「批量裁切 / 调色 / 水印 / 拼图 / 对比 / 导出」
@@ -124,10 +125,10 @@ interface Props {
 
 /** 页头右侧的展示方式徽标，切换视图时一眼知道自己在哪种模式 */
 const VIEW_LABELS: Record<ViewMode, string> = {
-  masonry: '图片展开 · 瀑布流',
-  grid: '图片展开 · 网格',
-  list: '图片展开 · 列表',
-  folder: '按文件夹收纳',
+  masonry: i18n.t('k708adf1f'),
+  grid: i18n.t('k49fdd7f5'),
+  list: i18n.t('k06431707'),
+  folder: i18n.t('k2378404c'),
 };
 
 /** 「重置筛选」的完整目标态：新增筛选字段必须同步，否则重置后条件仍残留 */
@@ -183,10 +184,10 @@ function fmtBytes(n: number) {
  */
 function fmtEta(sec: number) {
   const s = Math.max(0, Math.round(sec));
-  if (s < 60) return `约剩 ${s} 秒`;
+  if (s < 60) return i18n.t('k3b7d403f', { p0: s });
   const m = Math.round(s / 60);
-  if (m < 60) return `约剩 ${m} 分钟`;
-  return `约剩 ${Math.floor(m / 60)} 小时 ${m % 60} 分`;
+  if (m < 60) return i18n.t('k32307592', { p0: m });
+  return i18n.t('k31bfb30b', { p0: Math.floor(m / 60), p1: m % 60 });
 }
 
 /** 导入横幅的摘要括号：只列有值的项，避免 0 张时出现空括号 */
@@ -199,24 +200,24 @@ function importSummary(p: {
 } | null | undefined) {
   if (!p) return '';
   const bits: string[] = [];
-  if (p.saved) bits.push(`已入库 ${p.saved} 张`);
-  if (p.speed) bits.push(`${p.speed} 张/秒`);
+  if (p.saved) bits.push(i18n.t('ked42985b', { p0: p.saved }));
+  if (p.speed) bits.push(i18n.t('k5d29efef', { p0: p.speed }));
   if (p.etaSec != null && p.etaSec > 0) bits.push(fmtEta(p.etaSec));
-  if (p.total) bits.push(`共 ${p.total} 张`);
-  if (p.unchanged) bits.push(`跳过 ${p.unchanged} 张未变化`);
+  if (p.total) bits.push(i18n.t('k725e1cf3', { p0: p.total }));
+  if (p.unchanged) bits.push(i18n.t('k535c35b2', { p0: p.unchanged }));
   return bits.length ? `（${bits.join(' · ')}）` : '';
 }
 
 const KIND_TEXT: Record<string, string> = {
-  image: '图片',
+  image: i18n.t('k20def794'),
   gif: 'GIF',
-  video: '视频',
-  audio: '音频',
-  font: '字体',
+  video: i18n.t('k7fcf42ed'),
+  audio: i18n.t('k726dd5df'),
+  font: i18n.t('k8456bc40'),
   pdf: 'PDF',
   office: 'Office',
   model: '3D',
-  other: '文件',
+  other: i18n.t('k2a0c4740'),
 };
 
 // React.memo：App 里的 toast / 弹窗开关 / 统计数字变化时，
@@ -449,11 +450,11 @@ function Gallery(props: Props) {
     setRemoving(true);
     try {
       const r = await api.removeFromFolder(fid, [...selected]);
-      props.onToast?.(`已从当前文件夹移出 ${r.removed} 张`);
+      props.onToast?.(i18n.t('kd72101e8', { p0: r.removed }));
       onClearSelection();
       props.onRefresh();
     } catch (err) {
-      props.onToast?.(`移出失败：${(err as Error).message}`);
+      props.onToast?.(i18n.t('k33d2d003', { p0: (err as Error).message }));
     } finally {
       setRemoving(false);
     }
@@ -467,53 +468,53 @@ function Gallery(props: Props) {
   const bulkActs: BulkAct[] = [
     {
       key: 'download',
-      label: '打包下载',
-      title: '原样打包下载（不改格式，最快）',
-      hint: '原样打包，最快',
+      label: i18n.t('ka2247c1d'),
+      title: i18n.t('k78241579'),
+      hint: i18n.t('k18612ab9'),
       icon: <IconDownload />,
       run: downloadZip,
     },
     {
       key: 'export',
-      label: '导出…',
-      title: '批量导出：转成 JPEG / PNG / WebP / AVIF，可改质量与最长边，打包成 zip',
-      hint: '转格式 / 质量 / 最长边',
+      label: i18n.t('k65e7b9a1'),
+      title: i18n.t('k52d69151'),
+      hint: i18n.t('k07497db2'),
       run: () => setExportIds([...selected]),
     },
     {
       key: 'stitch',
-      label: '拼接…',
-      title: '把选中的图按网格拼成一张联系表（可调列数 / 间距 / 底色 / 格式）',
-      hint: '多张拼成一张联系表',
+      label: i18n.t('k3715e24a'),
+      title: i18n.t('k609c5800'),
+      hint: i18n.t('ke761fb84'),
       run: () => setStitchOpen(true),
     },
     {
       key: 'watermark',
-      label: '水印 / 相框…',
-      title: '读取 EXIF 加相机信息水印或加相框，可批量套用同一套参数',
-      hint: '23 款水印 · 20 款相框',
+      label: i18n.t('ka450c5a3'),
+      title: i18n.t('kd42baad8'),
+      hint: i18n.t('k70084bc9'),
       run: () => setWatermarkIds([...selected]),
     },
     {
       key: 'favorite',
-      label: '收藏',
-      title: '给选中的图全部打上收藏',
-      hint: '全部打上收藏',
+      label: i18n.t('kae336cd0'),
+      title: i18n.t('k7911dca2'),
+      hint: i18n.t('k467c6da6'),
       icon: <IconHeart filled />,
       run: () => onBulk('favorite'),
     },
     {
       key: 'unfavorite',
-      label: '取消收藏',
-      title: '把选中的图全部取消收藏',
-      hint: '全部取消收藏',
+      label: i18n.t('kf22cec28'),
+      title: i18n.t('kd7526f12'),
+      hint: i18n.t('k2fe06f0b'),
       run: () => onBulk('unfavorite'),
     },
     {
       key: 'compare',
-      label: '对比',
-      title: '并排 / 分割 / 重叠三种方式对比选中的两张',
-      hint: '并排 / 分割 / 重叠',
+      label: i18n.t('kf5deaa17'),
+      title: i18n.t('k05e9c39b'),
+      hint: i18n.t('k176dc9c6'),
       show: selected.size === 2,
       run: () => {
         const two = [...selected];
@@ -522,67 +523,67 @@ function Gallery(props: Props) {
     },
     {
       key: 'classify',
-      label: '快速分类…',
-      title: '把选中的素材放进文件夹并追加标签（快捷键 F）',
-      hint: '文件夹 + 标签，一步归类',
+      label: i18n.t('k58424ff2'),
+      title: i18n.t('k396c26cf'),
+      hint: i18n.t('keb9cbf23'),
       show: !!props.onQuickClassify,
       run: () => props.onQuickClassify?.(),
     },
     {
       key: 'stack',
-      label: '堆叠',
-      title: '把同素材的多个版本合成一摞（只显示封面，角标可展开）',
-      hint: '多版本合成一摞',
+      label: i18n.t('ka54cf19d'),
+      title: i18n.t('k18d80896'),
+      hint: i18n.t('k8df1fd98'),
       show: selected.size > 1 && !!props.onStackSelected,
       run: () => props.onStackSelected?.(),
     },
     {
       key: 'actions',
-      label: '动作…',
-      title: '批量打标签 / 评分 / 备注',
-      hint: '批量打标签 / 评分 / 备注',
+      label: i18n.t('k42943762'),
+      title: i18n.t('k92914153'),
+      hint: i18n.t('k92914153'),
       run: () => setActionsOpen(true),
     },
     {
       key: 'crop',
-      label: '批量裁切…',
-      title: '统一比例 / 横竖 / 自动对焦',
-      hint: '统一比例 / 横竖 / 自动对焦',
+      label: i18n.t('kcef1e2f6'),
+      title: i18n.t('ka8ed587c'),
+      hint: i18n.t('ka8ed587c'),
       run: () => setBulkEdit('crop'),
     },
     {
       key: 'color',
-      label: '批量调色…',
-      title: '白平衡 / 影调 / 曲线',
-      hint: '白平衡 / 影调 / 曲线',
+      label: i18n.t('kf45f5296'),
+      title: i18n.t('k3f9da7b6'),
+      hint: i18n.t('k3f9da7b6'),
       run: () => setBulkEdit('color'),
     },
     {
       key: 'metadata',
-      label: '批量改信息…',
-      title: '评分 / 标签 / 收藏 / 备注一次改完，可整批撤销',
-      hint: '评分 / 标签 / 收藏 / 备注',
+      label: i18n.t('kacd77a4d'),
+      title: i18n.t('k68eeb004'),
+      hint: i18n.t('k13928012'),
       run: () => setMetadataOpen(true),
     },
     {
       key: 'rename',
-      label: '批量重命名…',
-      title: '按模板改名',
-      hint: '按模板改名',
+      label: i18n.t('kda4ff5bf'),
+      title: i18n.t('k2db0bdba'),
+      hint: i18n.t('k2db0bdba'),
       run: () => setRenaming(true),
     },
     {
       key: 'ocr',
-      label: 'OCR 识别文字',
-      title: '识别选中图里的文字，识别完可按内容搜索',
-      hint: '识别完可按内容搜索',
+      label: i18n.t('k10efba63'),
+      title: i18n.t('k8f50adf9'),
+      hint: i18n.t('k4f83019d'),
       run: () => {
         const ids = [...selected];
-        props.onToast?.(`正在识别 ${ids.length} 张图里的文字…`);
+        props.onToast?.(i18n.t('k55512949', { p0: ids.length }));
         void api
           .ocrBatch(ids)
           .then((r) => {
-            props.onToast?.(`识别完成：${r.okCount} / ${r.total} 张有结果`);
+            props.onToast?.(i18n.t('k3efdfa1d', { p0: r.okCount, p1: r.total }));
             props.onRefresh();
           })
           .catch((err) => props.onToast?.((err as Error).message));
@@ -590,9 +591,9 @@ function Gallery(props: Props) {
     },
     {
       key: 'delete',
-      label: '删除',
-      title: '移入回收站（可恢复）',
-      hint: '移入回收站，可恢复',
+      label: i18n.t('k2f4aaddd'),
+      title: i18n.t('k676b03ae'),
+      hint: i18n.t('k8ad56d7e'),
       icon: <IconTrash />,
       danger: true,
       run: () => onBulk('delete'),
@@ -641,13 +642,13 @@ function Gallery(props: Props) {
           </div>
           <div className="missing-banner-actions">
             <button className="btn sm primary" onClick={props.onRelocateMissing}>
-              尝试重新定位
+              {i18n.t('k0311212a')}
             </button>
             <button className="btn sm danger" onClick={props.onPurgeMissing}>
-              清理这些记录
+              {i18n.t('k9ff19387')}
             </button>
             <button className="btn sm ghost" onClick={() => setMissingDismissed(true)}>
-              忽略
+              {i18n.t('kc0d5d68f')}
             </button>
           </div>
         </div>
@@ -672,7 +673,7 @@ function Gallery(props: Props) {
         >
           <span className="spinner" />
           <span>
-            {props.importProgress?.message || '正在扫描素材文件夹'}
+            {props.importProgress?.message || i18n.t('kd631e657')}
             {props.importProgress?.progress != null
               ? ` ${Math.min(99, Math.max(0, props.importProgress.progress))}%`
               : ''}
@@ -701,21 +702,21 @@ function Gallery(props: Props) {
           <div className="big"><IconImages size={42} /></div>
           <h3>
             {props.importing
-              ? `正在扫描素材文件夹… ${Math.min(99, Math.max(0, props.importProgress?.progress ?? 0))}%${importSummary(
+              ? i18n.t('ke02c0a10', { p0: Math.min(99, Math.max(0, props.importProgress?.progress ?? 0)), p1: importSummary(
                   props.importProgress
-                )}`
-              : '还没有符合条件的图片'}
+                ) })
+              : i18n.t('kd4932f14')}
           </h3>
           {props.importing ? (
-            <p>{'图片会边扫描边显示，无需等待全部完成。'}</p>
+            <p>{i18n.t('ka07ddcd9')}</p>
           ) : (
             <p>
-              {'前往「采集」页面，选择关键词与来源开始自动采集全网高清图，采集结果会自动去重并按分辨率筛选后进入图库。'}
+              {i18n.t('k33c03ca4')}
             </p>
           )}
           {!props.importing && (
             <button className="btn primary" onClick={props.onStartCrawl}>
-              {'立即开始采集'}
+              {i18n.t('kff4a3771')}
             </button>
           )}
         </div>
@@ -725,17 +726,17 @@ function Gallery(props: Props) {
           按文件夹浏览统一交给「按文件夹收纳」视图 */}
       {/* 筛选/搜索后读屏用户需要知道还剩多少张，否则只能自己数 */}
       <div className="sr-only" role="status" aria-live="polite" aria-atomic="true">
-        {props.loading ? '正在加载图片' : `共 ${total} 张图片`}
+        {props.loading ? i18n.t('kd6fdcd52') : i18n.t('k3b745f53', { p0: total })}
       </div>
 
       {viewMode === 'folder' ? (
         <React.Suspense
-          fallback={<div className="tiny muted" style={{ padding: '28px 4px' }}>正在加载文件夹视图…</div>}
+          fallback={<div className="tiny muted" style={{ padding: '28px 4px' }}>{i18n.t('k42c15762')}</div>}
         >
           <FolderGroupView
             folders={props.folders || []}
             folderId={props.folderId ?? null}
-            rootName={props.rootName || '当前资源库'}
+            rootName={props.rootName || i18n.t('ke8e1189e')}
             onOpenRoot={props.onOpenRoot || (() => undefined)}
             onOpenFolder={props.onOpenFolder || (() => undefined)}
             onOpenImage={props.onOpenImageFromFolder || (() => undefined)}
@@ -755,26 +756,26 @@ function Gallery(props: Props) {
             <button
               className={`list-sort${props.filters.sort === 'name' ? ' on' : ''}`}
               onClick={() => props.onFiltersChange({ sort: 'name' })}
-              title="按文件名排序"
+              title={i18n.t('k9daf5e43')}
               aria-pressed={props.filters.sort === 'name'}
             >
               名称{props.filters.sort === 'name' ? ' ↑' : ''}
             </button>
-            <span>类型</span>
-            <span>尺寸 / 时长</span>
+            <span>{i18n.t('k226b0912')}</span>
+            <span>{i18n.t('k47984602')}</span>
             <button
               className={`list-sort${props.filters.sort === 'size' ? ' on' : ''}`}
               onClick={() => props.onFiltersChange({ sort: 'size' })}
-              title="按文件大小排序（大的在前）"
+              title={i18n.t('k90baa1f5')}
               aria-pressed={props.filters.sort === 'size'}
             >
               大小{props.filters.sort === 'size' ? ' ↓' : ''}
             </button>
-            <span>标签</span>
+            <span>{i18n.t('k14d34236')}</span>
             <button
               className={`list-sort${props.filters.sort === 'new' || props.filters.sort === 'old' ? ' on' : ''}`}
               onClick={() => props.onFiltersChange({ sort: props.filters.sort === 'new' ? 'old' : 'new' })}
-              title="按入库时间排序，点击切换新旧"
+              title={i18n.t('ka04229a8')}
               aria-pressed={props.filters.sort === 'new' || props.filters.sort === 'old'}
             >
               采集时间{props.filters.sort === 'new' ? ' ↓' : props.filters.sort === 'old' ? ' ↑' : ''}
@@ -867,17 +868,17 @@ function Gallery(props: Props) {
                   </span>
                 )}
                 {!!props.annotationCounts?.[String(it.id)] && (
-                  <span className="list-badge" title={`${props.annotationCounts[String(it.id)]} 处标注`}>
+                  <span className="list-badge" title={i18n.t('kec8ad261', { p0: props.annotationCounts[String(it.id)] })}>
                     <IconPencil size={11} /> {props.annotationCounts[String(it.id)]}
                   </span>
                 )}
                 {!!props.dupeCounts?.[String(it.id)] && props.dupeCounts[String(it.id)] > 1 && (
-                  <span className="list-badge dupe" title={`${props.dupeCounts[String(it.id)]} 个完全相同的文件`}>
+                  <span className="list-badge dupe" title={i18n.t('k71646c9d', { p0: props.dupeCounts[String(it.id)] })}>
                     ×{props.dupeCounts[String(it.id)]}
                   </span>
                 )}
               </span>
-              <span className="list-kind">{KIND_TEXT[it.mediaKind || 'image'] || '文件'}</span>
+              <span className="list-kind">{KIND_TEXT[it.mediaKind || 'image'] || i18n.t('k2a0c4740')}</span>
               <span className="list-dim">
                 {it.width > 0 && it.height > 0
                   ? `${it.width}×${it.height}`
@@ -940,10 +941,10 @@ function Gallery(props: Props) {
             <span className="spinner" />
           ) : hasMore ? (
             <button className="btn sm" onClick={onLoadMore}>
-              加载更多
+              {i18n.t('k77281549')}
             </button>
           ) : items.length ? (
-            '已经到底啦'
+            i18n.t('kcd35e6f8')
           ) : null}
         </div>
       )}
@@ -956,10 +957,10 @@ function Gallery(props: Props) {
             {props.onSelectAll && selected.size < total && (
               <button
                 className="bulk-link"
-                title="选中当前筛选条件下的全部图片（不只是已加载的这几屏）"
+                title={i18n.t('k8fec71e2')}
                 onClick={props.onSelectAll}
               >
-                全选全部
+                {i18n.t('k1b4775b0')}
               </button>
             )}
           </div>
@@ -978,10 +979,10 @@ function Gallery(props: Props) {
             <div className="bulk-more-wrap">
               <button
                 className={`btn sm${bulkMore ? ' on' : ''}`}
-                title="低频批量处理与归类；可在菜单底部自定义条上显示哪些动作"
+                title={i18n.t('k47ac96da')}
                 onClick={() => setBulkMore((v) => !v)}
               >
-                更多 ▾
+                {i18n.t('k8eb63bbb')}
               </button>
               {bulkMore && (
                 <>
@@ -1011,7 +1012,7 @@ function Gallery(props: Props) {
                           setShowPlaylistPick((v) => !v);
                         }}
                       >
-                        加入清单…<em>选一个清单，或直接新建</em>
+                        {i18n.t('k5f4d97a0')}<em>{i18n.t('k4621418c')}</em>
                       </button>
                     )}
                     {props.onAddToPlaylist && showPlaylistPick && (
@@ -1019,24 +1020,24 @@ function Gallery(props: Props) {
                         <Select
                           className="bulk-more-select"
                           value=""
-                          title="选一个清单，或直接新建"
-                          placeholder="选择清单…"
+                          title={i18n.t('k4621418c')}
+                          placeholder={i18n.t('kd8597667')}
                           onChange={(v) => {
                             if (!v) return;
                             void (async () => {
-                              const name = v === '__new__' ? await promptDialog('新清单名称') : '';
+                              const name = v === '__new__' ? await promptDialog(i18n.t('k3941027d')) : '';
                               props.onAddToPlaylist!(v === '__new__' ? `__new__:${name || ''}` : Number(v));
                               setShowPlaylistPick(false);
                               setBulkMore(false);
                             })();
                           }}
                           options={[
-                            { value: '', label: '选择清单…', disabled: true },
+                            { value: '', label: i18n.t('kd8597667'), disabled: true },
                             ...playlists.map((p) => ({
                               value: String(p.id),
                               label: `${p.name}（${p.count ?? 0}）`,
                             })),
-                            { value: '__new__', label: '＋ 新建清单…' },
+                            { value: '__new__', label: i18n.t('k498e4f52') },
                           ]}
                         />
                       </div>
@@ -1050,7 +1051,7 @@ function Gallery(props: Props) {
                           setShowFolderPick((v) => !v);
                         }}
                       >
-                        加入文件夹…<em>归到某个文件夹下</em>
+                        {i18n.t('ke9744b73')}<em>{i18n.t('k45a65e60')}</em>
                       </button>
                     )}
                     {props.onAddToFolder && showFolderPick && (
@@ -1058,24 +1059,24 @@ function Gallery(props: Props) {
                         <Select
                           className="bulk-more-select"
                           value=""
-                          title="归到某个文件夹下"
-                          placeholder="选择文件夹…"
+                          title={i18n.t('k45a65e60')}
+                          placeholder={i18n.t('ka0249eda')}
                           onChange={(v) => {
                             if (!v) return;
                             void (async () => {
-                              const name = v === '__new__' ? await promptDialog('新文件夹名称') : '';
+                              const name = v === '__new__' ? await promptDialog(i18n.t('k0dc0361c')) : '';
                               props.onAddToFolder!(v === '__new__' ? `__new__:${name || ''}` : Number(v));
                               setShowFolderPick(false);
                               setBulkMore(false);
                             })();
                           }}
                           options={[
-                            { value: '', label: '选择文件夹…', disabled: true },
+                            { value: '', label: i18n.t('ka0249eda'), disabled: true },
                             ...sortedFolders.map((f) => ({
                               value: String(f.id),
                               label: `${'　'.repeat(folderDepth.get(f.id) || 0)}${f.name}（${f.count ?? 0}）`,
                             })),
-                            { value: '__new__', label: '＋ 新建文件夹…' },
+                            { value: '__new__', label: i18n.t('kd48be844') },
                           ]}
                         />
                       </div>
@@ -1084,32 +1085,32 @@ function Gallery(props: Props) {
                       <button
                         className="bulk-more-item"
                         disabled={removing}
-                        title="把选中的图从当前文件夹移出（只解除归类，不删除文件）"
+                        title={i18n.t('ke95cd4c7')}
                         onClick={() => {
                           setBulkMore(false);
                           void removeFromCurrentFolder();
                         }}
                       >
-                        {removing ? '移出中…' : '从当前文件夹移出'}
+                        {removing ? i18n.t('k80cf6fc4') : i18n.t('k62c5320d')}
                       </button>
                     )}
                     <div className="bulk-more-sep" />
                     <button
                       className="bulk-more-item"
-                      title="选择哪些动作直接显示在批量条上"
+                      title={i18n.t('k934213f1')}
                       onClick={() => {
                         setBulkMore(false);
                         setTczOpen(true);
                       }}
                     >
-                      <IconGear size={13} /> 自定义工具栏…<em>把常用动作挪到条上</em>
+                      <IconGear size={13} /> {i18n.t('k13f04863')}<em>{i18n.t('kc7574dee')}</em>
                     </button>
                   </div>
                 </>
               )}
             </div>
             <button className="btn sm ghost bulk-clear" onClick={onClearSelection}>
-              取消选择
+              {i18n.t('k76159d0d')}
             </button>
           </div>
         </div>
@@ -1224,9 +1225,9 @@ function Gallery(props: Props) {
       {/* 批量条自定义：决定哪些动作直接露在条上，其余收进「更多」 */}
       <ToolbarCustomizer
         open={tczOpen}
-        title="自定义批量操作条"
-        barName="操作条"
-        hint="左边是直接显示在批量条上的动作（按顺序排列），右边收在「更多 ▾」里。加入清单 / 加入文件夹等归类动作固定在「更多」中。"
+        title={i18n.t('k0d3a5fee')}
+        barName={i18n.t('kb53b83fc')}
+        hint={i18n.t('kbd8e7b89')}
         all={bulkShown.map((a) => ({ key: a.key, label: a.label }))}
         pinned={bulkPinned}
         defaults={BULK_PINNED_DEFAULT}
@@ -1249,17 +1250,17 @@ function Gallery(props: Props) {
           >
             <button
               disabled={!props.onUndo}
-              title="撤销最近一次编辑（覆盖写回可用它还原，Ctrl+Z）"
+              title={i18n.t('kaa5b26e5')}
               onClick={() => {
                 setPageMenu(null);
                 props.onUndo?.();
               }}
             >
-              <IconRotateCcw size={13} /> 撤销编辑
+              <IconRotateCcw size={13} /> {i18n.t('k2b48f892')}
             </button>
             <button
               disabled={props.refreshing}
-              title="重新加载当前筛选下的图片"
+              title={i18n.t('k39b74a74')}
               onClick={() => {
                 setPageMenu(null);
                 props.onRefresh();
@@ -1268,11 +1269,11 @@ function Gallery(props: Props) {
               <span className={props.refreshing ? 'spinning' : ''}>
                 <IconRefresh size={14} />
               </span>{' '}
-              {props.refreshing ? '刷新中…' : '刷新'}
+              {props.refreshing ? i18n.t('kbfb2e454') : i18n.t('k694fc5ef')}
             </button>
             <button
               disabled={!props.missingCount}
-              title="把文件已丢失的图片记录从数据库中移除"
+              title={i18n.t('k54593c2a')}
               onClick={() => {
                 setPageMenu(null);
                 props.onPurgeMissing?.();
@@ -1286,11 +1287,11 @@ function Gallery(props: Props) {
                 props.onStartCrawl();
               }}
             >
-              <IconGlobe size={13} /> 去采集
+              <IconGlobe size={13} /> {i18n.t('k7967c1f3')}
             </button>
             <div className="card-ctx-sep" />
             <button
-              title="在资源管理器中打开当前文件夹（全库视图打开素材根目录）"
+              title={i18n.t('kd0680b7f')}
               onClick={() => {
                 setPageMenu(null);
                 // 文件夹视图：先按文件夹名在图片路径里定位真实目录（兼容父夹聚合视图）；
@@ -1311,17 +1312,17 @@ function Gallery(props: Props) {
                 void openFolder(dir || undefined).catch(quiet);
               }}
             >
-              <IconFolderOpen size={13} /> 打开所在位置
+              <IconFolderOpen size={13} /> {i18n.t('kb38f6423')}
             </button>
             <div className="card-ctx-sep" />
             <button
-              title="清空全部筛选条件，回到完整图库"
+              title={i18n.t('kffef0a7a')}
               onClick={() => {
                 setPageMenu(null);
                 props.onFiltersChange(RESET_FILTERS);
               }}
             >
-              <IconClose size={13} /> 重置筛选
+              <IconClose size={13} /> {i18n.t('k0f47025e')}
             </button>
           </div>,
           document.body

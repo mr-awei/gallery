@@ -2,6 +2,7 @@ import { IconClose, IconStar } from './Icons';
 import React, { useEffect, useRef, useState } from 'react';
 import { formatSize } from '../api';
 import type { ImageItem, SimilarGroup } from '../types';
+import i18n from '../i18n';
 
 interface Props {
   group: SimilarGroup;
@@ -51,7 +52,7 @@ export default function DuelView({ group, onEliminate, onFinished, onClose }: Pr
       const ok = await onEliminate(keepItem.id, loseItem.id);
       if (!ok) {
         // 删除失败：停在当前轮，让用户重试或退出
-        setError('淘汰失败，可重试或先退出');
+        setError(i18n.t('k022898c9'));
         return;
       }
       setEliminated((prev) => [...prev, loseItem]);
@@ -60,7 +61,7 @@ export default function DuelView({ group, onEliminate, onFinished, onClose }: Pr
       setView(RESET);
       if (queue.length <= 1) onFinished(); // 这是最后一轮
     } catch (err) {
-      setError(`淘汰失败：${(err as Error)?.message || '未知错误'}`);
+      setError(i18n.t('kb5b5436a', { p0: (err as Error)?.message || i18n.t('k974e7484') }));
     } finally {
       setEliminating(false);
     }
@@ -117,23 +118,23 @@ export default function DuelView({ group, onEliminate, onFinished, onClose }: Pr
           <img src={it.url} alt={it.title} draggable={false} />
         </div>
         {view.s > 1 && <span className="cmp-zoom">{view.s.toFixed(1)}×</span>}
-        <span className="cmp-role">{role === 'kept' ? '场上' : '挑战者'}</span>
+        <span className="cmp-role">{role === 'kept' ? i18n.t('kb116774f') : i18n.t('k6ff36a7b')}</span>
       </div>
       <div className="cmp-meta">
         <div className="cmp-info">
           <b title={it.title}>{it.title}</b>
           <span>
             {it.width}×{it.height} · {formatSize(it.sizeBytes)} · {it.source}
-            {typeof it.quality === 'number' ? ` · 画质 ${it.quality}` : ''}
+            {typeof it.quality === 'number' ? i18n.t('k81a4ba91', { p0: it.quality }) : ''}
           </span>
         </div>
         <button
           className={`btn sm primary${role === 'kept' ? '' : ''}`}
           disabled={eliminating}
           onClick={() => pick(role)}
-          title={role === 'kept' ? '保留左边（←）' : '保留右边（→）'}
+          title={role === 'kept' ? i18n.t('k7aff8bd9') : i18n.t('k05ada364')}
         >
-          {role === 'kept' ? '保留这张 ←' : '保留这张 →'}
+          {role === 'kept' ? i18n.t('kb51e88d1') : i18n.t('k6a1abed1')}
         </button>
       </div>
     </div>
@@ -142,16 +143,16 @@ export default function DuelView({ group, onEliminate, onFinished, onClose }: Pr
   return (
     <div className="cmp-overlay">
       <div className="cmp-head">
-        <b>两两对比 · 胜者晋级</b>
+        <b>{i18n.t('k5f96bd1f')}</b>
         <span className="cmp-hint">
           第 {Math.min(round, totalRounds)} / {totalRounds} 轮 · 败者立即移入回收站（可恢复） · ←/→ 键快速选择
         </span>
         <div className="cmp-actions">
-          <button className="btn sm" onClick={() => setView(RESET)} title="恢复 1:1（快捷键 0）">
-            重置视图
+          <button className="btn sm" onClick={() => setView(RESET)} title={i18n.t('kfb6bd756')}>
+            {i18n.t('ke1dfa659')}
           </button>
-          <button className="btn sm danger" onClick={onClose} title="退出对比（快捷键 Esc），剩余部分保持原样">
-            <IconClose size={13} /> 退出 (Esc)
+          <button className="btn sm danger" onClick={onClose} title={i18n.t('kb80d6d18')}>
+            <IconClose size={13} /> {i18n.t('k4b8eb1e8')}
           </button>
         </div>
       </div>
@@ -187,17 +188,17 @@ export default function DuelView({ group, onEliminate, onFinished, onClose }: Pr
         <div className="cmp-head" style={{ borderTop: '1px solid var(--border)' }}>
           <div className="cmp-thumbs">
             {eliminated.map((it) => (
-              <span key={it.id} className="cmp-thumb used" style={{ opacity: 0.35 }} title={`已淘汰：${it.title}`}>
+              <span key={it.id} className="cmp-thumb used" style={{ opacity: 0.35 }} title={i18n.t('kada92132', { p0: it.title })}>
                 <img src={it.thumbUrl} alt="" draggable={false} />
               </span>
             ))}
             {challenger && (
-              <span className="cmp-thumb used" title="当前挑战者">
+              <span className="cmp-thumb used" title={i18n.t('k171519af')}>
                 <img src={challenger.thumbUrl} alt="" draggable={false} />
               </span>
             )}
             {queue.slice(1).map((it) => (
-              <span key={it.id} className="cmp-thumb" title={`待对比：${it.title}`}>
+              <span key={it.id} className="cmp-thumb" title={i18n.t('kdbdcaf54', { p0: it.title })}>
                 <img src={it.thumbUrl} alt="" draggable={false} />
               </span>
             ))}

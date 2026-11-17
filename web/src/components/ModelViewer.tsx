@@ -1,6 +1,7 @@
 import { IconCube } from './Icons';
 import { useEffect, useRef, useState } from 'react';
 import type { ImageItem } from '../types';
+import i18n from '../i18n';
 
 interface Props {
   item: ImageItem;
@@ -101,7 +102,7 @@ export default function ModelViewer({ item, onToast }: Props) {
         const msg = (err as Error)?.message || String(err);
         setError(msg);
         setLoading(false);
-        onToast?.(`3D 预览失败：${msg}`);
+        onToast?.(i18n.t('k6450040a', { p0: msg }));
       };
 
       /* 无材质的几何体（stl/ply/obj）统一补中性材质，避免打开是纯黑 */
@@ -159,12 +160,12 @@ export default function ModelViewer({ item, onToast }: Props) {
       } else if (ext === 'dae') {
         const { ColladaLoader } = await import('three/examples/jsm/loaders/ColladaLoader.js');
         new ColladaLoader().load(url, (dae) => {
-          if (!dae) return fail(new Error('.dae 解析结果为空'));
+          if (!dae) return fail(new Error(i18n.t('k9d534649')));
           applyFallback(dae.scene);
           done(dae.scene);
         }, undefined, fail);
       } else {
-        fail(new Error(`暂不支持 .${ext} 格式，可转成 glb / obj / fbx / stl / 3ds / dae 再入库`));
+        fail(new Error(i18n.t('k3bdd138d', { p0: ext })));
       }
 
       const onResize = () => {
@@ -206,7 +207,7 @@ export default function ModelViewer({ item, onToast }: Props) {
       };
     })().catch((err) => {
       if (disposed) return;
-      setError((err as Error).message || '加载 3D 引擎失败');
+      setError((err as Error).message || i18n.t('kc705eafe'));
       setLoading(false);
     });
 
@@ -218,7 +219,7 @@ export default function ModelViewer({ item, onToast }: Props) {
 
   return (
     <div className="mv-3d" ref={hostRef}>
-      {loading && <div className="mv-3d-tip">正在加载 3D 模型…</div>}
+      {loading && <div className="mv-3d-tip">{i18n.t('ka732a596')}</div>}
       {error && (
         <div className="mv-fallback mv-3d-error">
           <div className="mv-fallback-icon"><IconCube size={48} /></div>
@@ -226,7 +227,7 @@ export default function ModelViewer({ item, onToast }: Props) {
           <p>{error}</p>
         </div>
       )}
-      {!loading && !error && <div className="mv-3d-hint">拖动旋转 · 滚轮缩放 · 右键平移</div>}
+      {!loading && !error && <div className="mv-3d-hint">{i18n.t('k01d8f574')}</div>}
     </div>
   );
 }

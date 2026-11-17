@@ -158,6 +158,8 @@ export interface DesktopAPI {
   weiboLogin?: () => Promise<{ ok: boolean; cookie?: string; ua?: string; msg?: string }>;
   /** 同步原生控件（下拉弹层等）主题，浏览器模式下为 undefined */
   setTheme?: (theme: 'dark' | 'light' | 'system') => Promise<string>;
+  /** 同步界面语言给主进程（托盘 / 原生对话框），浏览器模式下为 undefined */
+  setLocale?: (lang: 'zh-CN' | 'en-US') => Promise<boolean>;
   /** 本地 API 鉴权令牌（浏览器模式下为 undefined） */
   getApiToken?: () => Promise<string>;
   /** 开机自启（桌面端） */

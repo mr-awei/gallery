@@ -4,6 +4,7 @@ import App from './App';
 import { applyTheme, getStoredTheme, restoreThemePack } from './theme';
 import { watchUiScale } from './lib/screen-scale';
 import './styles.css';
+import i18n from './i18n';
 
 // 渲染前先定好主题，避免启动瞬间闪成暗色
 applyTheme(getStoredTheme());
@@ -23,7 +24,7 @@ function reportError(message: string, detail?: unknown) {
 
 window.addEventListener('unhandledrejection', (e) => {
   const reason = e.reason as { message?: string } | string | undefined;
-  const msg = typeof reason === 'string' ? reason : reason?.message || '未知错误';
+  const msg = typeof reason === 'string' ? reason : reason?.message || i18n.t('k974e7484');
   reportError(msg, e.reason);
 });
 
@@ -31,7 +32,7 @@ window.addEventListener('error', (e) => {
   // 资源加载失败（img/script）也会触发 error，但它们的 error 为空、target 是元素；
   // 那种情况由对应的组件自己兜底，这里只处理真正的运行时异常
   if (!e.error) return;
-  reportError((e.error as Error)?.message || '脚本异常', e.error);
+  reportError((e.error as Error)?.message || i18n.t('k360cb5f9'), e.error);
 });
 
 createRoot(document.getElementById('root')!).render(

@@ -5,6 +5,7 @@ import ImageCard from '../components/ImageCard';
 import { confirmDialog, promptDialog } from '../components/Dialogs';
 import MasonryGrid from '../components/MasonryGrid';
 import SmartFolderEditor from '../components/SmartFolderEditor';
+import i18n from '../i18n';
 
 interface Props {
   onToast: (msg: string, kind?: 'info' | 'error') => void;
@@ -78,33 +79,33 @@ export default function Smart({ onToast, onTagsChanged, onOpenItem }: Props) {
   };
 
   const renameTag = async (oldName: string) => {
-    const nn = await promptDialog('重命名为：', oldName);
+    const nn = await promptDialog(i18n.t('k7b415503'), oldName);
     if (!nn || nn === oldName) return;
     try {
       await api.renameTag(oldName, nn);
       refreshTags();
-      onToast(`已重命名 ${oldName} → ${nn}`);
+      onToast(i18n.t('k61a9fc03', { p0: oldName, p1: nn }));
     } catch (err) {
       onToast((err as Error).message, 'error');
     }
   };
   const deleteTag = async (t: string) => {
-    if (!(await confirmDialog(`删除标签「${t}」（会从所有图片上摘除）？`))) return;
+    if (!(await confirmDialog(i18n.t('ke5f8ed00', { p0: t })))) return;
     try {
       await api.deleteTag(t);
       refreshTags();
-      onToast(`已删除标签 ${t}`);
+      onToast(i18n.t('k06026f97', { p0: t }));
     } catch (err) {
       onToast((err as Error).message, 'error');
     }
   };
   const mergeTag = async (from: string) => {
-    const to = await promptDialog(`把「${from}」合并到（输入目标标签名）：`, from);
+    const to = await promptDialog(i18n.t('kb3accc80', { p0: from }), from);
     if (!to || to === from) return;
     try {
       await api.mergeTags(from, to);
       refreshTags();
-      onToast(`已合并 ${from} → ${to}`);
+      onToast(i18n.t('kefd18f07', { p0: from, p1: to }));
     } catch (err) {
       onToast((err as Error).message, 'error');
     }
@@ -116,19 +117,19 @@ export default function Smart({ onToast, onTagsChanged, onOpenItem }: Props) {
       if (editing) {
         const r = await api.updateSmartFolder(editing.id, payload);
         setFolders(r.folders);
-        onToast(`已更新「${payload.name}」`);
+        onToast(i18n.t('k8c62ab12', { p0: payload.name }));
         // 改完条件，正在看的预览要按新条件重查，否则标题变了内容还是旧的
         const next = r.folders.find((f) => f.id === editing.id);
         if (next && previewFolder?.id === editing.id) void preview(next);
       } else {
         const r = await api.createSmartFolder(payload);
         setFolders(r.folders);
-        onToast('已创建智能文件夹');
+        onToast(i18n.t('k70e90cb3'));
       }
       // 成功才关编辑器：失败时用户填的条件不能被清掉
       setEditing(undefined);
     } catch (err) {
-      onToast(`保存智能文件夹失败：${(err as Error).message}`, 'error');
+      onToast(i18n.t('k3ce5eb8f', { p0: (err as Error).message }), 'error');
     }
   };
 
@@ -136,7 +137,7 @@ export default function Smart({ onToast, onTagsChanged, onOpenItem }: Props) {
     try {
       const r = await api.applySmartFolderTags(id);
       refreshTags();
-      onToast(`已把「${fname}」的标签继承到 ${r.changed} 张图`);
+      onToast(i18n.t('kef08d54d', { p0: fname, p1: r.changed }));
     } catch (err) {
       onToast((err as Error).message, 'error');
     }
@@ -194,14 +195,14 @@ export default function Smart({ onToast, onTagsChanged, onOpenItem }: Props) {
     try {
       const updated = await api.patch(it.id, { favorite: !it.favorite });
       setPreviewItems((prev) => (prev ? prev.map((x) => (x.id === updated.id ? updated : x)) : prev));
-      onToast(updated.favorite ? '已加入收藏' : '已取消收藏');
+      onToast(updated.favorite ? i18n.t('k15128612') : i18n.t('k3a906c71'));
     } catch (err) {
       onToast((err as Error).message, 'error');
     }
   };
 
   const delFolder = async (id: number) => {
-    if (!(await confirmDialog('删除该智能文件夹？'))) return;
+    if (!(await confirmDialog(i18n.t('k622a3fa4')))) return;
     try {
       const r = await api.deleteSmartFolder(id);
       setFolders(r.folders);
@@ -215,35 +216,35 @@ export default function Smart({ onToast, onTagsChanged, onOpenItem }: Props) {
         setPreviewTotal(0);
         setPreviewSel(new Set());
       }
-      onToast('已删除智能文件夹');
+      onToast(i18n.t('k78cd2a13'));
     } catch (err) {
-      onToast(`删除失败：${(err as Error).message}`, 'error');
+      onToast(i18n.t('k94229cac', { p0: (err as Error).message }), 'error');
     }
   };
 
   return (
     <div className="page">
       <div className="page-head">
-        <h2>标签与智能文件夹</h2>
-        <p className="page-sub">标签管理（改名 / 合并 / 删除）· 智能文件夹按条件自动归类 + 文件夹标签继承</p>
+        <h2>{i18n.t('k5587994f')}</h2>
+        <p className="page-sub">{i18n.t('k6943ee8c')}</p>
       </div>
 
-      <h3>标签</h3>
+      <h3>{i18n.t('k14d34236')}</h3>
       <div className="tag-cloud">
-        {tags.length === 0 && <span className="muted">还没有标签，可在大图预览里给图片加标签。</span>}
+        {tags.length === 0 && <span className="muted">{i18n.t('kae1a5e64')}</span>}
         {tags.map((t) => (
           <div className="tag-chip" key={t.tag}>
             <span className="tname">{t.tag}</span>
             <span className="tcount">{t.count}</span>
             <span className="tactions">
-              <button className="mini" title="重命名" onClick={() => renameTag(t.tag)}>
-                改
+              <button className="mini" title={i18n.t('kc8ce4b36')} onClick={() => renameTag(t.tag)}>
+                {i18n.t('kfc242f92')}
               </button>
-              <button className="mini" title="合并到…" onClick={() => mergeTag(t.tag)}>
-                并
+              <button className="mini" title={i18n.t('k95144b30')} onClick={() => mergeTag(t.tag)}>
+                {i18n.t('k65698012')}
               </button>
-              <button className="mini danger" title="删除" onClick={() => deleteTag(t.tag)}>
-                删
+              <button className="mini danger" title={i18n.t('k2f4aaddd')} onClick={() => deleteTag(t.tag)}>
+                {i18n.t('kfe5c38f2')}
               </button>
             </span>
           </div>
@@ -251,20 +252,20 @@ export default function Smart({ onToast, onTagsChanged, onOpenItem }: Props) {
       </div>
       {tagTotal > tags.length && (
         <button className="btn sm" disabled={tagLoading} onClick={() => loadTags(false)} style={{ marginTop: 8 }}>
-          {tagLoading ? '加载中…' : `加载更多标签（还剩 ${tagTotal - tags.length} 个）`}
+          {tagLoading ? i18n.t('kfb4ca1cf') : i18n.t('kb8d4835a', { p0: tagTotal - tags.length })}
         </button>
       )}
 
-      <h3>智能文件夹</h3>
+      <h3>{i18n.t('k04ff0a57')}</h3>
       <div className="sf-form">
         <button className="btn primary" onClick={() => setEditing(null)}>
-          新建智能文件夹
+          {i18n.t('k1bc362a1')}
         </button>
-        <span className="muted small">按条件自动归类；建好后可随时改条件</span>
+        <span className="muted small">{i18n.t('k86f85ad7')}</span>
       </div>
 
       <div className="sf-list">
-        {folders.length === 0 && <span className="muted">还没有智能文件夹。</span>}
+        {folders.length === 0 && <span className="muted">{i18n.t('k6c8401ed')}</span>}
         {folders.map((f) => (
           <div className="sf-item" key={f.id}>
             <div className="sf-main">
@@ -272,20 +273,20 @@ export default function Smart({ onToast, onTagsChanged, onOpenItem }: Props) {
               {f.autoTags.length > 0 && (
                 <span className="sf-tags">自动标签：{f.autoTags.join('、')}</span>
               )}
-              <span className="muted small">{Object.keys(f.rules).length ? '含规则' : '仅自动标签'}</span>
+              <span className="muted small">{Object.keys(f.rules).length ? i18n.t('k0217ad9f') : i18n.t('k16d53389')}</span>
             </div>
             <div className="sf-actions">
               <button className="btn sm" onClick={() => preview(f)}>
-                查看
+                {i18n.t('k607e7a4f')}
               </button>
               <button className="btn sm" onClick={() => setEditing(f)}>
-                编辑
+                {i18n.t('k95b351c8')}
               </button>
               <button className="btn sm" onClick={() => applyTags(f.id, f.name)}>
-                应用标签(继承)
+                {i18n.t('k8f5f2631')}
               </button>
               <button className="btn sm ghost" onClick={() => delFolder(f.id)}>
-                删除
+                {i18n.t('k2f4aaddd')}
               </button>
             </div>
           </div>
@@ -300,7 +301,7 @@ export default function Smart({ onToast, onTagsChanged, onOpenItem }: Props) {
                 {previewName}（{previewTotal} 张）
               </b>
               <button className="btn sm ghost" onClick={() => setPreviewItems(null)}>
-                关闭
+                {i18n.t('kb15d9127')}
               </button>
             </div>
             {/* 内容区自己滚（.lb-body），MasonryGrid 探测这个滚动容器做虚拟化 */}
@@ -333,10 +334,10 @@ export default function Smart({ onToast, onTagsChanged, onOpenItem }: Props) {
                   <button
                     className="btn sm"
                     disabled={previewLoading}
-                    title={previewLoading ? '上一页还在加载' : '继续加载这个智能文件夹里的图片'}
+                    title={previewLoading ? i18n.t('k2c893495') : i18n.t('kf848e50c')}
                     onClick={loadMorePreview}
                   >
-                    {previewLoading ? '加载中…' : '加载更多'}
+                    {previewLoading ? i18n.t('kfb4ca1cf') : i18n.t('k77281549')}
                   </button>
                 )}
               </div>

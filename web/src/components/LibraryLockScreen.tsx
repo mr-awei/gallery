@@ -1,6 +1,7 @@
 import { IconLock } from './Icons';
 import { useState } from 'react';
 import { api } from '../api';
+import i18n from '../i18n';
 
 /**
  * 资源库锁定屏。
@@ -23,7 +24,7 @@ export default function LibraryLockScreen({
 
   const submit = async () => {
     if (!pwd) {
-      setErr('请输入密码');
+      setErr(i18n.t('ke39ffe99'));
       return;
     }
     setBusy(true);
@@ -32,7 +33,7 @@ export default function LibraryLockScreen({
       await api.unlockLibrary(library.id, pwd);
       onUnlocked();
     } catch (e) {
-      setErr((e as Error).message || '解锁失败');
+      setErr((e as Error).message || i18n.t('k984ac362'));
       setPwd('');
     } finally {
       setBusy(false);
@@ -45,8 +46,8 @@ export default function LibraryLockScreen({
         <div className="lock-badge" aria-hidden="true">
           <IconLock size={26} />
         </div>
-        <h2 className="lock-title">{library.name || '资源库'}</h2>
-        <div className="lock-hint">这个资源库已加锁，输入密码才能查看里面的照片</div>
+        <h2 className="lock-title">{library.name || i18n.t('kc99f5cf1')}</h2>
+        <div className="lock-hint">{i18n.t('k19bf01f5')}</div>
         <input
           className="input lock-input"
           type="password"
@@ -59,17 +60,17 @@ export default function LibraryLockScreen({
           onKeyDown={(e) => {
             if (e.key === 'Enter') void submit();
           }}
-          placeholder="资源库密码"
+          placeholder={i18n.t('kbcea7593')}
           disabled={busy}
         />
         {err && <div className="lock-err">{err}</div>}
         <button className="btn primary lock-submit" disabled={busy} onClick={() => void submit()}>
-          {busy ? '解锁中…' : '解锁'}
+          {busy ? i18n.t('k684549b1') : i18n.t('kfa7ffa2d')}
         </button>
         <div className="lock-note">
-          密码在服务端校验，本机只存 scrypt 哈希。解锁只在本次运行有效，重启或切到别的库后要重新输入。
+          {i18n.t('k9e925fba')}
           <br />
-          <b>这不是磁盘加密</b>：库文件夹里的 gallery.db 与缩略图仍是明文，用别的软件或直接拷走都能读。
+          <b>{i18n.t('ke9ba4687')}</b>：库文件夹里的 gallery.db 与缩略图仍是明文，用别的软件或直接拷走都能读。
           要防「整个文件夹被拷走」，请配合系统级磁盘加密（如 BitLocker / FileVault）。
         </div>
       </div>

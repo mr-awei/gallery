@@ -7,6 +7,7 @@ import ErrorBoundary from '../components/ErrorBoundary';
 import GalleryPage from '../pages/Gallery';
 import type { ImportProgress } from './useImportWatch';
 import type { Toast } from './types';
+import i18n from '../i18n';
 
 const Crawl = lazy(() => import('../pages/Crawl'));
 const TimelinePage = lazy(() => import('../pages/Timeline').then((m) => ({ default: m.Timeline })));
@@ -124,7 +125,7 @@ export default function AppPages(props: Props) {
   return (
     // 页面级错误边界：单个页面渲染崩了只影响内容区，不会整窗白屏
     <ErrorBoundary resetKey={view}>
-      <Suspense fallback={<div style={{ padding: 40, color: 'var(--muted)' }}>{'正在加载…'}</div>}>
+      <Suspense fallback={<div style={{ padding: 40, color: 'var(--muted)' }}>{i18n.t('k37dc7bfc')}</div>}>
         {view === 'dashboard' && (
           <Dashboard
             stats={stats}
@@ -140,17 +141,17 @@ export default function AppPages(props: Props) {
 
         {(view === 'gallery' || view === 'favorites') && (
           <GalleryPage
-            title={view === 'favorites' ? '收藏夹' : activeFolder ? activeFolder.name : '图库'}
+            title={view === 'favorites' ? i18n.t('k53d02627') : activeFolder ? activeFolder.name : i18n.t('k6084bc4b')}
             subtitle={
               view === 'favorites'
-                ? '所有已收藏的照片'
+                ? i18n.t('k3736761a')
                 : activeFolder
-                  ? '文件夹 · 含全部子文件夹'
+                  ? i18n.t('k4e77dbcf')
                   : viewMode === 'folder'
-                    ? '按文件夹收纳 · 点文件夹进入，点箭头就地展开组内图片'
+                    ? i18n.t('k3e466133')
                     : viewMode === 'grid'
-                      ? '图片展开 · 网格浏览，缩略图大小可拖动调整'
-                      : '图片展开 · 瀑布流浏览，悬停操作 · 点击进入大图预览'
+                      ? i18n.t('k54c65e84')
+                      : i18n.t('kf0b813c6')
             }
             filters={effectiveFilters}
             onFiltersChange={onFiltersChange}
@@ -210,7 +211,7 @@ export default function AppPages(props: Props) {
               const ids = selected.size
                 ? [...selected]
                 : [hoverIdRef.current || items[0]?.id].filter((n): n is number => Number.isFinite(n as number));
-              if (!ids.length) return showToast('先在网格里选中素材，或把鼠标停在某张卡片上');
+              if (!ids.length) return showToast(i18n.t('k968951a3'));
               setQuickClassifyIds(ids);
             }}
           />
@@ -264,13 +265,13 @@ export default function AppPages(props: Props) {
         )}
 
         {view === 'tutorial' && (
-          <Suspense fallback={<div style={{ padding: 40, color: 'var(--muted)' }}>{'正在加载教程…'}</div>}>
+          <Suspense fallback={<div style={{ padding: 40, color: 'var(--muted)' }}>{i18n.t('k3bbda7b4')}</div>}>
             <Tutorial />
           </Suspense>
         )}
 
         {view === 'settings' && (
-          <Suspense fallback={<div style={{ padding: 40, color: 'var(--muted)' }}>{'正在加载设置…'}</div>}>
+          <Suspense fallback={<div style={{ padding: 40, color: 'var(--muted)' }}>{i18n.t('k110c1929')}</div>}>
             <SettingsPage
               onToast={showToast}
               tourDone={tourDone}

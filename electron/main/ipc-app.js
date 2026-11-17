@@ -14,14 +14,26 @@ import { getSettingsSnapshot as getSettings } from '../settings-cache.js';
 import { OFFICIAL_REPO } from '../updater.js';
 import { APP_ICON } from './constants.js';
 import { ctx } from './context.js';
+import { t, switchLocale } from './i18n-main.cjs';
 import { handleIpc, isLocalApiUrl, trustedSender, withApiToken } from './ipc-base.js';
 import { restartLocalServer } from './service.js';
 import { endRegionShot, grabScreenForShot, requestRegionShot } from './shot.js';
 import { weiboLoginFlow } from './weibo.js';
 import { openAppWindow } from './windows.js';
+import { refreshTray } from './tray.js';
 
 export function registerAppIpc() {
   handleIpc('get-api-token', () => ctx.apiToken);
+
+  /**
+   * 界面语言：渲染层启动时与切换语言时都会调用，让托盘菜单 / 原生对话框
+   * 跟着界面走（默认仍按系统语言，见 main.js 的 whenReady）。
+   */
+  handleIpc('set-locale', (_e, lang) => {
+    switchLocale(String(lang || '').toLowerCase().startsWith('en') ? 'en-US' : 'zh-CN');
+    refreshTray();
+    return true;
+  });
 
   // 开机自启：写系统登录项（用户可在设置页开关；随设置持久化到 settings）
   handleIpc('get-auto-launch', () => app.getLoginItemSettings().openAtLogin);
@@ -48,11 +60,11 @@ export function registerAppIpc() {
     const { buffer, ext, isGif, filename } = parsed;
     try {
       const { canceled, filePath } = await dialog.showSaveDialog({
-        title: '保存视频片段',
+        title: t('dialog.saveClip'),
         defaultPath: path.join(app.getPath('downloads'), filename),
-        filters: [{ name: isGif ? 'GIF 动图' : 'WebM 视频', extensions: [ext] }],
+        filters: [{ name: isGif ? t('dialog.gif') : t('dialog.webm'), extensions: [ext] }],
       });
-      if (canceled || !filePath) return { ok: false, error: '已取消保存' };
+      if (canceled || !filePath) return { ok: false, error: t('dialog.saveCanceled') };
       await fsp.writeFile(filePath, buffer);
       console.info('[export] 视频片段已保存', filePath);
       return { ok: true, path: filePath };
@@ -122,7 +134,7 @@ export function registerAppIpc() {
       });
       const stamp = new Date().toISOString().slice(0, 19).replace(/[:T]/g, '-');
       const { canceled, filePath } = await dialog.showSaveDialog(ctx.mainWindow, {
-        title: '保存诊断包',
+        title: t('dialog.saveDiagnostics'),
         defaultPath: path.join(app.getPath('desktop'), `tuku-diagnostics-${stamp}.zip`),
         filters: [{ name: 'ZIP', extensions: ['zip'] }],
       });
@@ -136,7 +148,7 @@ export function registerAppIpc() {
 
   handleIpc('open-log-dir', async () => {
     const dir = getLogDir();
-    if (!dir) return '暂无可用的日志目录';
+    if (!dir) return t('dialog.noLogDir');
     try {
       await fsp.mkdir(dir, { recursive: true });
     } catch {
@@ -166,7 +178,7 @@ export function registerAppIpc() {
 
   handleIpc('pick-folder', async () => {
     const result = await dialog.showOpenDialog(ctx.mainWindow, {
-      title: '选择图片保存文件夹',
+      title: t('dialog.pickStorageDir'),
       defaultPath: getSettings().storageDir,
       properties: ['openDirectory', 'createDirectory'],
     });
@@ -263,7 +275,7 @@ export function registerAppIpc() {
   handleIpc('pick-file', async (_e, filters) => {
     if (!ctx.mainWindow || ctx.mainWindow.isDestroyed()) return null;
     const result = await dialog.showOpenDialog(ctx.mainWindow, {
-      title: '选择文件',
+      title: t('dialog.pickFile'),
       defaultPath: getSettings().storageDir,
       properties: ['openFile'],
       filters: Array.isArray(filters) ? filters : [],

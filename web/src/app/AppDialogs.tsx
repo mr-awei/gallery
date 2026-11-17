@@ -25,6 +25,7 @@ import type { useAppUiState } from '../hooks/useAppUiState';
 import type { Filters, FolderNode, ImageItem, Library, Stats, TagNode, View } from '../types';
 import type { DialogState } from './useDialogState';
 import type { LoadGallery } from './types';
+import i18n from '../i18n';
 
 // 灯箱是首屏用不到的重组件（自带一堆查看/编辑面板），改成按需加载：
 // 主 chunk 少解析一大块，点开大图时才取这个分片，本地服务下就是几毫秒
@@ -278,11 +279,11 @@ export default function AppDialogs(props: Props) {
             fontSize: 13.5,
           }}
           role="alertdialog"
-          aria-label={'本地服务正在重启'}
+          aria-label={i18n.t('k22872c39')}
         >
           <span className="spinner" />
-          <div>{'本地服务正在重启，请稍候…'}</div>
-          <div style={{ color: 'var(--muted)', fontSize: 12 }}>{'正在进行的上传/导入会被中断，完成后自动恢复。'}</div>
+          <div>{i18n.t('ke2322396')}</div>
+          <div style={{ color: 'var(--muted)', fontSize: 12 }}>{i18n.t('kc27a5e41')}</div>
         </div>
       )}
 
@@ -310,25 +311,25 @@ export default function AppDialogs(props: Props) {
           role="alert"
         >
           <span>
-            {'本地服务不可用：换壁纸、收藏、导入等接口暂时失效。'}
-            {serviceError && <span style={{ opacity: 0.85 }}>{' 原因：'}{serviceError}</span>}
+            {i18n.t('k07e6b6df')}
+            {serviceError && <span style={{ opacity: 0.85 }}>{i18n.t('k7e87cede')}{serviceError}</span>}
           </span>
           <button
             className="btn sm"
             onClick={() => {
               if (!desktop?.restartService) {
-                showToast('当前是开发模式，请重启 npm run dev', 'error');
+                showToast(i18n.t('k2ecb11e2'), 'error');
                 return;
               }
               void desktop
                 .restartService()
                 .then((r) => {
-                  if (!r?.ok) showToast('重启未成功，可在托盘右键选「重启本地服务」再试一次', 'error');
+                  if (!r?.ok) showToast(i18n.t('kf796c9d9'), 'error');
                 })
-                .catch((err) => showToast(`重启失败：${(err as Error)?.message || err}`, 'error'));
+                .catch((err) => showToast(i18n.t('k6ea3f6ae', { p0: (err as Error)?.message || err }), 'error'));
             }}
           >
-            {'立即重启服务'}
+            {i18n.t('k058c0903')}
           </button>
         </div>
       )}

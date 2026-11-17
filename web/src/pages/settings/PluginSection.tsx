@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { api } from '../../api';
 import type { PluginInfo, PluginRunResult } from '../../types';
 import Card from './Card';
+import i18n from '../../i18n';
 
 interface Props {
   onToast: (m: string, kind?: 'info' | 'error') => void;
@@ -13,7 +14,7 @@ interface Props {
 export default function PluginSection({ onToast, onOpenMarket }: Props) {
   const [plugins, setPlugins] = useState<PluginInfo[]>([]);
   const [permissions, setPermissions] = useState<string[]>([]);
-  const [prefix, setPrefix] = useState('脚本标记');
+  const [prefix, setPrefix] = useState(i18n.t('ke17a6882'));
   const [running, setRunning] = useState('');
   const [result, setResult] = useState<PluginRunResult | null>(null);
 
@@ -24,7 +25,7 @@ export default function PluginSection({ onToast, onOpenMarket }: Props) {
         setPlugins(r.plugins || []);
         setPermissions(r.permissions || []);
       })
-      .catch((err) => onToast(`读取插件列表失败：${(err as Error).message}`, 'error'));
+      .catch((err) => onToast(i18n.t('k653f2d21', { p0: (err as Error).message }), 'error'));
   };
   useEffect(load, []);
 
@@ -33,9 +34,9 @@ export default function PluginSection({ onToast, onOpenMarket }: Props) {
     setPlugins((list) => list.map((p) => (p.id === id ? { ...p, enabled } : p)));
     try {
       await api.setPluginEnabled(id, enabled);
-      onToast(enabled ? `已启用 ${id}` : `已停用 ${id}`);
+      onToast(enabled ? i18n.t('k2e6e33a7', { p0: id }) : i18n.t('k1515aa1f', { p0: id }));
     } catch (err) {
-      onToast(`切换失败：${(err as Error).message}`, 'error');
+      onToast(i18n.t('k94a44610', { p0: (err as Error).message }), 'error');
       load();
     }
   };
@@ -47,9 +48,9 @@ export default function PluginSection({ onToast, onOpenMarket }: Props) {
     try {
       const r = await api.runPlugin(id, { action: 'run', args: { prefix } });
       setResult(r);
-      onToast(r.denied ? '插件想写库但没有 image:write 权限，已忽略写操作' : `插件 ${id} 试运行完成`);
+      onToast(r.denied ? i18n.t('k1eda8721') : i18n.t('k635e6073', { p0: id }));
     } catch (err) {
-      onToast(`运行失败：${(err as Error).message}`, 'error');
+      onToast(i18n.t('k57f31d62', { p0: (err as Error).message }), 'error');
     } finally {
       setRunning('');
     }
@@ -58,21 +59,21 @@ export default function PluginSection({ onToast, onOpenMarket }: Props) {
   return (
     <>
       <Card
-        title="插件 / 脚本宿主"
-        desc="在独立进程里运行自己写的 ESM 脚本；动作编辑器里可用「插件脚本」步骤对选中的素材批量执行。"
+        title={i18n.t('kf758faa0')}
+        desc={i18n.t('k09a295ee')}
         badge={<span style={{ color: 'var(--muted)', fontSize: 12, fontWeight: 400 }}>{plugins.length} 个已安装</span>}
       >
         <div className="hint" style={{ marginBottom: 12 }}>
-          插件契约：<code>plugins/&lt;id&gt;/plugin.json</code> + 一个 ESM 入口，导出
+          {i18n.t('k8d1ddf61')}<code>plugins/&lt;id&gt;/plugin.json</code> {i18n.t('k1ad96313')}
           <code> default async ({'{ image, args, permissions, log }'})</code>，返回{' '}
-          <code>{'{ logs?, patch?, result? }'}</code>。可用权限：{permissions.join(' / ') || '（读取中）'}。
+          <code>{'{ logs?, patch?, result? }'}</code>。可用权限：{permissions.join(' / ') || i18n.t('k6bc14eee')}。
           <br />
           安全边界：脚本跑在独立进程、拿不到数据库与文件路径，只能返回 patch；是否写库由宿主按声明权限过滤。
-          这<strong>不是</strong> OS 级沙箱，请只安装自己信任的插件。
+          这<strong>{i18n.t('k046f5a05')}</strong> {i18n.t('ke0ce17b4')}
         </div>
         <div style={{ display: 'flex', gap: 8, alignItems: 'center', marginBottom: 12 }}>
           <div className="field" style={{ margin: 0, flex: 1 }}>
-            <label>试运行参数 prefix</label>
+            <label>{i18n.t('k02a57747')}</label>
             <input className="input" value={prefix} onChange={(e) => setPrefix(e.target.value)} />
           </div>
           <button
@@ -80,28 +81,28 @@ export default function PluginSection({ onToast, onOpenMarket }: Props) {
             onClick={async () => {
               try {
                 await api.openPluginDir();
-                onToast('已打开用户插件目录（把插件文件夹放这里即可）');
+                onToast(i18n.t('k5a2f9ecf'));
               } catch (err) {
-                onToast(`打开目录失败：${(err as Error).message}`, 'error');
+                onToast(i18n.t('k9cd07541', { p0: (err as Error).message }), 'error');
               }
             }}
           >
-            打开插件目录
+            {i18n.t('k40020e00')}
           </button>
           <button className="btn ghost" onClick={load}>
-            刷新
+            {i18n.t('k694fc5ef')}
           </button>
           {onOpenMarket && (
             <button className="btn" onClick={onOpenMarket}>
-              插件市场 · 一键安装
+              {i18n.t('ke4f6a8f7')}
             </button>
           )}
         </div>
 
-        {!plugins.length && <div className="hint">还没有插件。内置官方插件随安装包分发，用户插件放到用户插件目录即可。</div>}
+        {!plugins.length && <div className="hint">{i18n.t('k47501c95')}</div>}
         {[
-          { key: 'official', label: '官方插件（随安装包分发）', list: plugins.filter((p) => p.builtin) },
-          { key: 'user', label: '用户插件（自己放进去的）', list: plugins.filter((p) => !p.builtin) },
+          { key: 'official', label: i18n.t('k3dc38c65'), list: plugins.filter((p) => p.builtin) },
+          { key: 'user', label: i18n.t('kd880d201'), list: plugins.filter((p) => !p.builtin) },
         ].map(
           (group) =>
             group.list.length > 0 && (
@@ -122,7 +123,7 @@ export default function PluginSection({ onToast, onOpenMarket }: Props) {
                         <label
                           className="hint"
                           style={{ display: 'flex', gap: 6, alignItems: 'center', cursor: 'pointer' }}
-                          title="停用后不再出现在批量动作里，执行会被明确拒绝；不需要卸载"
+                          title={i18n.t('k61826498')}
                         >
                           <input
                             type="checkbox"
@@ -130,21 +131,21 @@ export default function PluginSection({ onToast, onOpenMarket }: Props) {
                             disabled={!!running}
                             onChange={(e) => void toggle(p.id, e.target.checked)}
                           />
-                          {p.enabled === false ? '已停用' : '启用'}
+                          {p.enabled === false ? i18n.t('k69b0f684') : i18n.t('k7854b52a')}
                         </label>
                         <button
                           className="btn sm"
                           disabled={!!running || p.enabled === false}
-                          title={p.enabled === false ? '插件已停用，先启用再试运行' : undefined}
+                          title={p.enabled === false ? i18n.t('ke8a65ade') : undefined}
                           onClick={() => void run(p.id)}
                         >
-                          {running === p.id ? '运行中…' : '试运行（不写库）'}
+                          {running === p.id ? i18n.t('k8d11c5c8') : i18n.t('kc13cd518')}
                         </button>
                       </div>
                     </div>
                     <div className="hint">{p.description}</div>
                     <div className="hint">
-                      权限：{p.permissions.join(', ') || '无'} · 动作：{p.actions.join(', ')}
+                      权限：{p.permissions.join(', ') || i18n.t('kd81bb206')} · 动作：{p.actions.join(', ')}
                     </div>
                   </div>
                 ))}
@@ -153,8 +154,8 @@ export default function PluginSection({ onToast, onOpenMarket }: Props) {
         )}
         {result && (
           <div className="hint" style={{ marginTop: 10, color: 'var(--ok)' }}>
-            ✔ {result.plugin} → logs: {result.logs.join(' / ') || '（无）'}；写回字段：
-            {result.applied.length ? result.applied.join(', ') : '（试运行未指定素材，未写库）'}
+            ✔ {result.plugin} → logs: {result.logs.join(' / ') || i18n.t('ke2c0dc29')}；写回字段：
+            {result.applied.length ? result.applied.join(', ') : i18n.t('k1d25fed2')}
           </div>
         )}
       </Card>

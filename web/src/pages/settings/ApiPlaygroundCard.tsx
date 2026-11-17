@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { api, isDesktop } from '../../api';
 import Card from './Card';
+import i18n from '../../i18n';
 
 /**
  * API 参考 + Playground。
@@ -58,7 +59,7 @@ export default function ApiPlaygroundCard({ onToast }: { onToast: (msg: string, 
         setTotal(r.total);
         if (r.routes.length) setPick(`${r.routes[0].method} ${r.routes[0].path}`);
       })
-      .catch((e: Error) => setFailed(e.message || '接口清单加载失败'));
+      .catch((e: Error) => setFailed(e.message || i18n.t('k6c4849a1')));
   }, []);
 
   const shown = useMemo(() => {
@@ -82,7 +83,7 @@ export default function ApiPlaygroundCard({ onToast }: { onToast: (msg: string, 
 
   const send = useCallback(async () => {
     if (!current) return;
-    if (isWrite && !window.confirm(`这是写操作（${current.method} ${current.path}），确定要发送吗？`)) return;
+    if (isWrite && !window.confirm(i18n.t('kd79f1ca0', { p0: current.method, p1: current.path }))) return;
     setBusy(true);
     const t0 = performance.now();
     try {
@@ -106,9 +107,9 @@ export default function ApiPlaygroundCard({ onToast }: { onToast: (msg: string, 
     const origin = typeof window !== 'undefined' ? window.location.origin : 'http://127.0.0.1:3001';
     const url = `${origin}${resolvedPath}`;
     const isWrite = current.method !== 'GET';
-    const needAuth = current.auth !== '无';
-    const authValue = current.auth === '局域网令牌' ? 'Bearer <lan-token>' : 'Bearer <token>';
-    const hint = '{"": "按这个接口的实际字段填"}';
+    const needAuth = current.auth !== i18n.t('kd81bb206');
+    const authValue = current.auth === i18n.t('k66a8fce5') ? 'Bearer <lan-token>' : 'Bearer <token>';
+    const hint = i18n.t('k6ceacd21');
 
     const curl = [
       `curl -X ${current.method} "${url}"`,
@@ -117,7 +118,7 @@ export default function ApiPlaygroundCard({ onToast }: { onToast: (msg: string, 
     ].join(' \\\n  ');
 
     const js = [
-      'const token = process.env.TUKU_TOKEN; // 数据目录下 .api-token',
+      i18n.t('k278e4bc9'),
       `const res = await fetch('${url}', {`,
       `  method: '${current.method}',`,
       ...(needAuth
@@ -157,17 +158,17 @@ export default function ApiPlaygroundCard({ onToast }: { onToast: (msg: string, 
       a.download = 'tuku-api.md';
       a.click();
       URL.revokeObjectURL(url);
-      onToast('已下载 tuku-api.md');
+      onToast(i18n.t('k749115b3'));
     } catch (e) {
-      onToast((e as Error).message || '下载失败', 'error');
+      onToast((e as Error).message || i18n.t('k65e200d3'), 'error');
     }
   }, [onToast]);
 
   return (
     <Card
-      title="API 参考与调试"
-      desc={`服务端自省出的完整接口清单（共 ${total || '…'} 个），可搜索、当场试调、导出 Markdown。`}
-      badge={isDesktop ? <span className="hint">桌面端</span> : <span className="hint">浏览器调试</span>}
+      title={i18n.t('k9937b379')}
+      desc={i18n.t('k06ab8a95', { p0: total || '…' })}
+      badge={isDesktop ? <span className="hint">{i18n.t('k5953127d')}</span> : <span className="hint">{i18n.t('k4536243a')}</span>}
     >
       {failed ? (
         <div className="hint" style={{ color: 'var(--danger, #dc2626)' }}>
@@ -179,19 +180,19 @@ export default function ApiPlaygroundCard({ onToast }: { onToast: (msg: string, 
             <input
               className="input"
               style={{ flex: '1 1 200px', minWidth: 160 }}
-              placeholder="搜索路径或方法，如 /api/images 或 post"
+              placeholder={i18n.t('k5501fb16')}
               value={q}
               onChange={(e) => setQ(e.target.value)}
-              aria-label="搜索接口"
+              aria-label={i18n.t('ke92c2a0e')}
             />
             <select
               className="input"
               style={{ flex: '0 0 auto', minWidth: 160 }}
               value={group}
               onChange={(e) => setGroup(e.target.value)}
-              aria-label="按分组筛选"
+              aria-label={i18n.t('k7bd12fd7')}
             >
-              <option value="">全部分组</option>
+              <option value="">{i18n.t('k13900bfc')}</option>
               {groups.map((g) => (
                 <option key={g.key} value={g.key}>
                   {`${g.label}（${g.count}）`}
@@ -199,7 +200,7 @@ export default function ApiPlaygroundCard({ onToast }: { onToast: (msg: string, 
               ))}
             </select>
             <button className="btn sm" onClick={() => void downloadMarkdown()}>
-              下载 Markdown
+              {i18n.t('k3a58d41e')}
             </button>
           </div>
 
@@ -214,7 +215,7 @@ export default function ApiPlaygroundCard({ onToast }: { onToast: (msg: string, 
           >
             {shown.length === 0 ? (
               <div className="hint" style={{ padding: 12 }}>
-                没有匹配的接口
+                {i18n.t('k29a5c1de')}
               </div>
             ) : (
               shown.map((r) => {
@@ -224,7 +225,7 @@ export default function ApiPlaygroundCard({ onToast }: { onToast: (msg: string, 
                   <button
                     key={key}
                     onClick={() => setPick(key)}
-                    title={`${r.label} · 鉴权：${r.auth}`}
+                    title={i18n.t('kfc07e5bd', { p0: r.label, p1: r.auth })}
                     style={{
                       display: 'flex',
                       alignItems: 'center',
@@ -263,7 +264,7 @@ export default function ApiPlaygroundCard({ onToast }: { onToast: (msg: string, 
           </div>
 
           <div className="hint" style={{ margin: '8px 0 12px' }}>
-            {`显示 ${shown.length} / ${routes.length} 个接口`}
+            {i18n.t('k46655200', { p0: shown.length, p1: routes.length })}
             {groupNote ? ` · ${groupNote}` : ''}
           </div>
 
@@ -272,13 +273,13 @@ export default function ApiPlaygroundCard({ onToast }: { onToast: (msg: string, 
               <div className="field">
                 <label>{`${current.method} ${current.path}`}</label>
                 <div className="hint">
-                  {`鉴权：${current.auth} · 实际请求：${resolvedPath}（路径参数用 1 顶替）`}
+                  {i18n.t('k808a28d5', { p0: current.auth, p1: resolvedPath })}
                 </div>
               </div>
 
               {isWrite && (
                 <div className="field">
-                  <label>请求体（JSON）</label>
+                  <label>{i18n.t('k317414ba')}</label>
                   <textarea
                     className="input"
                     style={{ minHeight: 90, fontFamily: 'Cascadia Code, Consolas, monospace', fontSize: 12.5 }}
@@ -290,24 +291,24 @@ export default function ApiPlaygroundCard({ onToast }: { onToast: (msg: string, 
 
               <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap', marginBottom: 10 }}>
                 <button className="btn primary sm" disabled={busy} onClick={() => void send()}>
-                  {busy ? '发送中…' : '发送请求'}
+                  {busy ? i18n.t('k08815707') : i18n.t('k4f02d2ef')}
                 </button>
                 <button
                   className="btn sm"
                   onClick={() => {
                     navigator.clipboard?.writeText(sampleCode[exampleTab]).then(
-                      () => onToast(`已复制 ${exampleTab === 'curl' ? 'curl' : exampleTab === 'js' ? 'JavaScript' : 'Python'} 示例`),
-                      () => onToast('复制失败，请手动选中', 'error')
+                      () => onToast(i18n.t('k65d2c076', { p0: exampleTab === 'curl' ? 'curl' : exampleTab === 'js' ? 'JavaScript' : 'Python' })),
+                      () => onToast(i18n.t('k63e6737e'), 'error')
                     );
                   }}
                 >
-                  {`复制 ${exampleTab === 'curl' ? 'curl' : exampleTab === 'js' ? 'JavaScript' : 'Python'}`}
+                  {i18n.t('kad180ece', { p0: exampleTab === 'curl' ? 'curl' : exampleTab === 'js' ? 'JavaScript' : 'Python' })}
                 </button>
               </div>
 
               {/* 示例代码：写脚本的人直接从这里拿走，不用回去翻源码猜调用方式 */}
               <div className="field">
-                <div style={{ display: 'flex', gap: 6, marginBottom: 6 }} role="tablist" aria-label="示例代码语言">
+                <div style={{ display: 'flex', gap: 6, marginBottom: 6 }} role="tablist" aria-label={i18n.t('kc81b1363')}>
                   {(['curl', 'js', 'py'] as const).map((k) => (
                     <button
                       key={k}
@@ -344,7 +345,7 @@ export default function ApiPlaygroundCard({ onToast }: { onToast: (msg: string, 
           {result && (
             <div style={{ marginTop: 12 }}>
               <div className="hint" style={{ marginBottom: 6 }}>
-                {`状态 ${result.status} · 耗时 ${result.ms}ms`}
+                {i18n.t('kc35fd2ea', { p0: result.status, p1: result.ms })}
               </div>
               <pre
                 style={{

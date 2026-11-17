@@ -14,6 +14,7 @@ import { api, BASE, quiet } from '../../api';
 import type { FacePerson } from '../../api';
 import Select from '../Select';
 import { IconArrowUpRight } from '../Icons';
+import i18n from '../../i18n';
 
 type Face = {
   id: number;
@@ -106,9 +107,9 @@ export default function FaceChips({ imageId, onToast, onGotoPerson }: Props) {
       const name = options.find((p) => p.id === r.personId)?.name || '';
       // 手动归到某个人 = 明确要收录：隐藏标记一起清掉
       setFaces((prev) => prev.map((f) => (f.id === face.id ? { ...f, personId: r.personId, name, hidden: false } : f)));
-      onToast?.(target === '' ? '已单独成新人物' : `已改派到「${name || `人物 #${r.personId}`}」`);
+      onToast?.(target === '' ? i18n.t('k4c6afef0') : i18n.t('kf76c4301', { p0: name || i18n.t('kffab35b2', { p0: r.personId }) }));
     } catch (err) {
-      onToast?.(`改派失败：${(err as Error).message}`, 'error');
+      onToast?.(i18n.t('k2e983da6', { p0: (err as Error).message }), 'error');
     } finally {
       setBusy(0);
     }
@@ -119,9 +120,9 @@ export default function FaceChips({ imageId, onToast, onGotoPerson }: Props) {
     try {
       await api.faceSetHidden(face.id, hidden);
       setFaces((prev) => prev.map((f) => (f.id === face.id ? { ...f, hidden } : f)));
-      onToast?.(hidden ? '已排除这张脸（不显示、不参与聚类）' : '已收录这张脸');
+      onToast?.(hidden ? i18n.t('kc4a0e463') : i18n.t('k6f7198d3'));
     } catch (err) {
-      onToast?.(`操作失败：${(err as Error).message}`, 'error');
+      onToast?.(i18n.t('kf97c1cd6', { p0: (err as Error).message }), 'error');
     } finally {
       setBusy(0);
     }
@@ -132,9 +133,9 @@ export default function FaceChips({ imageId, onToast, onGotoPerson }: Props) {
     try {
       await api.faceDelete(face.id);
       setFaces((prev) => prev.filter((f) => f.id !== face.id));
-      onToast?.('已移除这张人脸（图片本身不受影响）');
+      onToast?.(i18n.t('k0c8c33e9'));
     } catch (err) {
-      onToast?.(`移除失败：${(err as Error).message}`, 'error');
+      onToast?.(i18n.t('kca479a51', { p0: (err as Error).message }), 'error');
     } finally {
       setBusy(0);
     }
@@ -142,14 +143,14 @@ export default function FaceChips({ imageId, onToast, onGotoPerson }: Props) {
 
   return (
     <section className="lb-group">
-      <h5>人物</h5>
+      <h5>{i18n.t('keec124ab')}</h5>
       <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
         <input
           className="input"
           value={q}
           onChange={(e) => setQ(e.target.value)}
-          placeholder={personsTotal > options.length ? `查找人物（共 ${personsTotal} 个）` : '查找人物'}
-          title="输入名字或编号查找，避免下拉里只有前 200 个人物"
+          placeholder={personsTotal > options.length ? i18n.t('k798242fc', { p0: personsTotal }) : i18n.t('k2e0221a9')}
+          title={i18n.t('k8c9e134b')}
           // 定高必须同时把上下内边距收掉：.input 自带 9px，加上 height 后内容区只剩个位数，
           // 字会被上下切一半
           style={{ height: 28, padding: '0 10px', fontSize: 12 }}
@@ -158,7 +159,7 @@ export default function FaceChips({ imageId, onToast, onGotoPerson }: Props) {
           // 阈值由服务端给出（hidden=已排除，soft=质量偏低），界面不再抄魔法数字
           const lowQuality = f.hidden || f.soft;
           // 下拉本身就显示当前归属，再单独放一列名字只是白占宽度 —— 窄面板里挤出这句话的头号原因
-          const label = f.name || (f.personId ? `人物 #${f.personId}` : '未归类');
+          const label = f.name || (f.personId ? i18n.t('kffab35b2', { p0: f.personId }) : i18n.t('k99aa56aa'));
           return (
             <div key={f.id} style={{ display: 'flex', alignItems: 'center', gap: 8, opacity: f.hidden ? 0.6 : 1 }}>
               <button
@@ -166,7 +167,7 @@ export default function FaceChips({ imageId, onToast, onGotoPerson }: Props) {
                 className={`lb-face-avatar${f.personId && onGotoPerson ? ' is-clickable' : ''}`}
                 disabled={!f.personId || !onGotoPerson}
                 onClick={() => f.personId != null && onGotoPerson?.(f.personId)}
-                title={f.personId ? '看这个人的所有照片' : ''}
+                title={f.personId ? i18n.t('kdc1457bc') : ''}
               >
                 <img
                   src={`${BASE}/api/face/crop/${f.id}?size=64`}
@@ -177,9 +178,7 @@ export default function FaceChips({ imageId, onToast, onGotoPerson }: Props) {
               </button>
               {lowQuality && (
                 <span
-                  title={`质量分 ${f.quality.toFixed(2)}${
-                    f.hidden ? '（已被自动排除：模糊/过小/非正脸）' : '（不够清晰：照常显示，但不会当选封面）'
-                  }`}
+                  title={i18n.t('k0e65e1a1', { p0: f.quality.toFixed(2), p1: f.hidden ? i18n.t('k43d4c569') : i18n.t('k09edde99') })}
                   style={{
                     fontSize: 10.5,
                     padding: '1px 5px',
@@ -189,7 +188,7 @@ export default function FaceChips({ imageId, onToast, onGotoPerson }: Props) {
                     flex: '0 0 auto',
                   }}
                 >
-                  {f.hidden ? '已排除' : '不够清晰'}
+                  {f.hidden ? i18n.t('kae2403a6') : i18n.t('k5914eaad')}
                 </span>
               )}
               {/*
@@ -201,13 +200,13 @@ export default function FaceChips({ imageId, onToast, onGotoPerson }: Props) {
                 value={f.personId ?? ''}
                 onChange={(v) => void reassign(f, v)}
                 disabled={busy === f.id}
-                title={`改派给别的人物（当前：${label}）`}
+                title={i18n.t('k92925dd3', { p0: label })}
                 style={{ height: 28, padding: '0 8px', fontSize: 12, flex: 1, minWidth: 0 }}
               >
-                <option value="">单独成新人物</option>
+                <option value="">{i18n.t('k8ce10154')}</option>
                 {options.map((p) => (
                   <option key={p.id} value={p.id}>
-                    {p.name || `人物 #${p.id}`}
+                    {p.name || i18n.t('kffab35b2', { p0: p.id })}
                     {p.count ? ` ·${p.count}` : ''}
                   </option>
                 ))}
@@ -216,28 +215,28 @@ export default function FaceChips({ imageId, onToast, onGotoPerson }: Props) {
                 <button
                   className="mini lb-face-goto"
                   disabled={busy === f.id}
-                  title="看这个人的所有照片（跳到人物页）"
+                  title={i18n.t('ka3ec3fae')}
                   onClick={() => onGotoPerson(f.personId as number)}
                 >
                   <IconArrowUpRight size={12} />
                 </button>
               )}
               {f.hidden ? (
-                <button className="mini" disabled={busy === f.id} title="这张其实是人脸，手动收录" onClick={() => void setHidden(f, false)}>
-                  收录
+                <button className="mini" disabled={busy === f.id} title={i18n.t('k1552f849')} onClick={() => void setHidden(f, false)}>
+                  {i18n.t('k1ed3c154')}
                 </button>
               ) : (
                 <button
                   className="mini"
                   disabled={busy === f.id}
-                  title="不是人脸 / 不想参与聚类"
+                  title={i18n.t('k6fb9e8ae')}
                   onClick={() => void setHidden(f, true)}
                 >
-                  排除
+                  {i18n.t('k93bdf5f2')}
                 </button>
               )}
-              <button className="mini" disabled={busy === f.id} title="从这个人脸记录里彻底删除" onClick={() => void remove(f)}>
-                移除
+              <button className="mini" disabled={busy === f.id} title={i18n.t('k63050285')} onClick={() => void remove(f)}>
+                {i18n.t('k86048b4f')}
               </button>
             </div>
           );

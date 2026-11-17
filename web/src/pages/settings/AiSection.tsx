@@ -4,6 +4,7 @@ import type { AiProviderInfo } from '../../types';
 import Card from './Card';
 import Select from '../../components/Select';
 import type { SettingsForm } from './useSettingsForm';
+import i18n from '../../i18n';
 
 /**
  * 模型套件：把「当前表单里的这套配置」存成一家供应商，可以并存多家、随时切换。
@@ -31,7 +32,7 @@ function ProviderKit({ settings, onToast }: { settings: SettingsForm['settings']
 
   const saveCurrent = async () => {
     if (!settings?.ai) return;
-    const name = window.prompt('给这套配置起个名字（如「DeepSeek 便宜档」）', settings.ai.model || '新配置');
+    const name = window.prompt(i18n.t('k7c93ec7c'), settings.ai.model || i18n.t('k772e7fb7'));
     if (!name) return;
     setBusy('save');
     setErr('');
@@ -44,7 +45,7 @@ function ProviderKit({ settings, onToast }: { settings: SettingsForm['settings']
         visionModel: settings.ai.visionModel || '',
       });
       await load();
-      onToast?.(`已存为「${name}」`);
+      onToast?.(i18n.t('k647bc60b', { p0: name }));
     } catch (e) {
       setErr((e as Error).message);
     } finally {
@@ -57,7 +58,7 @@ function ProviderKit({ settings, onToast }: { settings: SettingsForm['settings']
     try {
       await api.activateAiProvider(id);
       await load();
-      onToast?.('已切换，刷新后生效');
+      onToast?.(i18n.t('kb0f187f2'));
       setTimeout(() => window.location.reload(), 600);
     } catch (e) {
       setErr((e as Error).message);
@@ -67,7 +68,7 @@ function ProviderKit({ settings, onToast }: { settings: SettingsForm['settings']
   };
 
   const remove = async (id: string) => {
-    if (!window.confirm('删除这家供应商的配置？（已保存的密钥一并删除）')) return;
+    if (!window.confirm(i18n.t('ka414058f'))) return;
     setBusy(id);
     try {
       await api.removeAiProvider(id);
@@ -82,15 +83,15 @@ function ProviderKit({ settings, onToast }: { settings: SettingsForm['settings']
   return (
     <div style={{ marginTop: 18, borderTop: '1px solid var(--line)', paddingTop: 14 }}>
       <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}>
-        <b style={{ fontSize: 13 }}>模型套件</b>
+        <b style={{ fontSize: 13 }}>{i18n.t('kd7c0b936')}</b>
         <span className="hint" style={{ flex: 1 }}>
-          可以并存多家，切换时只改指针，不用重填
+          {i18n.t('k0c40d5f2')}
         </span>
         <button className="btn sm" disabled={!!busy} onClick={() => void saveCurrent()}>
-          {busy === 'save' ? '保存中…' : '把当前配置存为一家'}
+          {busy === 'save' ? i18n.t('k9b5d32d1') : i18n.t('k92b7b7de')}
         </button>
       </div>
-      {list.length === 0 && <div className="hint">还没有保存过多套配置。</div>}
+      {list.length === 0 && <div className="hint">{i18n.t('ke4f309a2')}</div>}
       {list.map((p) => (
         <div
           key={p.id}
@@ -98,16 +99,16 @@ function ProviderKit({ settings, onToast }: { settings: SettingsForm['settings']
         >
           <span style={{ minWidth: 110, fontWeight: p.id === activeId ? 700 : 400 }}>
             {p.label}
-            {p.id === activeId ? ' ·当前' : ''}
+            {p.id === activeId ? i18n.t('k9a4b23fc') : ''}
           </span>
           <span className="hint" style={{ flex: 1, overflow: 'hidden', textOverflow: 'ellipsis' }}>
-            {p.model || '(未填模型)'} · {p.baseUrl || '(未填地址)'} · {p.hasKey ? p.keyMask : '无密钥'}
+            {p.model || i18n.t('keeaba8bc')} · {p.baseUrl || i18n.t('k534b46e3')} · {p.hasKey ? p.keyMask : i18n.t('k5e747213')}
           </span>
           <button className="btn ghost sm" disabled={!!busy || p.id === activeId} onClick={() => void activate(p.id)}>
-            切换
+            {i18n.t('kbec7e4d6')}
           </button>
           <button className="btn ghost sm" disabled={!!busy} onClick={() => void remove(p.id)}>
-            删除
+            {i18n.t('k2f4aaddd')}
           </button>
         </div>
       ))}
@@ -126,18 +127,18 @@ export default function AiSection({ form }: { form: SettingsForm }) {
   if (!settings) return null;
   return (
     <Card
-      title="AI 接入"
-      desc="用于图片智能评分、看图分析、删除原因学习与知识库。不配置也能正常使用。"
+      title={i18n.t('k70ba6cfb')}
+      desc={i18n.t('k06b57a01')}
       badge={
         aiStatus?.ready ? (
-          <span style={{ color: 'var(--ok)', fontWeight: 400, fontSize: 12 }}>● 已就绪</span>
+          <span style={{ color: 'var(--ok)', fontWeight: 400, fontSize: 12 }}>{i18n.t('k4ae414b3')}</span>
         ) : (
-          <span style={{ color: 'var(--warn)', fontWeight: 400, fontSize: 12 }}>○ 未配置</span>
+          <span style={{ color: 'var(--warn)', fontWeight: 400, fontSize: 12 }}>{i18n.t('ke8e1c03e')}</span>
         )
       }
     >
       <div className="field">
-        <label>厂家预设（均为 OpenAI 兼容接口）</label>
+        <label>{i18n.t('kc4fc97f8')}</label>
         <Select
           className="select"
           style={{ width: '100%' }}
@@ -166,7 +167,7 @@ export default function AiSection({ form }: { form: SettingsForm }) {
           className="input"
           type="password"
           value={aiKeyDraft}
-          placeholder={settings.hasAiApiKey ? '已保存（不回显），粘贴新 Key 可覆盖' : 'sk-...'}
+          placeholder={settings.hasAiApiKey ? i18n.t('k18973c3e') : 'sk-...'}
           onChange={(e) => {
             setAiKeyDraft(e.target.value);
             setDirty(true);
@@ -175,12 +176,12 @@ export default function AiSection({ form }: { form: SettingsForm }) {
         {settings.hasAiApiKey && (
           <div style={{ marginTop: 6 }}>
             <button className="btn sm" onClick={clearAiApiKey}>
-              清除已保存的 Key
+              {i18n.t('kf4e1c3c0')}
             </button>
           </div>
         )}
         <div className="hint">
-          {presets[settings.ai?.provider || '']?.keyHint || '按接口方要求填写'}
+          {presets[settings.ai?.provider || '']?.keyHint || i18n.t('k4dbdbc3c')}
           {presets[settings.ai?.provider || '']?.docs && (
             <>
               {' · '}
@@ -190,21 +191,21 @@ export default function AiSection({ form }: { form: SettingsForm }) {
                 rel="noreferrer"
                 style={{ color: 'var(--accent)' }}
               >
-                去获取密钥
+                {i18n.t('k57448d52')}
               </a>
             </>
           )}
         </div>
       </div>
       <div className="field">
-        <label>文本模型（归纳规则 / 生成建议）</label>
+        <label>{i18n.t('kbbc1adce')}</label>
         <div style={{ display: 'flex', gap: 8 }}>
           {customModel || !modelOptions.length ? (
             <input
               className="input"
               style={{ flex: 1 }}
               value={settings.ai?.model || ''}
-              placeholder="如 glm-4-flash / gpt-4o-mini / deepseek-chat"
+              placeholder={i18n.t('k70d6f454')}
               onChange={(e) => patch({ ai: { ...settings.ai, model: e.target.value } })}
             />
           ) : (
@@ -224,18 +225,18 @@ export default function AiSection({ form }: { form: SettingsForm }) {
                   {m}
                 </option>
               ))}
-              <option value="__custom__">自定义 / 手动输入…</option>
+              <option value="__custom__">{i18n.t('k53fc9199')}</option>
             </Select>
           )}
-          <button className="btn" onClick={fetchModels} title="从接口拉取模型列表">
-            拉取
+          <button className="btn" onClick={fetchModels} title={i18n.t('k12e11810')}>
+            {i18n.t('k1d0274a5')}
           </button>
           <button
             className="btn"
             onClick={() => setCustomModel((v) => !v)}
-            title="在下拉与手动输入之间切换"
+            title={i18n.t('kd188a3c3')}
           >
-            {customModel ? '下拉' : '手填'}
+            {customModel ? i18n.t('k78f395c1') : i18n.t('kbd1f8309')}
           </button>
         </div>
         {modelOptions.length > 0 && !customModel && (
@@ -243,14 +244,14 @@ export default function AiSection({ form }: { form: SettingsForm }) {
         )}
       </div>
       <div className="field">
-        <label>视觉模型（看图分析，可留空复用文本模型）</label>
+        <label>{i18n.t('kaa05d622')}</label>
         <div style={{ display: 'flex', gap: 8 }}>
           {customVision || !visionOptions.length ? (
             <input
               className="input"
               style={{ flex: 1 }}
               value={settings.ai?.visionModel || ''}
-              placeholder="如 glm-4v-flash / qwen-vl-max-latest / gpt-4o-mini"
+              placeholder={i18n.t('k1689a0c3')}
               onChange={(e) => patch({ ai: { ...settings.ai, visionModel: e.target.value } })}
             />
           ) : (
@@ -270,20 +271,20 @@ export default function AiSection({ form }: { form: SettingsForm }) {
                   {m}
                 </option>
               ))}
-              <option value="__custom__">自定义 / 手动输入…</option>
+              <option value="__custom__">{i18n.t('k53fc9199')}</option>
             </Select>
           )}
           <button
             className="btn"
             onClick={() => setCustomVision((v) => !v)}
-            title="在下拉与手动输入之间切换"
+            title={i18n.t('kd188a3c3')}
           >
-            {customVision ? '下拉' : '手填'}
+            {customVision ? i18n.t('k78f395c1') : i18n.t('kbd1f8309')}
           </button>
         </div>
       </div>
       <div className="switch-row">
-        <span>启用 AI</span>
+        <span>{i18n.t('ka9e80d42')}</span>
         <input
           type="checkbox"
           checked={!!settings.ai?.enabled}
@@ -292,17 +293,17 @@ export default function AiSection({ form }: { form: SettingsForm }) {
       </div>
       <div style={{ display: 'flex', gap: 8, marginTop: 12 }}>
         <button className="btn" onClick={testAi} disabled={testing}>
-          {testing ? '测试中…' : '测试连接'}
+          {testing ? i18n.t('k2ff33d1a') : i18n.t('k69e74756')}
         </button>
       </div>
       {aiError && <div className="ai-result" style={{ borderColor: 'rgba(248,113,113,0.4)' }}>{aiError}</div>}
       <ProviderKit settings={settings} />
       <div className="hint" style={{ marginTop: 10, lineHeight: 1.9 }}>
-        · 密钥只保存在本机数据库，不外传
-        <br />· 不配置也能用：删除原因会直接转成规则
-        <br />· 401：密钥错误/过期/带空格；403：无该模型权限；404：Base URL 填错；429：限流或余额不足
-        <br />· 部分厂家不开放 /models 接口，拉取失败可直接手填模型名后点「测试连接」
-        <br />· 修改后点右上角「保存设置」生效
+        {i18n.t('k8ee62ea9')}
+        <br />{i18n.t('kd970dd20')}
+        <br />{i18n.t('kea0edf18')}
+        <br />{i18n.t('k85f9a747')}
+        <br />{i18n.t('kd3ea4934')}
       </div>
     </Card>
   );

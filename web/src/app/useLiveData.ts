@@ -5,6 +5,7 @@ import { subscribeEvents } from '../events';
 import { installModalA11y } from '../lib/modal-a11y';
 import type { ImportProgress } from './useImportWatch';
 import type { LoadGallery, Toast } from './types';
+import i18n from '../i18n';
 
 type Options = {
   refreshStats: () => void;
@@ -104,7 +105,7 @@ export function useLiveData({
           const skipped = imp.result?.depthSkippedDirs;
           if (Array.isArray(skipped) && skipped.length) {
             showToast(
-              `有 ${skipped.length} 个目录超过导入深度上限未扫描，可在设置里调大「导入深度」`
+              i18n.t('kf017b0be', { p0: skipped.length })
             );
           }
         }
@@ -120,7 +121,7 @@ export function useLiveData({
         if (!s.running) {
           setImportProgress(null);
           // 打开页面时上一次扫描已经失败了：也得说一声
-          if (s.error) showToast(`上次扫描失败：${s.error}（可到 设置 → 数据维护 重新扫描）`, 'error');
+          if (s.error) showToast(i18n.t('k5eb1a605', { p0: s.error }), 'error');
           return;
         }
         setImportProgress({

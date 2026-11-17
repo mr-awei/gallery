@@ -35,6 +35,7 @@ import {
   IconWarning,
   IconWand,
 } from './Icons';
+import i18n from '../i18n';
 
 interface Props {
   item: ImageItem;
@@ -85,16 +86,16 @@ let closeOpenCardMenu: (() => void) | null = null;
 /* ------------------------- 多格式素材卡（视频/音频/字体…） ------------------------- */
 
 const KIND_LABEL: Record<string, string> = {
-  video: '视频',
-  audio: '音频',
-  font: '字体',
+  video: i18n.t('k7fcf42ed'),
+  audio: i18n.t('k726dd5df'),
+  font: i18n.t('k8456bc40'),
   pdf: 'PDF',
   office: 'Office',
-  model: '3D 模型',
-  design: '设计稿',
+  model: i18n.t('kd9b444f7'),
+  design: i18n.t('kfdb21fa1'),
   raw: 'RAW',
-  bookmark: '网页',
-  other: '文件',
+  bookmark: i18n.t('k18a481ea'),
+  other: i18n.t('k2a0c4740'),
 };
 
 /** 媒体类型占位图标：和界面其余图标同一套描边，不再用 emoji（emoji 会跟着系统字体变形变色） */
@@ -241,7 +242,7 @@ function FontThumb({ url, title }: { url: string; title: string }) {
   return (
     <div className="media-glyph font">
       <div className="media-font-sample" style={family ? { fontFamily: `"${family}", sans-serif` } : undefined}>
-        Aa 字体预览
+        {i18n.t('kec102a04')}
       </div>
       <div className="media-font-name">{title}</div>
     </div>
@@ -272,7 +273,7 @@ function MediaGlyph({
       <div className="media-glyph-icon">
         <Glyph size={36} />
       </div>
-      <div className="media-glyph-kind">{label || KIND_LABEL[kind] || '文件'}</div>
+      <div className="media-glyph-kind">{label || KIND_LABEL[kind] || i18n.t('k2a0c4740')}</div>
       {title && <div className="media-glyph-title">{title}</div>}
       <div className="media-glyph-meta">
         {duration > 0 && <span>{fmtDuration(duration)}</span>}
@@ -454,12 +455,12 @@ const ImageCard = React.memo(function ImageCard({
           className="card-broken"
           title={
             noPreview
-              ? `${item.title}（${KIND_LABEL[kind] || '该格式'}没有内嵌预览图；文件本身正常，可用原软件打开）`
-              : `${item.title}（缩略图加载失败，可点「刷新」重试；文件确实丢失时到设置 → 数据维护清理）`
+              ? i18n.t('k5e2514cf', { p0: item.title, p1: KIND_LABEL[kind] || i18n.t('k28accaa0') })
+              : i18n.t('kc75e9f9a', { p0: item.title })
           }
         >
           <span className="card-broken-icon">{noPreview && KIND_ICON[kind] ? (() => { const G = KIND_ICON[kind]; return <G size={22} />; })() : <IconWarning size={22} />}</span>
-          {noPreview ? '暂无预览' : '文件缺失'}
+          {noPreview ? i18n.t('k399ad15a') : i18n.t('kefd177a4')}
           <small>{noPreview ? `${ext}${item.width ? ` · ${item.width}×${item.height}` : ''}` : `${item.width}×${item.height}`}</small>
         </div>
       );
@@ -467,13 +468,13 @@ const ImageCard = React.memo(function ImageCard({
     if (thumbPending) {
       return (
         <div className="card-thumb-pending">
-          <div className="card-broken pending" title={`${item.title}（缩略图正在后台生成，稍后自动出现）`}>
+          <div className="card-broken pending" title={i18n.t('kb667a19b', { p0: item.title })}>
             <span className="card-thumb-spin" aria-hidden />
             <small>
               {item.width}×{item.height}
             </small>
           </div>
-          {/* 关键：<img> 必须保持挂载。以前这里是直接 return 占位、把 <img> 卸载掉，
+          {/* 关键：<img> {i18n.t('kb769c997')} <img> 卸载掉，
               退避定时器改完 URL 已没有任何元素能再触发 onError/onLoad，
               thumbPending 永远为 true → 卡片永久转圈，「文件缺失」也永远不出现。
               这里用透明探针叠在占位之上：维持卡片高度，同时让重试链路活着。 */}
@@ -596,13 +597,13 @@ const ImageCard = React.memo(function ImageCard({
   const copyLink = async () => {
     const ok = await copyText(fullUrl);
     if (ok) void api.bumpUsage('copy', [item.id]).catch(() => undefined);
-    onToast?.(ok ? '图片链接已复制' : '复制失败：浏览器拒绝了剪贴板访问', ok ? 'info' : 'error');
+    onToast?.(ok ? i18n.t('k035afe33') : i18n.t('ka2ddaa77'), ok ? 'info' : 'error');
   };
 
   const setWall = async () => {
     try {
       await api.wallpaper(item.id);
-      onToast?.('已设为壁纸');
+      onToast?.(i18n.t('k388e4fd9'));
     } catch (err) {
       onToast?.((err as Error).message);
     }
@@ -613,7 +614,7 @@ const ImageCard = React.memo(function ImageCard({
     try {
       const res = await api.rotateImage(item.id, dir);
       onUpdateItem?.(res.item);
-      onToast?.('已旋转');
+      onToast?.(i18n.t('k015f7038'));
     } catch (err) {
       onToast?.((err as Error).message);
     }
@@ -630,9 +631,9 @@ const ImageCard = React.memo(function ImageCard({
       else dataUrl = await imageFrameDataUrl(fullUrl);
       const r = await api.setCover(item.id, dataUrl, kind === 'video' ? item.coverTs || 0.2 : 0);
       if (r.image) onUpdateItem?.(r.image);
-      onToast?.('已设为封面');
+      onToast?.(i18n.t('kaf63be86'));
     } catch (err) {
-      onToast?.(`设置封面失败：${(err as Error).message}`);
+      onToast?.(i18n.t('k55bd00a1', { p0: (err as Error).message }));
     } finally {
       setCoverBusy(false);
     }
@@ -643,22 +644,22 @@ const ImageCard = React.memo(function ImageCard({
     try {
       const r = await api.resetCover(item.id);
       if (r.image) onUpdateItem?.(r.image);
-      onToast?.('已恢复默认缩略图');
+      onToast?.(i18n.t('k84eae279'));
     } catch (err) {
-      onToast?.(`恢复失败：${(err as Error).message}`);
+      onToast?.(i18n.t('k29923a84', { p0: (err as Error).message }));
     } finally {
       setCoverBusy(false);
     }
   };
 
   const editTags = async () => {
-    const input = await promptDialog('标签（用逗号分隔，留空清除全部标签）', (item.tags || []).join(', '));
+    const input = await promptDialog(i18n.t('kddffd4cb'), (item.tags || []).join(', '));
     if (input === null) return; // 取消
     const list = input.split(/[,，]/).map((t) => t.trim()).filter(Boolean);
     try {
       const updated = await api.patch(item.id, { tags: list });
       onUpdateItem?.(updated);
-      onToast?.(list.length ? `已保存 ${list.length} 个标签` : '已清除标签');
+      onToast?.(list.length ? i18n.t('kb69b12c9', { p0: list.length }) : i18n.t('kd209fe4b'));
     } catch (err) {
       onToast?.((err as Error).message);
     }
@@ -667,29 +668,29 @@ const ImageCard = React.memo(function ImageCard({
   const copyPath = async () => {
     const ok = await copyText(item.path);
     if (ok) void api.bumpUsage('copy', [item.id]).catch(() => undefined);
-    onToast?.(ok ? '文件路径已复制' : '复制失败：浏览器拒绝了剪贴板访问', ok ? 'info' : 'error');
+    onToast?.(ok ? i18n.t('kb7074ce6') : i18n.t('ka2ddaa77'), ok ? 'info' : 'error');
   };
 
   /** 把图片本身放进剪贴板（Chromium 只稳定支持写 PNG，这里统一转成 PNG） */
   const copyImage = async () => {
     try {
       const res = await fetch(fullUrl);
-      if (!res.ok) throw new Error(`读取失败 ${res.status}`);
+      if (!res.ok) throw new Error(i18n.t('kfb04af63', { p0: res.status }));
       const src = await res.blob();
       const bmp = await createImageBitmap(src);
       const canvas = document.createElement('canvas');
       canvas.width = bmp.width;
       canvas.height = bmp.height;
       const ctx = canvas.getContext('2d');
-      if (!ctx) throw new Error('画布不可用');
+      if (!ctx) throw new Error(i18n.t('k3e468bcf'));
       ctx.drawImage(bmp, 0, 0);
       const png = await new Promise<Blob | null>((resolve) => canvas.toBlob(resolve, 'image/png'));
-      if (!png) throw new Error('转换 PNG 失败');
+      if (!png) throw new Error(i18n.t('k760db351'));
       await navigator.clipboard.write([new ClipboardItem({ 'image/png': png })]);
       void api.bumpUsage('copy', [item.id]).catch(() => undefined);
-      onToast?.('图片已复制到剪贴板');
+      onToast?.(i18n.t('kb8183ecf'));
     } catch (err) {
-      onToast?.(`复制图片失败：${(err as Error).message}`, 'error');
+      onToast?.(i18n.t('k85c5e616', { p0: (err as Error).message }), 'error');
     }
   };
 
@@ -702,11 +703,11 @@ const ImageCard = React.memo(function ImageCard({
   };
 
   const moveToTrash = async () => {
-    if (!(await confirmDialog('把这张图片移入回收站？可在「设置 → 数据维护 → 回收站」恢复。'))) return;
+    if (!(await confirmDialog(i18n.t('kc8cae2a6')))) return;
     try {
       await api.remove(item.id);
       onDeleteItem?.(item);
-      onToast?.('已移入回收站');
+      onToast?.(i18n.t('k8d6e3b74'));
     } catch (err) {
       onToast?.((err as Error).message);
     }
@@ -810,16 +811,16 @@ const ImageCard = React.memo(function ImageCard({
       title={item.title}
     >
       {renderMedia()}
-      {!item.viewed && <span className="unseen-dot" title="还没在大图预览里看过" />}
+      {!item.viewed && <span className="unseen-dot" title={i18n.t('k08f00d2a')} />}
       {stackHint && (
         <span className="stack-drop-tip">
-          <IconStack size={12} /> {item.stackPrimary && (item.stackCount || 0) > 1 ? '并入这堆' : '叠成一堆'}
+          <IconStack size={12} /> {item.stackPrimary && (item.stackCount || 0) > 1 ? i18n.t('k4e928aa4') : i18n.t('k76816294')}
         </span>
       )}
       {item.stackPrimary && (item.stackCount || 0) > 1 && (
         <button
           className="stack-badge"
-          title={`堆叠 ${item.stackCount} 张：点开看同素材的其他版本`}
+          title={i18n.t('kb40c0dbd', { p0: item.stackCount })}
           onClick={(e) => {
             e.stopPropagation();
             onOpenStack?.(item.stackId || item.id);
@@ -829,17 +830,17 @@ const ImageCard = React.memo(function ImageCard({
         </button>
       )}
       {kind === 'video' && durationText && (
-        <span className="media-duration" title="时长">
+        <span className="media-duration" title={i18n.t('k5bdfd7ee')}>
           {durationText}
         </span>
       )}
       {!!dupeCount && dupeCount > 1 && (
-        <span className="card-badge dupe" title={`有 ${dupeCount - 1} 张完全相同的重复文件`}>
+        <span className="card-badge dupe" title={i18n.t('k36702b71', { p0: dupeCount - 1 })}>
           ×{dupeCount}
         </span>
       )}
       {!!annotationCount && annotationCount > 0 && (
-        <span className="card-badge annot" title={`${annotationCount} 处标注`}>
+        <span className="card-badge annot" title={i18n.t('kec8ad261', { p0: annotationCount })}>
           <IconPencil size={11} /> {annotationCount}
         </span>
       )}
@@ -858,7 +859,7 @@ const ImageCard = React.memo(function ImageCard({
           {item.matchHex && (
             <span
               className="tag-pill"
-              title={`命中色 ${item.matchHex}${typeof item.dist === 'number' ? ` · OKLab 距离 ${item.dist}` : ''}`}
+              title={i18n.t('k197ac02d', { p0: item.matchHex, p1: typeof item.dist === 'number' ? i18n.t('k6a643928', { p0: item.dist }) : '' })}
               style={{ display: 'inline-flex', alignItems: 'center', gap: 5 }}
             >
               <span
@@ -870,10 +871,10 @@ const ImageCard = React.memo(function ImageCard({
                   boxShadow: '0 0 0 1px rgba(255,255,255,.35)',
                 }}
               />
-              同色
+              {i18n.t('kade2084a')}
             </span>
           )}
-          {!isPlainImage && <span className="tag-pill kind-pill">{kindLabel || '文件'}</span>}
+          {!isPlainImage && <span className="tag-pill kind-pill">{kindLabel || i18n.t('k2a0c4740')}</span>}
           <span className="tag-pill">{SOURCE_LABELS[item.source] || item.source}</span>
           {item.width > 0 && item.height > 0 ? (
             <span className="tag-pill">
@@ -885,7 +886,7 @@ const ImageCard = React.memo(function ImageCard({
             item.sizeBytes > 0 && <span className="tag-pill">{fmtSize(item.sizeBytes)}</span>
           )}
           {item.enhanced && (
-            <span className="tag-pill enhanced" title={`已放大 ${item.enhanceScale} 倍（原 ${item.originalWidth}×${item.originalHeight}）`}>
+            <span className="tag-pill enhanced" title={i18n.t('k23fd82a9', { p0: item.enhanceScale, p1: item.originalWidth, p2: item.originalHeight })}>
               <IconWand size={11} />
               {item.enhanceScale}×
             </span>
@@ -899,7 +900,7 @@ const ImageCard = React.memo(function ImageCard({
         <div className="card-actions">
           <button
             className={`icon-btn${item.favorite ? ' on' : ''}`}
-            title={item.favorite ? '取消收藏' : '收藏'}
+            title={item.favorite ? i18n.t('kf22cec28') : i18n.t('kae336cd0')}
             onClick={(e) => {
               e.stopPropagation();
               onToggleFavorite(item);
@@ -909,7 +910,7 @@ const ImageCard = React.memo(function ImageCard({
           </button>
           <button
             className="icon-btn"
-            title="下载"
+            title={i18n.t('kf26ef914')}
             onClick={(e) => {
               e.stopPropagation();
               onDownload(item);
@@ -919,7 +920,7 @@ const ImageCard = React.memo(function ImageCard({
           </button>
           <button
             className="icon-btn"
-            title="大图预览"
+            title={i18n.t('ka1c43723')}
             onClick={(e) => {
               e.stopPropagation();
               onOpen(item);
@@ -946,13 +947,13 @@ const ImageCard = React.memo(function ImageCard({
               // 不在这里重复实现命令表：交给 App 的命令面板，右键即可搜「导出 / 拼接 / 对比…」
               window.dispatchEvent(new CustomEvent('tuku:palette', { detail: { mode: 'command', itemId: item.id } }));
             }}
-            title="按名字搜索所有命令（Ctrl+K 也能打开）"
+            title={i18n.t('k4ea06074')}
           >
-            <IconSearch /> 搜索命令…
+            <IconSearch /> {i18n.t('k3b3b4717')}
           </button>
           <div className="card-ctx-sep" />
           <button onClick={() => { setMenu(null); onOpen(item); }}>
-            <IconExpand /> 大图预览
+            <IconExpand /> {i18n.t('ka1c43723')}
           </button>
           {(item.stackCount || 0) > 1 && onOpenStack && (
             <button onClick={() => { setMenu(null); onOpenStack(item.stackId || item.id); }}>
@@ -961,45 +962,45 @@ const ImageCard = React.memo(function ImageCard({
           )}
           {!!item.stackId && onUngroupStack && (
             <button onClick={() => { setMenu(null); onUngroupStack(item.stackId || item.id); }}>
-              <IconStack /> 解散这个堆叠
+              <IconStack /> {i18n.t('k4c9f47d4')}
             </button>
           )}
           <button onClick={() => { setMenu(null); onToggleFavorite(item); }}>
-            <IconHeart filled={item.favorite} /> {item.favorite ? '取消收藏' : '收藏'}
+            <IconHeart filled={item.favorite} /> {item.favorite ? i18n.t('kf22cec28') : i18n.t('kae336cd0')}
           </button>
           <button onClick={() => { setMenu(null); setWall(); }}>
-            <IconWallpaper /> 设为壁纸
+            <IconWallpaper /> {i18n.t('kb91e3e16')}
           </button>
           {canSetCover && (
             <button disabled={coverBusy} onClick={() => { setMenu(null); setCoverFromCard(); }}>
-              <IconImages /> {coverBusy ? '生成封面中…' : kind === 'video' ? '用当前帧做封面' : kind === 'font' ? '用文字预览做封面' : '用首帧做封面'}
+              <IconImages /> {coverBusy ? i18n.t('k6e16a480') : kind === 'video' ? i18n.t('kd3ac3424') : kind === 'font' ? i18n.t('kab2cb633') : i18n.t('k72425b5f')}
             </button>
           )}
           {item.coverTs > 0 && (
             <button disabled={coverBusy} onClick={() => { setMenu(null); resetCover(); }}>
-              <IconRotateCcw /> 恢复默认缩略图
+              <IconRotateCcw /> {i18n.t('kb7220f6e')}
             </button>
           )}
           <div className="card-ctx-sep" />
           <button onClick={() => { setMenu(null); rotate('cw'); }}>
-            <IconRotateCw /> 顺时针旋转
+            <IconRotateCw /> {i18n.t('k0d403239')}
           </button>
           <button onClick={() => { setMenu(null); rotate('ccw'); }}>
-            <IconRotateCcw /> 逆时针旋转
+            <IconRotateCcw /> {i18n.t('k9b95ba68')}
           </button>
           <button onClick={() => { setMenu(null); editTags(); }}>
-            <IconTag /> 编辑标签…
+            <IconTag /> {i18n.t('k866748d6')}
           </button>
           <div className="card-ctx-sep" />
           <button onClick={() => { setMenu(null); void copyImage(); }}>
-            <IconCopy /> 复制图片
+            <IconCopy /> {i18n.t('k1819ff01')}
           </button>
           <button onClick={() => { setMenu(null); copyLink(); }}>
-            <IconLink /> 复制图片链接
+            <IconLink /> {i18n.t('k5f5eb2ec')}
           </button>
           {item.path && (
             <button onClick={() => { setMenu(null); copyPath(); }}>
-              <IconFile /> 复制文件路径
+              <IconFile /> {i18n.t('k87f5fb6d')}
             </button>
           )}
           <button
@@ -1013,21 +1014,21 @@ const ImageCard = React.memo(function ImageCard({
               );
             }}
           >
-            <IconSearch /> 全网搜图…
+            <IconSearch /> {i18n.t('k375e3ed7')}
           </button>
           {item.path && (
             <button onClick={() => { setMenu(null); reveal(); }}>
-              <IconFolderOpen /> 打开所在文件夹
+              <IconFolderOpen /> {i18n.t('kc24fc05a')}
             </button>
           )}
           <button onClick={() => { setMenu(null); onDownload(item); }}>
-            <IconDownload /> 下载
+            <IconDownload /> {i18n.t('kf26ef914')}
           </button>
           {onDeleteItem && (
             <>
               <div className="card-ctx-sep" />
               <button className="danger" onClick={() => { setMenu(null); moveToTrash(); }}>
-                <IconTrash /> 移入回收站
+                <IconTrash /> {i18n.t('k1e96a9c8')}
               </button>
             </>
           )}

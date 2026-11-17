@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { IconClose, IconWallpaper } from './Icons';
+import i18n from '../i18n';
 
 /**
  * 壁纸效果预览：服务端按真实屏幕分辨率合成（完整居中 + 铺底），所见即将来桌面的样子。
@@ -11,9 +12,9 @@ import { IconClose, IconWallpaper } from './Icons';
  * - 切换铺底方式时用双层叠图：旧帧垫底、新帧解码完再淡入，不会闪一下黑屏。
  */
 const STYLES = [
-  { key: 'blur', label: '模糊同图铺底', note: '推荐：用同一张图放大模糊填满四周' },
-  { key: 'solid', label: '主色铺底', note: '取图片主色做纯色背景' },
-  { key: 'black', label: '纯黑铺底', note: '暗色桌面，突出图片本身' },
+  { key: 'blur', label: i18n.t('ke315e29f'), note: i18n.t('kd4825b31') },
+  { key: 'solid', label: i18n.t('kcbc1b036'), note: i18n.t('k43e2c297') },
+  { key: 'black', label: i18n.t('kc011bc57'), note: i18n.t('k57b703cd') },
 ];
 
 interface Props {
@@ -69,21 +70,21 @@ export default function WallpaperPreview({ itemId, title, onClose, onApply }: Pr
       <div className="modal-card wp-card" onClick={(e) => e.stopPropagation()}>
         <div className="modal-head">
           <b>壁纸效果预览{title ? ` · ${title}` : ''}</b>
-          <button className="icon-btn" onClick={onClose} title="关闭">
+          <button className="icon-btn" onClick={onClose} title={i18n.t('kb15d9127')}>
             <IconClose />
           </button>
         </div>
         <div className="modal-body wp-body">
           <div className={`wp-stage${ready ? ' ready' : ''}`} style={stageStyle}>
             {shown.prev && <img className="wp-frame prev" src={shown.prev} alt="" aria-hidden />}
-            {!ready && !shown.prev && <span className="wp-loading">正在按屏幕分辨率合成…</span>}
+            {!ready && !shown.prev && <span className="wp-loading">{i18n.t('keb4c8808')}</span>}
             {failed ? (
               <span className="wp-error">{failed}</span>
             ) : (
               <img
                 className={`wp-frame cur${ready ? ' on' : ''}`}
                 src={src}
-                alt="壁纸预览"
+                alt={i18n.t('ke6266dac')}
                 onLoad={(e) => {
                   const img = e.currentTarget;
                   if (img.naturalWidth > 0) {
@@ -94,7 +95,7 @@ export default function WallpaperPreview({ itemId, title, onClose, onApply }: Pr
                 }}
                 onError={() => {
                   setReady(false);
-                  setFailed('预览生成失败：可能是图片文件缺失或屏幕尺寸读取不到');
+                  setFailed(i18n.t('kef36d587'));
                 }}
               />
             )}
@@ -117,14 +118,14 @@ export default function WallpaperPreview({ itemId, title, onClose, onApply }: Pr
           </div>
         </div>
         <div className="modal-foot">
-          <span className="exp-hint">只是预览，不会改系统壁纸</span>
+          <span className="exp-hint">{i18n.t('k239f2329')}</span>
           <div style={{ display: 'flex', gap: 8 }}>
             <button className="btn sm ghost" onClick={onClose}>
-              关闭
+              {i18n.t('kb15d9127')}
             </button>
             {onApply && (
               <button className="btn sm primary" onClick={() => onApply(style)}>
-                <IconWallpaper /> 就用这个效果设为壁纸
+                <IconWallpaper /> {i18n.t('k2c438554')}
               </button>
             )}
           </div>

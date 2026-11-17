@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { Dispatch, MutableRefObject, SetStateAction } from 'react';
 import { api, quiet } from '../api';
 import type { Stats, TagNode } from '../types';
+import i18n from '../i18n';
 
 type Toast = (msg: string, kind?: 'info' | 'error') => void;
 
@@ -68,7 +69,7 @@ export function useStatsAndTags({
             load(1, true);
           } else if (!newAtTopRef.current) {
             newAtTopRef.current = true;
-            showToast('有新图片入库，回到顶部即可看到');
+            showToast(i18n.t('kf828260b'));
           }
         }
         // 导入进行中：新入库图片必然出现在默认「最新采集」列表里，
@@ -128,7 +129,7 @@ export function useStatsAndTags({
         void load(1, true);
       } else if (!newAtTopRef.current) {
         newAtTopRef.current = true;
-        showToast('有新图片入库，回到顶部即可看到');
+        showToast(i18n.t('kf828260b'));
       }
       refreshStats();
     }, 1200);
@@ -204,7 +205,7 @@ export function useStatsAndTags({
     for (const t of tags) {
       // 子标签不单列，跟父标签一起出现
       if (t.parent && names.has(t.parent)) continue;
-      const g = t.group || '未分组';
+      const g = t.group || i18n.t('k6bf48c97');
       const arr = groups.get(g);
       if (arr) arr.push(t);
       else groups.set(g, [t]);

@@ -3,6 +3,7 @@ import JSZip from 'jszip';
 import mammoth from 'mammoth';
 import * as XLSX from 'xlsx';
 import type { ImageItem } from '../types';
+import i18n from '../i18n';
 
 interface Props {
   item: ImageItem;
@@ -79,11 +80,11 @@ export default function OfficeViewer({ item, onToast }: Props) {
     setActiveSheet(0);
     (async () => {
       const res = await fetch(item.url);
-      if (!res.ok) throw new Error(`读取失败 HTTP ${res.status}`);
+      if (!res.ok) throw new Error(i18n.t('kdd489792', { p0: res.status }));
       const buf = await res.arrayBuffer();
       if (ext === 'docx') {
         const out = await mammoth.convertToHtml({ arrayBuffer: buf });
-        if (!cancelled) setHtml(sanitize(out.value || '<p class="ov-empty">文档没有可显示的正文</p>'));
+        if (!cancelled) setHtml(sanitize(out.value || i18n.t('kd1ac4225')));
       } else if (ext === 'xlsx' || ext === 'csv') {
         const wb = XLSX.read(buf, { type: 'array' });
         const list = wb.SheetNames.map((name) => {
@@ -112,13 +113,13 @@ export default function OfficeViewer({ item, onToast }: Props) {
         // 纯文本直接解码，截断到 20 万字符避免超大日志卡住渲染
         if (!cancelled) setText(new TextDecoder('utf-8').decode(buf).slice(0, 200000));
       } else {
-        throw new Error('该格式没有纯前端解析器（老版 Office / iWork 文稿请用系统应用打开）');
+        throw new Error(i18n.t('k7ecfdf20'));
       }
     })()
       .catch((err) => {
         if (cancelled) return;
         setError((err as Error).message);
-        onToast?.(`预览失败：${(err as Error).message}`);
+        onToast?.(i18n.t('kb6327eeb', { p0: (err as Error).message }));
       })
       .finally(() => {
         if (!cancelled) setLoading(false);
@@ -140,9 +141,9 @@ export default function OfficeViewer({ item, onToast }: Props) {
     return (
       <div className="ov-stage">
         <div className="ov-empty">
-          <b>无法内嵌预览</b>
+          <b>{i18n.t('kffb30712')}</b>
           <span>{error}</span>
-          <span className="ov-empty-hint">可以点下方「在文件夹中显示」，用系统默认应用打开</span>
+          <span className="ov-empty-hint">{i18n.t('k0bd1d318')}</span>
         </div>
       </div>
     );
@@ -170,7 +171,7 @@ export default function OfficeViewer({ item, onToast }: Props) {
               lineHeight: 1.75,
             }}
           >
-            {text || '（空文件）'}
+            {text || i18n.t('kace80573')}
           </pre>
         </div>
       </div>
@@ -202,7 +203,7 @@ export default function OfficeViewer({ item, onToast }: Props) {
               </tbody>
             </table>
           ) : (
-            <div className="ov-empty">这个工作表是空的</div>
+            <div className="ov-empty">{i18n.t('k1d7c1831')}</div>
           )}
         </div>
         {sheet && sheet.rows.length >= MAX_ROWS && (
@@ -225,7 +226,7 @@ export default function OfficeViewer({ item, onToast }: Props) {
               </p>
             ))
           ) : (
-            <p className="ov-empty">这一页只有图片/图形，没有文字</p>
+            <p className="ov-empty">{i18n.t('k0e5507e5')}</p>
           )}
         </div>
       ))}

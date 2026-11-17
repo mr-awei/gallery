@@ -1,4 +1,5 @@
 import type { ImageDTOShape } from './dto.generated';
+import i18n from './i18n';
 
 /**
  * 列表 / 详情返回的素材对象。
@@ -1032,9 +1033,9 @@ export const CURVES_DEFAULTS: CurveSet = { rgb: [], r: [], g: [], b: [] };
 /** 通道显示顺序与名称（与 PS 曲线的「RGB / 红 / 绿 / 蓝」一致） */
 export const CURVE_CHANNELS: { key: CurveChannel; label: string; color: string }[] = [
   { key: 'rgb', label: 'RGB', color: '#e6e8f2' },
-  { key: 'r', label: '红', color: '#ff6b6b' },
-  { key: 'g', label: '绿', color: '#4ade80' },
-  { key: 'b', label: '蓝', color: '#60a5fa' },
+  { key: 'r', label: i18n.t('kd088e652'), color: '#ff6b6b' },
+  { key: 'g', label: i18n.t('k806c4388'), color: '#4ade80' },
+  { key: 'b', label: i18n.t('k2fc8da52'), color: '#60a5fa' },
 ];
 
 /** PS「色相/饱和度」的通道：全图 + 六个色带 */
@@ -1061,13 +1062,13 @@ export interface HueSatParams {
 }
 
 export const HUE_BANDS: { key: HueBandKey; label: string; color: string }[] = [
-  { key: 'master', label: '全图', color: '#e6e8f2' },
-  { key: 'red', label: '红色', color: '#ff5c5c' },
-  { key: 'yellow', label: '黄色', color: '#ffd93d' },
-  { key: 'green', label: '绿色', color: '#4ade80' },
-  { key: 'cyan', label: '青色', color: '#38d6e0' },
-  { key: 'blue', label: '蓝色', color: '#5b9dff' },
-  { key: 'magenta', label: '洋红', color: '#e879f9' },
+  { key: 'master', label: i18n.t('kef02e280'), color: '#e6e8f2' },
+  { key: 'red', label: i18n.t('k52636511'), color: '#ff5c5c' },
+  { key: 'yellow', label: i18n.t('kddb86dd3'), color: '#ffd93d' },
+  { key: 'green', label: i18n.t('kb2c712c7'), color: '#4ade80' },
+  { key: 'cyan', label: i18n.t('kbcec032e'), color: '#38d6e0' },
+  { key: 'blue', label: i18n.t('k9c9aabab'), color: '#5b9dff' },
+  { key: 'magenta', label: i18n.t('k3f6e447f'), color: '#e879f9' },
 ];
 
 const zeroBand = (): HueBand => ({ h: 0, s: 0, l: 0 });
@@ -1113,14 +1114,14 @@ export interface ColorMixerParams {
 
 /** center = 该色带在色相环上的中心角（度），权重按到中心的角距离衰减 */
 export const MIX_BANDS: { key: MixBandKey; label: string; color: string; center: number }[] = [
-  { key: 'red', label: '红色', color: '#ff4d4d', center: 0 },
-  { key: 'orange', label: '橙色', color: '#ff9a3c', center: 30 },
-  { key: 'yellow', label: '黄色', color: '#ffd93d', center: 60 },
-  { key: 'green', label: '绿色', color: '#4ade80', center: 120 },
-  { key: 'aqua', label: '浅绿色', color: '#38d6e0', center: 180 },
-  { key: 'blue', label: '蓝色', color: '#5b9dff', center: 240 },
-  { key: 'purple', label: '紫色', color: '#a78bfa', center: 280 },
-  { key: 'magenta', label: '洋红', color: '#e879f9', center: 320 },
+  { key: 'red', label: i18n.t('k52636511'), color: '#ff4d4d', center: 0 },
+  { key: 'orange', label: i18n.t('kd9bbeb44'), color: '#ff9a3c', center: 30 },
+  { key: 'yellow', label: i18n.t('kddb86dd3'), color: '#ffd93d', center: 60 },
+  { key: 'green', label: i18n.t('kb2c712c7'), color: '#4ade80', center: 120 },
+  { key: 'aqua', label: i18n.t('k54a92697'), color: '#38d6e0', center: 180 },
+  { key: 'blue', label: i18n.t('k9c9aabab'), color: '#5b9dff', center: 240 },
+  { key: 'purple', label: i18n.t('ke1e14bd3'), color: '#a78bfa', center: 280 },
+  { key: 'magenta', label: i18n.t('k3f6e447f'), color: '#e879f9', center: 320 },
 ];
 
 const zeroMix = (): MixBand => ({ h: 0, s: 0, l: 0 });
@@ -1155,9 +1156,9 @@ export function isColorMixerDefault(m: ColorMixerParams | undefined): boolean {
 export type MixTab = 'hue' | 'sat' | 'lum';
 
 export const MIX_TABS: { key: MixTab; label: string }[] = [
-  { key: 'hue', label: '色相' },
-  { key: 'sat', label: '饱和度' },
-  { key: 'lum', label: '明亮度' },
+  { key: 'hue', label: i18n.t('k8b232299') },
+  { key: 'sat', label: i18n.t('kbd05021d') },
+  { key: 'lum', label: i18n.t('kfe5c47b2') },
 ];
 
 /* ============ Camera Raw「颜色分级」：阴影/中间调/高光/全局 ============ */
@@ -1180,10 +1181,10 @@ export interface ColorGradeParams {
 }
 
 export const GRADE_ZONES: { key: GradeZoneKey; label: string; color: string }[] = [
-  { key: 'shadows', label: '阴影', color: '#7aa2ff' },
-  { key: 'midtones', label: '中间调', color: '#9aa4bd' },
-  { key: 'highlights', label: '高光', color: '#ffd98a' },
-  { key: 'global', label: '全局', color: '#e6e8f2' },
+  { key: 'shadows', label: i18n.t('k803205e3'), color: '#7aa2ff' },
+  { key: 'midtones', label: i18n.t('k74e40cd9'), color: '#9aa4bd' },
+  { key: 'highlights', label: i18n.t('k57b026b7'), color: '#ffd98a' },
+  { key: 'global', label: i18n.t('k2be75b10'), color: '#e6e8f2' },
 ];
 
 const zeroZone = (): GradeZone => ({ hue: 0, sat: 0, lum: 0 });

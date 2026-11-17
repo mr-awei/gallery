@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useState } from 'react';
+import i18n from '../i18n';
 
 /**
  * 集中式快捷键表。
@@ -21,15 +22,15 @@ export type KeyAction =
   | 'help';
 
 export const KEY_ACTIONS: { id: KeyAction; label: string; desc: string }[] = [
-  { id: 'palette', label: '命令面板', desc: '搜索命令 / 跳转页面' },
-  { id: 'filter', label: '筛选器搜索', desc: '按类型 / 星级 / 色系 / 文件夹快速定位' },
-  { id: 'search', label: '聚焦搜索框', desc: '光标跳进顶部搜索框' },
-  { id: 'quickPreview', label: '快速预览', desc: '预览鼠标下的素材（大图内再按一次关闭）' },
-  { id: 'selectAll', label: '全选（当前筛选）', desc: '不只是已加载的一页' },
-  { id: 'delete', label: '删除选中', desc: '移入回收站' },
-  { id: 'undo', label: '撤销编辑', desc: '回滚最近一次覆盖写回' },
-  { id: 'newWindow', label: '新建窗口', desc: '同一图库再开一个窗口（桌面端）' },
-  { id: 'help', label: '快捷键帮助', desc: '打开 / 关闭这个说明面板' },
+  { id: 'palette', label: i18n.t('k93e40c84'), desc: i18n.t('k39e09268') },
+  { id: 'filter', label: i18n.t('k16bbb0b8'), desc: i18n.t('k04616c15') },
+  { id: 'search', label: i18n.t('kb0f61d34'), desc: i18n.t('k2bcf7009') },
+  { id: 'quickPreview', label: i18n.t('kd1088dd1'), desc: i18n.t('kbbd76174') },
+  { id: 'selectAll', label: i18n.t('ke15a21fc'), desc: i18n.t('k7540865f') },
+  { id: 'delete', label: i18n.t('kcd0b9aca'), desc: i18n.t('k1e96a9c8') },
+  { id: 'undo', label: i18n.t('k2b48f892'), desc: i18n.t('kbcfd4d2a') },
+  { id: 'newWindow', label: i18n.t('kededdc48'), desc: i18n.t('k9cad8bb9') },
+  { id: 'help', label: i18n.t('k6271d6b7'), desc: i18n.t('k8b7740ed') },
 ];
 
 export const DEFAULT_KEYMAP: Record<KeyAction, string> = {

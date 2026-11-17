@@ -2,15 +2,16 @@ import { useEffect, useState } from 'react';
 import { api } from '../../api';
 import type { MarketPlugin, PluginMarketView } from '../../types';
 import Card from './Card';
+import i18n from '../../i18n';
 
 interface Props {
   onToast: (msg: string, kind?: 'info' | 'error') => void;
 }
 
 const PERMISSION_DESC: Record<string, string> = {
-  'image:read': '读取素材的标题 / 标签 / 尺寸等信息',
-  'image:write': '回写标签、备注、评分、收藏（会改库）',
-  log: '输出运行日志',
+  'image:read': i18n.t('k07f34541'),
+  'image:write': i18n.t('k82b650d4'),
+  log: i18n.t('ka707fe1e'),
 };
 
 /** 插件市场：随包索引 + 自定义索引 + URL 在线安装 + 本地包安装 + 卸载 */
@@ -26,7 +27,7 @@ export default function PluginMarket({ onToast }: Props) {
     try {
       setView(await api.pluginMarket());
     } catch (err) {
-      onToast(`读取插件市场失败：${(err as Error).message}`, 'error');
+      onToast(i18n.t('k7c910d0f', { p0: (err as Error).message }), 'error');
     }
   };
   useEffect(() => {
@@ -41,34 +42,34 @@ export default function PluginMarket({ onToast }: Props) {
       await load();
       onToast(okMsg);
     } catch (err) {
-      onToast(`操作失败：${(err as Error).message}`, 'error');
+      onToast(i18n.t('kf97c1cd6', { p0: (err as Error).message }), 'error');
     } finally {
       setBusy('');
     }
   };
 
   const install = (id: string) =>
-    void act(`install-${id}`, () => api.installPlugin({ id }), '插件已安装，可到「插件」页试运行');
+    void act(`install-${id}`, () => api.installPlugin({ id }), i18n.t('kb3e77b56'));
 
   const uninstall = (id: string) =>
     void act(`uninstall-${id}`, async () => {
       const r = await api.uninstallPlugin(id);
-      onToast(r.restoredBuiltin ? '已卸载用户版本，恢复为随包内置版本' : '插件已卸载，运行态立即失效');
-    }, '插件已卸载');
+      onToast(r.restoredBuiltin ? i18n.t('k9548df38') : i18n.t('k84136468'));
+    }, i18n.t('k46c7c359'));
 
   const installFromUrl = () => {
-    if (!url.trim()) return onToast('请先填写插件包地址（.tuku-plugin 或 .zip）', 'error');
-    void act('url', () => api.installPlugin({ url: url.trim() }), '插件包已下载并安装');
+    if (!url.trim()) return onToast(i18n.t('k4f84a48b'), 'error');
+    void act('url', () => api.installPlugin({ url: url.trim() }), i18n.t('k4844bad8'));
   };
 
   const uploadFile = async (file: File) => {
     if (!/\.(tuku-plugin|zip|json)$/i.test(file.name)) {
-      return onToast('请选择 .tuku-plugin / .zip / .json 插件包', 'error');
+      return onToast(i18n.t('k196b3865'), 'error');
     }
     void act('upload', async () => {
       const buf = await file.arrayBuffer();
       return api.uploadPluginPackage(buf, file.name);
-    }, '本地插件包已安装');
+    }, i18n.t('k2280530e'));
   };
 
   const filtered = (view?.plugins || []).filter((p) =>
@@ -78,32 +79,31 @@ export default function PluginMarket({ onToast }: Props) {
   return (
     <>
       <Card
-        title="插件市场"
-        desc="浏览可用插件、查看权限声明，一键安装到用户插件目录；也支持从 URL 在线安装或拖入本地插件包。"
+        title={i18n.t('ka5fdebec')}
+        desc={i18n.t('k91af9c27')}
         badge={
           <span style={{ color: 'var(--muted)', fontSize: 12, fontWeight: 400 }}>
-            {view?.remote ? '自定义索引' : '随包索引'} · {view?.plugins.length || 0} 个
+            {view?.remote ? i18n.t('kaee62cf4') : i18n.t('k7dfb49cf')} · {view?.plugins.length || 0} 个
           </span>
         }
       >
         <div className="hint" style={{ lineHeight: 1.8, marginBottom: 12 }}>
-          插件跑在独立进程里，只能返回 patch，是否写库由宿主按<b>声明的权限</b>过滤。
-          这<strong>不是</strong> OS 级沙箱：只安装你信任的来源。远程下载只允许 http/https 且经逐跳地址校验（拒绝本机、内网与云元数据）。
+          {i18n.t('k3438785c')}<b>{i18n.t('kc90d329f')}</b>{i18n.t('k5571a18a')}<strong>{i18n.t('k046f5a05')}</strong> {i18n.t('kede72f2a')}
         </div>
 
         <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center' }}>
           <input
             className="input"
             style={{ flex: 1, minWidth: 180 }}
-            placeholder="搜索插件名称 / 说明 / 标签"
+            placeholder={i18n.t('ka78d8ee8')}
             value={query}
             onChange={(e) => setQuery(e.target.value)}
           />
-          <button className="btn sm ghost" onClick={() => void load()}>刷新</button>
+          <button className="btn sm ghost" onClick={() => void load()}>{i18n.t('k694fc5ef')}</button>
         </div>
 
-        <div className="settings-subhead">可用插件</div>
-        {!filtered.length && <div className="hint">没有匹配的插件。</div>}
+        <div className="settings-subhead">{i18n.t('k3e4edc49')}</div>
+        {!filtered.length && <div className="hint">{i18n.t('k1cd7ddc2')}</div>}
         {filtered.map((p) => (
           <div key={p.id} style={{ borderTop: '1px solid var(--border)', padding: '12px 0' }}>
             <div style={{ display: 'flex', gap: 10, alignItems: 'flex-start', flexWrap: 'wrap' }}>
@@ -111,44 +111,44 @@ export default function PluginMarket({ onToast }: Props) {
                 <div>
                   <b>{p.name}</b>{' '}
                   <span className="hint">
-                    {p.id} · v{p.version} · {p.author || '未署名'}
-                    {p.source === 'remote' ? ' · 自定义索引' : ''}
+                    {p.id} · v{p.version} · {p.author || i18n.t('kde837078')}
+                    {p.source === 'remote' ? i18n.t('k0576607d') : ''}
                   </span>
                 </div>
                 <div className="hint" style={{ lineHeight: 1.7 }}>{p.description}</div>
                 <div className="hint">
-                  权限：{p.permissions.length ? p.permissions.join(' / ') : '无（纯只读试算）'} · 动作：{p.actions.join(', ')}
+                  权限：{p.permissions.length ? p.permissions.join(' / ') : i18n.t('k5856bb68')} · 动作：{p.actions.join(', ')}
                 </div>
                 {p.tags.length > 0 && <div className="hint">标签：{p.tags.join(' · ')}</div>}
               </div>
               <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
                 <button className="btn sm ghost" onClick={() => setDetail(detail?.id === p.id ? null : p)}>
-                  权限详情
+                  {i18n.t('k87433841')}
                 </button>
                 {p.installed ? (
                   p.installedBuiltin ? (
                     <span className="hint" style={{ alignSelf: 'center' }}>已随包安装 v{p.installedVersion}</span>
                   ) : (
                     <button className="btn sm ghost" disabled={!!busy} onClick={() => uninstall(p.id)}>
-                      {busy === `uninstall-${p.id}` ? '卸载中…' : '卸载'}
+                      {busy === `uninstall-${p.id}` ? i18n.t('k69827c2b') : i18n.t('k81824cff')}
                     </button>
                   )
                 ) : (
                   <button className="btn sm" disabled={!!busy} onClick={() => install(p.id)}>
-                    {busy === `install-${p.id}` ? '安装中…' : '一键安装'}
+                    {busy === `install-${p.id}` ? i18n.t('kc8f8c937') : i18n.t('k04a0913e')}
                   </button>
                 )}
               </div>
             </div>
             {detail?.id === p.id && (
               <div className="hint" style={{ marginTop: 8, padding: 10, background: 'var(--panel-strong)', borderRadius: 8 }}>
-                <b>安装前请确认这些能力</b>
+                <b>{i18n.t('k3f0ab0b1')}</b>
                 {p.permissions.map((perm) => (
-                  <div key={perm}>· <code>{perm}</code> — {PERMISSION_DESC[perm] || '未说明的能力'}</div>
+                  <div key={perm}>· <code>{perm}</code> — {PERMISSION_DESC[perm] || i18n.t('kf9559b94')}</div>
                 ))}
-                {!p.permissions.length && <div>· 不申请任何权限，拿不到素材信息也写不了库</div>}
+                {!p.permissions.length && <div>{i18n.t('kec4d7005')}</div>}
                 <div style={{ marginTop: 6 }}>
-                  入口：<code>{p.package || p.downloadUrl || '（未提供包地址）'}</code>
+                  {i18n.t('k2a1c6636')}<code>{p.package || p.downloadUrl || i18n.t('k5c9e9c42')}</code>
                 </div>
               </div>
             )}
@@ -156,8 +156,8 @@ export default function PluginMarket({ onToast }: Props) {
         ))}
       </Card>
 
-      <Card title="在线安装与自定义索引" desc="从任意公开地址安装插件包，或加载自己的市场索引。">
-        <div className="settings-subhead">从 URL 安装插件包</div>
+      <Card title={i18n.t('ke5317cef')} desc={i18n.t('kd54ccbeb')}>
+        <div className="settings-subhead">{i18n.t('k2aa50818')}</div>
         <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
           <input
             className="input"
@@ -167,11 +167,11 @@ export default function PluginMarket({ onToast }: Props) {
             onChange={(e) => setUrl(e.target.value)}
           />
           <button className="btn sm" disabled={!!busy} onClick={installFromUrl}>
-            {busy === 'url' ? '下载中…' : '下载并安装'}
+            {busy === 'url' ? i18n.t('k0164eeb4') : i18n.t('k229d360a')}
           </button>
         </div>
 
-        <div className="settings-subhead">拖入本地插件包</div>
+        <div className="settings-subhead">{i18n.t('k8d062ca7')}</div>
         <label
           className="btn sm ghost"
           style={{ display: 'inline-flex', cursor: 'pointer' }}
@@ -182,7 +182,7 @@ export default function PluginMarket({ onToast }: Props) {
             if (file) void uploadFile(file);
           }}
         >
-          {busy === 'upload' ? '安装中…' : '选择 / 拖入 .tuku-plugin 或 .zip'}
+          {busy === 'upload' ? i18n.t('kc8f8c937') : i18n.t('ka0ff3d35')}
           <input
             type="file"
             hidden
@@ -195,11 +195,10 @@ export default function PluginMarket({ onToast }: Props) {
           />
         </label>
         <div className="hint" style={{ marginTop: 6 }}>
-          包格式：<code>{'{ format: "tuku-plugin/1", manifest, files }'}</code> 的 JSON，或含 <code>plugin.json</code> + 入口的 ZIP。
-          路径穿越、非法文件类型、超大包与未知权限都会被拒绝。
+          {i18n.t('k9d1190f6')}<code>{'{ format: "tuku-plugin/1", manifest, files }'}</code> {i18n.t('k5d3b2a90')} <code>plugin.json</code> {i18n.t('k7dabc0d8')}
         </div>
 
-        <div className="settings-subhead">自定义市场索引</div>
+        <div className="settings-subhead">{i18n.t('kfecb461b')}</div>
         <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
           <input
             className="input"
@@ -212,16 +211,16 @@ export default function PluginMarket({ onToast }: Props) {
             className="btn sm"
             disabled={!!busy}
             onClick={() =>
-              void act('index', () => api.refreshPluginMarket(indexUrl.trim()), '已加载自定义索引')
+              void act('index', () => api.refreshPluginMarket(indexUrl.trim()), i18n.t('ke44583dd'))
             }
           >
-            加载索引
+            {i18n.t('k2aba8807')}
           </button>
-          <button className="btn sm ghost" disabled={!!busy} onClick={() => void act('reset', () => api.resetPluginMarket(), '已恢复随包索引')}>
-            恢复随包索引
+          <button className="btn sm ghost" disabled={!!busy} onClick={() => void act('reset', () => api.resetPluginMarket(), i18n.t('k33fe370b'))}>
+            {i18n.t('k4a09283e')}
           </button>
         </div>
-        <div className="hint">自定义索引只保存在内存里，重启应用会回到随包索引，不会留下持久的外部地址。</div>
+        <div className="hint">{i18n.t('ke98b9fcb')}</div>
       </Card>
     </>
   );

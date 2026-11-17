@@ -3,6 +3,7 @@ import type { MutableRefObject } from 'react';
 import { api } from '../api';
 import type { Filters, ImageItem } from '../types';
 import { confirmDialog } from '../components/Dialogs';
+import i18n from '../i18n';
 
 type Toast = (msg: string, kind?: 'info' | 'error') => void;
 
@@ -55,16 +56,16 @@ export function useSelection({
       // 用户以为只选了当前文件夹，批量删除却波及范围外的图
       const r = await api.imageIds(filtersRef.current, { folderId: folderIdRef.current });
       setSelected(new Set(r.ids));
-      const scope = folderIdRef.current ? '当前文件夹（含子文件夹）' : '当前筛选';
+      const scope = folderIdRef.current ? i18n.t('k7f827d38') : i18n.t('k10265f4e');
       showToast(
         r.truncated
-          ? `范围共 ${r.total} 张，已选中前 ${r.ids.length} 张（超出上限，请先缩小筛选）`
+          ? i18n.t('k41a42244', { p0: r.total, p1: r.ids.length })
           : r.total > items.length
-            ? `已选中${scope}全部 ${r.total} 张（当前只显示 ${items.length} 张）`
-            : `已选中${scope} ${r.total} 张`
+            ? i18n.t('k50976f3d', { p0: scope, p1: r.total, p2: items.length })
+            : i18n.t('k1c23d9d6', { p0: scope, p1: r.total })
       );
     } catch (err) {
-      showToast(`全选失败：${(err as Error).message}`);
+      showToast(i18n.t('ka4ae6f84', { p0: (err as Error).message }));
     } finally {
       selectingAllRef.current = false;
     }
@@ -77,18 +78,18 @@ export function useSelection({
       if (bulkBusyRef.current) return; // 批量任务进行中忽略重复触发（双击 / 回车重放）
       const ids = [...selected];
       if (!ids.length) return;
-      if (action === 'delete' && !(await confirmDialog(`确定删除选中的 ${ids.length} 张图片？`))) return;
+      if (action === 'delete' && !(await confirmDialog(i18n.t('k513a2249', { p0: ids.length })))) return;
       bulkBusyRef.current = true;
       try {
         await api.batch(ids, action, tag);
-        showToast(action === 'delete' ? `已删除 ${ids.length} 张` : `已更新 ${ids.length} 张`);
+        showToast(action === 'delete' ? i18n.t('k29d27075', { p0: ids.length }) : i18n.t('k7f3a62b2', { p0: ids.length }));
         setSelected(new Set());
         pageRef.current = 1;
         load(1, true);
         refreshStats();
       } catch (err) {
         // 之前失败是静默的：用户以为删了/收藏了，实际什么都没发生
-        showToast(`批量操作失败：${(err as Error).message}`);
+        showToast(i18n.t('kcf6313ff', { p0: (err as Error).message }));
       } finally {
         bulkBusyRef.current = false;
       }

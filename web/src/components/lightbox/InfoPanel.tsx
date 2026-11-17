@@ -19,6 +19,7 @@ import {
 import { buildASE, buildPngSheet, downloadBlob } from '../../lib/palette';
 import NotesPanel from './NotesPanel';
 import FaceChips from './FaceChips';
+import i18n from '../../i18n';
 
 interface Props {
   item: ImageItem;
@@ -114,7 +115,7 @@ export default function InfoPanel({
         {item.enhanced && (
           <span
             className="enhanced-tag"
-            title="该图由「画质增强」放大过，磁盘文件已是当前尺寸"
+            title={i18n.t('k99d9366e')}
           >
             <IconWand size={12} /> 已增强 {item.enhanceScale}×（原 {item.originalWidth}×{item.originalHeight}）
           </span>
@@ -128,7 +129,7 @@ export default function InfoPanel({
           <span
             className="lb-sum-pill"
             style={{ cursor: onOpenStack ? 'pointer' : 'default' }}
-            title={`这是 ${item.stackCount} 张同素材版本堆叠中的一张，点击查看全部`}
+            title={i18n.t('kee91860d', { p0: item.stackCount })}
             onClick={onOpenStack}
           >
             <IconStack size={13} /> {item.stackCount}
@@ -140,9 +141,9 @@ export default function InfoPanel({
             <button
               key={n}
               className={`star${(item.rating || 0) >= n ? ' on' : ''}`}
-              title={`${n} 星`}
+              title={i18n.t('k2409dbfd', { p0: n })}
               aria-pressed={(item.rating || 0) === n}
-              aria-label={`设为 ${n} 星`}
+              aria-label={i18n.t('k455aeb45', { p0: n })}
               onClick={() => onPatch?.(item, { rating: item.rating === n ? 0 : n })}
             >
               <IconStar size={13} />
@@ -159,8 +160,8 @@ export default function InfoPanel({
             {item.tags.map((t) => `#${t}`).join(' ')}
           </span>
         )}
-        <button className="lb-sum-toggle" onClick={onToggle} title="展开 / 收起详情（I）">
-          {open ? '收起详情 ▴' : '详情 ▾'}
+        <button className="lb-sum-toggle" onClick={onToggle} title={i18n.t('k9f0e5026')}>
+          {open ? i18n.t('ka08fbc3d') : i18n.t('k57948478')}
         </button>
       </div>
 
@@ -169,7 +170,7 @@ export default function InfoPanel({
           <section className="lb-group">
             <h5>基本信息</h5>
             <div className="lb-kv">
-              <b>{isImage ? '分辨率' : '媒体信息'}</b>
+              <b>{isImage ? i18n.t('k874a5816') : i18n.t('k5bab3781')}</b>
               <span>
                 {isImage ? (
                   <>
@@ -179,7 +180,7 @@ export default function InfoPanel({
                 ) : (
                   <>
                     {(item.mediaKind || 'file').toUpperCase()}
-                    {item.duration > 0 ? ` · ${Math.round(item.duration)} 秒` : ''}
+                    {item.duration > 0 ? i18n.t('k744ab13d', { p0: Math.round(item.duration) }) : ''}
                     {item.md5 ? ` · MD5 ${item.md5.slice(0, 8)}` : ''}
                   </>
                 )}
@@ -196,11 +197,11 @@ export default function InfoPanel({
                   <>
                     <span
                       className="lb-link"
-                      title={`${library.name}${library.path ? `\n${library.path}` : ''}\n点击复制库路径`}
+                      title={i18n.t('kf368c6bb', { p0: library.name, p1: library.path ? `\n${library.path}` : '' })}
                       onClick={async () => {
                         try {
                           await navigator.clipboard.writeText(library.path);
-                          onChangeToast?.(`已复制库路径：${library.path}`);
+                          onChangeToast?.(i18n.t('k001640a9', { p0: library.path }));
                         } catch {
                           onChangeToast?.(library.path || library.name);
                         }
@@ -211,10 +212,10 @@ export default function InfoPanel({
                     {library.path ? (
                       <span
                         className="lb-lib-path is-clickable"
-                        title={`在文件夹中显示：${library.path}`}
+                        title={i18n.t('kfc744ac1', { p0: library.path })}
                         onClick={() =>
                           revealFile(library.path).catch((err) =>
-                            onChangeToast?.(`打开目录失败：${(err as Error).message}`)
+                            onChangeToast?.(i18n.t('k9cd07541', { p0: (err as Error).message }))
                           )
                         }
                       >
@@ -240,26 +241,24 @@ export default function InfoPanel({
             </div>
             <div className="lb-kv">
               <b>浏览情况</b>
-              <span>{item.viewCount ? `看过 ${item.viewCount} 次` : '还没看过'}</span>
+              <span>{item.viewCount ? i18n.t('k44149c53', { p0: item.viewCount }) : i18n.t('k8e63d8eb')}</span>
             </div>
             <div className="lb-kv">
               <b>使用统计</b>
               <span>
                 {item.copyCount || item.exportCount
-                  ? `复制 ${item.copyCount || 0} 次 · 导出 ${item.exportCount || 0} 次${
-                      item.lastUsedAt ? ` · 最近 ${formatDate(item.lastUsedAt)}` : ''
-                    }`
-                  : '还没复制或导出过'}
+                  ? i18n.t('k702ac552', { p0: item.copyCount || 0, p1: item.exportCount || 0, p2: item.lastUsedAt ? i18n.t('k9796a0a3', { p0: formatDate(item.lastUsedAt) }) : '' })
+                  : i18n.t('ka13e4fd2')}
               </span>
             </div>
             <div className="lb-kv">
               <b>本地文件</b>
               <span
                 className="lb-link"
-                title={`${item.path || ''}\n点击在文件夹中显示`}
+                title={i18n.t('k6d89daf9', { p0: item.path || '' })}
                 onClick={() =>
                   revealFile(item.path).catch((err) =>
-                    onChangeToast?.(`打开所在文件夹失败：${(err as Error).message}`)
+                    onChangeToast?.(i18n.t('k22c7225f', { p0: (err as Error).message }))
                   )
                 }
               >
@@ -282,14 +281,14 @@ export default function InfoPanel({
                       <span
                         key={f.id}
                         className="lb-folder-chip"
-                        title="点夹名打开该文件夹（图库里只看这一夹）；点 × 从该文件夹移出（不删除图片）"
+                        title={i18n.t('k65b7bdd2')}
                       >
                         {/* 夹名本身就是最好的入口：用户看到「第一次完整导出.jpg」这类夹名，
                             想的就是去这夹里看这张图，不该只给一个移出的 × */}
                         {onOpenFolder ? (
                           <button
                             className="lb-folder-open"
-                            title={`打开文件夹「${f.name}」，只显示这一夹的图片`}
+                            title={i18n.t('kd07ceb8f', { p0: f.name })}
                             onClick={() => onOpenFolder(f.id)}
                           >
                             {f.name}
@@ -299,14 +298,14 @@ export default function InfoPanel({
                         )}
                         <button
                           className="lb-folder-x"
-                          title={`从「${f.name}」移出`}
+                          title={i18n.t('k45e6bd1b', { p0: f.name })}
                           onClick={async () => {
                             try {
                               await api.removeFromFolder(f.id, [item.id]);
                               setImgFolders((prev) => prev.filter((x) => x.id !== f.id));
-                              onChangeToast?.(`已从「${f.name}」移出`);
+                              onChangeToast?.(i18n.t('kb3435cd3', { p0: f.name }));
                             } catch (err) {
-                              onChangeToast?.(`移出失败：${(err as Error).message}`);
+                              onChangeToast?.(i18n.t('k33d2d003', { p0: (err as Error).message }));
                             }
                           }}
                         >
@@ -333,7 +332,7 @@ export default function InfoPanel({
                 ))}
                 <input
                   className="input input-sm"
-                  placeholder="添加标签…"
+                  placeholder={i18n.t('k2ee656f3')}
                   value={tagInput}
                   onChange={(e) => setTagInput(e.target.value)}
                   onKeyDown={(e) => {
@@ -350,7 +349,7 @@ export default function InfoPanel({
                 <b>继承标签</b>
                 <span className="tag-editor">
                   {item.inheritedTags.map((t) => (
-                    <span className="tag-pill inherited" key={t} title="来自所属文件夹的标签，只读：改文件夹标签即可">
+                    <span className="tag-pill inherited" key={t} title={i18n.t('kd6b1cd7c')}>
                       {t}
                     </span>
                   ))}
@@ -364,7 +363,7 @@ export default function InfoPanel({
                   <button
                     key={n}
                     className={`star${(item.rating || 0) >= n ? ' on' : ''}`}
-                    title={`${n} 星`}
+                    title={i18n.t('k2409dbfd', { p0: n })}
                     onClick={() => onPatch?.(item, { rating: item.rating === n ? 0 : n })}
                   >
                     <IconStar size={13} />
@@ -382,7 +381,7 @@ export default function InfoPanel({
               <input
                 key={item.id}
                 className="input input-sm"
-                placeholder="记点什么…（回车保存）"
+                placeholder={i18n.t('kddaa9c1f')}
                 defaultValue={item.note}
                 onKeyDown={(e) => {
                   if (e.key === 'Enter') {
@@ -406,7 +405,7 @@ export default function InfoPanel({
                 <span
                   className="color-chip"
                   style={{ background: item.dominant || 'rgba(255,255,255,0.15)' }}
-                  title={item.dominant || '未提取主色'}
+                  title={item.dominant || i18n.t('k6d337a66')}
                 />
                 <span className="lb-mono">{item.dominant || '—'}</span>
                 {onFindColor && !!hueKey && (
@@ -414,8 +413,8 @@ export default function InfoPanel({
                     className="btn sm ghost"
                     title={
                       hueKey === 'gray'
-                        ? '跳到图库，只看黑白灰图片'
-                        : '跳到图库，只看同色系的图片'
+                        ? i18n.t('kdf71af13')
+                        : i18n.t('kdbc9c974')
                     }
                     onClick={() => onFindColor(hueKey)}
                   >
@@ -426,7 +425,7 @@ export default function InfoPanel({
                   <>
                     <button
                       className="btn sm ghost"
-                      title={`导出这张图的 ${paletteColors.length} 色主色板（.ase，Photoshop / Illustrator 可直接导入）`}
+                      title={i18n.t('kec023270', { p0: paletteColors.length })}
                       onClick={() =>
                         downloadBlob(
                           buildASE(paletteColors, item.title.replace(/\.[^.]+$/, '')),
@@ -438,7 +437,7 @@ export default function InfoPanel({
                     </button>
                     <button
                       className="btn sm ghost"
-                      title="导出 PNG 色卡（色块 + 色值），适合贴到设计稿或沟通文档"
+                      title={i18n.t('k82f7e270')}
                       onClick={async () => {
                         try {
                           downloadBlob(
@@ -446,7 +445,7 @@ export default function InfoPanel({
                             `${safeName(item.title)}.png`,
                           );
                         } catch {
-                          onChangeToast?.('导出失败：画布不可用');
+                          onChangeToast?.(i18n.t('kd531b1f8'));
                         }
                       }}
                     >
@@ -462,7 +461,7 @@ export default function InfoPanel({
                 <button
                   className={`btn sm${simOpen ? ' primary' : ''}`}
                   onClick={onToggleSim}
-                  title="用 CLIP 深度特征找出与这张最像的其他图（相似度可调）"
+                  title={i18n.t('kb6c7b4e1')}
                 >
                   {simOpen ? (<><IconClose size={12} /> 收起面板</>) : (<><IconSearch size={12} /> 找相似</>)}
                 </button>
@@ -475,7 +474,7 @@ export default function InfoPanel({
                   <button
                     className="btn sm"
                     onClick={onOpenSource}
-                    title="用 SauceNAO / Google Lens / TinEye 等外部引擎以图找图（需联网）"
+                    title={i18n.t('k05155801')}
                   >
                     <IconSearch size={12} /> 以图找图
                   </button>
@@ -494,17 +493,17 @@ export default function InfoPanel({
                       const d = await api.analyzeImage(item.id);
                       setAiDesc(d);
                     } catch (err) {
-                      onChangeToast?.(`AI 识图失败：${(err as Error).message}`);
+                      onChangeToast?.(i18n.t('k14fa2f47', { p0: (err as Error).message }));
                     } finally {
                       setAiBusy(false);
                     }
                   }}
                 >
-                  {aiBusy ? '识别中…' : aiDesc?.description ? '重新识别' : 'AI 识图'}
+                  {aiBusy ? i18n.t('k5f021cab') : aiDesc?.description ? i18n.t('k2a3dd292') : i18n.t('kd7e6a876')}
                 </button>
                 <span className="lb-ai-desc">
                   {aiDesc?.description ||
-                    '（还没识别，点左侧按钮让 AI 描述这张图，之后可用自然语言搜索）'}
+                    i18n.t('kd121ba78')}
                 </span>
                 {!!aiDesc?.issues?.length && (
                   <span className="lb-ai-issues">可能的问题：{aiDesc.issues.join('、')}</span>

@@ -9,6 +9,7 @@ import AdjustPanel, { type AdjustPanelHandle, type WbSample } from './AdjustPane
 import Histogram from './Histogram';
 import { IconClose } from './Icons';
 import { api } from '../api';
+import i18n from '../i18n';
 
 /** 中文文案：快捷键表、历史步骤名等在模块常量里只存两份文案，翻译留给调用点 */
 type Bi = string;
@@ -56,42 +57,42 @@ const hexOf = (c: { r: number; g: number; b: number }) => `#${[c.r, c.g, c.b].ma
  */
 const KEY_GROUPS: { title: Bi; items: [string, Bi][] }[] = [
   {
-    title: '工具',
+    title: i18n.t('k20dce2c6'),
     items: [
-      ['I', '吸管取白平衡（再按退出）'],
-      ['Ctrl+U', '全自动调色'],
-      ['Ctrl+Shift+R', '复位全部参数'],
-      ['E', '聚焦参数面板第一根滑杆'],
-      ['Space', '按住看原图，松开恢复'],
+      ['I', i18n.t('k3d3831ae')],
+      ['Ctrl+U', i18n.t('k6b08185b')],
+      ['Ctrl+Shift+R', i18n.t('ke0baf1c6')],
+      ['E', i18n.t('ke74a3899')],
+      ['Space', i18n.t('k8fdbb34c')],
     ],
   },
   {
-    title: '调参数',
+    title: i18n.t('k94d99fd0'),
     items: [
-      ['Tab / Shift+Tab', '下一根 / 上一根滑杆'],
-      ['↑ / ↓', '滑杆 ±1（按住 Shift 十倍）'],
-      ['Ctrl+1 ~ Ctrl+9', '直达第 1~9 根滑杆'],
-      ['单击 / 双击滑杆', '点数值可直接输入 / 双击归零'],
+      ['Tab / Shift+Tab', i18n.t('kb5fc676e')],
+      ['↑ / ↓', i18n.t('k6a3cf805')],
+      ['Ctrl+1 ~ Ctrl+9', i18n.t('k2393c94c')],
+      [i18n.t('kaf9a9553'), i18n.t('k3b4da874')],
     ],
   },
   {
-    title: '历史',
+    title: i18n.t('kc827d8db'),
     items: [
-      ['Ctrl+Z', '撤销上一步'],
-      ['Ctrl+Y / Ctrl+Shift+Z', '重做'],
-      ['Shift+V', '展开 / 收起历史记录'],
+      ['Ctrl+Z', i18n.t('k8eb868e5')],
+      ['Ctrl+Y / Ctrl+Shift+Z', i18n.t('kc3c873d3')],
+      ['Shift+V', i18n.t('kec9f9191')],
     ],
   },
   {
-    title: '视图与浏览',
+    title: i18n.t('k63a505b5'),
     items: [
-      ['Ctrl+= / Ctrl+-', '放大 / 缩小'],
-      ['Ctrl+0 / 双击图片', '适应窗口'],
-      ['滚轮', '以鼠标位置为中心缩放'],
-      ['[ / ]', '上一张 / 下一张（批量调色）'],
-      ['↑ / ↓（未选中滑杆时）', '上一张 / 下一张'],
-      ['?', '打开 / 关闭这张表'],
-      ['Esc', '关表 → 退吸管 → 关调色台'],
+      ['Ctrl+= / Ctrl+-', i18n.t('k8ceb51d1')],
+      [i18n.t('k2d166185'), i18n.t('k4db7edc0')],
+      [i18n.t('kae56e369'), i18n.t('k4586328c')],
+      ['[ / ]', i18n.t('kc898ca34')],
+      [i18n.t('k10e26d22'), i18n.t('k196b34c2')],
+      ['?', i18n.t('k678c14c6')],
+      ['Esc', i18n.t('k88f1425f')],
     ],
   },
 ];
@@ -151,7 +152,7 @@ export default function ColorRoom({
   }
   /** entries[0] 永远是打开这张图时的参数；index 指向当前生效的那一步 */
   const histRef = useRef<{ entries: HistEntry[]; index: number; at: number }>({
-    entries: [{ params: value, label: '打开' }],
+    entries: [{ params: value, label: i18n.t('kd7098f50') }],
     index: 0,
     at: 0,
   });
@@ -176,7 +177,7 @@ export default function ColorRoom({
       })
       .catch((err) => {
         // 读设置失败不影响调色，退回默认 100 步，但要留痕，别静默吞掉
-        console.warn('读取调色历史步数失败，按默认 100 步处理', err);
+        console.warn(i18n.t('kd8c63db4'), err);
       });
     return () => {
       alive = false;
@@ -189,31 +190,31 @@ export default function ColorRoom({
   /** 参数里改了什么，翻译成历史列表里的步骤名 */
   const labelOf = (prev: AdjustParams, next: AdjustParams): Bi => {
     const NAME: Record<string, Bi> = {
-      temperature: '色温',
-      tint: '色调',
-      exposure: '曝光',
-      contrast: '对比度',
-      highlights: '高光',
-      shadows: '阴影',
-      whites: '白点',
-      blacks: '黑点',
-      saturation: '饱和度',
-      vibrance: '自然饱和度',
-      clarity: '清晰度',
-      sharpen: '锐化',
-      curves: '曲线',
-      colorMixer: '混色器',
-      hueSat: '色相/饱和度',
-      colorGrade: '颜色分级',
+      temperature: i18n.t('kc4985160'),
+      tint: i18n.t('k7b996e61'),
+      exposure: i18n.t('k131f6f6b'),
+      contrast: i18n.t('kadc0d88f'),
+      highlights: i18n.t('k57b026b7'),
+      shadows: i18n.t('k803205e3'),
+      whites: i18n.t('k18438c84'),
+      blacks: i18n.t('kb700500f'),
+      saturation: i18n.t('kbd05021d'),
+      vibrance: i18n.t('k2fcb9a85'),
+      clarity: i18n.t('k48f1cd8c'),
+      sharpen: i18n.t('kab3312d7'),
+      curves: i18n.t('k586dc275'),
+      colorMixer: i18n.t('kc6ac64d9'),
+      hueSat: i18n.t('k0a2ef31f'),
+      colorGrade: i18n.t('k5e41d36a'),
     };
     const keys = Object.keys(NAME).filter(
       (key) =>
         JSON.stringify((prev as unknown as Record<string, unknown>)[key]) !==
         JSON.stringify((next as unknown as Record<string, unknown>)[key]),
     );
-    if (!keys.length) return '微调';
+    if (!keys.length) return i18n.t('k58fd75c1');
     if (keys.length === 1) return NAME[keys[0]];
-    return `${NAME[keys[0]]} 等 ${keys.length} 项`;
+    return i18n.t('k7a0bb480', { p0: NAME[keys[0]], p1: keys.length });
   };
 
   /**
@@ -258,7 +259,7 @@ export default function ColorRoom({
 
   // 换图 / 换批量选中项：历史清空（上一张图的历史套到这一张上是灾难）
   useEffect(() => {
-    histRef.current = { entries: [{ params: valueRef.current, label: '打开' }], index: 0, at: 0 };
+    histRef.current = { entries: [{ params: valueRef.current, label: i18n.t('kd7098f50') }], index: 0, at: 0 };
     bumpHist((v) => v + 1);
   }, [src, activeFilmId]);
 
@@ -416,7 +417,7 @@ export default function ColorRoom({
     const base = baseRef.current;
     if (!base) return;
     const wb = autoWbFromPixels(base.data, 4);
-    handleChange({ ...valueRef.current, ...wb }, '自动白平衡');
+    handleChange({ ...valueRef.current, ...wb }, i18n.t('kcc3ed101'));
     onSampleChange(null);
     setPoint(null);
     setPicking(false);
@@ -432,7 +433,7 @@ export default function ColorRoom({
     const auto = autoToneFromPixels(base.data, 4);
     // 从默认值出发：自动的语义是「重新给一版最优」，不是把结果叠在当前手工调整上，
     // 否则点两次会越来越亮、曲线/分级也会带着上一次的痕迹
-    handleChange({ ...ADJUST_DEFAULTS, ...auto }, '全自动');
+    handleChange({ ...ADJUST_DEFAULTS, ...auto }, i18n.t('ke2839be5'));
     onSampleChange(null);
     setPoint(null);
     setPicking(false);
@@ -545,7 +546,7 @@ export default function ColorRoom({
   };
 
   /** 复位全部参数（Ctrl+Shift+R，和 Lightroom/ACR 一致） */
-  const resetAll = () => handleChange({ ...ADJUST_DEFAULTS }, '复位');
+  const resetAll = () => handleChange({ ...ADJUST_DEFAULTS }, i18n.t('k22d9202d'));
 
   /* ---------------- 键盘：像素蛋糕同款（捕获阶段，先于外层组件处理） ----------------
    * Space 按住看原图 / E 进色彩面板 / I 吸管 / Ctrl+U 全自动 / Ctrl+Shift+R 复位
@@ -747,7 +748,7 @@ export default function ColorRoom({
       className="color-room"
       role="dialog"
       aria-modal="true"
-      aria-label={'调色台'}
+      aria-label={i18n.t('kf627ef9e')}
       onClick={(e) => e.stopPropagation()}
       onPointerDown={(e) => e.stopPropagation()}
     >
@@ -758,29 +759,29 @@ export default function ColorRoom({
           {badge && <span className="cr-badge">{badge}</span>}
         </div>
         <div className="cr-tools">
-          <button className="btn xs" onClick={() => zoomBy(1 / 1.25)} title={'缩小'}>
+          <button className="btn xs" onClick={() => zoomBy(1 / 1.25)} title={i18n.t('kb21ac253')}>
             －
           </button>
-          <button className="btn xs" onClick={resetView} title={'适应窗口（双击图片同样效果）'}>
+          <button className="btn xs" onClick={resetView} title={i18n.t('kaddcb84e')}>
             {Math.round(zoom * 100)}%
           </button>
-          <button className="btn xs" onClick={() => zoomBy(1.25)} title={'放大'}>
+          <button className="btn xs" onClick={() => zoomBy(1.25)} title={i18n.t('k4f9b192c')}>
             ＋
           </button>
           <button
             className="btn xs"
-            title={'按住查看原图（松开恢复调色预览）'}
+            title={i18n.t('ka2c480de')}
             onPointerDown={() => setShowRaw(true)}
             onPointerUp={() => setShowRaw(false)}
             onPointerLeave={() => setShowRaw(false)}
           >
-            {showRaw ? '原图' : '对比'}
+            {showRaw ? i18n.t('kfb43d5ff') : i18n.t('kf5deaa17')}
           </button>
-          <button className="btn xs" title={'快捷键表（?）'} onClick={() => setKeysOpen((v) => !v)}>
-            {'快捷键'}
+          <button className="btn xs" title={i18n.t('k118b4b9f')} onClick={() => setKeysOpen((v) => !v)}>
+            {i18n.t('kf7d29966')}
           </button>
         </div>
-        <button className="btn sm ghost cr-close" onClick={onClose} title={'关闭调色台（Esc）'}>
+        <button className="btn sm ghost cr-close" onClick={onClose} title={i18n.t('k47652479')}>
           <IconClose />
         </button>
       </header>
@@ -825,7 +826,7 @@ export default function ColorRoom({
               ref={markRef}
               className="lb-sample-mark"
               style={{ left: 0, top: 0, background: point.hex }}
-              title={`取样 ${point.hex}`}
+              title={i18n.t('kd251ef6e', { p0: point.hex })}
             />
           )}
 
@@ -847,7 +848,7 @@ export default function ColorRoom({
           <div
             className="cr-strip"
             role="tablist"
-            aria-label={'批量图片：点击切换预览，调色参数对整批一致'}
+            aria-label={i18n.t('k66a33e6c')}
           >
             {filmstrip.map((f) => (
               <button
@@ -877,7 +878,7 @@ export default function ColorRoom({
               <span style={{ color: '#ff6b6b' }}>R</span>
               <span style={{ color: '#4ade80' }}>G</span>
               <span style={{ color: '#60a5fa' }}>B</span>
-              <span className="cr-hist-luma">{'亮度'}</span>
+              <span className="cr-hist-luma">{i18n.t('kcfd060d8')}</span>
             </div>
           </div>
 
@@ -888,18 +889,18 @@ export default function ColorRoom({
               className={`cr-log-head${histOpen ? ' open' : ''}`}
               onClick={() => setHistOpen((v) => !v)}
               aria-expanded={histOpen}
-              title={'调色历史（Shift+V）'}
+              title={i18n.t('k7392b13d')}
             >
               <span className="cr-log-caret" aria-hidden="true">
                 {histOpen ? '▾' : '▸'}
               </span>
-              <span>{'历史记录'}</span>
+              <span>{i18n.t('kba9dc6d2')}</span>
               <span className="cr-log-count">
                 {hist.index + 1} / {hist.entries.length}
               </span>
             </button>
             {histOpen && (
-              <div className="cr-log-list" role="listbox" aria-label={'调色历史'}>
+              <div className="cr-log-list" role="listbox" aria-label={i18n.t('kd35fc7e3')}>
                 {hist.entries.map((entry, i) => (
                   <button
                     key={`${i}-${entry.label}`}
@@ -908,14 +909,14 @@ export default function ColorRoom({
                     aria-selected={i === hist.index}
                     className={`cr-log-item${i === hist.index ? ' on' : ''}${i > hist.index ? ' undone' : ''}`}
                     onClick={() => goHistory(i)}
-                    title={i === hist.index ? '当前步骤' : '回到这一步'}
+                    title={i === hist.index ? i18n.t('k59cecbff') : i18n.t('ke8d6de65')}
                   >
                     <span className="cr-log-no">{i + 1}</span>
                     <span className="cr-log-name">{entry.label}</span>
                   </button>
                 ))}
                 <div className="cr-log-foot">
-                  {`最多保留 ${histLimit} 步 · 设置里可改 · Ctrl+Z 逐步撤销`}
+                  {i18n.t('k6487ffd1', { p0: histLimit })}
                 </div>
               </div>
             )}
@@ -946,9 +947,9 @@ export default function ColorRoom({
             />
             <p className="cr-note">
               {picking
-                ? '移动鼠标看放大镜取色，点一下中性灰/白色位置即锁定白平衡'
+                ? i18n.t('k826a35ee')
                 : note ||
-                  'Ctrl+Z 撤销 / Ctrl+Y 重做；滑块可双击归零；按 ? 看全部快捷键'}
+                  i18n.t('k6e0fe0e6')}
             </p>
           </div>
 
@@ -962,16 +963,16 @@ export default function ColorRoom({
           className="cr-keys"
           role="dialog"
           aria-modal="true"
-          aria-label={'快捷键'}
+          aria-label={i18n.t('kf7d29966')}
           onClick={() => setKeysOpen(false)}
         >
           <div className="cr-keys-box" onClick={(e) => e.stopPropagation()}>
             <header className="cr-keys-head">
               <div>
-                <b>{'调色台快捷键'}</b>
-                <span>{'照像素蛋糕的手感配的，? 随时叫出来'}</span>
+                <b>{i18n.t('kc91bfc69')}</b>
+                <span>{i18n.t('k474c85c2')}</span>
               </div>
-              <button className="btn sm ghost" onClick={() => setKeysOpen(false)} title={'关闭（Esc）'}>
+              <button className="btn sm ghost" onClick={() => setKeysOpen(false)} title={i18n.t('k01aadfea')}>
                 <IconClose />
               </button>
             </header>
@@ -989,7 +990,7 @@ export default function ColorRoom({
               ))}
             </div>
             <p className="cr-keys-note">
-              {'鼠标在输入框里打字时不会抢键；组合键只在本窗口生效，不会影响其他软件。'}
+              {i18n.t('k56bbd1d5')}
             </p>
           </div>
         </div>

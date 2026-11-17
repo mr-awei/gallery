@@ -3,6 +3,7 @@ import { createPortal } from 'react-dom';
 import { api } from '../api';
 import type { Library, SwitchLibraryResult } from '../types';
 import { IconClose } from './Icons';
+import i18n from '../i18n';
 
 /**
  * 资源库密码对话框（切换器行菜单与「切到加密库」共用）。
@@ -39,16 +40,16 @@ export default function LibraryLockDialog({
     if (mode === 'remove') {
       // 移除只问原密码：没有「新密码」这回事，多一个空框只会让人以为要填两遍
       if (!pwd2) {
-        setErr('请输入原密码');
+        setErr(i18n.t('k9c19a424'));
         return;
       }
     } else {
       if (!pwd) {
-        setErr('请输入密码');
+        setErr(i18n.t('ke39ffe99'));
         return;
       }
       if (mode === 'set' && pwd !== pwd2) {
-        setErr('两次输入的密码不一致');
+        setErr(i18n.t('k6046d642'));
         return;
       }
     }
@@ -58,7 +59,7 @@ export default function LibraryLockDialog({
       if (mode === 'unlock') {
         const r = await onSwitch?.(library.id, pwd);
         if (r && !r.ok) {
-          setErr(r.message || '解锁失败');
+          setErr(r.message || i18n.t('k984ac362'));
           setBusy(false);
           return;
         }
@@ -78,7 +79,7 @@ export default function LibraryLockDialog({
       onChanged();
       onClose();
     } catch (e) {
-      setErr((e as Error).message || '操作失败');
+      setErr((e as Error).message || i18n.t('k5fa802be'));
     } finally {
       setBusy(false);
     }
@@ -86,12 +87,12 @@ export default function LibraryLockDialog({
 
   const title =
     mode === 'unlock'
-      ? `解锁「${library.name}」`
+      ? i18n.t('kf7469344', { p0: library.name })
       : mode === 'set'
-        ? `给「${library.name}」加密码`
+        ? i18n.t('k59932d0d', { p0: library.name })
         : mode === 'change'
-          ? `修改「${library.name}」的密码`
-          : `移除「${library.name}」的密码`;
+          ? i18n.t('k40aab159', { p0: library.name })
+          : i18n.t('k5badf86c', { p0: library.name });
 
   // 必须挂到 body：这个对话框由侧栏里的资源库切换器渲染，而 .sidebar 有
   // backdrop-filter（会把自己变成 fixed 后代的包含块）且 overflow-x:hidden，
@@ -101,14 +102,14 @@ export default function LibraryLockDialog({
       <div className="modal-card" style={{ width: 400 }} onClick={(e) => e.stopPropagation()}>
         <div className="modal-head">
           <b>{title}</b>
-          <button className="icon-btn" onClick={onClose} title="关闭">
+          <button className="icon-btn" onClick={onClose} title={i18n.t('kb15d9127')}>
             <IconClose />
           </button>
         </div>
         <div className="modal-body lock-body">
           {mode === 'unlock' ? (
             <div className="field">
-              <label>密码</label>
+              <label>{i18n.t('ka8105204')}</label>
               <input
                 className="input"
                 type="password"
@@ -121,26 +122,26 @@ export default function LibraryLockDialog({
                 onKeyDown={(e) => {
                   if (e.key === 'Enter') void submit();
                 }}
-                placeholder="输入资源库密码"
+                placeholder={i18n.t('k309324d3')}
               />
             </div>
           ) : (
             <>
               {mode !== 'remove' && (
                 <div className="field">
-                  <label>{mode === 'change' ? '新密码' : '密码'}</label>
+                  <label>{mode === 'change' ? i18n.t('kbf7da0bf') : i18n.t('ka8105204')}</label>
                   <input
                     className="input"
                     type="password"
                     autoFocus
                     value={pwd}
                     onChange={(e) => setPwd(e.target.value)}
-                    placeholder="至少 4 位"
+                    placeholder={i18n.t('k552fd502')}
                   />
                 </div>
               )}
               <div className="field">
-                <label>{mode === 'set' ? '再输一次' : '原密码'}</label>
+                <label>{mode === 'set' ? i18n.t('k33372d21') : i18n.t('k01e94436')}</label>
                 <input
                   className="input"
                   type="password"
@@ -150,7 +151,7 @@ export default function LibraryLockDialog({
                   onKeyDown={(e) => {
                     if (e.key === 'Enter') void submit();
                   }}
-                  placeholder={mode === 'set' ? '确认密码' : '当前密码'}
+                  placeholder={mode === 'set' ? i18n.t('k3fbdde13') : i18n.t('ka806ce95')}
                 />
               </div>
             </>
@@ -160,16 +161,16 @@ export default function LibraryLockDialog({
 
           <div className="settings-desc" style={{ margin: '10px 0 0' }}>
             {mode === 'unlock'
-              ? '解锁只在本次运行有效；切到别的库或重启应用后会重新锁上。'
-              : '加锁后打开/切换到这个库要输密码，其它库不受影响。密码只存 scrypt 哈希，忘记后只能从磁盘上删库解锁。'}
+              ? i18n.t('k5cf7a6ad')
+              : i18n.t('k29d7e07d')}
           </div>
         </div>
         <div className="modal-foot">
           <button className="btn sm" onClick={onClose}>
-            取消
+            {i18n.t('k625fb26b')}
           </button>
           <button className="btn sm primary" disabled={busy} onClick={() => void submit()}>
-            {busy ? '处理中…' : mode === 'unlock' ? '解锁并切换' : mode === 'set' ? '加密码' : mode === 'change' ? '保存' : '确认移除'}
+            {busy ? i18n.t('kcf978c02') : mode === 'unlock' ? i18n.t('k3b2ca7c3') : mode === 'set' ? i18n.t('kf6383b98') : mode === 'change' ? i18n.t('kbe5fbbe3') : i18n.t('ke2cfe794')}
           </button>
         </div>
       </div>

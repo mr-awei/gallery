@@ -9,6 +9,7 @@ import {
   geometrySig,
   visibleRange,
 } from '../lib/masonryLayout';
+import i18n from '../i18n';
 
 /**
  * 绝对定位瀑布流 + 窗口虚拟滚动。
@@ -353,7 +354,7 @@ export default function MasonryGrid({
       data-tour="gallery-grid"
       /* 不用 role=grid：瀑布流的卡片位置与行列无关，硬套 gridcell 反而让读屏按行播报错位。
          卡片自身是 role=button，这里只补一句整体说明。 */
-      aria-label={roving ? '图片网格：方向键移动，Enter 打开，空格勾选' : undefined}
+      aria-label={roving ? i18n.t('kb4082429') : undefined}
       style={{ position: 'relative', height: layout.totalHeight || undefined }}
       onKeyDown={onGridKeyDown}
       onFocus={

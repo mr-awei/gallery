@@ -9,6 +9,7 @@
  */
 import type { WatermarkParams } from '../api';
 import type { WatermarkPreset, WatermarkPresetParams } from '../types';
+import i18n from '../i18n';
 
 /** 导出文件的标识：导入时先认这个，避免把随便一个 JSON 当预设灌进来 */
 export const PRESET_KIND = 'tuku.watermark-presets';
@@ -87,11 +88,11 @@ export function parsePresetFile(raw: unknown): { presets: WatermarkPreset[]; ski
     const obj = raw as Record<string, unknown>;
     // 只认后缀：早先导出的文件 kind 前缀不同，但结构完全一样，不该因此拒收
     if (obj.kind && !String(obj.kind).endsWith('.watermark-presets')) {
-      throw new Error('这不是水印预设文件（kind 不匹配）');
+      throw new Error(i18n.t('kad4d4818'));
     }
     list = obj.presets;
   }
-  if (!Array.isArray(list)) throw new Error('预设文件格式不对：里面没有 presets 数组');
+  if (!Array.isArray(list)) throw new Error(i18n.t('k9a526e32'));
   const presets: WatermarkPreset[] = [];
   let skipped = 0;
   for (const item of list) {
