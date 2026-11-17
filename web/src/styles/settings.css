@@ -1,0 +1,412 @@
+/* 设置页 —— 自 styles.css 机械拆分（原第 1518–1657 行）；import 顺序见 styles.css 入口 */
+
+/* ------------------------------- 设置页面 ------------------------------- */
+
+.settings-layout {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+  gap: 14px;
+  align-items: start;
+}
+
+/* GitHub 式设置：左分组导航 + 右单栏面板 */
+.settings-shell {
+  display: grid;
+  grid-template-columns: 216px minmax(0, 1fr);
+  gap: 18px;
+  align-items: start;
+}
+.settings-nav {
+  position: sticky;
+  /* 页头本身也吸顶（components.css 的 .page-head），侧栏必须从页头下沿开始吸，
+     否则会被页头盖住；--head-h 是 App 里实测的页头高度 */
+  top: calc(var(--head-h, 0px) + 12px);
+  z-index: 29;
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+  padding: 8px;
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  /* 分组后共 20 行，超过窗口高度时侧栏自己滚，别把整页撑长 */
+  max-height: calc(100vh - var(--head-h, 0px) - 40px);
+  overflow-y: auto;
+  scrollbar-width: thin;
+}
+.settings-nav .nav-label {
+  font-size: 11px;
+  color: #6f6f8c;
+  padding: 6px 12px 10px;
+  letter-spacing: 0.08em;
+}
+.nav-group {
+  padding-bottom: 8px;
+  margin-bottom: 6px;
+  border-bottom: 1px solid var(--border);
+}
+.nav-group:last-child {
+  border-bottom: none;
+  margin-bottom: 0;
+  padding-bottom: 0;
+}
+.nav-group-title {
+  font-size: 10.5px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  color: #6f6f8c;
+  padding: 4px 12px 5px;
+}
+.settings-nav button {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  width: 100%;
+  padding: 7px 11px;
+  border: none;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--muted);
+  font-size: 13px;
+  text-align: left;
+  transition: background 0.15s, color 0.15s;
+}
+.settings-nav button:hover {
+  background: var(--panel-strong);
+  color: var(--text);
+}
+.settings-nav button.active {
+  background: rgba(255, 77, 141, 0.16);
+  color: var(--text);
+}
+.settings-nav button.active svg {
+  color: var(--accent);
+}
+.settings-panel {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+/* 右栏分类头：切到任何一栏都能立刻看出「我在哪、这栏管什么」 */
+.settings-panel-head {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 14px 16px;
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+}
+.settings-panel-icon {
+  display: grid;
+  place-items: center;
+  width: 34px;
+  height: 34px;
+  flex: 0 0 34px;
+  border-radius: 10px;
+  background: rgba(255, 77, 141, 0.12);
+  color: var(--accent);
+}
+.settings-panel-head-text {
+  min-width: 0;
+  flex: 1;
+}
+.settings-panel-head h2 {
+  font-size: 16px;
+  margin: 0;
+}
+.settings-panel-head p {
+  font-size: 12px;
+  color: var(--muted);
+  margin: 2px 0 0;
+}
+/* 一栏里卡片较多时，用子标题再切一层，避免一长串同级卡片 */
+.settings-subhead {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  color: #8a8ca5;
+  margin: 4px 0 -6px;
+}
+.settings-subhead::before {
+  content: '';
+  width: 3px;
+  height: 12px;
+  border-radius: 2px;
+  background: var(--accent);
+  opacity: 0.75;
+}
+/* 卡片内部不是 flex 列，负边距会把内容往上拽；这里改成常规上下留白 */
+.card .settings-subhead {
+  margin: 14px 0 10px;
+}
+.card .settings-subhead:first-of-type {
+  margin-top: 2px;
+}
+.settings-scope {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 18px;
+  margin-top: 8px;
+  font-size: 11.5px;
+  color: #8a8ca5;
+}
+.settings-scope b {
+  color: var(--text);
+  font-weight: 600;
+  margin-right: 4px;
+}
+.settings-panel .hint {
+  line-height: 1.75;
+}
+.settings-desc {
+  font-size: 12.5px;
+  color: var(--muted);
+  margin: -6px 0 14px;
+  line-height: 1.6;
+}
+.settings-subtitle {
+  font-size: 12px;
+  color: #6f6f8c;
+  margin: 18px 0 10px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+}
+@media (max-width: 980px) {
+  .settings-shell {
+    grid-template-columns: 1fr;
+  }
+  .settings-nav {
+    position: static;
+    flex-direction: row;
+    flex-wrap: wrap;
+    gap: 6px;
+    max-height: none;
+    overflow: visible;
+  }
+  .settings-nav .nav-label {
+    width: 100%;
+    padding: 4px 8px;
+  }
+  .nav-group {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 4px;
+    border-bottom: none;
+    margin: 0;
+    padding: 0;
+  }
+  .nav-group-title {
+    width: 100%;
+    padding: 4px 8px 2px;
+  }
+  .settings-nav button {
+    width: auto;
+  }
+}
+.field {
+  margin-bottom: 14px;
+}
+.field label {
+  display: block;
+  font-size: 12.5px;
+  color: var(--muted);
+  margin-bottom: 6px;
+}
+.field .input {
+  width: 100%;
+}
+.field .hint {
+  font-size: 11.5px;
+  color: #6f6f8c;
+  margin-top: 5px;
+}
+.switch-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 0;
+  border-bottom: 1px solid var(--border);
+}
+.switch-row:last-child {
+  border-bottom: none;
+}
+/* 采集源「需配置」标记（如微博需要登录 Cookie） */
+.src-hint {
+  margin-left: 8px;
+  padding: 1px 7px;
+  border-radius: 20px;
+  font-size: 10.5px;
+  color: var(--warn);
+  background: rgba(251, 191, 36, 0.14);
+  border: 1px solid rgba(251, 191, 36, 0.3);
+  white-space: nowrap;
+}
+.section-title {
+  font-size: 14px;
+  font-weight: 600;
+  margin: 0 0 14px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+/* ------------------------------ 维护工具卡片 ------------------------------ */
+.maint-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(112px, 1fr));
+  gap: 8px;
+}
+.maint-grid > div {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 8px 10px;
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+}
+.maint-grid > div b {
+  font-size: 15px;
+  font-variant-numeric: tabular-nums;
+}
+.maint-grid > div span {
+  font-size: 11px;
+  color: var(--muted);
+}
+.maint-grid > div.warn b {
+  color: var(--warn);
+}
+.maint-missing {
+  margin-top: 14px;
+  padding-top: 12px;
+  border-top: 1px dashed var(--border);
+}
+
+/* --------------------------- 关于软件（版本 / 环境 / 目录） --------------------------- */
+.about-hero {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px;
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+}
+.about-hero-mark {
+  flex: 0 0 auto;
+  width: 46px;
+  height: 46px;
+  display: grid;
+  place-items: center;
+  font-size: 13px;
+  font-weight: 700;
+  letter-spacing: 1px;
+  color: #fff;
+  border-radius: 12px;
+  background: linear-gradient(135deg, var(--accent), var(--accent-2));
+}
+.about-hero-text {
+  min-width: 0;
+}
+.about-hero-name {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  font-size: 15px;
+  font-weight: 600;
+  margin-bottom: 2px;
+}
+.about-hero-ver {
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
+}
+.about-actions {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin-top: 12px;
+}
+.about-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 2px 18px;
+}
+.about-row {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 6px 0;
+  border-bottom: 1px dashed var(--border);
+}
+.about-row-label {
+  font-size: 12px;
+  color: var(--muted);
+  white-space: nowrap;
+}
+.about-row-value {
+  font-size: 12px;
+  text-align: right;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+.about-row-value.mono {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+}
+.about-paths {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.about-path {
+  display: grid;
+  grid-template-columns: 76px minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 10px;
+}
+.about-path-label {
+  font-size: 12px;
+  color: var(--muted);
+}
+.about-path code {
+  font-size: 12px;
+  padding: 4px 8px;
+  border-radius: 6px;
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid var(--border);
+  overflow-wrap: anywhere;
+}
+.about-components {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+  gap: 8px;
+}
+.about-component {
+  padding: 8px 10px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.03);
+}
+.about-component-name {
+  font-size: 12px;
+  font-weight: 600;
+  overflow-wrap: anywhere;
+}
+.about-component-use {
+  font-size: 11px;
+  color: var(--muted);
+  line-height: 1.6;
+}
+.about-component-license {
+  font-size: 11px;
+  color: var(--accent);
+  overflow-wrap: anywhere;
+}

@@ -1,0 +1,993 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>TuKu · In-Depth Review and Benchmarking Report (Local Baseline + Long-Term Goals)</title>
+<style>
+  :root{
+    --bg:#f5f7fb;--panel:#ffffff;--panel2:#fbfcfe;--line:#e2e8f0;
+    --text:#0f172a;--muted:#475569;--dim:#64748b;
+    --indigo:#4f46e5;--cyan:#0891b2;--emerald:#059669;--amber:#b45309;--rose:#e11d48;
+    --grad:linear-gradient(120deg,#4f46e5,#0891b2 55%,#059669);
+    --shadow:0 18px 42px -30px rgba(15,23,42,.35);
+  }
+  *{box-sizing:border-box}
+  html{scroll-behavior:smooth}
+  body{margin:0;color:var(--text);line-height:1.7;font-size:15px;
+    background:
+      radial-gradient(1100px 600px at 12% -8%,rgba(79,70,229,.10),transparent 60%),
+      radial-gradient(900px 520px at 92% 0%,rgba(8,145,178,.08),transparent 55%),
+      radial-gradient(800px 500px at 50% 110%,rgba(5,150,105,.06),transparent 60%),
+      var(--bg);
+    background-attachment:fixed;
+    font-family:"Noto Sans SC","PingFang SC","Microsoft YaHei",system-ui,-apple-system,"Segoe UI",sans-serif;
+    -webkit-font-smoothing:antialiased}
+  .wrap{max-width:1180px;margin:0 auto;padding:0 22px 96px}
+  a{color:var(--cyan);text-decoration:none}
+  a:hover{text-decoration:underline}
+
+  .hero{padding:70px 0 34px}
+  .kicker{display:inline-flex;align-items:center;gap:8px;font-size:12.5px;letter-spacing:.14em;
+    text-transform:uppercase;color:var(--cyan);border:1px solid rgba(8,145,178,.24);
+    background:rgba(8,145,178,.06);padding:6px 12px;border-radius:999px}
+  .dot{width:6px;height:6px;border-radius:50%;background:var(--cyan);box-shadow:0 0 10px rgba(8,145,178,.55)}
+  h1{font-size:clamp(30px,4.6vw,50px);line-height:1.18;margin:18px 0 12px;letter-spacing:-.02em}
+  h1 .g{background:var(--grad);-webkit-background-clip:text;background-clip:text;color:transparent}
+  .lede{color:var(--muted);max-width:840px;font-size:16px}
+  .chips{display:flex;flex-wrap:wrap;gap:10px;margin-top:22px}
+  .chip{font-size:12.5px;color:var(--muted);border:1px solid var(--line);background:#fff;
+    padding:6px 12px;border-radius:8px;box-shadow:0 1px 0 rgba(15,23,42,.03)}
+  .chip b{color:var(--text);font-weight:600}
+
+  .scores{display:grid;grid-template-columns:1fr 1fr;gap:18px;margin:34px 0 10px}
+  .score-card{border-radius:18px;padding:24px 26px 20px;
+    background:linear-gradient(160deg,rgba(79,70,229,.09),#fff 46%);
+    border:1px solid rgba(79,70,229,.18);box-shadow:var(--shadow)}
+  .score-card.alt{background:linear-gradient(160deg,rgba(180,83,9,.09),#fff 46%);
+    border-color:rgba(180,83,9,.18)}
+  .score-head{display:flex;justify-content:space-between;align-items:flex-start;gap:16px}
+  .score-title{font-size:13px;color:var(--muted)}
+  .score-title b{display:block;font-size:19px;color:var(--text);margin-bottom:2px}
+  .rankbadge{font-size:12px;padding:4px 10px;border-radius:999px;white-space:nowrap;
+    background:rgba(5,150,105,.10);color:var(--emerald);border:1px solid rgba(5,150,105,.26)}
+  .rankbadge.warn{background:rgba(180,83,9,.09);color:var(--amber);border-color:rgba(180,83,9,.24)}
+  .donut-wrap{display:flex;align-items:center;gap:22px;margin-top:16px}
+  .donut{--v:0;position:relative;width:112px;height:112px;border-radius:50%;flex:0 0 auto;
+    background:conic-gradient(from -90deg,#4f46e5,#0891b2 calc(var(--v)*1%),rgba(15,23,42,.08) 0)}
+  .donut::after{content:"";position:absolute;inset:12px;border-radius:50%;background:#fff;
+    box-shadow:inset 0 0 16px rgba(15,23,42,.06)}
+  .donut span{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;
+    font-size:25px;font-weight:700;letter-spacing:-.02em;z-index:1}
+  .donut small{font-size:12px;color:var(--muted);font-weight:400;margin-left:2px}
+  .score-note{color:var(--muted);font-size:13.4px}
+  .score-note b{color:var(--text)}
+  .split{margin-top:14px;padding-top:12px;border-top:1px dashed var(--line);font-size:13px;color:var(--dim)}
+  .split b{color:var(--amber);font-size:15px}
+
+  section{margin-top:62px}
+  .sec-head{display:flex;align-items:baseline;gap:14px;margin-bottom:8px}
+  .sec-no{font-size:12px;letter-spacing:.16em;color:var(--cyan);border:1px solid rgba(34,211,238,.28);
+    padding:3px 9px;border-radius:6px;background:rgba(34,211,238,.06)}
+  h2{font-size:clamp(21px,2.6vw,28px);margin:0;letter-spacing:-.01em}
+  .sec-sub{color:var(--muted);margin:0 0 22px;max-width:920px}
+
+  .panel{background:#fff;border:1px solid var(--line);border-radius:16px;padding:22px 24px;
+    box-shadow:0 1px 2px rgba(15,23,42,.04)}
+  .grid2{display:grid;grid-template-columns:1fr 1fr;gap:18px}
+  .grid3{display:grid;grid-template-columns:repeat(3,1fr);gap:14px}
+  .grid4{display:grid;grid-template-columns:repeat(4,1fr);gap:14px}
+
+  table{width:100%;border-collapse:collapse;font-size:13.6px}
+  thead th{position:sticky;top:0;background:#f1f5f9;color:var(--muted);font-weight:600;
+    text-align:left;padding:10px;border-bottom:1px solid var(--line);white-space:nowrap;z-index:2}
+  tbody td{padding:10px;border-bottom:1px solid rgba(15,23,42,.07);vertical-align:top}
+  tbody tr:hover{background:rgba(79,70,229,.04)}
+  tbody tr:last-child td{border-bottom:none}
+  .num{font-variant-numeric:tabular-nums;font-weight:600}
+  .tbl-wrap{overflow:auto;border:1px solid var(--line);border-radius:14px;background:#fff}
+  .tbl-wrap table{min-width:720px}
+  .hi{background:rgba(79,70,229,.07)!important}
+  .s9{color:#059669;font-weight:700}
+  .s8{color:#1d4ed8;font-weight:700}
+  .s7{color:#b45309;font-weight:700}
+  .s6{color:#e11d48;font-weight:700}
+  .muted{color:var(--muted)}
+  .tiny{font-size:12.4px}
+  .mono{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;font-size:12.3px}
+
+  .ranklist{display:flex;flex-direction:column;gap:10px;margin-top:4px}
+  .rankrow{display:grid;grid-template-columns:100px 1fr 52px;align-items:center;gap:12px}
+  .rk-name{font-size:13.2px;color:var(--muted);text-align:right}
+  .rankrow.me .rk-name{color:var(--text);font-weight:700}
+  .track{height:11px;border-radius:8px;background:rgba(15,23,42,.07);overflow:hidden}
+  .fill{height:100%;border-radius:8px;background:linear-gradient(90deg,#4f46e5,#0891b2)}
+  .rankrow.me .fill{background:linear-gradient(90deg,#059669,#0891b2);box-shadow:0 0 14px -6px rgba(8,145,178,.6)}
+  .fill.alt{background:linear-gradient(90deg,#64748b,#94a3b8);opacity:.6}
+  .rk-val{font-size:13px;font-variant-numeric:tabular-nums;color:var(--text);text-align:right}
+
+  .dimrow{display:grid;grid-template-columns:112px repeat(4,1fr) 252px;gap:12px;align-items:center;
+    padding:9px 0;border-bottom:1px solid rgba(15,23,42,.06)}
+  .dimrow.head{padding-bottom:6px;border-bottom:1px solid var(--line);font-size:11.6px;color:var(--dim)}
+  .dimrow.head .dname{color:var(--muted);font-weight:600}
+  .dimrow:last-child{border-bottom:none}
+  .dname{font-size:13.2px}
+  .dimcell{display:flex;flex-direction:column;gap:4px}
+  .dimcell small{font-size:11px;color:var(--dim);font-variant-numeric:tabular-nums}
+  .mini{height:7px;border-radius:6px;background:rgba(15,23,42,.07);overflow:hidden}
+  .mini i{display:block;height:100%;border-radius:6px}
+  .cmt{font-size:12.3px;color:var(--muted)}
+  .legend{display:flex;gap:16px;flex-wrap:wrap;font-size:12.3px;color:var(--muted);margin:12px 0 16px}
+  .legend i{display:inline-block;width:9px;height:9px;border-radius:3px;margin-right:6px}
+
+  .adv{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+  .card{background:#fff;border:1px solid var(--line);border-radius:14px;padding:18px;
+    box-shadow:0 1px 2px rgba(15,23,42,.04)}
+  .card h3{margin:0 0 6px;font-size:15.4px;display:flex;align-items:center;gap:10px}
+  .n{font-size:11.6px;color:var(--cyan);border:1px solid rgba(8,145,178,.24);background:rgba(8,145,178,.07);
+    width:26px;height:26px;border-radius:8px;display:inline-flex;align-items:center;justify-content:center;flex:0 0 auto}
+  .card p{margin:6px 0 0;color:var(--muted);font-size:13.4px}
+  .ev{margin-top:10px;font-size:12.2px;color:var(--dim);border-top:1px dashed rgba(15,23,42,.12);padding-top:9px}
+  .ev code{color:#4338ca;background:rgba(79,70,229,.08);padding:1px 5px;border-radius:4px;font-size:11.8px}
+
+  .sev{display:inline-block;font-size:11.5px;font-weight:700;padding:2px 8px;border-radius:6px;letter-spacing:.04em}
+  .p1{color:#be123c;background:rgba(225,29,72,.08);border:1px solid rgba(225,29,72,.22)}
+  .p2{color:#b45309;background:rgba(180,83,9,.08);border:1px solid rgba(180,83,9,.22)}
+  .p3{color:#1d4ed8;background:rgba(29,78,216,.07);border:1px solid rgba(29,78,216,.2)}
+
+  .tile{border:1px solid var(--line);border-radius:14px;padding:16px;background:#fff}
+  .tile .v{font-size:26px;font-weight:700;letter-spacing:-.02em;background:var(--grad);
+    -webkit-background-clip:text;background-clip:text;color:transparent;font-variant-numeric:tabular-nums}
+  .tile .k{font-size:12.4px;color:var(--muted);margin-top:2px}
+  .tile .s{font-size:11.6px;color:var(--dim);margin-top:6px}
+
+  .phase{border-left:2px solid rgba(79,70,229,.28);padding:2px 0 2px 20px;margin-left:6px;position:relative;margin-bottom:20px}
+  .phase::before{content:"";position:absolute;left:-7px;top:6px;width:12px;height:12px;border-radius:50%;
+    background:var(--indigo);box-shadow:0 0 0 4px rgba(79,70,229,.12)}
+  .phase h4{margin:0 0 6px;font-size:15px}
+  .phase p{margin:0 0 6px;color:var(--muted);font-size:13.4px}
+  .phase ul{margin:0;padding-left:18px;color:var(--muted);font-size:13.2px}
+  .phase li{margin:4px 0}
+  .phase b{color:var(--text)}
+
+  .callout{border-radius:14px;padding:18px 20px;border:1px solid rgba(8,145,178,.2);
+    background:linear-gradient(120deg,rgba(8,145,178,.06),rgba(79,70,229,.05))}
+  .callout b{color:#0e7490}
+  .foot{margin-top:56px;padding-top:20px;border-top:1px solid var(--line);color:var(--dim);font-size:12.4px}
+  ul.plain{margin:8px 0 0;padding-left:20px;color:var(--muted);font-size:13.4px}
+  ul.plain li{margin:5px 0}
+  @media(max-width:860px){
+    .scores,.grid2,.grid3,.grid4,.adv{grid-template-columns:1fr}
+    .dimrow{grid-template-columns:1fr;gap:6px}
+    .cmt{display:none}
+    .rankrow{grid-template-columns:84px 1fr 46px}
+  }
+  @media print{
+    body{background:#fff;color:#111}
+    .panel,.card,.tile,.score-card{background:#fff;border-color:#ddd}
+    .dimrow,.ranklist,.adv{break-inside:avoid}
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<header class="hero">
+  <div class="kicker"><span class="dot"></span>In-depth code audit · standalone baseline + three long-term goals (multilingual delivered)</div>
+  <h1>TuKu: where the <span class="g">local asset manager</span> really stands</h1>
+  <p class="lede">
+    This is not a feature marketing page, but a score after going through 139,000 lines of source code layer by layer: 17 dimensions, 8 competitors, and every conclusion can be traced to a file and a function. The conclusion first—<b>as a local manager alone, it is first in this tier (90.8 / 100)</b>;
+    cloud and multi-device, collaborative community, and cross-platform are <b>not abandoned, but long-term goals placed later</b>; multilingual was already delivered in 1.2.23 (5 → 90);
+    under the same 17-dimension basis, today's progress gives <b>75.5</b> (3rd), while scoring target values gives <b>87.1</b> (1st). All three numbers are right; the only difference is which day you count.
+  </p>
+  <div class="chips">
+    <span class="chip">Audit date <b>2026-11-17</b></span>
+    <span class="chip">Code version <b>1.2.23</b></span>
+    <span class="chip">Scale <b>554 files / 118,608 lines</b></span>
+    <span class="chip">Method <b>code audit + hands-on benchmark + 8-competitor comparison</b></span>
+    <span class="chip">Companion doc <b><a href="./产品介绍.en.html">feature documentation (for general users)</a></b></span>
+  </div>
+
+  <div class="scores">
+    <div class="score-card">
+      <div class="score-head">
+        <div class="score-title"><b>Local baseline · 13 dimensions, 100 points</b>Implemented capabilities you can verify today</div>
+        <span class="rankbadge">No. 1 of 8 competitors</span>
+      </div>
+      <div class="donut-wrap">
+        <div class="donut" style="--v:90.8"><span>90.8<small>/100</small></span></div>
+        <div class="score-note">
+          Above Eagle <b>83.5</b>, Immich <b>74.5</b>, and PhotoPrism <b>71.0</b>.<br>
+          The lead comes from three structural advantages: <b>automation and open interfaces</b>, <b>depth of desktop integration</b>, and <b>data safety and portability</b>.
+        </div>
+      </div>
+      <div class="split">The same code base under the 17-dimension basis: now <b>75.5</b> (3rd) → mid-term <b>80.6</b> (2nd) → long-term <b>87.1</b> (1st).<br>
+        The two bases have different denominators (13 vs 17 dimensions), so the scores cannot be subtracted directly.</div>
+    </div>
+
+    <div class="score-card alt">
+      <div class="score-head">
+        <div class="score-title"><b>Long-term goals · 17 dimensions, 100 points</b>Multilingual is counted at its actual score (90); the other three are scored at "target value once achieved"</div>
+        <span class="rankbadge">No. 1 after targets are met</span>
+      </div>
+      <div class="donut-wrap">
+        <div class="donut" style="--v:87.1"><span>87.1<small>/100</small></span></div>
+        <div class="score-note">
+          Target values: cloud and multi-device <b>80</b>, collaborative community <b>60</b>, multilingual <b>90</b>, cross-platform <b>85</b>;<br>
+          current values: <b>15 / 20 / 90 / 20</b>—totaling 8.25, still <b>+11.7</b> short of the 19.9 target (multilingual delivered).
+        </div>
+      </div>
+      <div class="split">Under the same 17-dimension basis it is <b>75.5</b> now and <b>87.1</b> long-term, still <b>11.7</b> points apart; the three-step plan is in section 09</div>
+    </div>
+  </div>
+</header>
+
+<section id="s1">
+  <div class="sec-head"><span class="sec-no">01</span><h2>Summary: first on local, and the long-term target also reaches first</h2></div>
+  <p class="sec-sub">Answer first, evidence second. The three parts answer: why it is first for standalone use, how many points each long-term goal is worth, and how to read these scores.</p>
+
+  <div class="grid3">
+    <div class="panel">
+      <h3 style="margin:0 0 10px;font-size:15.5px;color:var(--emerald)">Why it ranks first on local</h3>
+      <ul class="plain">
+        <li><b>The data model is a "library" rather than an "album"</b>: 36 tables, 15 triggers, 30 indexes (foreign keys already handle cascades), an FTS5 trigram full-text index; 11 kinds of design files, 40+ RAW formats, 9 3D formats, and EPUB e-books can all enter the library and produce thumbnails.</li>
+        <li><b>Automation is native</b>: 10 capture sources, 11 MCP tools, a plugin sandbox, REST with token and scope, and /api/docs generating 387 endpoints plus examples in curl, JS, and Python—peers generally offer only "import + drag and drop".</li>
+        <li><b>Desktop integration reaches the system layer</b>: tray, remappable global hotkeys, Windows live wallpaper (WorkerW + GLSL), drag-out to Explorer, right-click capture, and read-only LAN sharing.</li>
+      </ul>
+    </div>
+    <div class="panel">
+      <h3 style="margin:0 0 10px;font-size:15.5px;color:var(--amber)">How many points each long-term goal is worth (multilingual delivered)</h3>
+      <ul class="plain">
+        <li><b>Cloud and multi-device 15 → 80</b> (weight 9): accounts and read-only multi-device first, then incremental sync and mobile; delivers <b>+5.85</b>.</li>
+        <li><b>Collaboration and community 20 → 60</b> (weight 8): comments, sharing, and a least-privilege workflow; no commitment to a plugin marketplace; delivers <b>+3.20</b>.</li>
+        <li><b>Multilingual 5 → 90</b> (weight 5): delivered in 1.2.23, <b>+4.25 already counted</b> in the current score.</li>
+        <li><b>Cross-platform 20 → 85</b> (weight 4): mac hardware smoke test + installer, Linux deferred; delivers <b>+2.60</b>.</li>
+        <li>The remaining three total <b>+11.7</b>: 75.5 → <b>87.1</b>, moving from 3rd to 1st. The order and prerequisites are in section 09.</li>
+      </ul>
+    </div>
+    <div class="panel">
+      <h3 style="margin:0 0 10px;font-size:15.5px;color:var(--cyan)">In one sentence</h3>
+      <p style="margin:0;color:var(--muted);font-size:13.6px">
+        If you are <b>one person, one Windows machine, one local library of tens of thousands to hundreds of thousands of items</b>, it is currently the best choice for value and controllability;
+        these four platform capabilities are directions it <b>genuinely intends to build</b>, but the order is set by real constraints—a solo project, no server budget, single-platform maintenance cost—
+        so do not expect them "in the next release".
+      </p>
+      <div style="margin-top:12px;padding-top:12px;border-top:1px dashed var(--line);font-size:12.6px;color:var(--dim)">
+        Good for now: personal designer libraries / photography post-production asset pools / asset collection and archiving / workflows that need to be driven by scripts and AI.<br>
+        Missing for now: team sharing, cross-device sync—they are on the roadmap, not in today's installer.
+      </div>
+    </div>
+  </div>
+
+  <div class="callout" style="margin-top:18px">
+    <b>Three tiers, all on a 100-point scale, and with the same denominator (17 dimensions, 100 points of weight):</b>
+    ① <b>75.5</b> = now (multilingual delivered at 90, the other three counted at today's progress, 3rd);
+    ② <b>80.6</b> = mid-term goal (read-only multi-device + real Mac hardware + permission prototype, 2nd);
+    ③ <b>87.1</b> = long-term goal (the three counted at target values 80 / 60 / 85, 1st).
+    The three tiers are <b>monotonically increasing</b>: 75.5 → 80.6 → 87.1, so the long-term goal cannot be lower than now.
+    There is also another ruler: <b>standalone-specific 90.8</b> (13 dimensions, 100 points, counting only implemented capabilities, used to compare the "local manager" with competitors).
+    Its denominator excludes the 26 points of platform weight not yet delivered, so <b>90.8 and 87.1 cannot be subtracted directly</b>—under the same basis the equivalent figure is 75.5.
+  </div>
+  <div class="callout" style="margin-top:12px">
+    <b>Reading convention:</b> above 90 = close to the commercial ceiling of its class; 80–90 = mature and deliverable, only polishing left;
+    70–80 = usable but clearly weaker than the leaders; below 60 = structural gap that patches cannot fix.
+    The difference between this audit round (2026-11-17) and the previous version (2026-11-16) comes from three substantive improvements:
+    ① <b>puzzle save will-download async bug</b> fixed (Electron synchronous events cannot use an async handler; the previous dialog stacked with Chromium's default behavior to produce two), eliminating a P1-level bug;
+    ② competitor Eagle 4.0 B22 (2026 Q4) shipped an AI Search plugin + Web API v2, raising Eagle's AI dimension from 65 to 72 with a slight improvement in automation; Immich v3.4.0 (2026-11) brings broader GPU coverage in ML v2; PhotoPrism 2026-10 added NVIDIA CUDA acceleration for all models;
+    ③ <b>multilingual delivered</b> (1.2.23): interface / tutorials / tray / backend errors / plugin metadata / docs all bilingual, 4,681 strings, multilingual dimension 5 → 90 (+4.25 on the current 17-dimension score).
+    TuKu's own dimension scores are maintained: the table count was corrected from 40 to 36 (a factual revision; the feature surface is complete), standalone 90.9 → 90.8.
+  </div>
+</section>
+
+<section id="s2">
+  <div class="sec-head"><span class="sec-no">02</span><h2>Scoring method: 13 dimensions count the present, 4 platform capabilities count separately</h2></div>
+  <p class="sec-sub">
+    Lay out "how it is computed" first, and the scores become worth discussing. All dimensions are <b>scored directly on 100</b> and then weighted: the first 13 form the standalone baseline (100 points, counting only implemented capabilities);
+    the last 4 are long-term platform capabilities (multilingual delivered at 90), each computed once at "today's value" and once at "target value", yielding 75.5 and 87.1.
+    Weighting is "dimension score × weight ÷ 100" summed, so every point lost in a dimension costs 0.02–0.09 points overall.
+  </p>
+
+  <div class="tbl-wrap">
+    <table>
+      <thead>
+        <tr><th>#</th><th>Dimension</th><th style="width:92px">Local weight</th><th style="width:104px">Long-term 17-dim weight</th><th>What this dimension actually measures</th></tr>
+      </thead>
+      <tbody>
+        <tr><td>1</td><td>Import and capture</td><td class="num">8</td><td class="num">6</td><td>Folders/ZIP/clipboard/drag-and-drop/browser extension/web capture, deduplication and resumable transfer</td></tr>
+        <tr class="hi"><td>2</td><td>Organization and metadata</td><td class="num">10</td><td class="num">7</td><td>Folder tree, tags, ratings, collections, people, places, timeline, custom fields, XMP</td></tr>
+        <tr class="hi"><td>3</td><td>Browsing and retrieval</td><td class="num">12</td><td class="num">8</td><td>Keyword/semantic/color/similar-image search, combined filters, sorting and grouping, scrolling experience</td></tr>
+        <tr><td>4</td><td>Editing and output</td><td class="num">8</td><td class="num">6</td><td>Non-destructive editing, crop/rotate/color grading, erase, upscaling, watermark and frames, batch processing</td></tr>
+        <tr><td>5</td><td>Formats and media</td><td class="num">7</td><td class="num">5</td><td>Depth of import and preview for RAW/design files/3D/audio/video/PDF/Office/fonts/EPUB</td></tr>
+        <tr><td>6</td><td>AI capabilities</td><td class="num">8</td><td class="num">6</td><td>CLIP semantics, face clustering, similar images, auto-tagging, cutout; whether inference runs on-device</td></tr>
+        <tr class="hi"><td>7</td><td>Automation and openness</td><td class="num">8</td><td class="num">6</td><td>REST + token/scope, MCP tools, plugin sandbox, scripting, extensions</td></tr>
+        <tr><td>8</td><td>Desktop integration</td><td class="num">7</td><td class="num">5</td><td>Tray, global hotkeys, launch at startup, drag-out, live wallpaper, system menus, single instance</td></tr>
+        <tr><td>9</td><td>Performance and scale</td><td class="num">9</td><td class="num">6</td><td>Import throughput, API p95, first paint, large-library scrolling, thumbnail cache</td></tr>
+        <tr><td>10</td><td>Data safety</td><td class="num">8</td><td class="num">7</td><td>Backup and verification, undo/redo, trash, atomic writes, library lock, crash recovery</td></tr>
+        <tr><td>11</td><td>Engineering quality</td><td class="num">7</td><td class="num">5</td><td>Layering, contract gates, test density, migration mechanism, oversized files, maintainability</td></tr>
+        <tr><td>12</td><td>Usability and accessibility</td><td class="num">5</td><td class="num">5</td><td>Information architecture, onboarding and empty states, shortcuts, keyboard reachability, screen readers, accessibility</td></tr>
+        <tr><td>13</td><td>Documentation and delivery</td><td class="num">3</td><td class="num">2</td><td>Built-in tutorials, README, API docs, packaging and signing, CI gates</td></tr>
+        <tr><td>14</td><td>Cloud and multi-device</td><td class="num muted">Not scored</td><td class="num">9</td><td>Accounts, sync, conflict merging, offline availability, mobile and web clients · <b>target 80</b> (currently 15)</td></tr>
+        <tr><td>15</td><td>Collaboration and community</td><td class="num muted">Not scored</td><td class="num">8</td><td>Multi-user sharing permissions, comments and approvals, plugin and template marketplace · <b>target 60</b> (currently 20)</td></tr>
+        <tr><td>16</td><td>Localization</td><td class="num muted">Not scored</td><td class="num">5</td><td>Interface and content localization, translation layer, typographic adaptation · <b>target 90 (achieved in 1.2.23)</b></td></tr>
+        <tr><td>17</td><td>Cross-platform</td><td class="num muted">Not scored</td><td class="num">4</td><td>Usable on real mac/Linux hardware, installers, handling platform differences · <b>target 85</b> (currently 20)</td></tr>
+        <tr style="background:rgba(79,70,229,.07)"><td></td><td><b>Total</b></td><td class="num"><b>100</b></td><td class="num"><b>100</b></td><td class="tiny muted">The standalone baseline puts 22 points on "organization + retrieval"; the long-term 17 dimensions cut those 22 points to 15, leaving only 74 for the first 13 and freeing 26 points for the four platform dimensions (multilingual delivered)</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <div class="grid2" style="margin-top:18px">
+    <div class="panel">
+      <h3 style="margin:0 0 8px;font-size:15px">Why the weights are set this way</h3>
+      <ul class="plain">
+        <li><b>Local baseline</b> assumes one machine, one library, one user. What decides the daily experience is then "can I find it again quickly"—organization at 10 points plus retrieval at 12 points are the highest weights of all, followed by performance at 9.</li>
+        <li><b>Long-term 17 dimensions</b> assumes that one day it must be compared with products like Immich that can "hold an entire team". In that case sync and collaboration total 17 points, multilingual and cross-platform 9 points, and the first 13 are diluted to 74—the four dimensions give 75.5 at today's progress and 87.1 at target values.</li>
+        <li>Both schemes <b>give no credit for slideware</b>: the AI dimension requires on-device execution and a fallback on failure; the performance dimension requires reproducible benchmark scripts.</li>
+      </ul>
+    </div>
+    <div class="panel">
+      <h3 style="margin:0 0 8px;font-size:15px">How the scores are kept from drifting</h3>
+      <ul class="plain">
+        <li><b>Every TuKu point can be checked</b>: either there is a code location, or there is a measured number from <span class="mono">npm run bench:quick</span> (all 15/15 passed on 2026-11-17).</li>
+        <li><b>Competitor scores are estimates based on public feature surfaces</b>, not official vendor data. Within a tier they do not exceed 93 unless there is reproducible measurement.</li>
+        <li><b>When uncertain, score low</b>: Eagle's AI capability, for example—in public materials AI Search is a "plugin" rather than a native pipeline, so it gets 72 rather than 85.</li>
+        <li>All 8 competitors are scored with the same questionnaire and the same set of anchors, avoiding "nitpicking rivals while going easy on ourselves".</li>
+      </ul>
+    </div>
+  </div>
+</section>
+
+<section id="s3">
+  <div class="sec-head"><span class="sec-no">03</span><h2>Three rankings: the same 8 products, ranked three ways</h2></div>
+  <p class="sec-sub">
+    The list includes both commercial closed source (Eagle, Billfish, Pixcall, Bridge, XnView) and open-source self-hosted (Immich, PhotoPrism).
+    Bar length is the weighted total, and the green row is this project. The only difference between the two charts is whether the four platform capabilities are counted at "target value" or at "today's progress" (multilingual delivered, so 90 either way).
+  </p>
+
+  <div class="grid2">
+    <div class="panel">
+      <h3 style="margin:0 0 4px;font-size:15px">Local baseline · 13 dimensions (implemented)</h3>
+      <p class="tiny muted" style="margin:0 0 14px">Scores you can verify with today's installer</p>
+      <div class="ranklist">
+        <div class="rankrow me"><span class="rk-name">TuKu</span><div class="track"><div class="fill" style="width:90.8%"></div></div><span class="rk-val">90.8</span></div>
+        <div class="rankrow"><span class="rk-name">Eagle</span><div class="track"><div class="fill alt" style="width:83.5%"></div></div><span class="rk-val">83.5</span></div>
+        <div class="rankrow"><span class="rk-name">Immich</span><div class="track"><div class="fill alt" style="width:74.5%"></div></div><span class="rk-val">74.5</span></div>
+        <div class="rankrow"><span class="rk-name">PhotoPrism</span><div class="track"><div class="fill alt" style="width:71.0%"></div></div><span class="rk-val">71.0</span></div>
+        <div class="rankrow"><span class="rk-name">Billfish</span><div class="track"><div class="fill alt" style="width:70.5%"></div></div><span class="rk-val">70.5</span></div>
+        <div class="rankrow"><span class="rk-name">Pixcall</span><div class="track"><div class="fill alt" style="width:68.5%"></div></div><span class="rk-val">68.5</span></div>
+        <div class="rankrow"><span class="rk-name">Bridge</span><div class="track"><div class="fill alt" style="width:67.5%"></div></div><span class="rk-val">67.5</span></div>
+        <div class="rankrow"><span class="rk-name">XnView MP</span><div class="track"><div class="fill alt" style="width:60.0%"></div></div><span class="rk-val">60.0</span></div>
+      </div>
+    </div>
+
+    <div class="panel">
+      <h3 style="margin:0 0 4px;font-size:15px">Long-term goals · 17 dimensions (target values)</h3>
+      <p class="tiny muted" style="margin:0 0 14px">Cloud 80 / collaboration 60 / localization 90 / cross-platform 85</p>
+      <div class="ranklist">
+        <div class="rankrow me"><span class="rk-name">TuKu</span><div class="track"><div class="fill" style="width:87.1%"></div></div><span class="rk-val">87.1</span></div>
+        <div class="rankrow"><span class="rk-name">Immich</span><div class="track"><div class="fill alt" style="width:79.5%"></div></div><span class="rk-val">79.5</span></div>
+        <div class="rankrow"><span class="rk-name">Eagle</span><div class="track"><div class="fill alt" style="width:72.5%"></div></div><span class="rk-val">72.5</span></div>
+        <div class="rankrow"><span class="rk-name">PhotoPrism</span><div class="track"><div class="fill alt" style="width:71.8%"></div></div><span class="rk-val">71.8</span></div>
+        <div class="rankrow"><span class="rk-name">Pixcall</span><div class="track"><div class="fill alt" style="width:69.5%"></div></div><span class="rk-val">69.5</span></div>
+        <div class="rankrow"><span class="rk-name">Bridge</span><div class="track"><div class="fill alt" style="width:66.5%"></div></div><span class="rk-val">66.5</span></div>
+        <div class="rankrow"><span class="rk-name">Billfish</span><div class="track"><div class="fill alt" style="width:64.0%"></div></div><span class="rk-val">64.0</span></div>
+        <div class="rankrow"><span class="rk-name">XnView MP</span><div class="track"><div class="fill alt" style="width:55.5%"></div></div><span class="rk-val">55.5</span></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="grid2" style="margin-top:16px">
+    <div class="panel">
+      <h3 style="margin:0 0 8px;font-size:14.6px">Where each competitor is strong (facts only)</h3>
+      <ul class="plain">
+        <li><b>Eagle (4.0 B22 · 2026 Q4)</b>: the long-standing standard for local asset libraries. Depth of format preview, interface feel, and the template ecosystem are still first rate; the AI Search plugin (reverse image search + semantic search) and Web API v2 shipped officially in 2026-03, closing its biggest previous gap; automation is still plugin-based rather than a native scripting entry point.</li>
+        <li><b>Immich (v3.4.0 · 2026-11)</b>: the benchmark for open-source self-hosted photo albums. ML v2 hardware acceleration covers RKNPU/TensorRT/OpenVINO, plus Search v2, cross-user face clustering, and JPEG XL support; it is weak on "assets" rather than "photos"—design files, 3D, and desktop integration are largely uncovered.</li>
+        <li><b>PhotoPrism (2026-10)</b>: photo-management oriented. Full-model NVIDIA CUDA acceleration (image classification/NSFW/face detection/embeddings), Ollama-integrated tag naming, Vulkan video transcoding, AND/NOT operator tag filtering; editing capability is nearly zero.</li>
+        <li><b>Billfish 3.1.5.12 / Pixcall 0.9.7 / Bridge v17.0 / XnView MP 1.11.5</b>: a domestic product, a newcomer, an Adobe companion, and an image viewer—each has its own strengths but a clear ceiling, and all three of automation interfaces, AI depth, and desktop integration are generally weaker than the top three.</li>
+      </ul>
+    </div>
+    <div class="panel">
+      <h3 style="margin:0 0 8px;font-size:14.6px">Three comparisons worth remembering</h3>
+      <p style="margin:0 0 10px;color:var(--muted);font-size:13.5px">
+        <b style="color:var(--emerald)">Local (90.8): ahead of Eagle by 7.3 points.</b>The gap is not in the interface but in three things Eagle does not do—
+        web capture and scripting interfaces, on-device AI (CLIP + face clustering + HNSW), and data egress (XMP / backup verification / dual-stack undo). Eagle's AI is a plugin, not a native pipeline.
+      </p>
+      <p style="margin:0 0 10px;color:var(--muted);font-size:13.5px">
+        <b style="color:var(--amber)">17-dimension basis today (75.5): 4.0 points behind Immich.</b>
+        What it lacks is precisely accounts, change merging, and mobile—three items inside the cloud and multi-device / collaboration long-term dimensions.
+      </p>
+      <p style="margin:0;color:var(--muted);font-size:13.5px">
+        <b style="color:var(--cyan)">Long-term goal (87.1): 7.6 points ahead of Immich.</b>Under the same ruler,
+        now 75.5 → long-term 87.1, still 11.7 points apart; the remaining three target values (80 / 60 / 85) are all individually verifiable.
+      </p>
+      <div class="tiny" style="margin-top:12px;padding-top:10px;border-top:1px dashed var(--line);color:var(--dim)">
+        In other words: <b style="color:var(--text)">it is already the leader on local, and the platform capabilities are a roadmap yet to be delivered.</b>Both statements can be true at once.
+      </div>
+    </div>
+  </div>
+</section>
+
+<section id="s4">
+  <div class="sec-head"><span class="sec-no">04</span><h2>Dimension-by-dimension comparison across 17 areas</h2></div>
+  <p class="sec-sub">
+    Only the 4 most relevant products are included: Eagle (ceiling for local libraries), Immich (ceiling for open-source platforms), PhotoPrism (ceiling for photo management),
+    plus this project. Longer bars mean stronger; the note on the right explains where the gap comes from. TuKu's scores are audited values; those for Eagle/Immich/PhotoPrism are rough estimates from their latest public feature surfaces in 2025-2026.
+  </p>
+  <div class="legend">
+    <span><i style="background:#34d399"></i>90+ Close to the commercial ceiling</span>
+    <span><i style="background:#60a5fa"></i>80–90 Mature and shippable</span>
+    <span><i style="background:#fbbf24"></i>70–80 Clearly behind the leaders</span>
+    <span><i style="background:#fb7185"></i>Below 70 Structural gap</span>
+  </div>
+  <div class="panel">
+    <div class="dimrow head">
+      <span class="dname">Dimension</span>
+      <span>TuKu</span><span>Eagle</span><span>Immich</span><span>PhotoPrism</span>
+      <span>Where the gap comes from</span>
+    </div>
+    <div class="dimrow"><span class="dname">Import and capture</span>
+      <div class="dimcell"><small class="s9">93</small><div class="mini"><i style="width:93%;background:#34d399"></i></div></div>
+      <div class="dimcell"><small class="s8">85</small><div class="mini"><i style="width:85%;background:#60a5fa"></i></div></div>
+      <div class="dimcell"><small class="s7">75</small><div class="mini"><i style="width:75%;background:#fbbf24"></i></div></div>
+      <div class="dimcell"><small class="s7">70</small><div class="mini"><i style="width:70%;background:#fbbf24"></i></div></div>
+      <span class="cmt">10 import sources + extension + clipboard; progress shows speed and time remaining, and deduping tens of thousands of duplicate names runs on an in-memory index</span></div>
+    <div class="dimrow"><span class="dname">Organization and metadata</span>
+      <div class="dimcell"><small class="s9">93</small><div class="mini"><i style="width:93%;background:#34d399"></i></div></div>
+      <div class="dimcell"><small class="s9">94</small><div class="mini"><i style="width:94%;background:#34d399"></i></div></div>
+      <div class="dimcell"><small class="s8">80</small><div class="mini"><i style="width:80%;background:#60a5fa"></i></div></div>
+      <div class="dimcell"><small class="s7">75</small><div class="mini"><i style="width:75%;background:#fbbf24"></i></div></div>
+      <span class="cmt">36 tables / 15 triggers / 30 indexes, with foreign keys already handling cascades; folder tree / tag tree / collections / people / places / XMP all present, on par with Eagle</span></div>
+    <div class="dimrow"><span class="dname">Browsing and retrieval</span>
+      <div class="dimcell"><small class="s9">95</small><div class="mini"><i style="width:95%;background:#34d399"></i></div></div>
+      <div class="dimcell"><small class="s8">85</small><div class="mini"><i style="width:85%;background:#60a5fa"></i></div></div>
+      <div class="dimcell"><small class="s8">85</small><div class="mini"><i style="width:85%;background:#60a5fa"></i></div></div>
+      <div class="dimcell"><small class="s8">86</small><div class="mini"><i style="width:86%;background:#60a5fa"></i></div></div>
+      <span class="cmt">Keyword + semantic + color + similar-image search run in parallel, and filters stack; the waterfall appends coordinates incrementally, so scrolling only queries the visible range</span></div>
+    <div class="dimrow"><span class="dname">Editing and output</span>
+      <div class="dimcell"><small class="s9">90</small><div class="mini"><i style="width:90%;background:#34d399"></i></div></div>
+      <div class="dimcell"><small class="s7">75</small><div class="mini"><i style="width:75%;background:#fbbf24"></i></div></div>
+      <div class="dimcell"><small class="s6">60</small><div class="mini"><i style="width:60%;background:#fb7185"></i></div></div>
+      <div class="dimcell"><small class="s6">55</small><div class="mini"><i style="width:55%;background:#fb7185"></i></div></div>
+      <span class="cmt">Non-destructive edit_ops + undo stack; every collage layout can be composed cell by cell, poster text has adjustable font, size and color, and quality goes up to 100</span></div>
+    <div class="dimrow"><span class="dname">Formats and media</span>
+      <div class="dimcell"><small class="s8">86</small><div class="mini"><i style="width:86%;background:#60a5fa"></i></div></div>
+      <div class="dimcell"><small class="s9">92</small><div class="mini"><i style="width:92%;background:#34d399"></i></div></div>
+      <div class="dimcell"><small class="s6">65</small><div class="mini"><i style="width:65%;background:#fb7185"></i></div></div>
+      <div class="dimcell"><small class="s6">68</small><div class="mini"><i style="width:68%;background:#fb7185"></i></div></div>
+      <span class="cmt">Widest coverage (RAW 40+ / design files 11 / 3D 9 / a real EPUB reader); fonts, 3D and Office are still shallower than Eagle</span></div>
+    <div class="dimrow"><span class="dname">AI capabilities</span>
+      <div class="dimcell"><small class="s8">89</small><div class="mini"><i style="width:89%;background:#60a5fa"></i></div></div>
+      <div class="dimcell"><small class="s7">72</small><div class="mini"><i style="width:72%;background:#fbbf24"></i></div></div>
+      <div class="dimcell"><small class="s8">85</small><div class="mini"><i style="width:85%;background:#60a5fa"></i></div></div>
+      <div class="dimcell"><small class="s8">86</small><div class="mini"><i style="width:86%;background:#60a5fa"></i></div></div>
+      <span class="cmt">On-device CLIP + face clustering + HNSW, fully offline; index gaps can be backfilled serially overnight (without competing for foreground resources)</span></div>
+    <div class="dimrow"><span class="dname">Automation and openness</span>
+      <div class="dimcell"><small class="s9">94</small><div class="mini"><i style="width:94%;background:#34d399"></i></div></div>
+      <div class="dimcell"><small class="s6">68</small><div class="mini"><i style="width:68%;background:#fb7185"></i></div></div>
+      <div class="dimcell"><small class="s6">55</small><div class="mini"><i style="width:55%;background:#fb7185"></i></div></div>
+      <div class="dimcell"><small class="s6">50</small><div class="mini"><i style="width:50%;background:#fb7185"></i></div></div>
+      <span class="cmt">REST + token/scope, 11 MCP tools, a plugin sandbox; peers essentially have no scripting entry point</span></div>
+    <div class="dimrow"><span class="dname">Desktop integration</span>
+      <div class="dimcell"><small class="s9">93</small><div class="mini"><i style="width:93%;background:#34d399"></i></div></div>
+      <div class="dimcell"><small class="s8">80</small><div class="mini"><i style="width:80%;background:#60a5fa"></i></div></div>
+      <div class="dimcell"><small class="s6">30</small><div class="mini"><i style="width:30%;background:#fb7185"></i></div></div>
+      <div class="dimcell"><small class="s6">20</small><div class="mini"><i style="width:20%;background:#fb7185"></i></div></div>
+      <span class="cmt">Tray / remappable hotkeys / live wallpaper / drag out to Explorer / right-click capture; self-hosted galleries have no desktop shell</span></div>
+    <div class="dimrow"><span class="dname">Performance and scale</span>
+      <div class="dimcell"><small class="s8">88</small><div class="mini"><i style="width:88%;background:#60a5fa"></i></div></div>
+      <div class="dimcell"><small class="s8">88</small><div class="mini"><i style="width:88%;background:#60a5fa"></i></div></div>
+      <div class="dimcell"><small class="s8">85</small><div class="mini"><i style="width:85%;background:#60a5fa"></i></div></div>
+      <div class="dimcell"><small class="s7">75</small><div class="mini"><i style="width:75%;background:#fbbf24"></i></div></div>
+      <span class="cmt">Library ingest at 5893 rows/sec (measured); API p95 in single-digit milliseconds; neither DOM nor layout cost grows with the library (incremental coordinate append + bottom-edge bucketing to query the visible area)</span></div>
+    <div class="dimrow"><span class="dname">Data safety</span>
+      <div class="dimcell"><small class="s9">90</small><div class="mini"><i style="width:90%;background:#34d399"></i></div></div>
+      <div class="dimcell"><small class="s8">80</small><div class="mini"><i style="width:80%;background:#60a5fa"></i></div></div>
+      <div class="dimcell"><small class="s8">85</small><div class="mini"><i style="width:85%;background:#60a5fa"></i></div></div>
+      <div class="dimcell"><small class="s8">80</small><div class="mini"><i style="width:80%;background:#60a5fa"></i></div></div>
+      <span class="cmt">Foreign keys enabled (migrations back up the old library) + orphan detection/cleanup API + backup verification + two-stack undo + trash + library lock</span></div>
+    <div class="dimrow"><span class="dname">Engineering quality</span>
+      <div class="dimcell"><small class="s8">89</small><div class="mini"><i style="width:89%;background:#60a5fa"></i></div></div>
+      <div class="dimcell"><small class="s8">82</small><div class="mini"><i style="width:82%;background:#60a5fa"></i></div></div>
+      <div class="dimcell"><small class="s8">85</small><div class="mini"><i style="width:85%;background:#60a5fa"></i></div></div>
+      <div class="dimcell"><small class="s8">80</small><div class="mini"><i style="width:80%;background:#60a5fa"></i></div></div>
+      <span class="cmt">DTO contract 45/52 aligned, 573 unit tests, 143 smoke tests, 15 benchmarks, all run by a single verify command; the collage-save async bug is fixed this round</span></div>
+    <div class="dimrow"><span class="dname">Usability and accessibility</span>
+      <div class="dimcell"><small class="s8">85</small><div class="mini"><i style="width:85%;background:#60a5fa"></i></div></div>
+      <div class="dimcell"><small class="s9">92</small><div class="mini"><i style="width:92%;background:#34d399"></i></div></div>
+      <div class="dimcell"><small class="s7">75</small><div class="mini"><i style="width:75%;background:#fbbf24"></i></div></div>
+      <div class="dimcell"><small class="s7">70</small><div class="mini"><i style="width:70%;background:#fbbf24"></i></div></div>
+      <span class="cmt">Onboarding and 172 tutorials are well done; 25 dialogs share one focus trap / Esc / focus return; the main grid uses roving tabindex + arrow keys / Home / End / PageUp/Down</span></div>
+    <div class="dimrow"><span class="dname">Documentation and delivery</span>
+      <div class="dimcell"><small class="s8">85</small><div class="mini"><i style="width:85%;background:#60a5fa"></i></div></div>
+      <div class="dimcell"><small class="s8">85</small><div class="mini"><i style="width:85%;background:#60a5fa"></i></div></div>
+      <div class="dimcell"><small class="s7">75</small><div class="mini"><i style="width:75%;background:#fbbf24"></i></div></div>
+      <div class="dimcell"><small class="s7">70</small><div class="mini"><i style="width:70%;background:#fbbf24"></i></div></div>
+      <span class="cmt">Thorough built-in tutorials + auto-generated API reference (/api/docs and Markdown export); installers are still not code-signed</span></div>
+    <div class="dimrow"><span class="dname">Cloud and multi-device</span>
+      <div class="dimcell"><small class="s6">15</small><div class="mini"><i style="width:15%;background:#fb7185"></i></div></div>
+      <div class="dimcell"><small class="s6">20</small><div class="mini"><i style="width:20%;background:#fb7185"></i></div></div>
+      <div class="dimcell"><small class="s9">95</small><div class="mini"><i style="width:95%;background:#34d399"></i></div></div>
+      <div class="dimcell"><small class="s8">80</small><div class="mini"><i style="width:80%;background:#60a5fa"></i></div></div>
+      <span class="cmt">Now 15 · long-term target 80: accounts and read-only multi-device first, then incremental sync and mobile</span></div>
+    <div class="dimrow"><span class="dname">Collaboration and community</span>
+      <div class="dimcell"><small class="s6">20</small><div class="mini"><i style="width:20%;background:#fb7185"></i></div></div>
+      <div class="dimcell"><small class="s6">25</small><div class="mini"><i style="width:25%;background:#fb7185"></i></div></div>
+      <div class="dimcell"><small class="s9">90</small><div class="mini"><i style="width:90%;background:#34d399"></i></div></div>
+      <div class="dimcell"><small class="s6">60</small><div class="mini"><i style="width:60%;background:#fb7185"></i></div></div>
+      <span class="cmt">Now 20 · long-term target 60: comments, sharing, a least-privilege loop (plugin marketplace not promised)</span></div>
+    <div class="dimrow"><span class="dname">Localization</span>
+      <div class="dimcell"><small class="s9">90</small><div class="mini"><i style="width:90%;background:#34d399"></i></div></div>
+      <div class="dimcell"><small class="s9">90</small><div class="mini"><i style="width:90%;background:#34d399"></i></div></div>
+      <div class="dimcell"><small class="s9">95</small><div class="mini"><i style="width:95%;background:#34d399"></i></div></div>
+      <div class="dimcell"><small class="s9">90</small><div class="mini"><i style="width:90%;background:#34d399"></i></div></div>
+      <span class="cmt">Now 90 (delivered in 1.2.23) · long-term target 90: extract strings from copy → translation layer → typographic adaptation</span></div>
+    <div class="dimrow"><span class="dname">Cross-platform</span>
+      <div class="dimcell"><small class="s6">20</small><div class="mini"><i style="width:20%;background:#fb7185"></i></div></div>
+      <div class="dimcell"><small class="s7">70</small><div class="mini"><i style="width:70%;background:#fbbf24"></i></div></div>
+      <div class="dimcell"><small class="s9">95</small><div class="mini"><i style="width:95%;background:#34d399"></i></div></div>
+      <div class="dimcell"><small class="s9">90</small><div class="mini"><i style="width:90%;background:#34d399"></i></div></div>
+      <span class="cmt">Now 20 · long-term target 85: smoke tests on real Mac hardware + installers, Linux deferred</span></div>
+    <div class="dimrow" style="border-top:1px solid var(--line);margin-top:4px;padding-top:12px">
+      <span class="dname" style="font-weight:700">Weighted total</span>
+      <div class="dimcell"><small class="s9" style="font-size:13px">90.8 / 75.5</small><div class="mini"><i style="width:90.8%;background:linear-gradient(90deg,#6366f1,#22d3ee)"></i></div></div>
+      <div class="dimcell"><small class="s8" style="font-size:13px">83.5 / 72.5</small><div class="mini"><i style="width:83.5%;background:#64748b"></i></div></div>
+      <div class="dimcell"><small class="s8" style="font-size:13px">74.5 / 79.5</small><div class="mini"><i style="width:79.5%;background:#64748b"></i></div></div>
+      <div class="dimcell"><small class="s8" style="font-size:13px">71.0 / 71.8</small><div class="mini"><i style="width:71.8%;background:#64748b"></i></div></div>
+      <span class="cmt">Each cell is local-only baseline score / current 17-dimension score; the long-term targets for the last four rows are 80 / 60 / 90 / 85</span></div>
+  </div>
+</section>
+
+<section id="s5">
+  <div class="sec-head"><span class="sec-no">05</span><h2>The real advantages: ten things others don't do</h2></div>
+  <p class="sec-sub">
+    This section lists only advantages <b>traceable to code or measured numbers</b>. Subjective items such as "nice experience" or "good-looking UI" are excluded.
+  </p>
+  <div class="adv">
+    <div class="card">
+      <h3><span class="n">01</span>The broadest capture surface in its class</h3>
+      <p>10 web capture sources, plus folder watching, ZIP, clipboard, drag-and-drop, browser right-click, and mobile web upload—enough entry points to choose by "where I happened to see this image".</p>
+      <div class="ev">Evidence: <code>server/crawler.js</code> SOURCES table · <code>extension/</code> · resumable capture writes to the <code>jobs</code> table</div>
+    </div>
+    <div class="card">
+      <h3><span class="n">02</span>The organization model is a "library", not an "album"</h3>
+      <p>Eight views—folder tree, tag tree, collections, bookmarks, playlists, people, places, and timeline—share one index, so an asset can belong to several dimensions at once without duplicating files.</p>
+      <div class="ev">Evidence: <code>server/db/schema-sql.js</code> 36 tables / 15 triggers / 30 indexes (foreign keys handle cascades)</div>
+    </div>
+    <div class="card">
+      <h3><span class="n">03</span>Retrieval runs four paths in parallel, not four buttons</h3>
+      <p>FTS5 trigram lets Chinese substrings match too; semantic search covers "I remember the image but forgot the words"; color and similar-image search cover "I want the same kind of thing". All four result sets can be stacked within one set of filters.</p>
+      <div class="ev">Evidence: measured keyword search 12ms, tag filtering 12ms, <code>/api/tags</code> 5ms (library of ~20k items)</div>
+    </div>
+    <div class="card">
+      <h3><span class="n">04</span>AI runs entirely on-device</h3>
+      <p>Chinese CLIP semantics, ONNX face detection, HNSW nearest neighbors, local zero-shot tagging—no API key, no uploads, works offline.</p>
+      <div class="ev">Evidence: <code>server/clip.js</code> · <code>lib/hnsw.js</code> · <code>lib/face-math.js</code>; measured 46ms for vector search over 20k items</div>
+    </div>
+    <div class="card">
+      <h3><span class="n">05</span>Automation interfaces are part of the product</h3>
+      <p>REST with token and scope, 11 MCP tools callable directly by AI clients, and plugins that pass a manifest permission allowlist before entering the <code>node:vm</code> sandbox.</p>
+      <div class="ev">Evidence: <code>server/mcp-server.mjs</code> · <code>lib/plugin-host.js</code> · <code>lib/plugin-manifest.js</code></div>
+    </div>
+    <div class="card">
+      <h3><span class="n">06</span>Desktop integration reaches down to the system layer</h3>
+      <p>Tray, remappable global hotkeys, launch at startup, single instance, drag-out to Explorer, right-click capture, and Windows live wallpaper (WorkerW + GLSL).</p>
+      <div class="ev">Evidence: <code>electron/main/</code> · wallpaper auto-pauses after fullscreen detection · the will-download async bug fixed this round</div>
+    </div>
+    <div class="card">
+      <h3><span class="n">07</span>Data is not locked in</h3>
+      <p>Two-way XMP sidecars, CSV/JSON/HTML export, verified backup and restore, trash, dual-stack undo/redo (200 steps / 2GB cap), and read-only LAN sharing with password and expiry.</p>
+      <div class="ev">Evidence: <code>lib/undo.js</code> · <code>lib/lan.js</code> · backup scheduling <code>lib/backup-schedule.js</code></div>
+    </div>
+    <div class="card">
+      <h3><span class="n">08</span>Editing is non-destructive, and it reconciles</h3>
+      <p>Crop, rotate, color grading, erase, upscaling, watermark, and collage are all written as a <code>edit_ops</code> operation sequence, leaving the original untouched; the color preview and the final output match pixel for pixel.</p>
+      <div class="ev">Evidence: <code>routes/edit*</code> · undo uses the same operation stack · measured 16ms for 720p color grading / 70ms for 1600px</div>
+    </div>
+    <div class="card">
+      <h3><span class="n">09</span>There are real quality gates</h3>
+      <p>45/52 DTO contracts consistent, <b>573</b> unit tests, <b>143</b> smoke tests, <b>15</b> benchmarks, plus four typecheck passes and one lint suite (261 files); <code>npm run verify</code> runs it all with one command.</p>
+      <div class="ev">Evidence: <code>package.json</code> scripts · <code>scripts/verify*</code> · CI and the release process share the same source (all passed in a live run on 2026-11-17)</div>
+    </div>
+    <div class="card">
+      <h3><span class="n">10</span>Awareness of scale is built into the implementation</h3>
+      <p>Import uses a worker pool plus batched transactions, lists paginate by keyset rather than deep offset scans, thumbnails are cached in tiers, and vector search uses an index instead of a full table scan.</p>
+      <div class="ev">Evidence: bulk insert at <b>5893 rows/sec</b> (measured); list first page p95 7ms, deep page 11ms; CLIP over 20k items 46ms</div>
+    </div>
+  </div>
+</section>
+
+<section id="s6">
+  <div class="sec-head"><span class="sec-no">06</span><h2>Weaknesses: ordered by "will it cause trouble", not by "does it look nice"</h2></div>
+  <p class="sec-sub">
+    The ordering rule is simple: issues that could make users <b>lose data or fail to open</b> come first, then those that cost <b>points</b>, and finally the <b>long tail</b>.
+    The good news comes first as a conclusion—<b>this audit found no P0-level issues</b>; crashes and data loss were cleared in earlier rounds.
+    This page keeps an 11-item list for regression comparison: <b>7 are done</b> (marked in gray, with acceptance criteria), <b>4 remain unfixed</b>—signing, real-hardware acceptance, preview depth, and platformization.
+  </p>
+
+  <div class="tbl-wrap">
+    <table>
+      <thead>
+        <tr><th style="width:64px">Severity</th><th style="width:150px">Issue</th><th>Evidence (verifiable)</th><th>Why it matters</th><th style="width:88px">Fix cost</th></tr>
+      </thead>
+      <tbody>
+        <tr style="opacity:.72">
+          <td><span class="sev p3">Fixed</span></td>
+          <td><b>Collage save stacks two "Save As" dialogs</b></td>
+          <td><span class="mono">electron/main.js:137-141</span>: <code>will-download</code> is a synchronous event; using <code>async</code> for the handler makes it return a Promise before <code>item.setSavePath()</code> / <code>pause()</code> run, so Chromium's default behavior opens a blank dialog and then our own <code>dialog.showSaveDialog</code> opens a second one. Fixed by making the handler synchronous and starting the follow-up flow in an async IIFE</td>
+          <td>One click on "download collage" produces two dialogs, and the user has to cancel them one by one. The root cause is not repeated clicks (deduplication via <code>downloadDedupe</code> already exists) but the handler's async declaration itself</td>
+          <td>Low<br><span class="tiny muted">Completed in v1.2.22</span></td>
+        </tr>
+        <tr style="opacity:.72">
+          <td><span class="sev p3">Fixed</span></td>
+          <td><b>Library main-grid virtual scrolling and layout computation</b></td>
+          <td>Timeline / list / people views go through <span class="mono">VirtualGrid</span>; main-grid coordinate and visible-region computation is extracted into <span class="mono">web/src/lib/masonryLayout.ts</span>: coordinates are <b>appended incrementally</b>, and the visible region is queried <b>by bottom-edge bucket</b></td>
+          <td>The DOM node count has long been constant; this version also takes <b>layout computation</b> off the critical path — at 100k items, appending one page no longer triggers a full recomputation of coordinates and a re-sort. Unit tests guard the consistency between incremental and full results</td>
+          <td>Low<br><span class="tiny muted">Done</span></td>
+        </tr>
+        <tr>
+          <td><span class="sev p1">P1</span></td>
+          <td><b>Installer is unsigned</b></td>
+          <td>In the build section of <span class="mono">package.json</span>, <span class="mono">forceCodeSigning=false</span>, with no signing certificate configured</td>
+          <td>Windows SmartScreen blocks it as an "unknown publisher", so enterprise environments cannot deploy it silently; every update may raise a warning</td>
+          <td>Low<br><span class="tiny muted">Mainly the annual certificate fee</span></td>
+        </tr>
+        <tr>
+          <td><span class="sev p1">P1</span></td>
+          <td><b>Cross-platform means only "it builds"</b></td>
+          <td>The build has mac / linux targets, but there is no CI on real hardware and no platform-difference testing</td>
+          <td>Once support for mac/Linux is publicly claimed, users who install it will find hotkeys, paths, wallpapers, and file associations all wrong. The cost of claiming is far higher than the cost of implementing</td>
+          <td>High<br><span class="tiny muted">Three CI setups + item-by-item adaptation</span></td>
+        </tr>
+        <tr>
+          <td><span class="sev p2">P2</span></td>
+          <td><b>Preview depth below Eagle</b></td>
+          <td>EPUB is now a real reader (table of contents / body text / illustrations / remembers which chapter you reached); fonts are mounted dynamically via FontFace; 3D already has OrbitControls rotate and zoom; Office still relies only on mammoth/SheetJS front-end parsing, with no real PDF reader and no annotations</td>
+          <td>Designers choosing between tools base the decision on "can I just view it directly". Format coverage wins, but depth still lags on Office/PDF/annotations, offsetting part of that gain</td>
+          <td>Medium</td>
+        </tr>
+        <tr style="opacity:.72">
+          <td><span class="sev p3">Fixed</span></td>
+          <td><b>First screen and bundle size</b></td>
+          <td>Moved <span class="mono">mammoth / three / xlsx</span> out of runtime dependencies; <span class="mono">afterPack</span> trims the non-Windows onnxruntime binaries; all overlays and low-frequency pages are code-split via <span class="mono">React.lazy</span></td>
+          <td>The remaining weight is structural (three and onnxruntime themselves); compressing further would only cost features. The first screen no longer carries low-frequency code</td>
+          <td>Low<br><span class="tiny muted">Split further as needed</span></td>
+        </tr>
+        <tr style="opacity:.72">
+          <td><span class="sev p3">Fixed</span></td>
+          <td><b>Accessible grid keyboard</b></td>
+          <td>25 dialogs now share a unified focus trap / Esc / focus return; the main grid uses <b>roving tabindex</b> (the whole grid keeps a single Tab stop) plus arrow keys / Home / End / PageUp / PageDown</td>
+          <td>The whole library can now be traversed by keyboard; the screen-reader reading order in the masonry layout (DOM order rather than visual column order) can still be improved</td>
+          <td>Low<br><span class="tiny muted">Done</span></td>
+        </tr>
+        <tr style="opacity:.72">
+          <td><span class="sev p3">Fixed</span></td>
+          <td><b>Slow first import</b></td>
+          <td>Import runs through a worker pool (max 12, gated by free memory from <span class="mono">os.freemem()</span>), with RAW preview extraction concurrency at 8; CLIP / face / matting / super-resolution all go through <span class="mono">server/lib/onnx-device.js</span>: DirectML on Windows, CUDA on Linux x64, and if session creation fails it automatically falls back to CPU without retrying in that process</td>
+          <td>Measured throughput improved; models still require a first download, which is a one-time cost</td>
+          <td>Low<br><span class="tiny muted">Done</span></td>
+        </tr>
+        <tr style="opacity:.72">
+          <td><span class="sev p3">Fixed</span></td>
+          <td><b>API doc sample code</b></td>
+          <td><span class="mono">/api/docs</span> auto-generates 387 endpoints from the route table (grouping / parameters / auth) and can export Markdown; <b>curl / JavaScript / Python samples</b> auto-fill path parameters and common request bodies</td>
+          <td>A third-party developer no longer has to assemble the first request by hand; samples are generated from the route table, so they cannot drift from the implementation</td>
+          <td>Low<br><span class="tiny muted">Done</span></td>
+        </tr>
+        <tr style="opacity:.72">
+          <td><span class="sev p3">Fixed</span></td>
+          <td><b>Single-machine compute ceiling</b></td>
+          <td>All ONNX models select their execution provider through <span class="mono">server/lib/onnx-device.js</span>: Windows <span class="mono">['dml','cpu']</span>, Linux x64 <span class="mono">['cuda','cpu']</span>, CPU only elsewhere; <span class="mono">device-state.json</span> records the one-time circuit break. Index gaps are filled separately and serially by <span class="mono">server/lib/night-batch.js</span> in a configured time window</td>
+          <td>The vast majority of Windows users get GPU acceleration; machines without a discrete GPU or with unsupported drivers stay on CPU, so semantic / face indexing that cannot finish during the day moves to idle hours — filling gaps only, run serially, and yielding as soon as foreground work picks up</td>
+          <td>Low<br><span class="tiny muted">Done</span></td>
+        </tr>
+        <tr>
+          <td><span class="sev p3">P3</span></td>
+          <td><b>Platform capabilities remain long-term</b></td>
+          <td>No accounts, no multi-user permissions, no mobile app</td>
+          <td>The three are written into <b>long-term goals</b> (target values 80 / 60 / 85); multilingual was delivered in 1.2.23 (90). Not abandoned, but placed after standalone capabilities: a solo project has no server budget and no ops staff, and once the cloud goes live it must answer for user data. Ordering rationale is in section 09</td>
+          <td>Very high<br><span class="tiny muted">Year-scale</span></td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+
+  <div class="callout" style="margin-top:18px">
+    <b>Only two walls remain:</b> ① buying a certificate to sign the build (this decides "can it be handed to someone else");
+    ② acceptance testing on real mac / Linux hardware (no testing, no support claim). Everything else is polish and can wait.
+    <br><br>
+    This version (1.2.22 / 2026-11-17) fixes a collage save that stacked two "Save As" dialogs:
+    <span class="mono">will-download</span> is a synchronous event, and declaring the handler <span class="mono">async</span> let Chromium's default behavior pop an empty dialog first, with our own <span class="mono">dialog.showSaveDialog</span> popping a second. Making the handler synchronous and starting the follow-up flow in an async IIFE is enough. <b>The root cause is not rapid clicking (downloadDedupe already deduplicates) but the async declaration itself</b> — a single click was enough to trigger both.
+    <br><br>
+    The previous version (1.2.21) added a "hot update" channel: patches to <span class="mono">server/**</span> and front-end artifacts can ship as a small signed package that the client layers over the installed build, so a full reinstall is no longer needed — the manifest is Ed25519-signed, <span class="mono">seq</span> strictly increases to prevent downgrades, and <span class="mono">shellVersion</span> and <span class="mono">schemaVersion</span> act as two gates.
+    <br><br>
+    Fixed in earlier versions (code locations included, traceable if you are interested): automatic fallback to CPU when the GPU backend crashes in the DML driver; module evaluation depending on the read-only asar directory, which made "A JavaScript error" abort startup; grid layout changed from a full O(n) recomputation to incremental append plus bottom-edge bucketing; no more retries after GPU state is recorded in <span class="mono">device-state.json</span>; the AI night batch queue moves semantic/face indexing that cannot finish during the day to idle hours.
+  </div>
+</section>
+
+<section id="s7">
+  <div class="sec-head"><span class="sec-no">07</span><h2>Objective metrics: turning words into numbers</h2></div>
+  <p class="sec-sub">
+    Every number below comes from the repository and an actual run of <span class="mono">npm run bench:quick</span> on 2026-11-17. Anything not measured is not listed here.
+  </p>
+
+  <div class="grid4">
+    <div class="tile"><div class="v">118,608</div><div class="k">lines of code / 554 files</div><div class="s">web 52,842 · server 45,755 · test 8,831</div></div>
+    <div class="tile"><div class="v">387</div><div class="k">HTTP endpoints / 34 route modules</div><div class="s">Unified error envelope + input allowlist</div></div>
+    <div class="tile"><div class="v">36</div><div class="k">tables / 15 triggers / 30 indexes</div><div class="s">Foreign keys on, FTS5 trigram full-text index</div></div>
+    <div class="tile"><div class="v" style="font-size:17px">261 · 573 · 143 · 15</div><div class="k">lint files · unit tests · smoke · benchmarks (all passed in a real run)</div><div class="s">85 .test.mjs files · verify finishes in one command</div></div>
+    <div class="tile"><div class="v">15 + 25</div><div class="k">pages + settings sections</div><div class="s">72 components · 25 dialogs · 172 tutorial entries</div></div>
+    <div class="tile"><div class="v">11 + 9</div><div class="k">design-file formats / RAW 40+ / 3D</div><div class="s">video 8 · audio 8 · PDF · Office · fonts · EPUB</div></div>
+    <div class="tile"><div class="v">10 + 11</div><div class="k">capture sources + MCP tools</div><div class="s">plugins with 5 permission classes, node:vm sandbox</div></div>
+    <div class="tile"><div class="v">23</div><div class="k">runtime dependencies</div><div class="s">Node ≥ 22.5, Electron 44.4 + Express 5 (three / xlsx / mammoth moved out of runtime)</div></div>
+  </div>
+
+  <div class="grid2" style="margin-top:18px">
+    <div class="panel">
+      <h3 style="margin:0 0 10px;font-size:14.8px">Code distribution (lines · actual wc -l run)</h3>
+      <div class="tbl-wrap" style="border:none">
+        <table style="min-width:0">
+          <thead><tr><th>Directory</th><th>Files</th><th>Lines</th><th>Share</th></tr></thead>
+          <tbody>
+            <tr><td>web/src (front end)</td><td class="num">202</td><td class="num">52,842</td><td class="num">44.6%</td></tr>
+            <tr><td>server (back end)</td><td class="num">200</td><td class="num">45,755</td><td class="num">38.6%</td></tr>
+            <tr><td>test (tests)</td><td class="num">87</td><td class="num">8,831</td><td class="num">7.4%</td></tr>
+            <tr><td>electron (desktop)</td><td class="num">35</td><td class="num">5,774</td><td class="num">4.9%</td></tr>
+            <tr><td>scripts (tooling)</td><td class="num">27</td><td class="num">4,343</td><td class="num">3.7%</td></tr>
+            <tr><td>extension (extension)</td><td class="num">3</td><td class="num">1,063</td><td class="num">0.9%</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <p class="tiny muted" style="margin:10px 0 0">The front end accounts for nearly half: this is a product that puts its complexity into interaction, not another "thumbnail wall plus one button". Counting method: wc -l excluding node_modules / dist / .git, which differs slightly from the previous version (git ls-files including declaration files).</p>
+    </div>
+
+    <div class="panel">
+      <h3 style="margin:0 0 10px;font-size:14.8px">Measured performance (20k-item library · p95 from an actual run on 2026-11-17)</h3>
+      <div class="tbl-wrap" style="border:none">
+        <table style="min-width:0">
+          <thead><tr><th>Metric</th><th>Measured</th><th>Notes</th></tr></thead>
+          <tbody>
+            <tr><td>Bulk library ingest</td><td class="num s9">5,893 rows/s</td><td>worker pool + batched transactions</td></tr>
+            <tr><td>List first page</td><td class="num s9">7 ms</td><td>keyset pagination</td></tr>
+            <tr><td>List deep page</td><td class="num s9">11 ms</td><td>No degradation with page depth</td></tr>
+            <tr><td>Keyword search q=shadow</td><td class="num s9">12 ms</td><td>FTS5 trigram</td></tr>
+            <tr><td>Favorite filter favorite=1</td><td class="num s9">3 ms</td><td>Index hit</td></tr>
+            <tr><td><span class="mono">/api/tags</span> (cached)</td><td class="num s9">4 ms</td><td>Whole tag tree in one call</td></tr>
+            <tr><td>CLIP vector search (20k · minCos=0)</td><td class="num s8">46 ms</td><td>HNSW nearest neighbors</td></tr>
+            <tr><td>Color grading preview 720p / 1600px</td><td class="num s8">16 / 70 ms</td><td>Preview matches the final output</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <p class="tiny muted" style="margin:10px 0 0">bench:quick with 5 samples · CI environment thresholds relaxed 3×; uncompressed chunks: three 753KB, main index bundle 260KB (gzip 86KB), react 144KB, CSS 168KB; the non-Windows onnxruntime binaries are trimmed after packaging.</p>
+    </div>
+  </div>
+</section>
+
+<section id="s8">
+  <div class="sec-head"><span class="sec-no">08</span><h2>Two polish items remain: standalone 90.8 → 91.1</h2></div>
+  <p class="sec-sub">
+    The previous version listed 8 items here; <b>7</b> are now done (including this round's fix of the puzzle save async bug),
+    and their scores are already included in the current 90.8. The remaining <b>2</b> are what the standalone baseline can still earn: finishing them takes 90.8 → <b>91.1</b>, at a cost of 5–7 weeks.
+    The three remaining long-term goals are engineering on another order (with ongoing spend) and are covered separately in section 09.
+    "Score gain" = dimension improvement × that dimension's weight, and the values add up directly.
+  </p>
+
+  <div class="tbl-wrap">
+    <table>
+      <thead>
+        <tr><th style="width:40px">#</th><th style="width:190px">What</th><th>Dimensions affected</th><th style="width:88px">Score increment</th><th style="width:80px">Effort</th><th>Acceptance criteria (checkable)</th></tr>
+      </thead>
+      <tbody>
+        <tr><td>1</td><td><b>Code signing</b> (bundle slimming already done)</td><td>Usability &amp; accessibility +2</td><td class="num s6">+0.10</td><td class="num">1 week</td><td>No SmartScreen warning on a fresh machine; the upgrade chain stays intact</td></tr>
+        <tr><td>2</td><td><b>Real-hardware acceptance for mac / Linux</b></td><td>Engineering quality +3</td><td class="num s6">+0.21</td><td class="num">4–6 weeks</td><td>143 smoke tests pass on each platform with CI records kept; only then can the README say "supported"</td></tr>
+        <tr style="background:rgba(79,70,229,.07)">
+          <td></td><td><b>Total</b></td><td>2 items, all polish or reinforcement</td><td class="num"><b>+0.31</b></td>
+          <td class="num"><b>≈ 5–7 weeks</b></td>
+          <td><b>Standalone baseline: 91.1</b> (90.8 + 0.31) · <b>17-dimension current score: 75.7</b> (75.5 + 0.25; the first 13 dimensions take 74% of the 17-dimension weight)</td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+
+  <div class="grid2" style="margin-top:18px">
+    <div class="panel">
+      <h3 style="margin:0 0 14px;font-size:15px">Roadmap ("stop the bleeding first, build muscle later")</h3>
+      <div class="phase">
+        <h4>0–30 days: clear the "hand it to someone else" gate <span class="tiny muted">90.8 → about 91.0</span></h4>
+        <ul>
+          <li>Code signing (item 1): decides "can it be handed to others with confidence"</li>
+          <li>Also close the last three gaps in Office / PDF / annotation preview (EPUB landed in v1.2.16; 3D ambient-light maps can be done alongside)</li>
+        </ul>
+      </div>
+      <div class="phase">
+        <h4>30–90 days: real-hardware acceptance on mac <span class="tiny muted">about 91.0 → 91.1</span></h4>
+        <ul>
+          <li>mac / Linux real-hardware acceptance (item 2): run the 143 smoke tests once on each platform and keep CI records</li>
+          <li>Render regression baseline: keep one reproducible record each for 100k and 1M items (layout computation has been incremental since v1.2.17)</li>
+        </ul>
+      </div>
+      <div class="phase" style="margin-bottom:0">
+        <h4>90–180 days: standalone peaks here <span class="tiny muted">≈ 91.1</span></h4>
+        <ul>
+          <li>Beyond that are the long-term goals in section 09: multilingual is done (1.2.23); one-off work first (cross-platform), then ongoing spend (cloud and collaboration)</li>
+          <li>No more score chasing once the standalone baseline reaches 91.1 — what remains is "platform capability", which polish cannot supply</li>
+        </ul>
+      </div>
+    </div>
+
+    <div class="panel">
+      <h3 style="margin:0 0 10px;font-size:15px">What the scores look like once this is done</h3>
+      <p style="margin:0 0 14px;color:var(--muted);font-size:13.5px">
+      Standalone baseline 90.8 → <b class="s9">91.1</b>, still first, with the gap to Eagle widening from 7.3 to 7.6;
+      17-dimension current score 75.5 → <b class="s8">75.7</b>, rank unchanged (3rd).
+      If the remaining three long-term goals also reach their target values, the 17-dimension score can reach <b class="s9">87.3</b> (87.1 + 0.25).
+      </p>
+      <div class="ranklist">
+      <div class="rankrow me"><span class="rk-name">Local · now</span><div class="track"><div class="fill" style="width:90.8%"></div></div><span class="rk-val">90.8</span></div>
+      <div class="rankrow me"><span class="rk-name">Local · after gains</span><div class="track"><div class="fill" style="width:91.1%"></div></div><span class="rk-val">91.1</span></div>
+      <div class="rankrow" style="margin-top:6px"><span class="rk-name">17 dimensions · now</span><div class="track"><div class="fill alt" style="width:75.5%"></div></div><span class="rk-val">75.5</span></div>
+      <div class="rankrow"><span class="rk-name">17 dimensions · after gains</span><div class="track"><div class="fill alt" style="width:75.7%"></div></div><span class="rk-val">75.7</span></div>
+      <div class="rankrow me"><span class="rk-name">17 dimensions · long term</span><div class="track"><div class="fill" style="width:87.1%"></div></div><span class="rk-val">87.1</span></div>
+      </div>
+      <div class="tiny" style="margin-top:14px;padding-top:12px;border-top:1px dashed var(--line);color:var(--dim)">
+      <b style="color:var(--text)">Note this asymmetry:</b> for the same 5–7 weeks, standalone gains 0.3 points and the 17-dimension current score only 0.2, with no change in rank.
+      What really moves 17 dimensions from 75.5 to 87.1 is the remaining three long-term goals (+11.7)—they do not conflict, but the investment differs by an order of magnitude.
+      </div>
+    </div>
+  </div>
+</section>
+
+<section id="s9">
+  <div class="sec-head"><span class="sec-no">09</span><h2>The remaining three long-term goals: 75.5 now, 87.1 once delivered</h2></div>
+  <p class="sec-sub">
+    Let us first clear up what is easily misread: these items are <b>not "explicitly out of scope"</b>, but long-term goals placed after standalone capabilities (multilingual was delivered in 1.2.23 and is counted directly at 90).
+    The three numbers are <b>the same ruler</b> at three points in time: the first 13 dimensions contribute a fixed <b>67.2</b>,
+    and the four platform dimensions add "today 8.25 / mid-term 13.4 / target 19.9", giving 75.5 / 80.6 / 87.1.
+    So "the long-term goal being lower than now" cannot happen—under the same basis it rises 11.7 points from 75.5.
+  </p>
+
+  <div class="tbl-wrap" style="margin-bottom:18px">
+    <table>
+      <thead>
+        <tr><th>Dimension</th><th style="width:64px">Weight</th><th style="width:72px">Now</th><th style="width:72px">Mid-term</th><th style="width:72px">Long-term goal</th><th style="width:96px">Increment on delivery</th><th>Prerequisite (A must exist before B)</th></tr>
+      </thead>
+      <tbody>
+        <tr><td><b>Cloud &amp; multi-device</b></td><td class="num">9</td><td class="num s6">15</td><td class="num s6">50</td><td class="num s8">80</td><td class="num s6">+5.85</td><td>Account system + incremental sync; read-only multi-device can come first, write sync needs conflict merging</td></tr>
+        <tr><td><b>Collaboration &amp; community</b></td><td class="num">8</td><td class="num s6">20</td><td class="num s6">30</td><td class="num s6">60</td><td class="num s6">+3.20</td><td>Depends on the account and permission model; comments/sharing first, approval flows and marketplace later</td></tr>
+        <tr><td><b>Multilingual</b></td><td class="num">5</td><td class="num s9">90</td><td class="num s9">90</td><td class="num s9">90</td><td class="num s9">+4.25 delivered</td><td>Done: strings extracted from copy + i18n layer + bilingual docs (1.2.23)</td></tr>
+        <tr><td><b>Cross-platform</b></td><td class="num">4</td><td class="num s6">20</td><td class="num s6">50</td><td class="num s8">85</td><td class="num s6">+2.60</td><td>mac real-hardware CI + installer notarization; Linux deferred</td></tr>
+        <tr style="background:rgba(79,70,229,.07)"><td><b>Total</b></td><td class="num"><b>26</b></td><td class="num"><b>8.25</b></td><td class="num"><b>13.4</b></td><td class="num"><b>19.9</b></td><td class="num"><b>+11.7</b></td><td class="tiny muted">Plus the 67.2 of the first 13 dimensions: 75.5 → 80.6 → 87.1</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <div class="tbl-wrap" style="margin-bottom:18px">
+    <table>
+      <thead><tr><th style="width:130px">Stage</th><th style="width:150px">Four-item values</th><th style="width:110px">17-dimension total</th><th style="width:90px">Rank</th><th>What it takes</th></tr></thead>
+      <tbody>
+        <tr><td>Now</td><td class="num">15 / 20 / 90 / 20</td><td class="num s7">75.5</td><td class="num">3rd</td><td>Delivered: standalone library + LAN read-only sharing + bilingual Chinese/English interface and docs + Windows</td></tr>
+        <tr><td>Mid-term goal</td><td class="num">50 / 30 / 90 / 50</td><td class="num s7">80.6</td><td class="num">2nd</td><td>Read-only multi-device + shared annotations + mac real-hardware acceptance (still no account system or write sync)</td></tr>
+        <tr><td>Long-term goal</td><td class="num">80 / 60 / 90 / 85</td><td class="num s8">87.1</td><td class="num">1st</td><td>Accounts and incremental sync + permissions and approvals + installers for three platforms</td></tr>
+        <tr><td>Long-term + 2 polish items</td><td class="num">Same as above</td><td class="num s8">87.3</td><td class="num">1st</td><td>After the 5–7 week work in Section 08 (+0.25)</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <div class="grid2">
+    <div class="card">
+      <h3 style="color:var(--amber)">Cloud &amp; multi-device · weight 9</h3>
+      <p><b>Now 15 → long-term target 80 (+5.85).</b> Today is not zero: LAN read-only sharing (password / expiry / download disabled), backup to any cloud drive or removable disk, switching between multiple libraries.</p>
+      <p><b>Why long-term:</b> the only one of the three that requires <b>ongoing spend</b>—servers, bandwidth, storage, backups, billed monthly. A solo project has no such budget, and should not promise data-safety responsibility before it can afford it.</p>
+      <p><b>Delivery path:</b> read-only multi-device first (view on phone/web, no writes) → accounts and incremental sync → conflict merging. The read-only stage alone can reach about 50.</p>
+      <div class="ev">Pass criteria: the same account sees the same assets on two devices; offline reading works; conflicts raise a clear notice rather than a silent overwrite</div>
+    </div>
+    <div class="card">
+      <h3 style="color:var(--amber)">Collaboration &amp; community · weight 8</h3>
+      <p><b>Now 20 → long-term target 60 (+3.20).</b> What works today is export packages + read-only share links; the plugin system can host small internal tools, but nobody has written any yet.</p>
+      <p><b>Why it is long-term:</b> collaboration presupposes accounts, permissions, and change history — all three live in the cloud item. Doing collaboration first means building half the cloud, in the wrong order.</p>
+      <p><b>Delivery path:</b> annotations on share links → member roles (view/edit/manage) → approval flows. <b>No commitment to a plugin and template marketplace</b>: an empty marketplace hurts more than none.</p>
+      <div class="ev">Pass criteria: two accounts have different permissions on the same collection, and every change leaves an operation record</div>
+    </div>
+    <div class="card">
+      <h3 style="color:var(--amber)">Multilingual · weight 5</h3>
+      <p><b>Now 90 (delivered) → long-term target 90.</b>1.2.23 completed: all interface copy extracted into strings (4,681 each for zh-CN / en-US), built-in tutorials bilingual, tray and native dialogs following the interface language, backend errors and task progress returned per Accept-Language, plugin metadata and runtime logs bilingual, and both HTML docs bilingual and switchable.</p>
+      <p><b>Why do it first:</b> it is the <b>only one of the four that needs no server and no budget</b>; the cost is concentrated in the large-scale mechanical work of "extracting tens of thousands of strings, translating them, then freezing them"—worth doing alongside a refactoring window.</p>
+      <p><b>The 10 points still missing:</b> configuration display names (AI provider / model / capture source labels) are still in Chinese; logs inside plugin packages are not localized; RTL languages are explicitly unsupported.</p>
+      <div class="ev">Pass criteria: no hardcoded Chinese remains after switching to English; dates, numbers, and units are formatted per locale</div>
+    </div>
+    <div class="card">
+      <h3 style="color:var(--amber)">Cross-platform · weight 4</h3>
+      <p><b>Now 20 → long-term target 85 (+2.60).</b> Only Windows is validated today; mac / Linux have build targets but no real-hardware CI, so no support is claimed.</p>
+      <p><b>Why it is long-term:</b> desktop integration (live wallpaper, drag-out, hotkeys, file associations) is implemented per platform, and three platforms means three maintenance burdens; without real hardware there is no "support".</p>
+      <p><b>Delivery path:</b> item 2 in Section 08 is its prerequisite — run the 143 smoke tests on real mac hardware → installer and notarization → a platform-difference checklist; Linux deferred.</p>
+      <div class="ev">Pass criteria: tray/hotkeys/drag-out/file associations all work on mac, with CI records kept</div>
+    </div>
+  </div>
+
+  <div class="callout" style="margin-top:16px">
+    <b>Why these scores are labeled "target values":</b> a target value is an acceptance line, not a pledge.
+    Lower any single item by 1 point and the 17-dimension total drops 0.4–0.9 (× weight ÷ 100); you can verify it in the table.
+    <br><br>
+    <b>Why cross-platform comes before cloud and collaboration:</b> cross-platform is a <b>one-off project</b>, costs no budget, and stays fixed once done (multilingual was finished first on this logic in 1.2.23);
+    the latter two are <b>recurring spend</b> (servers + bandwidth + backups + on-call), which is also the real financial boundary of a solo project.
+    So the roadmap states it plainly: finish the work that costs nothing first, then let revenue decide how far the cloud goes—this is a trade-off, not a capability problem.
+  </div>
+</section>
+
+<section id="s10">
+  <div class="sec-head"><span class="sec-no">10</span><h2>Interoperability and "taking your data with you": an underrated advantage</h2></div>
+  <p class="sec-sub">
+    The biggest hidden cost of an asset management tool is "three years in, you want to switch and cannot". This item carries only a small weight in the scoring, but for real users it may be decisive.
+  </p>
+  <div class="grid3">
+    <div class="panel">
+      <h3 style="margin:0 0 8px;font-size:14.6px;color:var(--cyan)">Two-way metadata</h3>
+      <p class="tiny" style="margin:0;color:var(--muted)">
+        XMP sidecar read and write, so tags, ratings, and descriptions can be left for the next tool to read; originals stay originals, and edits only write an operation sequence.
+        Evidence: <code>server/lib/xmp.js</code> · <code>test/xmp.test.mjs</code> 26 entries · <code>edit_ops</code> operation stack</p>
+    </div>
+    <div class="panel">
+      <h3 style="margin:0 0 8px;font-size:14.6px;color:var(--cyan)">Verifiable backups</h3>
+      <p class="tiny" style="margin:0;color:var(--muted)">
+        Backup scheduling (daily/weekly), SHA256 verification for every file, and verification again on restore before writing. Backups can go to a cloud drive or a removable disk.
+        Evidence: <code>server/lib/backup-schedule.js</code> · <code>integrity.test.mjs</code> · <code>lib/integrity.js</code></p>
+    </div>
+    <div class="panel">
+      <h3 style="margin:0 0 8px;font-size:14.6px;color:var(--cyan)">Three export forms</h3>
+      <p class="tiny" style="margin:0;color:var(--muted)">
+        CSV / JSON / HTML gallery, including an offline single file with embedded thumbnails; Eagle import, flattened folders, and preserved tag_meta structure all work.
+        Evidence: <code>server/routes/export.js</code> · <code>galleryExport.test.mjs</code> · <code>server/lib/gallery-html.js</code></p>
+    </div>
+    <div class="panel">
+      <h3 style="margin:0 0 8px;font-size:14.6px;color:var(--cyan)">Clipboard and system-level</h3>
+      <p class="tiny" style="margin:0;color:var(--muted)">
+        Drag out to Explorer/WeChat/PS/PPT; Ctrl+C copies a PNG straight to the clipboard; LAN read-only sharing with password and expiry.
+        Evidence: <code>electron/main/ipc-app.js</code> <code>drag-out</code> · <code>lib/lan.js</code> · <code>preload.cjs</code> bridge</p>
+    </div>
+    <div class="panel">
+      <h3 style="margin:0 0 8px;font-size:14.6px;color:var(--cyan)">Dual undo/redo stacks</h3>
+      <p class="tiny" style="margin:0;color:var(--muted)">
+        200 steps / 2GB cap, so any change can be rolled back; deletions go to the recycle bin rather than being erased immediately.
+        Evidence: <code>server/lib/undo.js</code> · <code>test/trash.test.mjs</code> · <code>trash-restore.test.mjs</code></p>
+    </div>
+    <div class="panel">
+      <h3 style="margin:0 0 8px;font-size:14.6px;color:var(--cyan)">Scriptable</h3>
+      <p class="tiny" style="margin:0;color:var(--muted)">
+        Three REST scopes (read/write/ingest), 11 MCP tools, plugin sandbox; the whole library can serve as a data source for AI clients.
+        Evidence: <code>server/mcp-server.mjs</code> · <code>routes/docs.js</code> · <code>lib/plugin-host.js</code></p>
+    </div>
+  </div>
+</section>
+
+<div class="foot">
+  Audit date 2026-11-17 · code version 1.2.22 · full verify (573 / 143 / 15 / 261) passed · numbers from the actual bench:quick run are recorded in Section 07.
+  This file and the <a href="./产品介绍.en.html">Product Introduction</a> are two faces of the same code — that one is for users, this one is for the code layer.
+</div>
+</div>
+
+
+
+
+
+
+
+
+
+<div class="doc-lang-switch" style="position:fixed;right:18px;bottom:18px;z-index:9999;display:flex;gap:2px;padding:4px;border-radius:999px;background:rgba(255,255,255,.92);border:1px solid #e4e9f2;box-shadow:0 6px 18px -10px rgba(15,23,42,.45);font:12.5px/1 system-ui,-apple-system,'Segoe UI',sans-serif">
+  <a href="评测与路线图.html" data-doc-lang="zh" style="padding:6px 11px;border-radius:999px;text-decoration:none;color:#475569">中文</a>
+  <a href="评测与路线图.en.html" data-doc-lang="en" style="padding:6px 11px;border-radius:999px;text-decoration:none;color:#fff;background:#4f46e5;font-weight:600">English</a>
+</div>
+<script>
+(function(){
+  var KEY='doc-scroll-y';
+  function save(){ try{ sessionStorage.setItem(KEY, String(window.scrollY||0)); }catch(e){ /* storage disabled in private mode; ignore */ } }
+  document.querySelectorAll('[data-doc-lang]').forEach(function(a){ a.addEventListener('click', save); });
+  try{
+    var y=sessionStorage.getItem(KEY);
+    if(y!==null){ sessionStorage.removeItem(KEY);
+      window.addEventListener('load', function(){ window.scrollTo(0, Number(y)||0); });
+    }
+  }catch(e){ /* storage disabled in private mode; ignore */ }
+})();
+</script>
+
+</body>
+</html>

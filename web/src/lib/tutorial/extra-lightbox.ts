@@ -1,0 +1,180 @@
+import type { TutorialCategory } from './types';
+import i18n from '../../i18n';
+
+/** 大图里的进阶操作 + 批量条逐项 */
+export function lightboxTutorial(): TutorialCategory[] {
+  return [
+  {
+    id: 'lightbox',
+    title: i18n.t('k8ea42007'),
+    sections: [
+      {
+        id: 'zoom-pan',
+        title: i18n.t('kc607c09a'),
+        summary: i18n.t('ka2f4bf38'),
+        keywords: [i18n.t('k05853d9c'), i18n.t('k4f9b192c'), i18n.t('k9e8cb9f9'), i18n.t('kefb486ca'), i18n.t('kace14667')],
+        body: i18n.t('kc4fc107f'),
+        shortcuts: [
+          { keys: '+ / -', desc: i18n.t('k8ceb51d1') },
+          { keys: '0', desc: i18n.t('kfb8dca91') },
+          { keys: i18n.t('kefb486ca'), desc: i18n.t('k09a1bceb') },
+        ],
+      },
+      {
+        id: 'thumbstrip',
+        title: i18n.t('k5a486833'),
+        summary: i18n.t('k02685dc5'),
+        keywords: [i18n.t('k6b447eea'), i18n.t('k12c4c5e8'), i18n.t('kb52aad48'), i18n.t('kdce5379c')],
+        body: i18n.t('k8d894e54'),
+      },
+      {
+        id: 'slideshow',
+        title: i18n.t('k00822dd1'),
+        summary: i18n.t('kff4d79ef'),
+        keywords: [i18n.t('k40bdf1aa'), i18n.t('ka5987d5c'), i18n.t('k54c6bb48'), i18n.t('k027446c2')],
+        body: i18n.t('k9b7932b4'),
+        shortcuts: [{ keys: 'Esc', desc: i18n.t('k303eb317') }],
+      },
+      {
+        id: 'compare',
+        title: i18n.t('k1e4fb5b5'),
+        summary: i18n.t('k41aa068b'),
+        keywords: [i18n.t('kf5deaa17'), i18n.t('k51cd0e75'), i18n.t('kcd009ba5'), i18n.t('kf0dfdaed')],
+        body: i18n.t('k33637a9e'),
+      },
+      {
+        id: 'versions',
+        title: i18n.t('k7132b509'),
+        summary: i18n.t('k53cf5cb6'),
+        keywords: [i18n.t('kfe2df04a'), i18n.t('kc827d8db'), i18n.t('kd00b485b'), i18n.t('kc7db6d4f'), i18n.t('k664b37da')],
+        body: i18n.t('k79a13dbc'),
+      },
+      {
+        id: 'similar',
+        title: i18n.t('k7e4bb250'),
+        summary: i18n.t('k1c58ac2a'),
+        keywords: [i18n.t('k16cfcd21'), i18n.t('k5f3d0b59'), i18n.t('k0416526a'), i18n.t('kfbae87bc'), i18n.t('ke0de1c9a')],
+        body: i18n.t('k24770670'),
+      },
+      {
+        id: 'color-export',
+        title: i18n.t('k48ebe7df'),
+        summary: i18n.t('k1c63623a'),
+        keywords: [i18n.t('k5fac7568'), 'ASE', i18n.t('k789aa45d'), 'PNG', i18n.t('k8a7984d5')],
+        body: i18n.t('k130d2161'),
+      },
+      {
+        id: 'inspector',
+        title: i18n.t('k8c49cf26'),
+        summary: i18n.t('k9d2f5589'),
+        keywords: [i18n.t('k9478f662'), 'EXIF', i18n.t('kc8339fd2'), 'DPI', i18n.t('k8f5d2fd3')],
+        body: i18n.t('kaad0b1fa'),
+      },
+      {
+        id: 'multi-crop',
+        title: i18n.t('k3d38e999'),
+        summary: i18n.t('k2da698b2'),
+        keywords: [i18n.t('k0542529c'), i18n.t('k096cbe88'), i18n.t('k46641593'), i18n.t('kdd00facb')],
+        body: i18n.t('kf4454c09'),
+      },
+      {
+        id: 'toolkit',
+        title: i18n.t('k82383f91'),
+        summary: i18n.t('ke9215535'),
+        keywords: [i18n.t('k59ddf3cc'), i18n.t('k77310a7c'), i18n.t('k288c3813'), i18n.t('k616c5a20')],
+        body: i18n.t('k12d4bc34'),
+      },
+      {
+        id: 'source-panel',
+        title: i18n.t('ke8aff156'),
+        summary: i18n.t('kdd657f61'),
+        keywords: [i18n.t('k26ca20b1'), i18n.t('kc30d6c94'), i18n.t('k98e1611e'), i18n.t('ke8999472')],
+        body: i18n.t('k9f4d16b6'),
+      },
+      {
+        id: 'comments',
+        title: i18n.t('k1c2ea0ae'),
+        summary: i18n.t('ke558e038'),
+        keywords: [i18n.t('k55374d7b'), i18n.t('kda86ae7e'), i18n.t('k9f03fc75'), 'Comments'],
+        body: i18n.t('k923ad6e3'),
+      },
+      {
+        id: 'info-panel',
+        title: i18n.t('k7df4f570'),
+        summary: i18n.t('kb1adaec6'),
+        keywords: [i18n.t('k17ea77f5'), i18n.t('kf26225bd'), i18n.t('kc58e564b'), i18n.t('k1fda22b9'), i18n.t('ka493312d')],
+        body: i18n.t('k535a991d'),
+      },
+      {
+        id: 'custom-toolbar',
+        title: i18n.t('kcb85b831'),
+        summary: i18n.t('ke71e4e62'),
+        keywords: [i18n.t('kf1d4ff50'), i18n.t('k012f6023'), i18n.t('kfa966345'), i18n.t('k0ec9eaf9'), 'pin'],
+        body: i18n.t('k7f4b7820'),
+      },
+    ],
+  },
+  {
+    id: 'bulk',
+    title: i18n.t('k7f7c624a'),
+    sections: [
+      {
+        id: 'bulk-overview',
+        title: i18n.t('ke41a3084'),
+        summary: i18n.t('kd498f0e2'),
+        keywords: [i18n.t('kad4ba3e8'), i18n.t('k443f46c7'), i18n.t('k7f7c624a'), i18n.t('kf1d4ff50')],
+        body: i18n.t('k078d24c2'),
+      },
+      {
+        id: 'bulk-download',
+        title: i18n.t('kcec9de9e'),
+        summary: i18n.t('k8cc10e6c'),
+        keywords: [i18n.t('ka2247c1d'), 'ZIP', i18n.t('kc6b2bfc5'), i18n.t('k55405ea6')],
+        body: i18n.t('k6461a517'),
+      },
+      {
+        id: 'bulk-stitch',
+        title: i18n.t('kc881aedd'),
+        summary: i18n.t('k60cc3786'),
+        keywords: [i18n.t('ka6b363bb'), i18n.t('kd22ed49b'), i18n.t('k68192d08'), i18n.t('kbd81577a')],
+        body: i18n.t('ke76df312'),
+      },
+      {
+        id: 'bulk-watermark',
+        title: i18n.t('k5cf62a48'),
+        summary: i18n.t('k763d8534'),
+        keywords: [i18n.t('k70420943'), i18n.t('kcdd68c8f'), i18n.t('ke099c261'), i18n.t('k2ed671bd')],
+        body: i18n.t('k80b431f2'),
+      },
+      {
+        id: 'bulk-edit',
+        title: i18n.t('k7c416426'),
+        summary: i18n.t('k774be888'),
+        keywords: [i18n.t('k46641593'), i18n.t('k4d8812b8'), i18n.t('kc8ce4b36'), i18n.t('kfaaadc44')],
+        body: i18n.t('k2e1f272c'),
+      },
+      {
+        id: 'bulk-ocr',
+        title: i18n.t('k1ddd5890'),
+        summary: i18n.t('ke6998b0e'),
+        keywords: [i18n.t('ka379803b'), i18n.t('k53cce5ba'), i18n.t('kfc16b1f0'), i18n.t('k56525d62')],
+        body: i18n.t('kd0f702fe'),
+      },
+      {
+        id: 'bulk-meta',
+        title: i18n.t('k9bc3d990'),
+        summary: i18n.t('k7e002c34'),
+        keywords: [i18n.t('k48557a11'), i18n.t('k124b1890'), i18n.t('k2432b575'), i18n.t('kc500cfab')],
+        body: i18n.t('k135a54c1'),
+      },
+      {
+        id: 'bulk-folder',
+        title: i18n.t('kdb3daa3b'),
+        summary: i18n.t('k44c863f2'),
+        keywords: [i18n.t('k0ad6a3c7'), i18n.t('kd85cec4e'), i18n.t('k1fda22b9'), i18n.t('k3bd00c55')],
+        body: i18n.t('k9b5b3a92'),
+      },
+    ],
+  },
+  ];
+}

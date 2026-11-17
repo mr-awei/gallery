@@ -1,0 +1,23 @@
+{
+  // Electron / 服务端 / 脚本 的 JS 检查闸（tsc --noEmit）。
+  //
+  // checkJs 保持 false：一旦全局打开，被 import 拉进来的每个 server/*.js 都会一起查，
+  // 噪音无法按目录收敛。改为「文件头 // @ts-check」逐文件真检查（等效于该文件 checkJs:true）：
+  // electron/** 全量、server/lib/** 全量、server/routes/** 全量都必须带 pragma，
+  // scripts/lint.mjs 会守住这条覆盖面（漏写就像 typecheck 直接失败），
+  // 所以 npm run typecheck 通过 = 这些目录的语义检查也是真的做了。
+  "compilerOptions": {
+    "target": "ES2022",
+    "module": "ESNext",
+    "moduleResolution": "bundler",
+    "allowJs": true,
+    "checkJs": false,
+    "noEmit": true,
+    // scripts/smoke.mjs 会 import 前端的调色预览实现来做逐像素比对，那边写的是 '../types.ts'
+    "allowImportingTsExtensions": true,
+    "skipLibCheck": true,
+    "resolveJsonModule": true,
+    "types": ["node"]
+  },
+  "include": ["server/**/*.js", "server/**/*.mjs", "electron/**/*.js", "electron/**/*.cjs", "scripts/**/*.mjs", "scripts/**/*.cjs"]
+}

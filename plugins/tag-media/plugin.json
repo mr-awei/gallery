@@ -1,0 +1,9 @@
+{
+  "id": "tag-media",
+  "name": "按媒体类型打标",
+  "version": "1.0.0",
+  "entry": "index.js",
+  "permissions": ["image:read", "image:write", "log"],
+  "actions": ["run"],
+  "description": "官方插件：给素材追加「图片 / 视频 / 音频」标签，方便用 tag:视频 这类前缀搜索把混放素材分开。只追加，可重复运行。"
+}

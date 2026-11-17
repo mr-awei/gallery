@@ -1,0 +1,994 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>图库 TuKu · 深度评测与对标报告（单机基准 + 远期目标）</title>
+<style>
+  :root{
+    --bg:#f5f7fb;--panel:#ffffff;--panel2:#fbfcfe;--line:#e2e8f0;
+    --text:#0f172a;--muted:#475569;--dim:#64748b;
+    --indigo:#4f46e5;--cyan:#0891b2;--emerald:#059669;--amber:#b45309;--rose:#e11d48;
+    --grad:linear-gradient(120deg,#4f46e5,#0891b2 55%,#059669);
+    --shadow:0 18px 42px -30px rgba(15,23,42,.35);
+  }
+  *{box-sizing:border-box}
+  html{scroll-behavior:smooth}
+  body{margin:0;color:var(--text);line-height:1.7;font-size:15px;
+    background:
+      radial-gradient(1100px 600px at 12% -8%,rgba(79,70,229,.10),transparent 60%),
+      radial-gradient(900px 520px at 92% 0%,rgba(8,145,178,.08),transparent 55%),
+      radial-gradient(800px 500px at 50% 110%,rgba(5,150,105,.06),transparent 60%),
+      var(--bg);
+    background-attachment:fixed;
+    font-family:"Noto Sans SC","PingFang SC","Microsoft YaHei",system-ui,-apple-system,"Segoe UI",sans-serif;
+    -webkit-font-smoothing:antialiased}
+  .wrap{max-width:1180px;margin:0 auto;padding:0 22px 96px}
+  a{color:var(--cyan);text-decoration:none}
+  a:hover{text-decoration:underline}
+
+  .hero{padding:70px 0 34px}
+  .kicker{display:inline-flex;align-items:center;gap:8px;font-size:12.5px;letter-spacing:.14em;
+    text-transform:uppercase;color:var(--cyan);border:1px solid rgba(8,145,178,.24);
+    background:rgba(8,145,178,.06);padding:6px 12px;border-radius:999px}
+  .dot{width:6px;height:6px;border-radius:50%;background:var(--cyan);box-shadow:0 0 10px rgba(8,145,178,.55)}
+  h1{font-size:clamp(30px,4.6vw,50px);line-height:1.18;margin:18px 0 12px;letter-spacing:-.02em}
+  h1 .g{background:var(--grad);-webkit-background-clip:text;background-clip:text;color:transparent}
+  .lede{color:var(--muted);max-width:840px;font-size:16px}
+  .chips{display:flex;flex-wrap:wrap;gap:10px;margin-top:22px}
+  .chip{font-size:12.5px;color:var(--muted);border:1px solid var(--line);background:#fff;
+    padding:6px 12px;border-radius:8px;box-shadow:0 1px 0 rgba(15,23,42,.03)}
+  .chip b{color:var(--text);font-weight:600}
+
+  .scores{display:grid;grid-template-columns:1fr 1fr;gap:18px;margin:34px 0 10px}
+  .score-card{border-radius:18px;padding:24px 26px 20px;
+    background:linear-gradient(160deg,rgba(79,70,229,.09),#fff 46%);
+    border:1px solid rgba(79,70,229,.18);box-shadow:var(--shadow)}
+  .score-card.alt{background:linear-gradient(160deg,rgba(180,83,9,.09),#fff 46%);
+    border-color:rgba(180,83,9,.18)}
+  .score-head{display:flex;justify-content:space-between;align-items:flex-start;gap:16px}
+  .score-title{font-size:13px;color:var(--muted)}
+  .score-title b{display:block;font-size:19px;color:var(--text);margin-bottom:2px}
+  .rankbadge{font-size:12px;padding:4px 10px;border-radius:999px;white-space:nowrap;
+    background:rgba(5,150,105,.10);color:var(--emerald);border:1px solid rgba(5,150,105,.26)}
+  .rankbadge.warn{background:rgba(180,83,9,.09);color:var(--amber);border-color:rgba(180,83,9,.24)}
+  .donut-wrap{display:flex;align-items:center;gap:22px;margin-top:16px}
+  .donut{--v:0;position:relative;width:112px;height:112px;border-radius:50%;flex:0 0 auto;
+    background:conic-gradient(from -90deg,#4f46e5,#0891b2 calc(var(--v)*1%),rgba(15,23,42,.08) 0)}
+  .donut::after{content:"";position:absolute;inset:12px;border-radius:50%;background:#fff;
+    box-shadow:inset 0 0 16px rgba(15,23,42,.06)}
+  .donut span{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;
+    font-size:25px;font-weight:700;letter-spacing:-.02em;z-index:1}
+  .donut small{font-size:12px;color:var(--muted);font-weight:400;margin-left:2px}
+  .score-note{color:var(--muted);font-size:13.4px}
+  .score-note b{color:var(--text)}
+  .split{margin-top:14px;padding-top:12px;border-top:1px dashed var(--line);font-size:13px;color:var(--dim)}
+  .split b{color:var(--amber);font-size:15px}
+
+  section{margin-top:62px}
+  .sec-head{display:flex;align-items:baseline;gap:14px;margin-bottom:8px}
+  .sec-no{font-size:12px;letter-spacing:.16em;color:var(--cyan);border:1px solid rgba(34,211,238,.28);
+    padding:3px 9px;border-radius:6px;background:rgba(34,211,238,.06)}
+  h2{font-size:clamp(21px,2.6vw,28px);margin:0;letter-spacing:-.01em}
+  .sec-sub{color:var(--muted);margin:0 0 22px;max-width:920px}
+
+  .panel{background:#fff;border:1px solid var(--line);border-radius:16px;padding:22px 24px;
+    box-shadow:0 1px 2px rgba(15,23,42,.04)}
+  .grid2{display:grid;grid-template-columns:1fr 1fr;gap:18px}
+  .grid3{display:grid;grid-template-columns:repeat(3,1fr);gap:14px}
+  .grid4{display:grid;grid-template-columns:repeat(4,1fr);gap:14px}
+
+  table{width:100%;border-collapse:collapse;font-size:13.6px}
+  thead th{position:sticky;top:0;background:#f1f5f9;color:var(--muted);font-weight:600;
+    text-align:left;padding:10px;border-bottom:1px solid var(--line);white-space:nowrap;z-index:2}
+  tbody td{padding:10px;border-bottom:1px solid rgba(15,23,42,.07);vertical-align:top}
+  tbody tr:hover{background:rgba(79,70,229,.04)}
+  tbody tr:last-child td{border-bottom:none}
+  .num{font-variant-numeric:tabular-nums;font-weight:600}
+  .tbl-wrap{overflow:auto;border:1px solid var(--line);border-radius:14px;background:#fff}
+  .tbl-wrap table{min-width:720px}
+  .hi{background:rgba(79,70,229,.07)!important}
+  .s9{color:#059669;font-weight:700}
+  .s8{color:#1d4ed8;font-weight:700}
+  .s7{color:#b45309;font-weight:700}
+  .s6{color:#e11d48;font-weight:700}
+  .muted{color:var(--muted)}
+  .tiny{font-size:12.4px}
+  .mono{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;font-size:12.3px}
+
+  .ranklist{display:flex;flex-direction:column;gap:10px;margin-top:4px}
+  .rankrow{display:grid;grid-template-columns:100px 1fr 52px;align-items:center;gap:12px}
+  .rk-name{font-size:13.2px;color:var(--muted);text-align:right}
+  .rankrow.me .rk-name{color:var(--text);font-weight:700}
+  .track{height:11px;border-radius:8px;background:rgba(15,23,42,.07);overflow:hidden}
+  .fill{height:100%;border-radius:8px;background:linear-gradient(90deg,#4f46e5,#0891b2)}
+  .rankrow.me .fill{background:linear-gradient(90deg,#059669,#0891b2);box-shadow:0 0 14px -6px rgba(8,145,178,.6)}
+  .fill.alt{background:linear-gradient(90deg,#64748b,#94a3b8);opacity:.6}
+  .rk-val{font-size:13px;font-variant-numeric:tabular-nums;color:var(--text);text-align:right}
+
+  .dimrow{display:grid;grid-template-columns:112px repeat(4,1fr) 252px;gap:12px;align-items:center;
+    padding:9px 0;border-bottom:1px solid rgba(15,23,42,.06)}
+  .dimrow.head{padding-bottom:6px;border-bottom:1px solid var(--line);font-size:11.6px;color:var(--dim)}
+  .dimrow.head .dname{color:var(--muted);font-weight:600}
+  .dimrow:last-child{border-bottom:none}
+  .dname{font-size:13.2px}
+  .dimcell{display:flex;flex-direction:column;gap:4px}
+  .dimcell small{font-size:11px;color:var(--dim);font-variant-numeric:tabular-nums}
+  .mini{height:7px;border-radius:6px;background:rgba(15,23,42,.07);overflow:hidden}
+  .mini i{display:block;height:100%;border-radius:6px}
+  .cmt{font-size:12.3px;color:var(--muted)}
+  .legend{display:flex;gap:16px;flex-wrap:wrap;font-size:12.3px;color:var(--muted);margin:12px 0 16px}
+  .legend i{display:inline-block;width:9px;height:9px;border-radius:3px;margin-right:6px}
+
+  .adv{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+  .card{background:#fff;border:1px solid var(--line);border-radius:14px;padding:18px;
+    box-shadow:0 1px 2px rgba(15,23,42,.04)}
+  .card h3{margin:0 0 6px;font-size:15.4px;display:flex;align-items:center;gap:10px}
+  .n{font-size:11.6px;color:var(--cyan);border:1px solid rgba(8,145,178,.24);background:rgba(8,145,178,.07);
+    width:26px;height:26px;border-radius:8px;display:inline-flex;align-items:center;justify-content:center;flex:0 0 auto}
+  .card p{margin:6px 0 0;color:var(--muted);font-size:13.4px}
+  .ev{margin-top:10px;font-size:12.2px;color:var(--dim);border-top:1px dashed rgba(15,23,42,.12);padding-top:9px}
+  .ev code{color:#4338ca;background:rgba(79,70,229,.08);padding:1px 5px;border-radius:4px;font-size:11.8px}
+
+  .sev{display:inline-block;font-size:11.5px;font-weight:700;padding:2px 8px;border-radius:6px;letter-spacing:.04em}
+  .p1{color:#be123c;background:rgba(225,29,72,.08);border:1px solid rgba(225,29,72,.22)}
+  .p2{color:#b45309;background:rgba(180,83,9,.08);border:1px solid rgba(180,83,9,.22)}
+  .p3{color:#1d4ed8;background:rgba(29,78,216,.07);border:1px solid rgba(29,78,216,.2)}
+
+  .tile{border:1px solid var(--line);border-radius:14px;padding:16px;background:#fff}
+  .tile .v{font-size:26px;font-weight:700;letter-spacing:-.02em;background:var(--grad);
+    -webkit-background-clip:text;background-clip:text;color:transparent;font-variant-numeric:tabular-nums}
+  .tile .k{font-size:12.4px;color:var(--muted);margin-top:2px}
+  .tile .s{font-size:11.6px;color:var(--dim);margin-top:6px}
+
+  .phase{border-left:2px solid rgba(79,70,229,.28);padding:2px 0 2px 20px;margin-left:6px;position:relative;margin-bottom:20px}
+  .phase::before{content:"";position:absolute;left:-7px;top:6px;width:12px;height:12px;border-radius:50%;
+    background:var(--indigo);box-shadow:0 0 0 4px rgba(79,70,229,.12)}
+  .phase h4{margin:0 0 6px;font-size:15px}
+  .phase p{margin:0 0 6px;color:var(--muted);font-size:13.4px}
+  .phase ul{margin:0;padding-left:18px;color:var(--muted);font-size:13.2px}
+  .phase li{margin:4px 0}
+  .phase b{color:var(--text)}
+
+  .callout{border-radius:14px;padding:18px 20px;border:1px solid rgba(8,145,178,.2);
+    background:linear-gradient(120deg,rgba(8,145,178,.06),rgba(79,70,229,.05))}
+  .callout b{color:#0e7490}
+  .foot{margin-top:56px;padding-top:20px;border-top:1px solid var(--line);color:var(--dim);font-size:12.4px}
+  ul.plain{margin:8px 0 0;padding-left:20px;color:var(--muted);font-size:13.4px}
+  ul.plain li{margin:5px 0}
+  @media(max-width:860px){
+    .scores,.grid2,.grid3,.grid4,.adv{grid-template-columns:1fr}
+    .dimrow{grid-template-columns:1fr;gap:6px}
+    .cmt{display:none}
+    .rankrow{grid-template-columns:84px 1fr 46px}
+  }
+  @media print{
+    body{background:#fff;color:#111}
+    .panel,.card,.tile,.score-card{background:#fff;border-color:#ddd}
+    .dimrow,.ranklist,.adv{break-inside:avoid}
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<header class="hero">
+  <div class="kicker"><span class="dot"></span>深度代码审计 · 单机基准 + 三项远期目标（多语言已交付）</div>
+  <h1>图库 TuKu：<span class="g">本地素材管理器</span>的真实水平</h1>
+  <p class="lede">
+    这不是功能宣传页，而是一次把 13.9 万行源码逐层翻过之后的计分：17 个维度、8 个竞品、
+    每条结论都能落到文件与函数上。结论先说——<b>只做本地管理器，它是这一档的第一（90.8 / 100）</b>；
+    云与多端、协作社区、跨平台这三项<b>不是不做，而是排在后面的远期目标</b>，多语言已在 1.2.23 交付（5 → 90）；
+    同一 17 维口径下按今天的进度是 <b>75.5</b>（第 3），按目标值计分可到 <b>87.1</b>（第 1）。三个数都对，区别只在"算哪一天"。
+  </p>
+  <div class="chips">
+    <span class="chip">审计日期 <b>2026-11-17</b></span>
+    <span class="chip">代码版本 <b>1.2.23</b></span>
+    <span class="chip">规模 <b>554 文件 / 118,608 行</b></span>
+    <span class="chip">方法 <b>代码审计 + 实跑基准 + 8 竞品对标</b></span>
+    <span class="chip">配套文档 <b><a href="./产品介绍.html">功能资料（面向普通用户）</a></b></span>
+  </div>
+
+  <div class="scores">
+    <div class="score-card">
+      <div class="score-head">
+        <div class="score-title"><b>单机基准 · 13 维 100 分</b>已实现的能力，今天就能复核</div>
+        <span class="rankbadge">8 竞品中第 1</span>
+      </div>
+      <div class="donut-wrap">
+        <div class="donut" style="--v:90.8"><span>90.8<small>/100</small></span></div>
+        <div class="score-note">
+          高于 Eagle <b>83.5</b>、Immich <b>74.5</b>、PhotoPrism <b>71.0</b>。<br>
+          领先来自三处结构性优势：<b>自动化与开放接口</b>、<b>桌面集成深度</b>、<b>数据安全与可带走</b>。
+        </div>
+      </div>
+      <div class="split">同一套代码按 17 维口径：现在 <b>75.5</b>（第 3）→ 中期 <b>80.6</b>（第 2）→ 远期 <b>87.1</b>（第 1）。<br>
+        两个口径分母不同（13 维 vs 17 维），分数不可直接相减。</div>
+    </div>
+
+    <div class="score-card alt">
+      <div class="score-head">
+        <div class="score-title"><b>远期目标 · 17 维 100 分</b>多语言已按实际得分（90）计入，其余三项按"达成后的目标值"计分</div>
+        <span class="rankbadge">达成后排第 1</span>
+      </div>
+      <div class="donut-wrap">
+        <div class="donut" style="--v:87.1"><span>87.1<small>/100</small></span></div>
+        <div class="score-note">
+          目标值：云与多端 <b>80</b>、协作社区 <b>60</b>、多语言 <b>90</b>、跨平台 <b>85</b>；<br>
+          当前值：<b>15 / 20 / 90 / 20</b>——合计 8.25，距目标 19.9 还差 <b>+11.7</b>（多语言已交付）。
+        </div>
+      </div>
+      <div class="split">同一 17 维口径下现在 <b>75.5</b>、远期 <b>87.1</b>，还差 <b>11.7</b> 分；分三步走见第 09 节</div>
+    </div>
+  </div>
+</header>
+
+<section id="s1">
+  <div class="sec-head"><span class="sec-no">01</span><h2>结论速览：单机第一，远期目标也够到第一</h2></div>
+  <p class="sec-sub">先给答案，再给证据。三块内容分别回答：凭什么单机第一、远期目标各值多少分、这套分数该怎么读。</p>
+
+  <div class="grid3">
+    <div class="panel">
+      <h3 style="margin:0 0 10px;font-size:15.5px;color:var(--emerald)">凭什么单机第一</h3>
+      <ul class="plain">
+        <li><b>数据模型是"素材库"而不是"相册"</b>：36 张表、15 触发器、30 个索引（外键已接管级联），FTS5 trigram 全文索引，设计稿 11 种、RAW 40+ 种、三维 9 种、EPUB 电子书都能进库并出缩略图。</li>
+        <li><b>自动化是原生的</b>：10 个采集源、11 个 MCP 工具、插件沙箱、REST 带 token 与 scope，/api/docs 自动生成 387 端点 + curl/JS/Python 三语言示例——同行普遍只有"导入 + 拖拽"。</li>
+        <li><b>桌面集成到系统层</b>：托盘、可改全局热键、Windows 动态壁纸（WorkerW + GLSL）、拖出到资源管理器、右键采集、局域网只读分享。</li>
+      </ul>
+    </div>
+    <div class="panel">
+      <h3 style="margin:0 0 10px;font-size:15.5px;color:var(--amber)">远期目标各值多少分（多语言已交付）</h3>
+      <ul class="plain">
+        <li><b>云与多端 15 → 80</b>（权重 9）：先账号与只读多端，再增量同步与移动端；兑现 <b>+5.85</b>。</li>
+        <li><b>协作与社区 20 → 60</b>（权重 8）：评论、分享、最小权限闭环；插件市场不作承诺；兑现 <b>+3.20</b>。</li>
+        <li><b>多语言 5 → 90</b>（权重 5）：已于 1.2.23 交付，<b>+4.25 已计入</b>现在分。</li>
+        <li><b>跨平台 20 → 85</b>（权重 4）：mac 真机冒烟 + 安装包，Linux 顺延；兑现 <b>+2.60</b>。</li>
+        <li>剩余三项合计 <b>+11.7</b>：75.5 → <b>87.1</b>，从第 3 升到第 1。顺序与前置条件见第 09 节。</li>
+      </ul>
+    </div>
+    <div class="panel">
+      <h3 style="margin:0 0 10px;font-size:15.5px;color:var(--cyan)">一句话结论</h3>
+      <p style="margin:0;color:var(--muted);font-size:13.6px">
+        如果你是<b>一个人、一台 Windows、一个几万到几十万张的本地素材库</b>，它是当前性价比与可控性最好的选择；
+        这四项平台能力是<b>真会做</b>的方向，但顺序由现实约束决定——个人项目、没有服务器预算、单平台维护成本——
+        所以别按"下个版本就有"去预期。
+      </p>
+      <div style="margin-top:12px;padding-top:12px;border-top:1px dashed var(--line);font-size:12.6px;color:var(--dim)">
+        现在适合：设计师个人库 / 摄影后期素材池 / 素材收集与归档 / 需要被脚本和 AI 调用的工作流。<br>
+        现在还缺：团队共享、跨设备同步——它们写在路线图上，不在今天的安装包里。
+      </div>
+    </div>
+  </div>
+
+  <div class="callout" style="margin-top:18px">
+    <b>三档口径，全部百分制，而且分母一致（17 维 100 分权重）：</b>
+    ① <b>75.5</b> = 现在（多语言已交付 90，其余三项按今天的进度计，第 3）；
+    ② <b>80.6</b> = 中期目标（多端只读 + mac 真机 + 权限雏形，第 2）；
+    ③ <b>87.1</b> = 远期目标（三项按 80 / 60 / 85 的目标值计，第 1）。
+    三档是<b>单调上升</b>的：75.5 → 80.6 → 87.1，远期目标不会低于现在。
+    另外还有一把尺子：<b>单机专项 90.8</b>（13 维 100 分，只把已实现能力计入，用于和竞品比"本地管理器"）。
+    它的分母里去掉了那 26 分尚未兑现的平台权重，所以 <b>90.8 与 87.1 不可直接相减</b>——同一口径下对应的就是 75.5。
+  </div>
+  <div class="callout" style="margin-top:12px">
+    <b>读数约定：</b>90 分以上 = 接近同类商用上限；80–90 = 成熟可交付，只剩打磨；
+    70–80 = 能用但明显弱于头部；60 以下 = 结构性缺口，不是补丁能解决的。
+    本轮审计（2026-11-17）与上一版（2026-11-16）的差异来自两处实质补强：
+    ① <b>拼图保存 will-download async bug</b> 落地（Electron 同步事件不能用 async handler，前一个框和 Chromium 默认行为叠出两个），属于 P1 级 bug 消除；
+    ② 竞品 Eagle 4.0 B22（2026 Q4）上线 AI Search 插件 + Web API v2，把 Eagle 的 AI 维度从 65 拉到 72、自动化维度略有改善；Immich v3.4.0（2026-11）的 ML v2 GPU 覆盖更宽；PhotoPrism 2026-10 上 NVIDIA CUDA 全模型加速；
+    ③ <b>多语言落地</b>（1.2.23）：界面 / 教程 / 托盘 / 后端错误 / 插件元数据 / 文档全部双语，词条 4,681 条，多语言维度 5 → 90（17 维当前分 +4.25）。
+    TuKu 自身维度分维持：表数从 40 修正为 36（事实性修订，功能面完整），单机 90.9 → 90.8。
+  </div>
+</section>
+
+<section id="s2">
+  <div class="sec-head"><span class="sec-no">02</span><h2>评分方法：13 维算现在，4 维平台能力另算</h2></div>
+  <p class="sec-sub">
+    先把"怎么算"摊开，分数才有讨论价值。全部维度<b>直接按 100 分打分</b>再按权重加权：前 13 维构成单机基准（100 分，只算已实现能力）；
+    后 4 维是长期平台能力（多语言已交付 90），按"当下的值"与"目标值"各算一次，就得到 75.5 与 87.1。
+    加权就是"维度分 × 权重 ÷ 100"再相加，所以每个维度掉 1 分，总分掉 0.02–0.09 分。
+  </p>
+
+  <div class="tbl-wrap">
+    <table>
+      <thead>
+        <tr><th>#</th><th>维度</th><th style="width:92px">单机权重</th><th style="width:104px">远期 17 维权重</th><th>这一维到底在量什么</th></tr>
+      </thead>
+      <tbody>
+        <tr><td>1</td><td>导入与采集</td><td class="num">8</td><td class="num">6</td><td>文件夹/ZIP/剪贴板/拖拽/浏览器扩展/网络采集，去重与断点续传</td></tr>
+        <tr class="hi"><td>2</td><td>组织与元数据</td><td class="num">10</td><td class="num">7</td><td>文件夹树、标签、评分、集合、人物、地点、时间线、自定义字段、XMP</td></tr>
+        <tr class="hi"><td>3</td><td>浏览与检索</td><td class="num">12</td><td class="num">8</td><td>关键词/语义/颜色/相似图、组合筛选、排序分组、滚动体验</td></tr>
+        <tr><td>4</td><td>编辑与产出</td><td class="num">8</td><td class="num">6</td><td>非破坏编辑、裁切旋转调色、擦除、超分、水印相框、批处理</td></tr>
+        <tr><td>5</td><td>格式与媒体</td><td class="num">7</td><td class="num">5</td><td>RAW/设计稿/三维/音频/视频/PDF/Office/字体/EPUB 的入库与预览深度</td></tr>
+        <tr><td>6</td><td>AI 能力</td><td class="num">8</td><td class="num">6</td><td>CLIP 语义、人脸聚类、相似图、自动标签、抠图；是否本机推理</td></tr>
+        <tr class="hi"><td>7</td><td>自动化与开放</td><td class="num">8</td><td class="num">6</td><td>REST + token/scope、MCP 工具、插件沙箱、脚本能力、扩展</td></tr>
+        <tr><td>8</td><td>桌面集成</td><td class="num">7</td><td class="num">5</td><td>托盘、全局热键、开机自启、拖出、动态壁纸、系统菜单、单实例</td></tr>
+        <tr><td>9</td><td>性能与规模</td><td class="num">9</td><td class="num">6</td><td>导入吞吐、API p95、首屏、大库滚动、缩略图缓存</td></tr>
+        <tr><td>10</td><td>数据安全</td><td class="num">8</td><td class="num">7</td><td>备份与校验、撤销重做、回收站、原子写、库锁、崩溃自愈</td></tr>
+        <tr><td>11</td><td>工程质量</td><td class="num">7</td><td class="num">5</td><td>分层、契约守门、测试密度、迁移机制、巨型文件、可维护性</td></tr>
+        <tr><td>12</td><td>易用与可访问</td><td class="num">5</td><td class="num">5</td><td>信息架构、引导与空态、快捷键、键盘可达、读屏、无障碍</td></tr>
+        <tr><td>13</td><td>文档与交付</td><td class="num">3</td><td class="num">2</td><td>内置教程、README、API 文档、打包与签名、CI 闸门</td></tr>
+        <tr><td>14</td><td>云与多端</td><td class="num muted">不计分</td><td class="num">9</td><td>账号、同步、冲突合并、离线可用、移动端与网页端 · <b>目标 80</b>（现在 15）</td></tr>
+        <tr><td>15</td><td>协作与社区</td><td class="num muted">不计分</td><td class="num">8</td><td>多人共享权限、评论审批、插件与模板市场 · <b>目标 60</b>（现在 20）</td></tr>
+        <tr><td>16</td><td>多语言</td><td class="num muted">不计分</td><td class="num">5</td><td>界面与内容本地化、翻译层、排版适配 · <b>目标 90（1.2.23 已达成）</b></td></tr>
+        <tr><td>17</td><td>跨平台</td><td class="num muted">不计分</td><td class="num">4</td><td>mac/Linux 真机可用、安装包、平台差异处理 · <b>目标 85</b>（现在 20）</td></tr>
+        <tr style="background:rgba(79,70,229,.07)"><td></td><td><b>合计</b></td><td class="num"><b>100</b></td><td class="num"><b>100</b></td><td class="tiny muted">单机基准把 22 分压在「组织 + 检索」上；远期 17 维把这 22 分压到 15 分，前 13 维只剩 74 分，让出 26 分给四项平台维度（多语言已交付）</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <div class="grid2" style="margin-top:18px">
+    <div class="panel">
+      <h3 style="margin:0 0 8px;font-size:15px">为什么这样配权重</h3>
+      <ul class="plain">
+        <li><b>单机基准</b> 假设用户只有一台机器、一个库、自己一个人用。那么决定日常体验的就是"能不能快速找回来"——组织 10 分 + 检索 12 分是全场最高权重，性能 9 分紧随其后。</li>
+        <li><b>远期 17 维</b> 假设有一天要拿去和 Immich 这类"能装下一整个团队"的产品比。这时同步与协作合计 17 分、多语言与跨平台 9 分，前 13 维被稀释到 74 分——四维按今天的进度计是 75.5，按目标值计是 87.1。</li>
+        <li>两个口径都<b>不奖励 PPT 功能</b>：AI 维度要求本机可跑、有失败回退；性能维度要求有基准脚本可复现。</li>
+      </ul>
+    </div>
+    <div class="panel">
+      <h3 style="margin:0 0 8px;font-size:15px">打分怎么保证不飘</h3>
+      <ul class="plain">
+        <li><b>TuKu 的每一分都能复核</b>：要么有代码位置，要么有 <span class="mono">npm run bench:quick</span> 的实测数字（15/15 项 2026-11-17 全过）。</li>
+        <li><b>竞品分数是公开功能面的估算</b>，不是厂商官方数据。同档位不超过 93，除非有可复现的实测。</li>
+        <li><b>不确定就往低打</b>：例如 Eagle 的 AI 能力，公开资料里 AI Search 是"插件"而非原生管线，因此给 72 而非 85。</li>
+        <li>8 个竞品全部用同一份问卷、同一组锚点打分，避免"给对手挑刺、给自己放水"。</li>
+      </ul>
+    </div>
+  </div>
+</section>
+
+<section id="s3">
+  <div class="sec-head"><span class="sec-no">03</span><h2>三档排名：同一批 8 个产品，三种排法</h2></div>
+  <p class="sec-sub">
+    榜单里既有商业闭源（Eagle、Billfish、Pixcall、Bridge、XnView），也有开源自托管（Immich、PhotoPrism）。
+    条形长度就是加权总分，绿色那一行是本项目。两张榜唯一的区别是：四项平台能力按"目标值"还是按"今天的进度"算（多语言已交付，两种算法都是 90）。
+  </p>
+
+  <div class="grid2">
+    <div class="panel">
+      <h3 style="margin:0 0 4px;font-size:15px">单机基准 · 13 维（已实现）</h3>
+      <p class="tiny muted" style="margin:0 0 14px">今天安装就能复核的分数</p>
+      <div class="ranklist">
+        <div class="rankrow me"><span class="rk-name">图库 TuKu</span><div class="track"><div class="fill" style="width:90.8%"></div></div><span class="rk-val">90.8</span></div>
+        <div class="rankrow"><span class="rk-name">Eagle</span><div class="track"><div class="fill alt" style="width:83.5%"></div></div><span class="rk-val">83.5</span></div>
+        <div class="rankrow"><span class="rk-name">Immich</span><div class="track"><div class="fill alt" style="width:74.5%"></div></div><span class="rk-val">74.5</span></div>
+        <div class="rankrow"><span class="rk-name">PhotoPrism</span><div class="track"><div class="fill alt" style="width:71.0%"></div></div><span class="rk-val">71.0</span></div>
+        <div class="rankrow"><span class="rk-name">Billfish</span><div class="track"><div class="fill alt" style="width:70.5%"></div></div><span class="rk-val">70.5</span></div>
+        <div class="rankrow"><span class="rk-name">Pixcall</span><div class="track"><div class="fill alt" style="width:68.5%"></div></div><span class="rk-val">68.5</span></div>
+        <div class="rankrow"><span class="rk-name">Bridge</span><div class="track"><div class="fill alt" style="width:67.5%"></div></div><span class="rk-val">67.5</span></div>
+        <div class="rankrow"><span class="rk-name">XnView MP</span><div class="track"><div class="fill alt" style="width:60.0%"></div></div><span class="rk-val">60.0</span></div>
+      </div>
+    </div>
+
+    <div class="panel">
+      <h3 style="margin:0 0 4px;font-size:15px">远期目标 · 17 维（按目标值）</h3>
+      <p class="tiny muted" style="margin:0 0 14px">云 80 / 协作 60 / 多语言 90 / 跨平台 85</p>
+      <div class="ranklist">
+        <div class="rankrow me"><span class="rk-name">图库 TuKu</span><div class="track"><div class="fill" style="width:87.1%"></div></div><span class="rk-val">87.1</span></div>
+        <div class="rankrow"><span class="rk-name">Immich</span><div class="track"><div class="fill alt" style="width:79.5%"></div></div><span class="rk-val">79.5</span></div>
+        <div class="rankrow"><span class="rk-name">Eagle</span><div class="track"><div class="fill alt" style="width:72.5%"></div></div><span class="rk-val">72.5</span></div>
+        <div class="rankrow"><span class="rk-name">PhotoPrism</span><div class="track"><div class="fill alt" style="width:71.8%"></div></div><span class="rk-val">71.8</span></div>
+        <div class="rankrow"><span class="rk-name">Pixcall</span><div class="track"><div class="fill alt" style="width:69.5%"></div></div><span class="rk-val">69.5</span></div>
+        <div class="rankrow"><span class="rk-name">Bridge</span><div class="track"><div class="fill alt" style="width:66.5%"></div></div><span class="rk-val">66.5</span></div>
+        <div class="rankrow"><span class="rk-name">Billfish</span><div class="track"><div class="fill alt" style="width:64.0%"></div></div><span class="rk-val">64.0</span></div>
+        <div class="rankrow"><span class="rk-name">XnView MP</span><div class="track"><div class="fill alt" style="width:55.5%"></div></div><span class="rk-val">55.5</span></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="grid2" style="margin-top:16px">
+    <div class="panel">
+      <h3 style="margin:0 0 8px;font-size:14.6px">竞品各自强在哪（只讲事实）</h3>
+      <ul class="plain">
+        <li><b>Eagle（4.0 B22 · 2026 Q4）</b>：本地素材库的老牌标准。格式预览深度、界面手感、模板生态仍是第一；AI Search 插件（反向图搜 + 语义搜索）和 Web API v2 于 2026-03 正式发布，补了之前最大短板；自动化仍是插件化而非原生脚本入口。</li>
+        <li><b>Immich（v3.4.0 · 2026-11）</b>：开源自托管相册标杆。ML v2 硬件加速覆盖 RKNPU/TensorRT/OpenVINO，Search v2，跨用户人脸聚类，JPEG XL 支持；弱在"素材"而非"照片"——设计稿、三维、桌面集成基本不覆盖。</li>
+        <li><b>PhotoPrism（2026-10）</b>：照片管理型。NVIDIA CUDA 全模型加速（图像分类/NSFW/人脸检测/嵌入），Ollama 集成标签命名，Vulkan 视频转码，NOT/AND 运算符标签过滤；编辑能力几乎为零。</li>
+        <li><b>Billfish 3.1.5.12 / Pixcall 0.9.7 / Bridge v17.0 / XnView MP 1.11.5</b>：国产、新锐、Adobe 配套、看图工具——各有特色但天花板清晰，自动化接口、AI 深度、桌面集成三项普遍弱于前三。</li>
+      </ul>
+    </div>
+    <div class="panel">
+      <h3 style="margin:0 0 8px;font-size:14.6px">三条最该记住的对比</h3>
+      <p style="margin:0 0 10px;color:var(--muted);font-size:13.5px">
+        <b style="color:var(--emerald)">单机（90.8）：领先 Eagle 7.3 分。</b>差距不在界面，而在三处 Eagle 没做的事——
+        网络采集与脚本接口、本机 AI（CLIP + 人脸聚类 + HNSW）、数据出口（XMP / 备份校验 / 双栈撤销）。Eagle 的 AI 是插件而非原生管线。
+      </p>
+      <p style="margin:0 0 10px;color:var(--muted);font-size:13.5px">
+        <b style="color:var(--amber)">17 维口径现在（75.5）：落后 Immich 4.0 分。</b>
+        差的正是账号、变更合并、移动端——三项都在云与多端/协作这两个远期维度里。
+      </p>
+      <p style="margin:0;color:var(--muted);font-size:13.5px">
+        <b style="color:var(--cyan)">远期目标（87.1）：反超 Immich 7.6 分。</b>同一把尺子下，
+        现在 75.5 → 远期 87.1，还差 11.7 分；剩下三个目标值（80 / 60 / 85）都能逐项验收。
+      </p>
+      <div class="tiny" style="margin-top:12px;padding-top:10px;border-top:1px dashed var(--line);color:var(--dim)">
+        换句话说：<b style="color:var(--text)">单机它已经是领先者，平台能力是待兑现的路线图。</b>两个判断可以同时成立。
+      </div>
+    </div>
+  </div>
+</section>
+
+<section id="s4">
+  <div class="sec-head"><span class="sec-no">04</span><h2>17 个维度逐项对打</h2></div>
+  <p class="sec-sub">
+    只选 4 个最有参照价值的产品：Eagle（本地库上限）、Immich（开源平台上限）、PhotoPrism（照片管理上限），
+    加上本项目。条形越长越强，右侧一句话说明分差来自哪里。TuKu 分数为实查值，Eagle/Immich/PhotoPrism 为 2025-2026 最新公开功能面粗估。
+  </p>
+  <div class="legend">
+    <span><i style="background:#34d399"></i>90 分以上 接近商用上限</span>
+    <span><i style="background:#60a5fa"></i>80–90 成熟可交付</span>
+    <span><i style="background:#fbbf24"></i>70–80 明显弱于头部</span>
+    <span><i style="background:#fb7185"></i>70 以下 结构性缺口</span>
+  </div>
+  <div class="panel">
+    <div class="dimrow head">
+      <span class="dname">维度</span>
+      <span>图库 TuKu</span><span>Eagle</span><span>Immich</span><span>PhotoPrism</span>
+      <span>分差来自哪里</span>
+    </div>
+    <div class="dimrow"><span class="dname">导入与采集</span>
+      <div class="dimcell"><small class="s9">93</small><div class="mini"><i style="width:93%;background:#34d399"></i></div></div>
+      <div class="dimcell"><small class="s8">85</small><div class="mini"><i style="width:85%;background:#60a5fa"></i></div></div>
+      <div class="dimcell"><small class="s7">75</small><div class="mini"><i style="width:75%;background:#fbbf24"></i></div></div>
+      <div class="dimcell"><small class="s7">70</small><div class="mini"><i style="width:70%;background:#fbbf24"></i></div></div>
+      <span class="cmt">10 个采集源 + 扩展 + 剪贴板；进度带速度与剩余时间，万张重名去重走内存索引</span></div>
+    <div class="dimrow"><span class="dname">组织与元数据</span>
+      <div class="dimcell"><small class="s9">93</small><div class="mini"><i style="width:93%;background:#34d399"></i></div></div>
+      <div class="dimcell"><small class="s9">94</small><div class="mini"><i style="width:94%;background:#34d399"></i></div></div>
+      <div class="dimcell"><small class="s8">80</small><div class="mini"><i style="width:80%;background:#60a5fa"></i></div></div>
+      <div class="dimcell"><small class="s7">75</small><div class="mini"><i style="width:75%;background:#fbbf24"></i></div></div>
+      <span class="cmt">36 表 / 15 触发器 / 30 索引，外键已接管级联；文件夹树/标签树/集合/人物/地点/XMP 全有，与 Eagle 打平</span></div>
+    <div class="dimrow"><span class="dname">浏览与检索</span>
+      <div class="dimcell"><small class="s9">95</small><div class="mini"><i style="width:95%;background:#34d399"></i></div></div>
+      <div class="dimcell"><small class="s8">85</small><div class="mini"><i style="width:85%;background:#60a5fa"></i></div></div>
+      <div class="dimcell"><small class="s8">85</small><div class="mini"><i style="width:85%;background:#60a5fa"></i></div></div>
+      <div class="dimcell"><small class="s8">86</small><div class="mini"><i style="width:86%;background:#60a5fa"></i></div></div>
+      <span class="cmt">关键词 + 语义 + 颜色 + 相似图四路并行，筛选可叠加；瀑布流坐标增量追加，滚动只查可见段</span></div>
+    <div class="dimrow"><span class="dname">编辑与产出</span>
+      <div class="dimcell"><small class="s9">90</small><div class="mini"><i style="width:90%;background:#34d399"></i></div></div>
+      <div class="dimcell"><small class="s7">75</small><div class="mini"><i style="width:75%;background:#fbbf24"></i></div></div>
+      <div class="dimcell"><small class="s6">60</small><div class="mini"><i style="width:60%;background:#fb7185"></i></div></div>
+      <div class="dimcell"><small class="s6">55</small><div class="mini"><i style="width:55%;background:#fb7185"></i></div></div>
+      <span class="cmt">非破坏 edit_ops + 撤销栈；拼图所有版式可逐格构图、海报文字可调字体字号颜色、质量到 100</span></div>
+    <div class="dimrow"><span class="dname">格式与媒体</span>
+      <div class="dimcell"><small class="s8">86</small><div class="mini"><i style="width:86%;background:#60a5fa"></i></div></div>
+      <div class="dimcell"><small class="s9">92</small><div class="mini"><i style="width:92%;background:#34d399"></i></div></div>
+      <div class="dimcell"><small class="s6">65</small><div class="mini"><i style="width:65%;background:#fb7185"></i></div></div>
+      <div class="dimcell"><small class="s6">68</small><div class="mini"><i style="width:68%;background:#fb7185"></i></div></div>
+      <span class="cmt">覆盖最广（RAW 40+ / 设计稿 11 / 三维 9 / EPUB 真阅读器）；字体、3D、Office 仍浅于 Eagle</span></div>
+    <div class="dimrow"><span class="dname">AI 能力</span>
+      <div class="dimcell"><small class="s8">89</small><div class="mini"><i style="width:89%;background:#60a5fa"></i></div></div>
+      <div class="dimcell"><small class="s7">72</small><div class="mini"><i style="width:72%;background:#fbbf24"></i></div></div>
+      <div class="dimcell"><small class="s8">85</small><div class="mini"><i style="width:85%;background:#60a5fa"></i></div></div>
+      <div class="dimcell"><small class="s8">86</small><div class="mini"><i style="width:86%;background:#60a5fa"></i></div></div>
+      <span class="cmt">本机 CLIP + 人脸聚类 + HNSW 全离线；索引缺口可在夜间时段串行补算（不抢前台）</span></div>
+    <div class="dimrow"><span class="dname">自动化与开放</span>
+      <div class="dimcell"><small class="s9">94</small><div class="mini"><i style="width:94%;background:#34d399"></i></div></div>
+      <div class="dimcell"><small class="s6">68</small><div class="mini"><i style="width:68%;background:#fb7185"></i></div></div>
+      <div class="dimcell"><small class="s6">55</small><div class="mini"><i style="width:55%;background:#fb7185"></i></div></div>
+      <div class="dimcell"><small class="s6">50</small><div class="mini"><i style="width:50%;background:#fb7185"></i></div></div>
+      <span class="cmt">REST + token/scope、11 个 MCP 工具、插件沙箱；同类基本没有脚本入口</span></div>
+    <div class="dimrow"><span class="dname">桌面集成</span>
+      <div class="dimcell"><small class="s9">93</small><div class="mini"><i style="width:93%;background:#34d399"></i></div></div>
+      <div class="dimcell"><small class="s8">80</small><div class="mini"><i style="width:80%;background:#60a5fa"></i></div></div>
+      <div class="dimcell"><small class="s6">30</small><div class="mini"><i style="width:30%;background:#fb7185"></i></div></div>
+      <div class="dimcell"><small class="s6">20</small><div class="mini"><i style="width:20%;background:#fb7185"></i></div></div>
+      <span class="cmt">托盘/可改热键/动态壁纸/拖出到资源管理器/右键采集；自托管相册没有桌面壳</span></div>
+    <div class="dimrow"><span class="dname">性能与规模</span>
+      <div class="dimcell"><small class="s8">88</small><div class="mini"><i style="width:88%;background:#60a5fa"></i></div></div>
+      <div class="dimcell"><small class="s8">88</small><div class="mini"><i style="width:88%;background:#60a5fa"></i></div></div>
+      <div class="dimcell"><small class="s8">85</small><div class="mini"><i style="width:85%;background:#60a5fa"></i></div></div>
+      <div class="dimcell"><small class="s7">75</small><div class="mini"><i style="width:75%;background:#fbbf24"></i></div></div>
+      <span class="cmt">灌库 5893 行/秒（实跑）；API p95 个位数毫秒；DOM 与布局计算都不随库增长（坐标增量追加 + 底边分桶查询可见区）</span></div>
+    <div class="dimrow"><span class="dname">数据安全</span>
+      <div class="dimcell"><small class="s9">90</small><div class="mini"><i style="width:90%;background:#34d399"></i></div></div>
+      <div class="dimcell"><small class="s8">80</small><div class="mini"><i style="width:80%;background:#60a5fa"></i></div></div>
+      <div class="dimcell"><small class="s8">85</small><div class="mini"><i style="width:85%;background:#60a5fa"></i></div></div>
+      <div class="dimcell"><small class="s8">80</small><div class="mini"><i style="width:80%;background:#60a5fa"></i></div></div>
+      <span class="cmt">外键已开（迁移带旧库备份）+ 孤儿检测/清理接口 + 备份校验 + 双栈撤销 + 回收站 + 库锁</span></div>
+    <div class="dimrow"><span class="dname">工程质量</span>
+      <div class="dimcell"><small class="s8">89</small><div class="mini"><i style="width:89%;background:#60a5fa"></i></div></div>
+      <div class="dimcell"><small class="s8">82</small><div class="mini"><i style="width:82%;background:#60a5fa"></i></div></div>
+      <div class="dimcell"><small class="s8">85</small><div class="mini"><i style="width:85%;background:#60a5fa"></i></div></div>
+      <div class="dimcell"><small class="s8">80</small><div class="mini"><i style="width:80%;background:#60a5fa"></i></div></div>
+      <span class="cmt">DTO 契约 45/52 一致、单测 573、冒烟 143、基准 15，verify 一条跑完；拼图保存 async bug 本轮修掉</span></div>
+    <div class="dimrow"><span class="dname">易用与可访问</span>
+      <div class="dimcell"><small class="s8">85</small><div class="mini"><i style="width:85%;background:#60a5fa"></i></div></div>
+      <div class="dimcell"><small class="s9">92</small><div class="mini"><i style="width:92%;background:#34d399"></i></div></div>
+      <div class="dimcell"><small class="s7">75</small><div class="mini"><i style="width:75%;background:#fbbf24"></i></div></div>
+      <div class="dimcell"><small class="s7">70</small><div class="mini"><i style="width:70%;background:#fbbf24"></i></div></div>
+      <span class="cmt">引导与 172 条教程做得好；25 个弹窗统一焦点陷阱/Esc/焦点归还；主网格 roving tabindex + 方向键/Home/End/PageUp/Down</span></div>
+    <div class="dimrow"><span class="dname">文档与交付</span>
+      <div class="dimcell"><small class="s8">85</small><div class="mini"><i style="width:85%;background:#60a5fa"></i></div></div>
+      <div class="dimcell"><small class="s8">85</small><div class="mini"><i style="width:85%;background:#60a5fa"></i></div></div>
+      <div class="dimcell"><small class="s7">75</small><div class="mini"><i style="width:75%;background:#fbbf24"></i></div></div>
+      <div class="dimcell"><small class="s7">70</small><div class="mini"><i style="width:70%;background:#fbbf24"></i></div></div>
+      <span class="cmt">内置教程厚 + API 参考自动生成（/api/docs 与 Markdown 导出）；安装包仍未代码签名</span></div>
+    <div class="dimrow"><span class="dname">云与多端</span>
+      <div class="dimcell"><small class="s6">15</small><div class="mini"><i style="width:15%;background:#fb7185"></i></div></div>
+      <div class="dimcell"><small class="s6">20</small><div class="mini"><i style="width:20%;background:#fb7185"></i></div></div>
+      <div class="dimcell"><small class="s9">95</small><div class="mini"><i style="width:95%;background:#34d399"></i></div></div>
+      <div class="dimcell"><small class="s8">80</small><div class="mini"><i style="width:80%;background:#60a5fa"></i></div></div>
+      <span class="cmt">现在 15 · 远期目标 80：先账号与只读多端，再增量同步与移动端</span></div>
+    <div class="dimrow"><span class="dname">协作与社区</span>
+      <div class="dimcell"><small class="s6">20</small><div class="mini"><i style="width:20%;background:#fb7185"></i></div></div>
+      <div class="dimcell"><small class="s6">25</small><div class="mini"><i style="width:25%;background:#fb7185"></i></div></div>
+      <div class="dimcell"><small class="s9">90</small><div class="mini"><i style="width:90%;background:#34d399"></i></div></div>
+      <div class="dimcell"><small class="s6">60</small><div class="mini"><i style="width:60%;background:#fb7185"></i></div></div>
+      <span class="cmt">现在 20 · 远期目标 60：评论、分享、最小权限闭环（插件市场不承诺）</span></div>
+    <div class="dimrow"><span class="dname">多语言</span>
+      <div class="dimcell"><small class="s9">90</small><div class="mini"><i style="width:90%;background:#34d399"></i></div></div>
+      <div class="dimcell"><small class="s9">90</small><div class="mini"><i style="width:90%;background:#34d399"></i></div></div>
+      <div class="dimcell"><small class="s9">95</small><div class="mini"><i style="width:95%;background:#34d399"></i></div></div>
+      <div class="dimcell"><small class="s9">90</small><div class="mini"><i style="width:90%;background:#34d399"></i></div></div>
+      <span class="cmt">现在 90（1.2.23 已交付）· 远期目标 90：文案抽词条 → 翻译层 → 排版适配</span></div>
+    <div class="dimrow"><span class="dname">跨平台</span>
+      <div class="dimcell"><small class="s6">20</small><div class="mini"><i style="width:20%;background:#fb7185"></i></div></div>
+      <div class="dimcell"><small class="s7">70</small><div class="mini"><i style="width:70%;background:#fbbf24"></i></div></div>
+      <div class="dimcell"><small class="s9">95</small><div class="mini"><i style="width:95%;background:#34d399"></i></div></div>
+      <div class="dimcell"><small class="s9">90</small><div class="mini"><i style="width:90%;background:#34d399"></i></div></div>
+      <span class="cmt">现在 20 · 远期目标 85：mac 真机冒烟 + 安装包，Linux 顺延</span></div>
+    <div class="dimrow" style="border-top:1px solid var(--line);margin-top:4px;padding-top:12px">
+      <span class="dname" style="font-weight:700">加权总分</span>
+      <div class="dimcell"><small class="s9" style="font-size:13px">90.8 / 75.5</small><div class="mini"><i style="width:90.8%;background:linear-gradient(90deg,#6366f1,#22d3ee)"></i></div></div>
+      <div class="dimcell"><small class="s8" style="font-size:13px">83.5 / 72.5</small><div class="mini"><i style="width:83.5%;background:#64748b"></i></div></div>
+      <div class="dimcell"><small class="s8" style="font-size:13px">74.5 / 79.5</small><div class="mini"><i style="width:79.5%;background:#64748b"></i></div></div>
+      <div class="dimcell"><small class="s8" style="font-size:13px">71.0 / 71.8</small><div class="mini"><i style="width:71.8%;background:#64748b"></i></div></div>
+      <span class="cmt">每格为 单机基准分 / 当前 17 维分；后四行的远期目标依次为 80 / 60 / 90 / 85</span></div>
+  </div>
+</section>
+
+<section id="s5">
+  <div class="sec-head"><span class="sec-no">05</span><h2>真正的优势：十件"别人没做"的事</h2></div>
+  <p class="sec-sub">
+    这一节只收录<b>能落到代码或实测数字</b>的优势。凡是"体验不错""界面好看"这类主观项，一律不进榜。
+  </p>
+  <div class="adv">
+    <div class="card">
+      <h3><span class="n">01</span>采集面是同类里最宽的</h3>
+      <p>10 个网络采集源，加上文件夹监听、ZIP、剪贴板、拖拽、浏览器右键、手机网页上传——入口多到可以按"我当时在哪儿看见这张图"来选。</p>
+      <div class="ev">证据：<code>server/crawler.js</code> SOURCES 表 · <code>extension/</code> · 断点续采写入 <code>jobs</code> 表</div>
+    </div>
+    <div class="card">
+      <h3><span class="n">02</span>组织模型是"库"不是"相册"</h3>
+      <p>文件夹树、标签树、集合、书签、播放列表、人物、地点、时间线八套视图共用一套索引，素材可以同时属于多个维度而不复制文件。</p>
+      <div class="ev">证据：<code>server/db/schema-sql.js</code> 36 张表 / 15 个触发器 / 30 个索引（外键接管了级联）</div>
+    </div>
+    <div class="card">
+      <h3><span class="n">03</span>检索是四路并行，不是四个按钮</h3>
+      <p>FTS5 trigram 让中文子串也能命中，语义检索补"我记得画面但忘了词"，颜色与相似图补"我要找同款"。四路结果能叠在同一组筛选里。</p>
+      <div class="ev">证据：实测关键词 12ms、标签筛选 12ms、<code>/api/tags</code> 5ms（2 万级库）</div>
+    </div>
+    <div class="card">
+      <h3><span class="n">04</span>AI 完全跑在本机</h3>
+      <p>中文 CLIP 语义、ONNX 人脸检测、HNSW 近邻、本地零样本标签——没有 API Key、没有上传、断网可用。</p>
+      <div class="ev">证据：<code>server/clip.js</code> · <code>lib/hnsw.js</code> · <code>lib/face-math.js</code>；2 万条向量检索实测 46ms</div>
+    </div>
+    <div class="card">
+      <h3><span class="n">05</span>自动化接口是产品的一部分</h3>
+      <p>REST 带 token 与 scope、11 个 MCP 工具给 AI 客户端直接调用、插件走 manifest 权限白名单再进 <code>node:vm</code> 沙箱。</p>
+      <div class="ev">证据：<code>server/mcp-server.mjs</code> · <code>lib/plugin-host.js</code> · <code>lib/plugin-manifest.js</code></div>
+    </div>
+    <div class="card">
+      <h3><span class="n">06</span>桌面集成扎到系统层</h3>
+      <p>托盘、可改全局热键、开机自启、单实例、拖出到资源管理器、右键采集，以及 Windows 的动态壁纸（WorkerW + GLSL）。</p>
+      <div class="ev">证据：<code>electron/main/</code> · 全屏检测后自动暂停壁纸 · will-download async bug 本轮修掉</div>
+    </div>
+    <div class="card">
+      <h3><span class="n">07</span>数据不锁死</h3>
+      <p>XMP sidecar 双向、CSV/JSON/HTML 导出、带校验的备份与恢复、回收站、撤销/重做双栈（200 步 / 2GB 上限）、局域网只读分享带密码与过期。</p>
+      <div class="ev">证据：<code>lib/undo.js</code> · <code>lib/lan.js</code> · 备份排程 <code>lib/backup-schedule.js</code></div>
+    </div>
+    <div class="card">
+      <h3><span class="n">08</span>编辑是非破坏的，而且能对账</h3>
+      <p>裁切、旋转、调色、擦除、超分、水印、拼接都写成 <code>edit_ops</code> 操作序列，原图不动；调色预览与最终成品的像素结果一致。</p>
+      <div class="ev">证据：<code>routes/edit*</code> · 撤销走同一套操作栈 · 720p 调色实测 16ms / 1600px 70ms</div>
+    </div>
+    <div class="card">
+      <h3><span class="n">09</span>有真正的质量闸门</h3>
+      <p>DTO 契约 45/52 一致、单测 <b>573</b>、冒烟 <b>143</b>、基准 <b>15</b>，外加四道 typecheck 与一套 lint（261 文件）；<code>npm run verify</code> 一条命令跑完。</p>
+      <div class="ev">证据：<code>package.json</code> scripts · <code>scripts/verify*</code> · CI 与发版流程同源（2026-11-17 实跑全过）</div>
+    </div>
+    <div class="card">
+      <h3><span class="n">10</span>规模意识写进了实现</h3>
+      <p>导入走 worker 池 + 批量事务，列表用 keyset 而非 offset 深翻，缩略图分级缓存，向量检索有索引不是全表扫。</p>
+      <div class="ev">证据：灌库 <b>5893 行/秒</b>（实跑）；列表首页 p95 7ms、深页 11ms；CLIP 2 万 46ms</div>
+    </div>
+  </div>
+</section>
+
+<section id="s6">
+  <div class="sec-head"><span class="sec-no">06</span><h2>缺点：按"会不会出事"排序，不按"好不好看"</h2></div>
+  <p class="sec-sub">
+    排序规则很简单：会让用户<b>丢数据或打不开</b>的排最前，其次才是<b>掉分</b>的，最后是<b>长尾</b>的。
+    好消息是先说结论——<b>本轮审计没有发现 P0 级问题</b>，崩溃与数据丢失这一类在前几轮已经清干净了。
+    本页保留 11 条清单做回归对照：<b>7 条已落地</b>（灰色标注，含验收口径），<b>4 条未修</b>——签名、真机验收、预览深度、平台化。
+  </p>
+
+  <div class="tbl-wrap">
+    <table>
+      <thead>
+        <tr><th style="width:64px">级别</th><th style="width:150px">问题</th><th>证据（可核对）</th><th>为什么是问题</th><th style="width:88px">修复成本</th></tr>
+      </thead>
+      <tbody>
+        <tr style="opacity:.72">
+          <td><span class="sev p3">已修</span></td>
+          <td><b>拼图保存叠出两个「另存为」</b></td>
+          <td><span class="mono">electron/main.js:137-141</span>：<code>will-download</code> 是同步事件，handler 用 <code>async</code> 会让 <code>item.setSavePath()</code> / <code>pause()</code> 还没执行就先 return Promise，Chromium 默认行为弹了空白框，然后我们自己的 <code>dialog.showSaveDialog</code> 弹第二个。改成同步 handler + 异步 IIFE 启动后续流程</td>
+          <td>用户点一次"下载拼图"叠出两个框，只能一个个点取消。根因不在连点（已有 <code>downloadDedupe</code> 去重），而在 handler 的 async 声明本身</td>
+          <td>低<br><span class="tiny muted">v1.2.22 已完成</span></td>
+        </tr>
+        <tr style="opacity:.72">
+          <td><span class="sev p3">已修</span></td>
+          <td><b>图库主网格虚拟滚动与布局计算</b></td>
+          <td>时间线 / 清单 / 人物走 <span class="mono">VirtualGrid</span>；主网格坐标与可见区计算抽到 <span class="mono">web/src/lib/masonryLayout.ts</span>：坐标<b>增量追加</b>、可见区按底边<b>分桶查询</b></td>
+          <td>DOM 节点数早已恒定；本版把<b>布局计算</b>也一起收掉——10 万张时不再每次追加一页就全量重算坐标再排序。增量与全量结果的一致性有单测守着</td>
+          <td>低<br><span class="tiny muted">已完成</span></td>
+        </tr>
+        <tr>
+          <td><span class="sev p1">P1</span></td>
+          <td><b>安装包未签名</b></td>
+          <td><span class="mono">package.json</span> 的 build 里 <span class="mono">forceCodeSigning=false</span>，无签名证书配置</td>
+          <td>Windows SmartScreen 会拦"未知发布者"，企业环境无法静默部署；每次更新都可能弹警告</td>
+          <td>低<br><span class="tiny muted">主要是证书年费</span></td>
+        </tr>
+        <tr>
+          <td><span class="sev p1">P1</span></td>
+          <td><b>跨平台只是"能构建"</b></td>
+          <td>build 里有 mac / linux 目标，但没有真机 CI，没有平台差异测试</td>
+          <td>一旦对外宣称支持 mac/Linux，用户装上去就会发现热键、路径、壁纸、文件关联全不对。宣称成本远高于实现成本</td>
+          <td>高<br><span class="tiny muted">三套 CI + 逐项适配</span></td>
+        </tr>
+        <tr>
+          <td><span class="sev p2">P2</span></td>
+          <td><b>预览深度不如 Eagle</b></td>
+          <td>EPUB 已是真阅读器（目录 / 正文 / 插图 / 记住读到第几章）；字体已 FontFace 动态挂载；三维已有 OrbitControls 旋转缩放；Office 仍只有 mammoth/SheetJS 前端解析，没有 PDF 真阅读器、没有批注</td>
+          <td>设计师选型时会拿"能不能直接看"做决策。格式覆盖赢了，深度还差 Office/PDF/批注，抵消一部分</td>
+          <td>中</td>
+        </tr>
+        <tr style="opacity:.72">
+          <td><span class="sev p3">已修</span></td>
+          <td><b>首屏与包体</b></td>
+          <td>已把 <span class="mono">mammoth / three / xlsx</span> 移出运行时依赖，<span class="mono">afterPack</span> 裁掉 onnxruntime 的非 Windows 二进制；浮层与低频页面全部 <span class="mono">React.lazy</span> 分包</td>
+          <td>剩余重量是结构性的（three 与 onnxruntime 本身），再压只能牺牲功能；首屏已无低频代码</td>
+          <td>低<br><span class="tiny muted">按需继续拆</span></td>
+        </tr>
+        <tr style="opacity:.72">
+          <td><span class="sev p3">已修</span></td>
+          <td><b>无障碍网格键盘</b></td>
+          <td>25 个弹窗统一焦点陷阱 / Esc / 焦点归还；主网格改为 <b>roving tabindex</b>（整块网格只留一个 Tab 停点）+ 方向键 / Home / End / PageUp / PageDown</td>
+          <td>已能全键盘走完整库；瀑布流的读屏朗读顺序（按 DOM 顺序而非视觉列序）仍可改善</td>
+          <td>低<br><span class="tiny muted">已完成</span></td>
+        </tr>
+        <tr style="opacity:.72">
+          <td><span class="sev p3">已修</span></td>
+          <td><b>首次导入慢</b></td>
+          <td>导入走 worker 池（上限 12，<span class="mono">os.freemem()</span> 内存闸），RAW 预览解压并发 8；CLIP / 人脸 / 抠图 / 超分统一走 <span class="mono">server/lib/onnx-device.js</span>：Windows 用 DirectML、Linux x64 用 CUDA，建会话失败自动回退 CPU 且本进程不再重试</td>
+          <td>吞吐实测提升；模型仍需首次下载，属于一次性成本</td>
+          <td>低<br><span class="tiny muted">已完成</span></td>
+        </tr>
+        <tr style="opacity:.72">
+          <td><span class="sev p3">已修</span></td>
+          <td><b>接口文档示例代码</b></td>
+          <td><span class="mono">/api/docs</span> 按路由表自动生成 387 端点（分组 / 参数 / 鉴权），可导出 Markdown；<b>curl / JavaScript / Python 三语言示例</b>自动填路径参数与常见请求体</td>
+          <td>第三个开发者不用再自己拼第一个请求；示例随路由表生成，不会和实现脱节</td>
+          <td>低<br><span class="tiny muted">已完成</span></td>
+        </tr>
+        <tr style="opacity:.72">
+          <td><span class="sev p3">已修</span></td>
+          <td><b>单机算力天花板</b></td>
+          <td>全部 ONNX 模型统一经 <span class="mono">server/lib/onnx-device.js</span> 选择执行器：Windows <span class="mono">['dml','cpu']</span>、Linux x64 <span class="mono">['cuda','cpu']</span>，其余平台纯 CPU；<span class="mono">device-state.json</span> 记录一次性熔断。索引缺口另由 <span class="mono">server/lib/night-batch.js</span> 在设定时段串行补算</td>
+          <td>占绝大多数的 Windows 用户能吃到显卡；没有独显或驱动不支持的机器仍是 CPU，于是把白天来不及跑的语义 / 人脸索引挪到闲置时段——只补缺口、串行、前台一忙就让路</td>
+          <td>低<br><span class="tiny muted">已完成</span></td>
+        </tr>
+        <tr>
+          <td><span class="sev p3">P3</span></td>
+          <td><b>平台化能力尚在远期</b></td>
+          <td>无账号、无多人权限、无移动端</td>
+          <td>三项已写进<b>远期目标</b>（目标值 80 / 60 / 85），多语言已于 1.2.23 交付（90）。不是不做，而是排在单机能力之后：个人项目没有服务器预算、没有运维人力，云一旦上线就要对用户数据负责。排序原因见第 09 节</td>
+          <td>极高<br><span class="tiny muted">按年做</span></td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+
+  <div class="callout" style="margin-top:18px">
+    <b>现在只剩两堵墙：</b>① 买证书签名（决定"能不能发给别人用"）；
+    ② mac / Linux 真机验收（不验收就别宣称支持）。剩下的都是打磨，可以慢慢来。
+    <br><br>
+    本版（1.2.22 / 2026-11-17）修的是拼图保存时叠出两个「另存为」：
+    <span class="mono">will-download</span> 是同步事件，handler 用 <span class="mono">async</span> 会让 Chromium 默认行为先弹一个空白框、我们自己的 <span class="mono">dialog.showSaveDialog</span> 再弹第二个。改成同步 handler + 异步 IIFE 启动后续流程即可。<b>根因不在连点（已有 downloadDedupe 去重），而在 async 声明本身</b>——一次点击就能触发双响。
+    <br><br>
+    上一版（1.2.21）加了「热更」通道：<span class="mono">server/**</span> 与前端产物的修补可以打一个签名过的小包，客户端叠在安装包之上运行，不必再下整包覆盖安装——清单用 Ed25519 签名、<span class="mono">seq</span> 严格递增防降级、<span class="mono">shellVersion</span> 与 <span class="mono">schemaVersion</span> 双闸门。
+    <br><br>
+    更早几版修掉的（均含代码位置，有兴趣可追溯）：显卡后端 DML 驱动崩溃自动降级 CPU；模块求值期依赖只读 asar 目录导致 "A JavaScript error" 启动即失败；网格布局 O(n) 全量重算改成增量追加 + 底边分桶；显卡状态记录进 <span class="mono">device-state.json</span> 后不再重试；AI 夜间批处理队列把白天跑不完的语义/人脸索引挪到闲置时段。
+  </div>
+</section>
+
+<section id="s7">
+  <div class="sec-head"><span class="sec-no">07</span><h2>客观指标：把话换成数字</h2></div>
+  <p class="sec-sub">
+    下面这些数字全部来自仓库与 <span class="mono">npm run bench:quick</span> 实跑，日期 2026-11-17。凡是没实测的，这里不写。
+  </p>
+
+  <div class="grid4">
+    <div class="tile"><div class="v">118,608</div><div class="k">行代码 / 554 个文件</div><div class="s">web 52,842 · server 45,755 · test 8,831</div></div>
+    <div class="tile"><div class="v">387</div><div class="k">HTTP 端点 / 34 个路由模块</div><div class="s">统一错误信封 + 输入白名单</div></div>
+    <div class="tile"><div class="v">36</div><div class="k">数据表 / 15 触发器 / 30 索引</div><div class="s">外键已开，FTS5 trigram 全文索引</div></div>
+    <div class="tile"><div class="v" style="font-size:17px">261 · 573 · 143 · 15</div><div class="k">lint 文件 · 单测 · 冒烟 · 基准（实跑全过）</div><div class="s">85 个 .test.mjs · verify 一条跑完</div></div>
+    <div class="tile"><div class="v">15 + 25</div><div class="k">页面 + 设置分区</div><div class="s">72 组件 · 25 弹窗 · 172 条教程</div></div>
+    <div class="tile"><div class="v">11 + 9</div><div class="k">设计稿格式 / RAW 40+ / 三维</div><div class="s">视频 8 · 音频 8 · PDF · Office · 字体 · EPUB</div></div>
+    <div class="tile"><div class="v">10 + 11</div><div class="k">采集源 + MCP 工具</div><div class="s">插件 5 类权限位、node:vm 沙箱</div></div>
+    <div class="tile"><div class="v">23</div><div class="k">运行时依赖</div><div class="s">Node ≥ 22.5，Electron 44.4 + Express 5（three / xlsx / mammoth 已划出运行时）</div></div>
+  </div>
+
+  <div class="grid2" style="margin-top:18px">
+    <div class="panel">
+      <h3 style="margin:0 0 10px;font-size:14.8px">代码分布（行数 · wc -l 实跑）</h3>
+      <div class="tbl-wrap" style="border:none">
+        <table style="min-width:0">
+          <thead><tr><th>目录</th><th>文件</th><th>行数</th><th>占比</th></tr></thead>
+          <tbody>
+            <tr><td>web/src（前端）</td><td class="num">202</td><td class="num">52,842</td><td class="num">44.6%</td></tr>
+            <tr><td>server（后端）</td><td class="num">200</td><td class="num">45,755</td><td class="num">38.6%</td></tr>
+            <tr><td>test（测试）</td><td class="num">87</td><td class="num">8,831</td><td class="num">7.4%</td></tr>
+            <tr><td>electron（桌面）</td><td class="num">35</td><td class="num">5,774</td><td class="num">4.9%</td></tr>
+            <tr><td>scripts（工具）</td><td class="num">27</td><td class="num">4,343</td><td class="num">3.7%</td></tr>
+            <tr><td>extension（扩展）</td><td class="num">3</td><td class="num">1,063</td><td class="num">0.9%</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <p class="tiny muted" style="margin:10px 0 0">前端占近一半：这是个把复杂度放在交互上的产品，而不是又一个"缩略图墙 + 一个按钮"。统计口径：wc -l 排除 node_modules / dist / .git，与上一版（git ls-files 含声明文件）略有差异。</p>
+    </div>
+
+    <div class="panel">
+      <h3 style="margin:0 0 10px;font-size:14.8px">实测性能（2 万级库 · 2026-11-17 实跑 p95）</h3>
+      <div class="tbl-wrap" style="border:none">
+        <table style="min-width:0">
+          <thead><tr><th>指标</th><th>实测</th><th>说明</th></tr></thead>
+          <tbody>
+            <tr><td>批量灌库</td><td class="num s9">5,893 行/秒</td><td>worker 池 + 批量事务</td></tr>
+            <tr><td>列表首页</td><td class="num s9">7 ms</td><td>keyset 分页</td></tr>
+            <tr><td>列表深页</td><td class="num s9">11 ms</td><td>不随页码劣化</td></tr>
+            <tr><td>关键词检索 q=shadow</td><td class="num s9">12 ms</td><td>FTS5 trigram</td></tr>
+            <tr><td>收藏筛选 favorite=1</td><td class="num s9">3 ms</td><td>索引命中</td></tr>
+            <tr><td><span class="mono">/api/tags</span>（缓存）</td><td class="num s9">4 ms</td><td>标签树一次拉全</td></tr>
+            <tr><td>CLIP 向量检索（2 万 · minCos=0）</td><td class="num s8">46 ms</td><td>HNSW 近邻</td></tr>
+            <tr><td>调色预览 720p / 1600px</td><td class="num s8">16 / 70 ms</td><td>预览与成品一致</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <p class="tiny muted" style="margin:10px 0 0">bench:quick 5 样本 · CI 环境门槛放宽 3×；未压缩 chunk：three 753KB、主包 index 260KB（gzip 86KB）、react 144KB、CSS 168KB；onnxruntime 的非 Windows 二进制打包后被裁掉。</p>
+    </div>
+  </div>
+</section>
+
+<section id="s8">
+  <div class="sec-head"><span class="sec-no">08</span><h2>还剩两项打磨：单机 90.8 → 91.1</h2></div>
+  <p class="sec-sub">
+    上一版这里列 8 项，到现在已经做完 <b>7 项</b>（含本轮的拼图保存 async bug 消除），
+    它们的分数已经计入当前的 90.8。剩下这 <b>2 项</b>是单机基准还能吃到的分：做完 90.8 → <b>91.1</b>，成本 5–7 周。
+    剩余三项远期目标是另一个量级的工程（含持续支出），单独放在第 09 节。
+    "分数增量"= 维度提升值 × 该维度权重，可直接相加核对。
+  </p>
+
+  <div class="tbl-wrap">
+    <table>
+      <thead>
+        <tr><th style="width:40px">#</th><th style="width:190px">做什么</th><th>动到的维度</th><th style="width:88px">分数增量</th><th style="width:80px">工作量</th><th>验收标准（可判定）</th></tr>
+      </thead>
+      <tbody>
+        <tr><td>1</td><td><b>代码签名</b>（包体瘦身已完成）</td><td>易用与可访问 +2</td><td class="num s6">+0.10</td><td class="num">1 周</td><td>新机器安装无 SmartScreen 警告；升级链不断</td></tr>
+        <tr><td>2</td><td><b>mac / Linux 真机验收</b></td><td>工程质量 +3</td><td class="num s6">+0.21</td><td class="num">4–6 周</td><td>两平台各跑通 143 项冒烟，并留下 CI 记录；README 才敢写"支持"</td></tr>
+        <tr style="background:rgba(79,70,229,.07)">
+          <td></td><td><b>合计</b></td><td>2 项，全部为打磨或补强</td><td class="num"><b>+0.31</b></td>
+          <td class="num"><b>≈ 5–7 周</b></td>
+          <td><b>单机基准：91.1</b>（90.8 + 0.31）· <b>17 维当前分：75.7</b>（75.5 + 0.25，前 13 维在 17 维权重下占 74%）</td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+
+  <div class="grid2" style="margin-top:18px">
+    <div class="panel">
+      <h3 style="margin:0 0 14px;font-size:15px">路线图（按"先止血、再长肉"）</h3>
+      <div class="phase">
+        <h4>0–30 天：把"发给别人"这关过了 <span class="tiny muted">90.8 → 约 91.0</span></h4>
+        <ul>
+          <li>代码签名（第 1 项）：决定"能不能放心发给别人"</li>
+          <li>顺带把 Office / PDF / 批注预览补齐最后三块（EPUB 已在 v1.2.16 补上，3D 环境光贴图可一并做）</li>
+        </ul>
+      </div>
+      <div class="phase">
+        <h4>30–90 天：mac 真机验收 <span class="tiny muted">约 91.0 → 91.1</span></h4>
+        <ul>
+          <li>mac / Linux 真机验收（第 2 项）：两平台各跑一遍 143 项冒烟并留 CI 记录</li>
+          <li>渲染回归基准：10 万张、百万级各留一条可复跑的记录（v1.2.17 起布局计算已是增量）</li>
+        </ul>
+      </div>
+      <div class="phase" style="margin-bottom:0">
+        <h4>90–180 天：单机到此见顶 <span class="tiny muted">≈ 91.1</span></h4>
+        <ul>
+          <li>再往上就是第 09 节的远期目标：多语言已完成（1.2.23），先一次性的（跨平台），后持续支出的（云与协作）</li>
+          <li>单机基准 91.1 之后不再追分——剩下的都是"平台能力"，不是打磨能补的</li>
+        </ul>
+      </div>
+    </div>
+
+    <div class="panel">
+      <h3 style="margin:0 0 10px;font-size:15px">做完之后，分数会变成什么样</h3>
+      <p style="margin:0 0 14px;color:var(--muted);font-size:13.5px">
+      单机基准 90.8 → <b class="s9">91.1</b>，仍然第一，与 Eagle 的差距从 7.3 拉到 7.6；
+      17 维当前分 75.5 → <b class="s8">75.7</b>，名次不变（第 3）。
+      若再把剩余三项远期目标做到目标值，17 维可到 <b class="s9">87.3</b>（87.1 + 0.25）。
+      </p>
+      <div class="ranklist">
+      <div class="rankrow me"><span class="rk-name">单机 · 现在</span><div class="track"><div class="fill" style="width:90.8%"></div></div><span class="rk-val">90.8</span></div>
+      <div class="rankrow me"><span class="rk-name">单机 · 提分后</span><div class="track"><div class="fill" style="width:91.1%"></div></div><span class="rk-val">91.1</span></div>
+      <div class="rankrow" style="margin-top:6px"><span class="rk-name">17 维 · 现在</span><div class="track"><div class="fill alt" style="width:75.5%"></div></div><span class="rk-val">75.5</span></div>
+      <div class="rankrow"><span class="rk-name">17 维 · 提分后</span><div class="track"><div class="fill alt" style="width:75.7%"></div></div><span class="rk-val">75.7</span></div>
+      <div class="rankrow me"><span class="rk-name">17 维 · 远期</span><div class="track"><div class="fill" style="width:87.1%"></div></div><span class="rk-val">87.1</span></div>
+      </div>
+      <div class="tiny" style="margin-top:14px;padding-top:12px;border-top:1px dashed var(--line);color:var(--dim)">
+      <b style="color:var(--text)">注意这个不对称：</b>同样 5–7 周，单机涨 0.3 分、17 维当前分只涨 0.2 分，名次一动没动。
+      真正把 17 维从 75.5 推到 87.1 的是剩余三项远期目标（+11.7）——两者不冲突，但投入量级差一个数量级。
+      </div>
+    </div>
+  </div>
+</section>
+
+<section id="s9">
+  <div class="sec-head"><span class="sec-no">09</span><h2>剩余三项远期目标：现在 75.5，兑现后 87.1</h2></div>
+  <p class="sec-sub">
+    先把容易被误读的地方讲清楚：这些项<b>不是"明确不做"</b>，而是排在单机能力之后的远期目标（多语言已在 1.2.23 交付，直接按 90 计入）。
+    这三个数是<b>同一把尺子</b>在三个时点上的分：前 13 维固定贡献 <b>67.2</b>，
+    四项平台维度按"今天 8.25 / 中期 13.4 / 目标值 19.9"分别相加，就得到 75.5 / 80.6 / 87.1。
+    所以"远期目标低于现在"不可能发生——同一口径下它是从 75.5 往上涨 11.7 分。
+  </p>
+
+  <div class="tbl-wrap" style="margin-bottom:18px">
+    <table>
+      <thead>
+        <tr><th>维度</th><th style="width:64px">权重</th><th style="width:72px">现在</th><th style="width:72px">中期</th><th style="width:72px">远期目标</th><th style="width:96px">兑现增量</th><th>前置条件（先有 A 才能有 B）</th></tr>
+      </thead>
+      <tbody>
+        <tr><td><b>云与多端</b></td><td class="num">9</td><td class="num s6">15</td><td class="num s6">50</td><td class="num s8">80</td><td class="num s6">+5.85</td><td>账号体系 + 增量同步；只读多端可以先做，写入同步要冲突合并</td></tr>
+        <tr><td><b>协作与社区</b></td><td class="num">8</td><td class="num s6">20</td><td class="num s6">30</td><td class="num s6">60</td><td class="num s6">+3.20</td><td>依赖账号与权限模型；先评论/分享，审批流与市场后置</td></tr>
+        <tr><td><b>多语言</b></td><td class="num">5</td><td class="num s9">90</td><td class="num s9">90</td><td class="num s9">90</td><td class="num s9">+4.25 已兑现</td><td>已完成：文案抽词条 + i18n 层 + 双语文档（1.2.23）</td></tr>
+        <tr><td><b>跨平台</b></td><td class="num">4</td><td class="num s6">20</td><td class="num s6">50</td><td class="num s8">85</td><td class="num s6">+2.60</td><td>mac 真机 CI + 安装包公证；Linux 顺延</td></tr>
+        <tr style="background:rgba(79,70,229,.07)"><td><b>合计</b></td><td class="num"><b>26</b></td><td class="num"><b>8.25</b></td><td class="num"><b>13.4</b></td><td class="num"><b>19.9</b></td><td class="num"><b>+11.7</b></td><td class="tiny muted">加上前 13 维的 67.2：75.5 → 80.6 → 87.1</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <div class="tbl-wrap" style="margin-bottom:18px">
+    <table>
+      <thead><tr><th style="width:130px">阶段</th><th style="width:150px">四项取值</th><th style="width:110px">17 维总分</th><th style="width:90px">名次</th><th>需要什么</th></tr></thead>
+      <tbody>
+        <tr><td>现在</td><td class="num">15 / 20 / 90 / 20</td><td class="num s7">75.5</td><td class="num">第 3</td><td>已交付：单机库 + 局域网只读分享 + 中英双语界面与文档 + Windows</td></tr>
+        <tr><td>中期目标</td><td class="num">50 / 30 / 90 / 50</td><td class="num s7">80.6</td><td class="num">第 2</td><td>只读多端 + 分享批注 + mac 真机验收（仍不做账号体系与写入同步）</td></tr>
+        <tr><td>远期目标</td><td class="num">80 / 60 / 90 / 85</td><td class="num s8">87.1</td><td class="num">第 1</td><td>账号与增量同步 + 权限与审批 + 三平台安装包</td></tr>
+        <tr><td>远期 + 2 项打磨</td><td class="num">同上</td><td class="num s8">87.3</td><td class="num">第 1</td><td>在第 08 节的 5–7 周改造之后（+0.25）</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <div class="grid2">
+    <div class="card">
+      <h3 style="color:var(--amber)">云与多端 · 权重 9</h3>
+      <p><b>现在 15 → 远期目标 80（+5.85）。</b>今天不是零：局域网只读分享（密码 / 过期 / 禁下载）、备份到任意网盘或移动盘、多资源库切换。</p>
+      <p><b>为什么排在远期：</b>三项里唯一需要<b>持续花钱</b>的——服务器、带宽、存储、备份，按月计。个人项目没有这笔预算，也不该在没钱时先许诺数据安全责任。</p>
+      <p><b>兑现路径：</b>先只读多端（手机/网页看图，不写入）→ 账号与增量同步 → 冲突合并。只读阶段就能拿到约 50。</p>
+      <div class="ev">达标判据：同一账号在两台设备看到同一批素材；离线可读；冲突有明确提示而不是静默覆盖</div>
+    </div>
+    <div class="card">
+      <h3 style="color:var(--amber)">协作与社区 · 权重 8</h3>
+      <p><b>现在 20 → 远期目标 60（+3.20）。</b>今天能做的是导出包 + 只读分享链接；插件系统可承载小范围内部工具，只是还没人写。</p>
+      <p><b>为什么排在远期：</b>协作的前提是账号、权限、变更记录——三样都在云那一项里。先做协作等于把云做一半，顺序反了。</p>
+      <p><b>兑现路径：</b>分享链接加批注 → 成员角色（查看/编辑/管理）→ 审批流。<b>插件与模板市场不作承诺</b>：空市场比没有市场更伤。</p>
+      <div class="ev">达标判据：两个账号对同一集合有不同权限，每次改动留操作记录</div>
+    </div>
+    <div class="card">
+      <h3 style="color:var(--amber)">多语言 · 权重 5</h3>
+      <p><b>现在 90（已交付）→ 远期目标 90。</b>1.2.23 已完成：界面文案全部抽成词条（zh-CN / en-US 各 4,681 条）、内置教程双语、托盘与原生对话框跟随界面语言、后端错误与任务进度按 Accept-Language 返回、插件元数据与运行日志双语、两份 HTML 文档双语且可切换。</p>
+      <p><b>为什么先做它：</b>它是四项里<b>唯一不需要服务器和预算</b>的，成本集中在"把上万条文案抽出来、翻好、再冻结"的大范围机械改动——趁重构窗口一起做才划算。</p>
+      <p><b>还差的 10 分：</b>配置项显示名（AI 服务商 / 模型 / 采集源 label）仍是中文；插件包内部日志未国际化；RTL 语言明确不支持。</p>
+      <div class="ev">达标判据：切到英文后无硬编码中文残留；日期、数字、单位按区域格式化</div>
+    </div>
+    <div class="card">
+      <h3 style="color:var(--amber)">跨平台 · 权重 4</h3>
+      <p><b>现在 20 → 远期目标 85（+2.60）。</b>今天只验收 Windows；mac / Linux 有构建目标，但没有真机 CI，所以对外不宣称。</p>
+      <p><b>为什么排在远期：</b>桌面集成（动态壁纸、拖出、热键、文件关联）逐平台实现，摊三份就是三份维护；没有真机就没有"支持"二字。</p>
+      <p><b>兑现路径：</b>第 08 节第 2 项就是它的前置件——mac 真机跑 143 项冒烟 → 安装包与公证 → 平台差异清单；Linux 顺延。</p>
+      <div class="ev">达标判据：mac 上托盘/热键/拖出/文件关联均可用，且 CI 留有记录</div>
+    </div>
+  </div>
+
+  <div class="callout" style="margin-top:16px">
+    <b>为什么这些分数要标"目标值"：</b>目标值是验收线，不是承诺书。
+    任何一项下调 1 分，17 维总分就掉 0.4–0.9（× 权重 ÷ 100），表里可以自己核。
+    <br><br>
+    <b>为什么顺序是先跨平台，后云与协作：</b>跨平台是<b>一次性工程</b>，不吃预算，做完就固定在那里（多语言已按这个思路在 1.2.23 先做完）；
+    后两项是<b>持续性支出</b>（服务器 + 带宽 + 备份 + 值班），也是个人项目真实的财力边界。
+    所以路线图里写得清楚：先把不花钱的做完，再按收入决定云做到哪一档——这是取舍，不是能力问题。
+  </div>
+</section>
+
+<section id="s10">
+  <div class="sec-head"><span class="sec-no">10</span><h2>互操作与"数据带走"：这是被低估的优势</h2></div>
+  <p class="sec-sub">
+    素材管理工具最大的隐性成本是"用了三年，想换换不掉"。这一项在评分里只占少量权重，但对真实用户可能是决定性的。
+  </p>
+  <div class="grid3">
+    <div class="panel">
+      <h3 style="margin:0 0 8px;font-size:14.6px;color:var(--cyan)">元数据双向</h3>
+      <p class="tiny" style="margin:0;color:var(--muted)">
+        XMP sidecar 读写，标签、评分、说明可以留给下一个工具读；原图始终是原图，编辑只写操作序列。
+        证据：<code>server/lib/xmp.js</code> · <code>test/xmp.test.mjs</code> 26 条 · <code>edit_ops</code> 操作栈</p>
+    </div>
+    <div class="panel">
+      <h3 style="margin:0 0 8px;font-size:14.6px;color:var(--cyan)">备份可校验</h3>
+      <p class="tiny" style="margin:0;color:var(--muted)">
+        备份排程（按天/按周）、每个文件 SHA256 校验、恢复时校验再写入。备份可以放网盘或移动盘。
+        证据：<code>server/lib/backup-schedule.js</code> · <code>integrity.test.mjs</code> · <code>lib/integrity.js</code></p>
+    </div>
+    <div class="panel">
+      <h3 style="margin:0 0 8px;font-size:14.6px;color:var(--cyan)">导出三种形态</h3>
+      <p class="tiny" style="margin:0;color:var(--muted)">
+        CSV / JSON / HTML 画廊，带缩略图内嵌的离线单文件；Eagle 导入、文件夹平铺、保留 tag_meta 结构都行。
+        证据：<code>server/routes/export.js</code> · <code>galleryExport.test.mjs</code> · <code>server/lib/gallery-html.js</code></p>
+    </div>
+    <div class="panel">
+      <h3 style="margin:0 0 8px;font-size:14.6px;color:var(--cyan)">剪贴板与系统级</h3>
+      <p class="tiny" style="margin:0;color:var(--muted)">
+        拖出到资源管理器/微信/PS/PPT；剪贴板 Ctrl+C 直接粘出 PNG；局域网只读分享带密码与过期。
+        证据：<code>electron/main/ipc-app.js</code> <code>drag-out</code> · <code>lib/lan.js</code> · <code>preload.cjs</code> bridge</p>
+    </div>
+    <div class="panel">
+      <h3 style="margin:0 0 8px;font-size:14.6px;color:var(--cyan)">撤销重做双栈</h3>
+      <p class="tiny" style="margin:0;color:var(--muted)">
+        200 步 / 2GB 上限，任何修改都能回滚；删除操作走回收站，不是立刻抹掉。
+        证据：<code>server/lib/undo.js</code> · <code>test/trash.test.mjs</code> · <code>trash-restore.test.mjs</code></p>
+    </div>
+    <div class="panel">
+      <h3 style="margin:0 0 8px;font-size:14.6px;color:var(--cyan)">可被脚本调用</h3>
+      <p class="tiny" style="margin:0;color:var(--muted)">
+        REST 三级 scope（read/write/ingest）、11 个 MCP 工具、插件沙箱；整个库能被 AI 客户端当数据源。
+        证据：<code>server/mcp-server.mjs</code> · <code>routes/docs.js</code> · <code>lib/plugin-host.js</code></p>
+    </div>
+  </div>
+</section>
+
+<div class="foot">
+  审计日期 2026-11-17 · 代码版本 1.2.22 · 全量 verify（573 / 143 / 15 / 261）通过 · 实跑 bench:quick 数字已落进第 07 节。
+  本文件与 <a href="./产品介绍.html">产品介绍</a> 是同一份代码的两副面孔——那一份给用户看，这一份给代码层看。
+</div>
+</div>
+
+
+
+
+
+
+
+
+
+<div class="doc-lang-switch" style="position:fixed;right:18px;bottom:18px;z-index:9999;display:flex;gap:2px;padding:4px;border-radius:999px;background:rgba(255,255,255,.92);border:1px solid #e4e9f2;box-shadow:0 6px 18px -10px rgba(15,23,42,.45);font:12.5px/1 system-ui,-apple-system,'Segoe UI',sans-serif">
+  <a href="评测与路线图.html" data-doc-lang="zh" style="padding:6px 11px;border-radius:999px;text-decoration:none;color:#fff;background:#4f46e5;font-weight:600">中文</a>
+  <a href="评测与路线图.en.html" data-doc-lang="en" style="padding:6px 11px;border-radius:999px;text-decoration:none;color:#475569">English</a>
+</div>
+<script>
+(function(){
+  var KEY='doc-scroll-y';
+  function save(){ try{ sessionStorage.setItem(KEY, String(window.scrollY||0)); }catch(e){ /* storage disabled in private mode; ignore */ } }
+  document.querySelectorAll('[data-doc-lang]').forEach(function(a){ a.addEventListener('click', save); });
+  try{
+    var y=sessionStorage.getItem(KEY);
+    if(y!==null){ sessionStorage.removeItem(KEY);
+      window.addEventListener('load', function(){ window.scrollTo(0, Number(y)||0); });
+    }
+  }catch(e){ /* storage disabled in private mode; ignore */ }
+})();
+</script>
+
+</body>
+</html>

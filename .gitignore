@@ -1,0 +1,51 @@
+node_modules/
+
+# 构建与打包产物（可随时重新生成）
+dist/
+release-build*/
+release-out/
+.electron-dist/
+build-out*/
+
+# 本地运行时数据（dev 环境的库与素材，别提交）
+data/
+storage/
+
+# 密钥与运行时状态
+.api-token
+.port
+*.pid
+e_pid.txt
+# 热更签名私钥：只在本机与 CI secret 里，绝不进仓库
+.hotfix-private.pem
+
+# 日志与临时输出
+logs/
+*.log
+*.log.*
+*.old
+*.err
+tsconfig.tsbuildinfo
+
+# 本地工具状态
+.codebuddy/
+.trae-html-share-packages/
+
+# 文档的本地备份
+docs/*.bak
+
+# 环境变量与系统文件
+.env
+.env.*
+*.local
+.DS_Store
+Thumbs.db
+
+# verify 统计中间文件（由 scripts/doc-stats.mjs 生成）
+docs/.verify-stats.json
+
+# 本地复核用的临时实例（临时库 + 日志 + 备份）与无头截图产物，只在本机存在
+.tmp-verify*/
+.tmp-*/
+.tmp-*.png
+.tmp-*.html

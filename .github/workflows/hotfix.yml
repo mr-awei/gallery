@@ -1,0 +1,96 @@
+name: hotfix
+
+# 只打热更包：不打包 Electron、不出安装包，两分钟出结果。
+# 产物挂到 hotfix 滚动预发布 tag；manifest.json 固定文件名（客户端靠它判新旧）。
+on:
+  workflow_dispatch:
+    inputs:
+      notes:
+        description: '这次改了什么（会显示在用户的设置 → 关于里）'
+        required: true
+      seq:
+        description: '序号（留空 = 上一次 +1）'
+        required: false
+      since:
+        description: '增量基线（留空 = 全量；一般填 hotfix 目录里的 last-manifest.json）'
+        required: false
+        default: 'hotfix/last-manifest.json'
+
+permissions:
+  contents: write
+
+jobs:
+  pack:
+    runs-on: windows-latest
+    # 放在 job 级才能被下面 step 的 if 读到（step 自己的 env 在 if 里不可见）
+    env:
+      GITEE_TOKEN: ${{ secrets.GITEE_TOKEN }}
+      GITEE_REPO: ${{ secrets.GITEE_REPO || 'mr-awei/gallery' }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - run: npm ci
+
+      - name: 构建前端产物
+        run: npm run build
+
+      - name: 下载上一次的基线清单（同一 tag 下固定文件名，重新上传即时生效）
+        continue-on-error: true
+        run: |
+          New-Item -ItemType Directory -Force hotfix | Out-Null
+          gh release download hotfix --pattern last-manifest.json --dir hotfix --clobber
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: 打包 + 签名
+        run: |
+          $since = "${{ github.event.inputs.since }}"
+          $args = @('scripts/make-hotfix.mjs', '--notes', "${{ github.event.inputs.notes }}")
+          if ($since -and (Test-Path $since)) { $args += @('--since', $since) }
+          if ("${{ github.event.inputs.seq }}") { $args += @('--seq', "${{ github.event.inputs.seq }}") }
+          node @args
+        env:
+          HOTFIX_PRIVATE_KEY: ${{ secrets.HOTFIX_PRIVATE_KEY }}
+
+      - name: 发布到 hotfix 滚动 Release
+        run: |
+          # 资产名固定（manifest.json / last-manifest.json），包名带 seq 因此天然不可变
+          gh release view hotfix 2>$null
+          if ($LASTEXITCODE -ne 0) {
+            gh release create hotfix --prerelease --title "hotfix" --notes "热更滚动通道（客户端从这里取 manifest.json 与 pack-<seq>.zip）"
+          }
+          gh release upload hotfix release-build/hotfix/manifest.json release-build/hotfix/last-manifest.json release-build/hotfix/pack-*.zip --clobber
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      # Gitee 只做内容分发：镜像被改也过不了验签，最多是「这次没更成」。
+      # 没有 GITEE_TOKEN 就整段跳过，主链路不受影响。
+      # 文件必须放在 hotfix 分支的**根目录**：客户端读的是 /raw/hotfix/manifest.json 与 /raw/hotfix/pack-<seq>.zip
+      - name: 同步到 Gitee（可选镜像）
+        if: env.GITEE_TOKEN != ''
+        run: |
+          $repo = "https://$($env:GITEE_TOKEN)@gitee.com/$($env:GITEE_REPO).git"
+          git clone --depth 1 --branch hotfix $repo gitee 2>$null
+          if ($LASTEXITCODE -ne 0) {
+            git clone --depth 1 $repo gitee
+            Push-Location gitee
+            git checkout --orphan hotfix
+            git rm -rf --quiet . 2>$null
+            Get-ChildItem -Force | Where-Object { $_.Name -ne '.git' } | Remove-Item -Recurse -Force
+            Pop-Location
+          }
+          # 只留当前这一份包：镜像目录越攒越大，而旧包的 seq 已经没人会用
+          Get-ChildItem gitee -Filter 'pack-*.zip' -ErrorAction SilentlyContinue | Remove-Item -Force
+          Copy-Item release-build/hotfix/manifest.json gitee\manifest.json -Force
+          Copy-Item release-build/hotfix/last-manifest.json gitee\last-manifest.json -Force
+          Copy-Item release-build/hotfix/pack-*.zip gitee\ -Force
+          Push-Location gitee
+          git config user.name "github-actions"; git config user.email "github-actions@users.noreply.github.com"
+          git add -A; git commit -m "hotfix ${{ github.event.inputs.seq }}" --allow-empty
+          git push origin hotfix
+          Pop-Location

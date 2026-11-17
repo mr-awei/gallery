@@ -1,0 +1,9 @@
+{
+  "id": "note-date",
+  "name": "备注补日期前缀",
+  "version": "1.0.0",
+  "entry": "index.js",
+  "permissions": ["image:read", "image:write", "log"],
+  "actions": ["run"],
+  "description": "官方插件：给备注补上 YYYY-MM-DD 前缀，已有日期就跳过；备注为空时按 arg 里的日期兜底写入。适合批量整理灵感笔记。"
+}

@@ -1,0 +1,3993 @@
+
+> tuku-gallery@1.2.23 verify
+> npm run lint && npm run typecheck && npm run unit && npm run smoke && npm run bench:quick && npm run verify:manual && node scripts/doc-stats.mjs
+
+
+> tuku-gallery@1.2.23 lint
+> eslint . && node scripts/lint.mjs
+
+[lint] 检查 273 个文件：0 个错误（语法 / 类型闸），0 个告警
+
+> tuku-gallery@1.2.23 typecheck
+> node scripts/gen-dto-types.mjs && tsc --noEmit -p tsconfig.json && tsc --noEmit -p tsconfig.node.json && tsc --noEmit -p tsconfig.lib.json && tsc --noEmit -p tsconfig.server.json
+
+[dto] 契约一致：toDTO 45 字段 · ImageItem 52 字段 · 已更新 dto.generated.ts
+
+> tuku-gallery@1.2.23 unit
+> node scripts/run-unit.mjs
+
+TAP version 13
+# Subtest: 条件规则：不命中的素材被跳过，命中的照常执行
+ok 1 - 条件规则：不命中的素材被跳过，命中的照常执行
+  ---
+  duration_ms: 5.5991
+  type: 'test'
+  ...
+# Subtest: 预演：只算不写，能说出「改前 → 改后」
+ok 2 - 预演：只算不写，能说出「改前 → 改后」
+  ---
+  duration_ms: 1.0865
+  type: 'test'
+  ...
+# Subtest: 批量撤销：标题 / 标签 / 评分全部回到执行前
+ok 3 - 批量撤销：标题 / 标签 / 评分全部回到执行前
+  ---
+  duration_ms: 11.1483
+  type: 'test'
+  ...
+# Subtest: collectRoutes 只收真实路由，跳过中间件与前端首页
+ok 4 - collectRoutes 只收真实路由，跳过中间件与前端首页
+  ---
+  duration_ms: 15.9212
+  type: 'test'
+  ...
+# Subtest: 分组按最长前缀命中，v1 / lan / live 不会被吞
+ok 5 - 分组按最长前缀命中，v1 / lan / live 不会被吞
+  ---
+  duration_ms: 0.2075
+  type: 'test'
+  ...
+# Subtest: 鉴权口径：v1 带 scope、lan 用局域网令牌、其余本机令牌
+ok 6 - 鉴权口径：v1 带 scope、lan 用局域网令牌、其余本机令牌
+  ---
+  duration_ms: 0.283
+  type: 'test'
+  ...
+# Subtest: Markdown 每个接口都出现一次，且带分组标题
+ok 7 - Markdown 每个接口都出现一次，且带分组标题
+  ---
+  duration_ms: 1.5746
+  type: 'test'
+  ...
+# Subtest: Bearer 令牌被接受
+ok 8 - Bearer 令牌被接受
+  ---
+  duration_ms: 1.9942
+  type: 'test'
+  ...
+# Subtest: 错误令牌被拒绝
+ok 9 - 错误令牌被拒绝
+  ---
+  duration_ms: 0.3265
+  type: 'test'
+  ...
+# Subtest: x-api-token 与 ?token= 同样有效
+ok 10 - x-api-token 与 ?token= 同样有效
+  ---
+  duration_ms: 0.4535
+  type: 'test'
+  ...
+# Subtest: query 令牌只对只读请求生效（写操作必须用 header）
+ok 11 - query 令牌只对只读请求生效（写操作必须用 header）
+  ---
+  duration_ms: 0.215
+  type: 'test'
+  ...
+# Subtest: 只读附加令牌不能借主 /api/* 绕过写接口（scope 对全站生效）
+ok 12 - 只读附加令牌不能借主 /api/* 绕过写接口（scope 对全站生效）
+  ---
+  duration_ms: 0.5795
+  type: 'test'
+  ...
+# Subtest: 令牌前缀不匹配也能正确拒绝（长度不同不走 timingSafeEqual）
+ok 13 - 令牌前缀不匹配也能正确拒绝（长度不同不走 timingSafeEqual）
+  ---
+  duration_ms: 0.1494
+  type: 'test'
+  ...
+# Subtest: 浏览器同源请求放行，跨站请求拒绝
+ok 14 - 浏览器同源请求放行，跨站请求拒绝
+  ---
+  duration_ms: 0.2206
+  type: 'test'
+  ...
+# Subtest: 非 /api 路径不做鉴权（静态页 / 下载直链）
+ok 15 - 非 /api 路径不做鉴权（静态页 / 下载直链）
+  ---
+  duration_ms: 0.1987
+  type: 'test'
+  ...
+# Subtest: OPTIONS 预检直接放行
+ok 16 - OPTIONS 预检直接放行
+  ---
+  duration_ms: 0.3776
+  type: 'test'
+  ...
+# Subtest: 浏览器扩展采集端点只放行白名单里的扩展 ID
+ok 17 - 浏览器扩展采集端点只放行白名单里的扩展 ID
+  ---
+  duration_ms: 0.5714
+  type: 'test'
+  ...
+# Subtest: 普通跨站 POST 到 /api 被 401 拦下并带错误信息
+ok 18 - 普通跨站 POST 到 /api 被 401 拦下并带错误信息
+  ---
+  duration_ms: 0.262
+  type: 'test'
+  ...
+# Subtest: 清单写完就能通过预检，并把素材数量带出来
+ok 19 - 清单写完就能通过预检，并把素材数量带出来
+  ---
+  duration_ms: 13.4693
+  type: 'test'
+  ...
+# Subtest: 文件被改坏 → 报校验和不符（而不是等到恢复中途才炸）
+ok 20 - 文件被改坏 → 报校验和不符（而不是等到恢复中途才炸）
+  ---
+  duration_ms: 10.1137
+  type: 'test'
+  ...
+# Subtest: 缺文件 → 明确指出缺哪个
+ok 21 - 缺文件 → 明确指出缺哪个
+  ---
+  duration_ms: 8.4539
+  type: 'test'
+  ...
+# Subtest: 删掉缩略图只警告不拦（缩略图可按需重建）
+ok 22 - 删掉缩略图只警告不拦（缩略图可按需重建）
+  ---
+  duration_ms: 80.4364
+  type: 'test'
+  ...
+# Subtest: 老备份没有清单：照样放行，但要提示只能靠数据库自检
+ok 23 - 老备份没有清单：照样放行，但要提示只能靠数据库自检
+  ---
+  duration_ms: 7.2643
+  type: 'test'
+  ...
+# Subtest: 调用方传正斜杠路径也要能通过（Windows 上 path.join 会换成反斜杠）
+ok 24 - 调用方传正斜杠路径也要能通过（Windows 上 path.join 会换成反斜杠）
+  ---
+  duration_ms: 7.5013
+  type: 'test'
+  ...
+# Subtest: 清单被写坏 / 路径越界 → 拒绝
+ok 25 - 清单被写坏 / 路径越界 → 拒绝
+  ---
+  duration_ms: 7.3084
+  type: 'test'
+  ...
+# Subtest: 颜色搜索按游标扫完全库，且 topK 只留结果不留在途数据
+ok 26 - 颜色搜索按游标扫完全库，且 topK 只留结果不留在途数据
+  ---
+  duration_ms: 36.5958
+  type: 'test'
+  ...
+# Subtest: 知识库重打分分批事务覆盖全库，不漏最后一页
+ok 27 - 知识库重打分分批事务覆盖全库，不漏最后一页
+  ---
+  duration_ms: 24.7659
+  type: 'test'
+  ...
+# Subtest: 偏好训练只取行为信号样本，打分写回仍覆盖全库
+ok 28 - 偏好训练只取行为信号样本，打分写回仍覆盖全库
+  ---
+  duration_ms: 46.6897
+  type: 'test'
+  ...
+# Subtest: int16 量化误差可忽略，桶号由首维决定
+ok 29 - int16 量化误差可忽略，桶号由首维决定
+  ---
+  duration_ms: 1.5958
+  type: 'test'
+  ...
+# Subtest: 磁盘索引：重建 → 查询 → 覆盖换桶 → 删除 → 重启一致
+ok 30 - 磁盘索引：重建 → 查询 → 覆盖换桶 → 删除 → 重启一致
+  ---
+  duration_ms: 15.38
+  type: 'test'
+  ...
+# Subtest: 权威数据源与索引 count 不一致时自动流式重建
+ok 31 - 权威数据源与索引 count 不一致时自动流式重建
+  ---
+  duration_ms: 15.3016
+  type: 'test'
+  ...
+# Subtest: 相似搜索 worker 与主线程扫描结果一致
+ok 32 - 相似搜索 worker 与主线程扫描结果一致
+  ---
+  duration_ms: 129.2469
+  type: 'test'
+  ...
+# Subtest: 删图后，相似检索不再召回已删素材
+ok 33 - 删图后，相似检索不再召回已删素材
+  ---
+  duration_ms: 108.27
+  type: 'test'
+  ...
+#   [4K 合成内存曲线] 采样 12 次，峰值增量 0.2MB（一份全屏 RGBA=31.6MB）
+# Subtest: 4K 静态壁纸合成：只物化一份压缩前景，输出直接写盘
+ok 34 - 4K 静态壁纸合成：只物化一份压缩前景，输出直接写盘
+  ---
+  duration_ms: 242.7927
+  type: 'test'
+  ...
+# Subtest: 连续输入合并成一次提交，且多个字段都不丢
+ok 35 - 连续输入合并成一次提交，且多个字段都不丢
+  ---
+  duration_ms: 4.6049
+  type: 'test'
+  ...
+# Subtest: 空队列 flush 不提交，dispose 会补发未落盘的改动
+ok 36 - 空队列 flush 不提交，dispose 会补发未落盘的改动
+  ---
+  duration_ms: 2.1375
+  type: 'test'
+  ...
+# Subtest: 提交串行化：上一个请求没回来，下一个不会抢先发出
+ok 37 - 提交串行化：上一个请求没回来，下一个不会抢先发出
+  ---
+  duration_ms: 1.2896
+  type: 'test'
+  ...
+# Subtest: 删素材后：文件夹 / 评论 / 向量 / 画质 / 标注 / OCR 全部跟着消失
+ok 38 - 删素材后：文件夹 / 评论 / 向量 / 画质 / 标注 / OCR 全部跟着消失
+  ---
+  duration_ms: 3.1654
+  type: 'test'
+  ...
+# Subtest: 六张关联表的删除触发器都在（防止将来被漏掉）
+ok 39 - 六张关联表的删除触发器都在（防止将来被漏掉）
+  ---
+  duration_ms: 0.3639
+  type: 'test'
+  ...
+# Subtest: 批量删除同样干净（触发器逐行生效）
+ok 40 - 批量删除同样干净（触发器逐行生效）
+  ---
+  duration_ms: 2.4799
+  type: 'test'
+  ...
+# Subtest: abs_path 唯一索引：状态可读，重复存在时能如实报出来
+ok 41 - abs_path 唯一索引：状态可读，重复存在时能如实报出来
+  ---
+  duration_ms: 0.1887
+  type: 'test'
+  ...
+# Subtest: 设计文件与 RAW 各自归类，不再落进 other
+ok 42 - 设计文件与 RAW 各自归类，不再落进 other
+  ---
+  duration_ms: 2.2145
+  type: 'test'
+  ...
+# Subtest: largestJpeg：从 RAW 那样的二进制里挑出最大的内嵌 JPEG
+ok 43 - largestJpeg：从 RAW 那样的二进制里挑出最大的内嵌 JPEG
+  ---
+  duration_ms: 26.1807
+  type: 'test'
+  ...
+# Subtest: largestJpeg：只有图标级碎片时返回 null（避免生成糊图）
+ok 44 - largestJpeg：只有图标级碎片时返回 null（避免生成糊图）
+  ---
+  duration_ms: 0.2879
+  type: 'test'
+  ...
+# Subtest: designThumbJpeg：Sketch（zip）取 previews/preview.png
+ok 45 - designThumbJpeg：Sketch（zip）取 previews/preview.png
+  ---
+  duration_ms: 33.1862
+  type: 'test'
+  ...
+# Subtest: designThumbJpeg：RAW 无专用解析时靠内嵌 JPEG 兜底
+ok 46 - designThumbJpeg：RAW 无专用解析时靠内嵌 JPEG 兜底
+  ---
+  duration_ms: 36.6186
+  type: 'test'
+  ...
+# Subtest: designThumbJpeg：AI 文件里嵌了位图也能出缩略图
+ok 47 - designThumbJpeg：AI 文件里嵌了位图也能出缩略图
+  ---
+  duration_ms: 27.7174
+  type: 'test'
+  ...
+# Subtest: designThumbJpeg：PSD 走自研合成图解码（raw 压缩）
+ok 48 - designThumbJpeg：PSD 走自研合成图解码（raw 压缩）
+  ---
+  duration_ms: 6.8149
+  type: 'test'
+  ...
+# Subtest: designThumbJpeg：PSD 的 RLE 压缩也能解
+ok 49 - designThumbJpeg：PSD 的 RLE 压缩也能解
+  ---
+  duration_ms: 8.1881
+  type: 'test'
+  ...
+# Subtest: orientedSize：5~8 表示画面转了 90°，宽高必须互换
+ok 50 - orientedSize：5~8 表示画面转了 90°，宽高必须互换
+  ---
+  duration_ms: 1.317
+  type: 'test'
+  ...
+# Subtest: designThumbJpeg：竖拍 RAW（内嵌预览带 orientation=6）要摆正并互换宽高
+ok 51 - designThumbJpeg：竖拍 RAW（内嵌预览带 orientation=6）要摆正并互换宽高
+  ---
+  duration_ms: 64.327
+  type: 'test'
+  ...
+# [design-thumb] PSD 库解析失败，改用内嵌 JPEG empty.psd 
+# [design-thumb] 没有可用预览 empty.psd
+# Subtest: designThumbJpeg：什么都抽不出来时返回 null，不抛错
+ok 52 - designThumbJpeg：什么都抽不出来时返回 null，不抛错
+  ---
+  duration_ms: 8.1167
+  type: 'test'
+  ...
+# Subtest: 原生崩溃码识别：Windows 上有符号/无符号两种写法
+ok 53 - 原生崩溃码识别：Windows 上有符号/无符号两种写法
+  ---
+  duration_ms: 1.1861
+  type: 'test'
+  ...
+# Subtest: 崩溃码转文本带人话提示
+ok 54 - 崩溃码转文本带人话提示
+  ---
+  duration_ms: 0.2893
+  type: 'test'
+  ...
+# Subtest: TUKU_FORCE_CPU 只认明确的真值
+ok 55 - TUKU_FORCE_CPU 只认明确的真值
+  ---
+  duration_ms: 0.3974
+  type: 'test'
+  ...
+# Subtest: 结论落盘、读回、可清除
+ok 56 - 结论落盘、读回、可清除
+  ---
+  duration_ms: 3.1755
+  type: 'test'
+  ...
+# Subtest: 显卡探针：纸条落盘、建成后撤掉、只有 probing=true 才算崩过
+ok 57 - 显卡探针：纸条落盘、建成后撤掉、只有 probing=true 才算崩过
+  ---
+  duration_ms: 4.5314
+  type: 'test'
+  ...
+# Subtest: 文件损坏不会永久禁用显卡（读回 null）
+ok 58 - 文件损坏不会永久禁用显卡（读回 null）
+  ---
+  duration_ms: 0.9786
+  type: 'test'
+  ...
+# Subtest: 版本号可用于升级后重试显卡
+ok 59 - 版本号可用于升级后重试显卡
+  ---
+  duration_ms: 0.2395
+  type: 'test'
+  ...
+# Subtest: 默认用户目录只认环境变量，不依赖 server/config.js
+ok 60 - 默认用户目录只认环境变量，不依赖 server/config.js
+  ---
+  duration_ms: 0.1745
+  type: 'test'
+  ...
+# Subtest: 主进程静态 import 图不得包含 server/config.js（否则打包版启动即崩）
+ok 61 - 主进程静态 import 图不得包含 server/config.js（否则打包版启动即崩）
+  ---
+  duration_ms: 5.3432
+  type: 'test'
+  ...
+# Subtest: 窗口期内同址第二次请求被拦掉（连点只弹一个保存框）
+ok 62 - 窗口期内同址第二次请求被拦掉（连点只弹一个保存框）
+  ---
+  duration_ms: 1.1168
+  type: 'test'
+  ...
+# Subtest: 过了窗口期就重新放行（取消后隔一会儿再点还能弹框）
+ok 63 - 过了窗口期就重新放行（取消后隔一会儿再点还能弹框）
+  ---
+  duration_ms: 0.1673
+  type: 'test'
+  ...
+# Subtest: 不同 URL 互不影响（连续下两张图都要出框）
+ok 64 - 不同 URL 互不影响（连续下两张图都要出框）
+  ---
+  duration_ms: 0.2238
+  type: 'test'
+  ...
+# Subtest: 空 URL 不参与去重也不进表
+ok 65 - 空 URL 不参与去重也不进表
+  ---
+  duration_ms: 0.1573
+  type: 'test'
+  ...
+# Subtest: 过期记录会被清掉，表不会随下载次数无限增长
+ok 66 - 过期记录会被清掉，表不会随下载次数无限增长
+  ---
+  duration_ms: 0.1515
+  type: 'test'
+  ...
+# Subtest: moveDownloaded 同分区改名：内容不变，原地不留
+ok 67 - moveDownloaded 同分区改名：内容不变，原地不留
+  ---
+  duration_ms: 10.3935
+  type: 'test'
+  ...
+# Subtest: moveDownloaded 目标已存在时覆盖（与覆盖保存的语义一致）
+ok 68 - moveDownloaded 目标已存在时覆盖（与覆盖保存的语义一致）
+  ---
+  duration_ms: 4.5008
+  type: 'test'
+  ...
+# Subtest: moveDownloaded 起止相同直接返回，不误删
+ok 69 - moveDownloaded 起止相同直接返回，不误删
+  ---
+  duration_ms: 3.3159
+  type: 'test'
+  ...
+# Subtest: discardDownloaded 连占位残留的 .crdownload 一起清掉
+ok 70 - discardDownloaded 连占位残留的 .crdownload 一起清掉
+  ---
+  duration_ms: 4.0159
+  type: 'test'
+  ...
+# Subtest: discardDownloaded 对不存在的文件不抛错（取消时常常还没建文件）
+ok 71 - discardDownloaded 对不存在的文件不抛错（取消时常常还没建文件）
+  ---
+  duration_ms: 1.7797
+  type: 'test'
+  ...
+# Subtest: 版本比较：三段数字逐位比较，缺省按 0
+ok 72 - 版本比较：三段数字逐位比较，缺省按 0
+  ---
+  duration_ms: 1.4511
+  type: 'test'
+  ...
+# Subtest: 版本比较：本机比发布源还新时不算有更新（否则点安装就是降级）
+ok 73 - 版本比较：本机比发布源还新时不算有更新（否则点安装就是降级）
+  ---
+  duration_ms: 0.1672
+  type: 'test'
+  ...
+# Subtest: 版本比较：脏输入不抛错，按 0 处理
+ok 74 - 版本比较：脏输入不抛错，按 0 处理
+  ---
+  duration_ms: 0.1729
+  type: 'test'
+  ...
+# Subtest: 路径白名单：根目录本身与子路径放行
+ok 75 - 路径白名单：根目录本身与子路径放行
+  ---
+  duration_ms: 0.2798
+  type: 'test'
+  ...
+# Subtest: 路径白名单：越界、同级前缀、上级目录一律拒绝
+ok 76 - 路径白名单：越界、同级前缀、上级目录一律拒绝
+  ---
+  duration_ms: 0.5638
+  type: 'test'
+  ...
+# Subtest: 路径白名单：多个根，命中任一即可
+ok 77 - 路径白名单：多个根，命中任一即可
+  ---
+  duration_ms: 0.3397
+  type: 'test'
+  ...
+# Subtest: 本机 URL：host 必须精确相等，端口必须一致
+ok 78 - 本机 URL：host 必须精确相等，端口必须一致
+  ---
+  duration_ms: 0.3303
+  type: 'test'
+  ...
+# Subtest: 本机 URL：未指定端口时只看 host
+ok 79 - 本机 URL：未指定端口时只看 host
+  ---
+  duration_ms: 0.1951
+  type: 'test'
+  ...
+# Subtest: origin 白名单：必须协议+主机+端口全等
+ok 80 - origin 白名单：必须协议+主机+端口全等
+  ---
+  duration_ms: 0.655
+  type: 'test'
+  ...
+# Subtest: HTML 转义：五个危险字符全覆盖
+ok 81 - HTML 转义：五个危险字符全覆盖
+  ---
+  duration_ms: 0.7139
+  type: 'test'
+  ...
+# Subtest: 重启退避：1/2/3 次分别 500/1500/3000，超出上限仍取最大
+ok 82 - 重启退避：1/2/3 次分别 500/1500/3000，超出上限仍取最大
+  ---
+  duration_ms: 1.2174
+  type: 'test'
+  ...
+# Subtest: EPUB：书名/作者/语言/封面与目录
+ok 83 - EPUB：书名/作者/语言/封面与目录
+  ---
+  duration_ms: 18.5795
+  type: 'test'
+  ...
+# Subtest: EPUB：章节正文按顺序转文本块，插图内嵌成 data URL
+ok 84 - EPUB：章节正文按顺序转文本块，插图内嵌成 data URL
+  ---
+  duration_ms: 6.0481
+  type: 'test'
+  ...
+# Subtest: EPUB：越界章节返回 null，不是抛错
+ok 85 - EPUB：越界章节返回 null，不是抛错
+  ---
+  duration_ms: 4.6929
+  type: 'test'
+  ...
+# Subtest: EPUB：不是电子书就给明确错误
+ok 86 - EPUB：不是电子书就给明确错误
+  ---
+  duration_ms: 4.3625
+  type: 'test'
+  ...
+# Subtest: GIF 导出：真实文件头 + 中文标题可通过
+ok 87 - GIF 导出：真实文件头 + 中文标题可通过
+  ---
+  duration_ms: 3.6034
+  type: 'test'
+  ...
+# Subtest: WebM 导出：Blob 自带的 ;codecs=vp9 不能被误判
+ok 88 - WebM 导出：Blob 自带的 ;codecs=vp9 不能被误判
+  ---
+  duration_ms: 0.7709
+  type: 'test'
+  ...
+# Subtest: 文件名：路径穿越 / Windows 保留字符 / 扩展名不符全部拒绝
+ok 89 - 文件名：路径穿越 / Windows 保留字符 / 扩展名不符全部拒绝
+  ---
+  duration_ms: 0.5399
+  type: 'test'
+  ...
+# Subtest: 内容：非 data URL、伪造文件头、超大小都要明确拒绝
+ok 90 - 内容：非 data URL、伪造文件头、超大小都要明确拒绝
+  ---
+  duration_ms: 0.3465
+  type: 'test'
+  ...
+# Subtest: SCRFD 解码：anchor 中心按 (x*stride, y*stride) 且每格 anchors 个连续排布
+ok 91 - SCRFD 解码：anchor 中心按 (x*stride, y*stride) 且每格 anchors 个连续排布
+  ---
+  duration_ms: 2.215
+  type: 'test'
+  ...
+# Subtest: SCRFD 解码：低于阈值一律丢弃（阈值边界用 >=）
+ok 92 - SCRFD 解码：低于阈值一律丢弃（阈值边界用 >=）
+  ---
+  duration_ms: 0.2295
+  type: 'test'
+  ...
+# Subtest: NMS：同位置高分框胜出，IoU 为 0 的框全部保留
+ok 93 - NMS：同位置高分框胜出，IoU 为 0 的框全部保留
+  ---
+  duration_ms: 0.3767
+  type: 'test'
+  ...
+# Subtest: 相似变换：平移、等比缩放、旋转都能精确还原到模板
+ok 94 - 相似变换：平移、等比缩放、旋转都能精确还原到模板
+  ---
+  duration_ms: 0.9527
+  type: 'test'
+  ...
+# Subtest: 相似变换：带噪声的检测点，残差应明显小于仿射拟合前的错误
+ok 95 - 相似变换：带噪声的检测点，残差应明显小于仿射拟合前的错误
+  ---
+  duration_ms: 0.3136
+  type: 'test'
+  ...
+# Subtest: 相似变换：三点重合时明确报错，而不是返回 NaN 矩阵
+ok 96 - 相似变换：三点重合时明确报错，而不是返回 NaN 矩阵
+  ---
+  duration_ms: 0.5069
+  type: 'test'
+  ...
+# Subtest: 仿射求逆：先正变换再逆变换能回到原点
+ok 97 - 仿射求逆：先正变换再逆变换能回到原点
+  ---
+  duration_ms: 0.4052
+  type: 'test'
+  ...
+# Subtest: warpAlign：常量图 → 输出全为归一化后的常量值；越界补 -1
+ok 98 - warpAlign：常量图 → 输出全为归一化后的常量值；越界补 -1
+  ---
+  duration_ms: 10.8093
+  type: 'test'
+  ...
+# Subtest: 向量工具：归一化后点积即余弦，质心增量更新等于加权平均再归一化
+ok 99 - 向量工具：归一化后点积即余弦，质心增量更新等于加权平均再归一化
+  ---
+  duration_ms: 0.5871
+  type: 'test'
+  ...
+# Subtest: 拉普拉斯方差：细节丰富的清晰块 >> 糊成一片的渐变
+ok 100 - 拉普拉斯方差：细节丰富的清晰块 >> 糊成一片的渐变
+  ---
+  duration_ms: 10.0664
+  type: 'test'
+  ...
+# Subtest: faceNativePatch：按原生分辨率取块（不重采样），纯色 → 无纹理，棋盘 → 高清晰
+ok 101 - faceNativePatch：按原生分辨率取块（不重采样），纯色 → 无纹理，棋盘 → 高清晰
+  ---
+  duration_ms: 12.1284
+  type: 'test'
+  ...
+# Subtest: faceNativePatch：小脸不会被放大摊平（旧版缩放到 192 会误判成模糊）
+ok 102 - faceNativePatch：小脸不会被放大摊平（旧版缩放到 192 会误判成模糊）
+  ---
+  duration_ms: 22.3528
+  type: 'test'
+  ...
+# Subtest: 姿态：正面接近 1，大侧脸/歪头被判非正面
+ok 103 - 姿态：正面接近 1，大侧脸/歪头被判非正面
+  ---
+  duration_ms: 0.4875
+  type: 'test'
+  ...
+# Subtest: assessFace：糊脸/小脸/无纹理/后脑勺硬排除，清晰正面可聚类
+ok 104 - assessFace：糊脸/小脸/无纹理/后脑勺硬排除，清晰正面可聚类
+  ---
+  duration_ms: 1.0994
+  type: 'test'
+  ...
+# Subtest: 小脸分层：清晰但很小的脸照常保留，只有真·看不清才硬排除
+ok 105 - 小脸分层：清晰但很小的脸照常保留，只有真·看不清才硬排除
+  ---
+  duration_ms: 0.2314
+  type: 'test'
+  ...
+# Subtest: 质量分：糊脸不会被尺寸/检测分「平均」成高分（几何平均 + 对数刻度）
+ok 106 - 质量分：糊脸不会被尺寸/检测分「平均」成高分（几何平均 + 对数刻度）
+  ---
+  duration_ms: 0.2657
+  type: 'test'
+  ...
+# Subtest: 封面排序依据：质量分高的脸优先于检测分高的脸
+ok 107 - 封面排序依据：质量分高的脸优先于检测分高的脸
+  ---
+  duration_ms: 0.152
+  type: 'test'
+  ...
+# Subtest: 过曝：纯白/高光块即使梯度很高也不能当可用脸
+ok 108 - 过曝：纯白/高光块即使梯度很高也不能当可用脸
+  ---
+  duration_ms: 9.1165
+  type: 'test'
+  ...
+# Subtest: 封面资格：29px 的脸质量分不低也不能当封面（截图里的「白糊块」就是这么来的）
+ok 109 - 封面资格：29px 的脸质量分不低也不能当封面（截图里的「白糊块」就是这么来的）
+  ---
+  duration_ms: 0.5922
+  type: 'test'
+  ...
+# Subtest: 聚类门槛：检测分低的脸（后脑勺/耳朵）可以显示，但不许进人物
+ok 110 - 聚类门槛：检测分低的脸（后脑勺/耳朵）可以显示，但不许进人物
+  ---
+  duration_ms: 0.1641
+  type: 'test'
+  ...
+# Subtest: 白底图：背景透明、主体保留、尺寸不变
+ok 111 - 白底图：背景透明、主体保留、尺寸不变
+  ---
+  duration_ms: 731.6183
+  type: 'test'
+  ...
+# Subtest: 灰底图（不写死白色）
+ok 112 - 灰底图（不写死白色）
+  ---
+  duration_ms: 820.8913
+  type: 'test'
+  ...
+# Subtest: 彩底图（蓝底 / 绿幕这类也能抠）
+ok 113 - 彩底图（蓝底 / 绿幕这类也能抠）
+  ---
+  duration_ms: 880.988
+  type: 'test'
+  ...
+# Subtest: 主体内部的白高光不能被挖洞（只吃与边缘连通的背景）
+ok 114 - 主体内部的白高光不能被挖洞（只吃与边缘连通的背景）
+  ---
+  duration_ms: 712.3499
+  type: 'test'
+  ...
+# Subtest: 主体贴边：贴住画布边缘的部分不被误删
+ok 115 - 主体贴边：贴住画布边缘的部分不被误删
+  ---
+  duration_ms: 707.9739
+  type: 'test'
+  ...
+# Subtest: 背景不均匀时给出 warning，而不是假装成功
+ok 116 - 背景不均匀时给出 warning，而不是假装成功
+  ---
+  duration_ms: 737.9462
+  type: 'test'
+  ...
+# Subtest: 纯色图（没有主体）：提醒而不是产出全透明
+ok 117 - 纯色图（没有主体）：提醒而不是产出全透明
+  ---
+  duration_ms: 840.7102
+  type: 'test'
+  ...
+# Subtest: parseRatioSpec：常见写法与非法输入
+ok 118 - parseRatioSpec：常见写法与非法输入
+  ---
+  duration_ms: 2.0481
+  type: 'test'
+  ...
+# Subtest: 白底商品图：蓝色主体（无肤色）也要完整留下
+ok 119 - 白底商品图：蓝色主体（无肤色）也要完整留下
+  ---
+  duration_ms: 76.5863
+  type: 'test'
+  ...
+# Subtest: 暖色场景不当成人脸：沙地上蓝物体不能被肤色拽走
+ok 120 - 暖色场景不当成人脸：沙地上蓝物体不能被肤色拽走
+  ---
+  duration_ms: 39.3747
+  type: 'test'
+  ...
+# Subtest: 深底绿色主体（无肤色）落在左上
+ok 121 - 深底绿色主体（无肤色）落在左上
+  ---
+  duration_ms: 56.7752
+  type: 'test'
+  ...
+# Subtest: 白底浅灰主体（低饱和低对比）也能定位
+ok 122 - 白底浅灰主体（低饱和低对比）也能定位
+  ---
+  duration_ms: 22.4168
+  type: 'test'
+  ...
+# Subtest: 人像：肤色仍是加分项
+ok 123 - 人像：肤色仍是加分项
+  ---
+  duration_ms: 37.1355
+  type: 'test'
+  ...
+# Subtest: 横幅裁 16:9：主体在下缘要往下让，在上缘要往上让
+ok 124 - 横幅裁 16:9：主体在下缘要往下让，在上缘要往上让
+  ---
+  duration_ms: 89.0785
+  type: 'test'
+  ...
+# Subtest: 截图：整片文字区要被完整收进来，而不是挑中间一小块
+ok 125 - 截图：整片文字区要被完整收进来，而不是挑中间一小块
+  ---
+  duration_ms: 24.2856
+  type: 'test'
+  ...
+# Subtest: 纯色图：没有信息就老实居中
+ok 126 - 纯色图：没有信息就老实居中
+  ---
+  duration_ms: 22.9647
+  type: 'test'
+  ...
+# Subtest: 横向长图裁 9:16：窗口比例与请求一致
+ok 127 - 横向长图裁 9:16：窗口比例与请求一致
+  ---
+  duration_ms: 20.7492
+  type: 'test'
+  ...
+# Subtest: 同一个目录的图片 → 就是该目录
+ok 128 - 同一个目录的图片 → 就是该目录
+  ---
+  duration_ms: 1.229
+  type: 'test'
+  ...
+# Subtest: 父夹聚合子夹 → 回到父目录而不是更深的子目录
+ok 129 - 父夹聚合子夹 → 回到父目录而不是更深的子目录
+  ---
+  duration_ms: 0.2226
+  type: 'test'
+  ...
+# Subtest: 大小写不一致也认作同一目录
+ok 130 - 大小写不一致也认作同一目录
+  ---
+  duration_ms: 0.1705
+  type: 'test'
+  ...
+# Subtest: 毫无公共部分 → 盘符根（调用方据此回落到库根）
+ok 131 - 毫无公共部分 → 盘符根（调用方据此回落到库根）
+  ---
+  duration_ms: 0.2816
+  type: 'test'
+  ...
+# Subtest: 空输入 → 根目录，不抛异常
+ok 132 - 空输入 → 根目录，不抛异常
+  ---
+  duration_ms: 0.2131
+  type: 'test'
+  ...
+# [db] 关联表 folders 已补外键约束（2 行）
+# [db] 关联表 item_tags 已补外键约束（1 行）
+# [db] 关联表 image_comments 已补外键约束（1 行）
+# Subtest: 新库的关联表全部带外键约束，且动作与清单一致
+ok 133 - 新库的关联表全部带外键约束，且动作与清单一致
+  ---
+  duration_ms: 29.0331
+  type: 'test'
+  ...
+# Subtest: 删素材时关联行自动级联删除（不再依赖触发器逐张表清）
+ok 134 - 删素材时关联行自动级联删除（不再依赖触发器逐张表清）
+  ---
+  duration_ms: 25.6982
+  type: 'test'
+  ...
+# Subtest: 指向不存在父行的插入会被拒绝（真约束，不是事后对账）
+ok 135 - 指向不存在父行的插入会被拒绝（真约束，不是事后对账）
+  ---
+  duration_ms: 24.8794
+  type: 'test'
+  ...
+# Subtest: 删人物把脸退回未归属，而不是连脸一起删
+ok 136 - 删人物把脸退回未归属，而不是连脸一起删
+  ---
+  duration_ms: 24.2956
+  type: 'test'
+  ...
+# Subtest: 删父夹连带子夹（以前靠 path 前缀 LIKE 手工删）
+ok 137 - 删父夹连带子夹（以前靠 path 前缀 LIKE 手工删）
+  ---
+  duration_ms: 23.4385
+  type: 'test'
+  ...
+# Subtest: 老库重建：补上约束、清掉孤儿、保住正常行与 id
+ok 138 - 老库重建：补上约束、清掉孤儿、保住正常行与 id
+  ---
+  duration_ms: 6.621
+  type: 'test'
+  ...
+# Subtest: fkTail 只给登记过的表追加约束
+ok 139 - fkTail 只给登记过的表追加约束
+  ---
+  duration_ms: 0.3171
+  type: 'test'
+  ...
+# Subtest: escapeHtml 转义出可用的属性与文本
+ok 140 - escapeHtml 转义出可用的属性与文本
+  ---
+  duration_ms: 1.1169
+  type: 'test'
+  ...
+# Subtest: safeFileName 去掉 Windows 非法字符与尾部点空格
+ok 141 - safeFileName 去掉 Windows 非法字符与尾部点空格
+  ---
+  duration_ms: 0.3704
+  type: 'test'
+  ...
+# Subtest: renderGalleryHtml 渲染卡片、标签与内嵌图
+ok 142 - renderGalleryHtml 渲染卡片、标签与内嵌图
+  ---
+  duration_ms: 1.5774
+  type: 'test'
+  ...
+# Subtest: renderGalleryHtml 空列表给空态而不是空网格
+ok 143 - renderGalleryHtml 空列表给空态而不是空网格
+  ---
+  duration_ms: 0.1865
+  type: 'test'
+  ...
+# Subtest: renderGalleryHtml 列数夹在 2..8
+ok 144 - renderGalleryHtml 列数夹在 2..8
+  ---
+  duration_ms: 0.2042
+  type: 'test'
+  ...
+# Subtest: renderGalleryHtml 来源链接转义 & 非法主题回落 auto
+ok 145 - renderGalleryHtml 来源链接转义 & 非法主题回落 auto
+  ---
+  duration_ms: 0.2137
+  type: 'test'
+  ...
+# Subtest: GIF89a 头、全局颜色表与小端尺寸
+ok 146 - GIF89a 头、全局颜色表与小端尺寸
+  ---
+  duration_ms: 1.9333
+  type: 'test'
+  ...
+# Subtest: 多帧动画能被真实解码器读回（页数/尺寸/像素）
+ok 147 - 多帧动画能被真实解码器读回（页数/尺寸/像素）
+  ---
+  duration_ms: 14.8293
+  type: 'test'
+  ...
+# Subtest: 帧尺寸不一致 / 数据不完整 / 空帧都要明确报错
+not ok 148 - 帧尺寸不一致 / 数据不完整 / 空帧都要明确报错
+  ---
+  duration_ms: 3.4488
+  type: 'test'
+  location: 'D:\\a\\gallery\\gallery\\test\\gif.test.mjs:48:1'
+  failureType: 'testCodeFailure'
+  error: |-
+    The input did not match the regular expression /没有可导出的帧/. Input:
+    
+    'Error: No frames to export'
+    
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  expected:
+  actual:
+  error: 'No frames to export'
+  stack: |-
+    encodeGif (file:///D:/a/gallery/gallery/web/src/lib/gif.ts:165:29)
+    file:///D:/a/gallery/gallery/test/gif.test.mjs:49:23
+    getActual (node:assert:609:5)
+    Function.throws (node:assert:757:24)
+    TestContext.<anonymous> (file:///D:/a/gallery/gallery/test/gif.test.mjs:49:10)
+    Test.runInAsyncScope (node:async_hooks:214:14)
+    Test.run (node:internal/test_runner/test:1047:25)
+    Test.processPendingSubtests (node:internal/test_runner/test:744:18)
+    Test.postRun (node:internal/test_runner/test:1173:19)
+    Test.run (node:internal/test_runner/test:1101:12)
+  operator: 'throws'
+  stack: |-
+    TestContext.<anonymous> (file:///D:/a/gallery/gallery/test/gif.test.mjs:49:10)
+    Test.runInAsyncScope (node:async_hooks:214:14)
+    Test.run (node:internal/test_runner/test:1047:25)
+    Test.processPendingSubtests (node:internal/test_runner/test:744:18)
+    Test.postRun (node:internal/test_runner/test:1173:19)
+    Test.run (node:internal/test_runner/test:1101:12)
+    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+  ...
+# Subtest: data URL 可还原为同样字节
+ok 149 - data URL 可还原为同样字节
+  ---
+  duration_ms: 0.4168
+  type: 'test'
+  ...
+# Subtest: 抽帧时间点：等距、上限抽稀、首尾不丢
+ok 150 - 抽帧时间点：等距、上限抽稀、首尾不丢
+  ---
+  duration_ms: 0.3977
+  type: 'test'
+  ...
+# Subtest: classifyGpu 把真实显卡、基础适配器、虚拟显卡分开
+ok 151 - classifyGpu 把真实显卡、基础适配器、虚拟显卡分开
+  ---
+  duration_ms: 1.6032
+  type: 'test'
+  ...
+# Subtest: parseWindowsGpus 兼容数组与单对象，字段缺失不乱编
+ok 152 - parseWindowsGpus 兼容数组与单对象，字段缺失不乱编
+  ---
+  duration_ms: 0.9778
+  type: 'test'
+  ...
+# Subtest: parseMacGpus / parseLspci 只认显示控制器行
+ok 153 - parseMacGpus / parseLspci 只认显示控制器行
+  ---
+  duration_ms: 0.719
+  type: 'test'
+  ...
+# Subtest: vulkanVerdict：读不到显卡回 unknown（不是不可用）
+ok 154 - vulkanVerdict：读不到显卡回 unknown（不是不可用）
+  ---
+  duration_ms: 0.2502
+  type: 'test'
+  ...
+# Subtest: vulkanVerdict：只有基础/虚拟显卡判死
+ok 155 - vulkanVerdict：只有基础/虚拟显卡判死
+  ---
+  duration_ms: 0.1751
+  type: 'test'
+  ...
+# Subtest: vulkanVerdict：自检通过就别再质疑显存
+ok 156 - vulkanVerdict：自检通过就别再质疑显存
+  ---
+  duration_ms: 0.1618
+  type: 'test'
+  ...
+# Subtest: vulkanVerdict：自检失败要带回原因
+ok 157 - vulkanVerdict：自检失败要带回原因
+  ---
+  duration_ms: 0.1444
+  type: 'test'
+  ...
+# Subtest: AI 抠图：内存达标放行，不达标只警告（允许试）
+ok 158 - AI 抠图：内存达标放行，不达标只警告（允许试）
+  ---
+  duration_ms: 0.6928
+  type: 'test'
+  ...
+# Subtest: AI 抠图：可用内存紧张时达标也要给出提醒
+ok 159 - AI 抠图：可用内存紧张时达标也要给出提醒
+  ---
+  duration_ms: 0.3924
+  type: 'test'
+  ...
+# Subtest: AI 超分（Vulkan）：没有可用显卡是硬阻断
+ok 160 - AI 超分（Vulkan）：没有可用显卡是硬阻断
+  ---
+  duration_ms: 0.5638
+  type: 'test'
+  ...
+# Subtest: AI 超分（Vulkan）：有显卡但没自检时放行（提示以自检为准）
+ok 161 - AI 超分（Vulkan）：有显卡但没自检时放行（提示以自检为准）
+  ---
+  duration_ms: 0.2641
+  type: 'test'
+  ...
+# Subtest: AI 超分（Vulkan）：非 Windows 直接判不能跑（运行库只有 win32 包）
+ok 162 - AI 超分（Vulkan）：非 Windows 直接判不能跑（运行库只有 win32 包）
+  ---
+  duration_ms: 0.3146
+  type: 'test'
+  ...
+# Subtest: AI 超分（Vulkan）：自检通过 + 8G 内存 = 达标
+ok 163 - AI 超分（Vulkan）：自检通过 + 8G 内存 = 达标
+  ---
+  duration_ms: 0.1957
+  type: 'test'
+  ...
+# Subtest: Swin2SR 档：4G 内存不算达标，但仍可继续
+ok 164 - Swin2SR 档：4G 内存不算达标，但仍可继续
+  ---
+  duration_ms: 0.1386
+  type: 'test'
+  ...
+# Subtest: 人脸扫描：内存不足只警告（允许试），且不宣称需要显卡
+ok 165 - 人脸扫描：内存不足只警告（允许试），且不宣称需要显卡
+  ---
+  duration_ms: 0.3257
+  type: 'test'
+  ...
+# Subtest: 语义检索（CLIP）：4G 以下只警告，权重常驻要说明
+ok 166 - 语义检索（CLIP）：4G 以下只警告，权重常驻要说明
+  ---
+  duration_ms: 0.1625
+  type: 'test'
+  ...
+# Subtest: 消除是纯像素算法，任何机器都通过且不宣称需要显卡
+ok 167 - 消除是纯像素算法，任何机器都通过且不宣称需要显卡
+  ---
+  duration_ms: 0.1516
+  type: 'test'
+  ...
+# Subtest: formatMB 说人话
+ok 168 - formatMB 说人话
+  ---
+  duration_ms: 0.1094
+  type: 'test'
+  ...
+# Subtest: 每个功能都带标签、判定字段与依据（表不能有半成品行）
+ok 169 - 每个功能都带标签、判定字段与依据（表不能有半成品行）
+  ---
+  duration_ms: 0.2178
+  type: 'test'
+  ...
+# Subtest: HNSW 召回率与暴力搜索一致（Recall@10 ≥ 0.85）
+ok 170 - HNSW 召回率与暴力搜索一致（Recall@10 ≥ 0.85）
+  ---
+  duration_ms: 757.6548
+  type: 'test'
+  ...
+# Subtest: 空索引与维度不一致的边界行为
+ok 171 - 空索引与维度不一致的边界行为
+  ---
+  duration_ms: 1.2522
+  type: 'test'
+  ...
+# Subtest: 重复插入同一 id 不会让图膨胀
+ok 172 - 重复插入同一 id 不会让图膨胀
+  ---
+  duration_ms: 0.1696
+  type: 'test'
+  ...
+# Subtest: web/src 里没有「早退之后再调 hook」的组件
+ok 173 - web/src 里没有「早退之后再调 hook」的组件
+  ---
+  duration_ms: 832.7878
+  type: 'test'
+  ...
+# [hotfix] 已换入热更 \#1
+# Subtest: 导入的包先落 pending，下次启动才换入并给出叠加层入口
+ok 174 - 导入的包先落 pending，下次启动才换入并给出叠加层入口
+  ---
+  duration_ms: 52.9213
+  type: 'test'
+  ...
+# [hotfix] 已换入热更 \#1
+# [hotfix] 热更 \#1 连续 2 次未能就绪，已隔离，本次改用内置版本
+# [hotfix] 坏包已隔离： C:\\Users\\RUNNER~1\\AppData\\Local\\Temp\\tuku-hotfix-Eklcg3\\user\\hotfix\\broken-1794910280708-1
+# Subtest: 连续两次启动都没销账 → 隔离坏包并退回内置版本
+ok 175 - 连续两次启动都没销账 → 隔离坏包并退回内置版本
+  ---
+  duration_ms: 28.3386
+  type: 'test'
+  ...
+# [hotfix] 已换入热更 \#1
+# [hotfix] 坏包已隔离： C:\\Users\\RUNNER~1\\AppData\\Local\\Temp\\tuku-hotfix-Ycz8kb\\user\\hotfix\\broken-1794910280736-1
+# Subtest: 已生效的包文件被改坏 → 启动时校验失败并退回内置
+ok 176 - 已生效的包文件被改坏 → 启动时校验失败并退回内置
+  ---
+  duration_ms: 25.9577
+  type: 'test'
+  ...
+# Subtest: 包内文件与清单 sha256 不符：拒收，且不留待生效记录
+ok 177 - 包内文件与清单 sha256 不符：拒收，且不留待生效记录
+  ---
+  duration_ms: 9.512
+  type: 'test'
+  ...
+# Subtest: 壳版本不一致的清单装不上（那该走安装包）
+ok 178 - 壳版本不一致的清单装不上（那该走安装包）
+  ---
+  duration_ms: 6.3986
+  type: 'test'
+  ...
+# Subtest: 清单签名不对 → 直接拒收
+ok 179 - 清单签名不对 → 直接拒收
+  ---
+  duration_ms: 7.4369
+  type: 'test'
+  ...
+# Subtest: check() 从 feed 拉清单与整包，落到 pending
+ok 180 - check() 从 feed 拉清单与整包，落到 pending
+  ---
+  duration_ms: 39.9898
+  type: 'test'
+  ...
+# Subtest: 下载地址全都取不到包 → 报错且不落 pending
+ok 181 - 下载地址全都取不到包 → 报错且不落 pending
+  ---
+  duration_ms: 5.9098
+  type: 'test'
+  ...
+# [hotfix] 已换入热更 \#1
+# Subtest: applyPending：立即生效只换入，不负责启停服务
+ok 182 - applyPending：立即生效只换入，不负责启停服务
+  ---
+  duration_ms: 19.8218
+  type: 'test'
+  ...
+# Subtest: 没有公钥时不启用热更（宁可没功能，也不要没验签）
+ok 183 - 没有公钥时不启用热更（宁可没功能，也不要没验签）
+  ---
+  duration_ms: 3.6938
+  type: 'test'
+  ...
+# Subtest: canonicalJson 与键序无关
+ok 184 - canonicalJson 与键序无关
+  ---
+  duration_ms: 1.5123
+  type: 'test'
+  ...
+# Subtest: 签名与验签可以往返
+ok 185 - 签名与验签可以往返
+  ---
+  duration_ms: 2.7009
+  type: 'test'
+  ...
+# Subtest: 改任何一个被签名字段都会验签失败
+ok 186 - 改任何一个被签名字段都会验签失败
+  ---
+  duration_ms: 1.1718
+  type: 'test'
+  ...
+# Subtest: 没有 sig / 公钥缺失都不能算通过
+ok 187 - 没有 sig / 公钥缺失都不能算通过
+  ---
+  duration_ms: 0.3635
+  type: 'test'
+  ...
+# Subtest: 被签名的串不含 sig 字段
+ok 188 - 被签名的串不含 sig 字段
+  ---
+  duration_ms: 0.4516
+  type: 'test'
+  ...
+# Subtest: 白名单只放 web / server / plugins，且挡掉穿越
+ok 189 - 白名单只放 web / server / plugins，且挡掉穿越
+  ---
+  duration_ms: 0.187
+  type: 'test'
+  ...
+# Subtest: 壳版本不同一律拒装（热更只对同一个壳生效）
+ok 190 - 壳版本不同一律拒装（热更只对同一个壳生效）
+  ---
+  duration_ms: 0.5422
+  type: 'test'
+  ...
+# Subtest: 库版本不同一律拒装（回滚会变成库比代码新）
+ok 191 - 库版本不同一律拒装（回滚会变成库比代码新）
+  ---
+  duration_ms: 0.3473
+  type: 'test'
+  ...
+# Subtest: seq 不递增就拒装（防重放旧包）
+ok 192 - seq 不递增就拒装（防重放旧包）
+  ---
+  duration_ms: 0.6594
+  type: 'test'
+  ...
+# Subtest: 清单结构不合法时给出可读原因
+ok 193 - 清单结构不合法时给出可读原因
+  ---
+  duration_ms: 0.8469
+  type: 'test'
+  ...
+# Subtest: schema 版本常量是正整数（与 migrate 的一致性由启动断言兜底）
+ok 194 - schema 版本常量是正整数（与 migrate 的一致性由启动断言兜底）
+  ---
+  duration_ms: 0.2213
+  type: 'test'
+  ...
+# Subtest: 多跳重定向能跟到终点
+ok 195 - 多跳重定向能跟到终点
+  ---
+  duration_ms: 41.4796
+  type: 'test'
+  ...
+# Subtest: 超过跳数上限直接中止，不会无限跟
+ok 196 - 超过跳数上限直接中止，不会无限跟
+  ---
+  duration_ms: 16.4667
+  type: 'test'
+  ...
+# Subtest: 默认拒绝本机地址（allowPrivate 才放行）
+ok 197 - 默认拒绝本机地址（allowPrivate 才放行）
+  ---
+  duration_ms: 2.0635
+  type: 'test'
+  ...
+# Subtest: 不带重定向的响应原样返回，不额外发请求
+ok 198 - 不带重定向的响应原样返回，不额外发请求
+  ---
+  duration_ms: 8.2007
+  type: 'test'
+  ...
+# Subtest: 本地目录导入：全部入库、写回 thumb、缩略图真的落盘
+ok 199 - 本地目录导入：全部入库、写回 thumb、缩略图真的落盘
+  ---
+  duration_ms: 256.547
+  type: 'test'
+  ...
+# Subtest: 已登记但缺缩略图的行：再扫一次会补出来（旧库合并后的典型状态）
+ok 200 - 已登记但缺缩略图的行：再扫一次会补出来（旧库合并后的典型状态）
+  ---
+  duration_ms: 179.5768
+  type: 'test'
+  ...
+# Subtest: 重复扫描不产生重复记录
+ok 201 - 重复扫描不产生重复记录
+  ---
+  duration_ms: 6.7529
+  type: 'test'
+  ...
+# Subtest: 导入进度：单调不回退，且不会停在 0%
+ok 202 - 导入进度：单调不回退，且不会停在 0%
+  ---
+  duration_ms: 4.4763
+  type: 'test'
+  ...
+# Subtest: 按模板导入：复制进素材库、重名自动加后缀、结果与原图并存
+ok 203 - 按模板导入：复制进素材库、重名自动加后缀、结果与原图并存
+  ---
+  duration_ms: 206.8799
+  type: 'test'
+  ...
+# Subtest: 蒙版 data URL：只收 PNG，拒绝伪造头与其它 MIME
+ok 204 - 蒙版 data URL：只收 PNG，拒绝伪造头与其它 MIME
+  ---
+  duration_ms: 1.9281
+  type: 'test'
+  ...
+# Subtest: 灰度蒙版阈值与修复规模上限
+ok 205 - 灰度蒙版阈值与修复规模上限
+  ---
+  duration_ms: 0.4003
+  type: 'test'
+  ...
+# Subtest: 内容感知扩散：只改孔洞，未擦除像素与 alpha 逐字节不变
+ok 206 - 内容感知扩散：只改孔洞，未擦除像素与 alpha 逐字节不变
+  ---
+  duration_ms: 1.3383
+  type: 'test'
+  ...
+# Subtest: 真实 PNG 往返：黑色划痕被抹掉，周围颜色不变
+ok 207 - 真实 PNG 往返：黑色划痕被抹掉，周围颜色不变
+  ---
+  duration_ms: 13.667
+  type: 'test'
+  ...
+# Subtest: 扫描能数出各类孤儿，NULL 与 0 这两种「没关联」都不算孤儿
+ok 208 - 扫描能数出各类孤儿，NULL 与 0 这两种「没关联」都不算孤儿
+  ---
+  duration_ms: 2.7817
+  type: 'test'
+  ...
+# Subtest: 默认 dryRun 只报告不删
+ok 209 - 默认 dryRun 只报告不删
+  ---
+  duration_ms: 1.2615
+  type: 'test'
+  ...
+# Subtest: 真清理后归零，且正常的行不动
+ok 210 - 真清理后归零，且正常的行不动
+  ---
+  duration_ms: 2.5169
+  type: 'test'
+  ...
+# Subtest: 老库缺表缺列也不会抛错（当成没孤儿）
+ok 211 - 老库缺表缺列也不会抛错（当成没孤儿）
+  ---
+  duration_ms: 0.4742
+  type: 'test'
+  ...
+# Subtest: 规则表覆盖了库里所有含 image_id 的表（新增表时必须补规则）
+ok 212 - 规则表覆盖了库里所有含 image_id 的表（新增表时必须补规则）
+  ---
+  duration_ms: 0.4306
+  type: 'test'
+  ...
+# Subtest: isPathInsideAny 用 path.relative 按段比较，挡住同名前缀与 .. 逃逸
+ok 213 - isPathInsideAny 用 path.relative 按段比较，挡住同名前缀与 .. 逃逸
+  ---
+  duration_ms: 1.1891
+  type: 'test'
+  ...
+# Subtest: isLocalApiUrl 传了端口就必须精确匹配，不能放行本机其它服务
+ok 214 - isLocalApiUrl 传了端口就必须精确匹配，不能放行本机其它服务
+  ---
+  duration_ms: 0.2686
+  type: 'test'
+  ...
+# [lan] 投送服务已开启，端口 53317
+# Subtest: 投送令牌：持久化、可轮换、长度足够
+ok 215 - 投送令牌：持久化、可轮换、长度足够
+  ---
+  duration_ms: 2.7279
+  type: 'test'
+  ...
+# Subtest: 局域网 IP 枚举：排除回环 / IPv6，格式合法
+ok 216 - 局域网 IP 枚举：排除回环 / IPv6，格式合法
+  ---
+  duration_ms: 12.9877
+  type: 'test'
+  ...
+# Subtest: 扫码 URL 含端口与令牌，且不含主 API 令牌
+ok 217 - 扫码 URL 含端口与令牌，且不含主 API 令牌
+  ---
+  duration_ms: 2.7529
+  type: 'test'
+  ...
+# [lan] 投送服务已关闭
+# [lan] 投送服务已开启，端口 53317
+# Subtest: 投送开关：可启停、端口隔离、重复开启幂等
+# [lan] 投送服务已关闭
+ok 218 - 投送开关：可启停、端口隔离、重复开启幂等
+  ---
+  duration_ms: 93.6994
+  type: 'test'
+  ...
+# Subtest: 二维码内容：与当前端口一致，可指定网卡且不接受伪造 IP
+ok 219 - 二维码内容：与当前端口一致，可指定网卡且不接受伪造 IP
+  ---
+  duration_ms: 17.8507
+  type: 'test'
+  ...
+# Subtest: 独立投送 app：只暴露投送路径，且必须带独立令牌
+ok 220 - 独立投送 app：只暴露投送路径，且必须带独立令牌
+  ---
+  duration_ms: 23.0103
+  type: 'test'
+  ...
+# Subtest: 只读分享令牌：能浏览、不能上传、可撤销、带过期时间
+ok 221 - 只读分享令牌：能浏览、不能上传、可撤销、带过期时间
+  ---
+  duration_ms: 10.7391
+  type: 'test'
+  ...
+# Subtest: 移动端只读 PWA：外壳免令牌可用、可安装、不缓存数据接口
+ok 222 - 移动端只读 PWA：外壳免令牌可用、可安装、不缓存数据接口
+  ---
+  duration_ms: 57.7281
+  type: 'test'
+  ...
+# Subtest: 分享链接产品化：范围校验、越权拦截、过期与单条撤销
+ok 223 - 分享链接产品化：范围校验、越权拦截、过期与单条撤销
+  ---
+  duration_ms: 39.2916
+  type: 'test'
+  ...
+# Subtest: 只读页面不内联完整投送令牌
+ok 224 - 只读页面不内联完整投送令牌
+  ---
+  duration_ms: 2.6077
+  type: 'test'
+  ...
+# Subtest: findLegacyDb / inspectLegacyDb：只认本素材目录下的旧库
+ok 225 - findLegacyDb / inspectLegacyDb：只认本素材目录下的旧库
+  ---
+  duration_ms: 179.4555
+  type: 'test'
+  ...
+# Subtest: autoMergeLegacy：空库自动合并旧库，并按 abs_path 去重
+ok 226 - autoMergeLegacy：空库自动合并旧库，并按 abs_path 去重
+  ---
+  duration_ms: 9.0064
+  type: 'test'
+  ...
+# Subtest: autoMergeLegacy：库里有数据时不再自动合并（避免混出重复记录）
+ok 227 - autoMergeLegacy：库里有数据时不再自动合并（避免混出重复记录）
+  ---
+  duration_ms: 0.3332
+  type: 'test'
+  ...
+# Subtest: 资源库密码锁：默认无密码、不锁
+ok 228 - 资源库密码锁：默认无密码、不锁
+  ---
+  duration_ms: 1.2786
+  type: 'test'
+  ...
+# Subtest: 资源库密码锁：少于 4 位拒绝
+ok 229 - 资源库密码锁：少于 4 位拒绝
+  ---
+  duration_ms: 0.6467
+  type: 'test'
+  ...
+# Subtest: 资源库密码锁：设完当场解锁，手动上锁后回到锁定态
+ok 230 - 资源库密码锁：设完当场解锁，手动上锁后回到锁定态
+  ---
+  duration_ms: 241.3609
+  type: 'test'
+  ...
+# Subtest: 资源库密码锁：解锁要密码，错密码不解
+ok 231 - 资源库密码锁：解锁要密码，错密码不解
+  ---
+  duration_ms: 161.8747
+  type: 'test'
+  ...
+# Subtest: 资源库密码锁：切库后重新锁上（解锁态是按库记的，不能跟着走）
+ok 232 - 资源库密码锁：切库后重新锁上（解锁态是按库记的，不能跟着走）
+  ---
+  duration_ms: 81.7928
+  type: 'test'
+  ...
+# Subtest: 资源库密码锁：改密码必须给原密码
+ok 233 - 资源库密码锁：改密码必须给原密码
+  ---
+  duration_ms: 558.1985
+  type: 'test'
+  ...
+# Subtest: 资源库密码锁：删密码必须给原密码，删完不再拦
+ok 234 - 资源库密码锁：删密码必须给原密码，删完不再拦
+  ---
+  duration_ms: 158.7958
+  type: 'test'
+  ...
+# Subtest: 资源库密码锁：库里只存 scrypt 哈希，不存明文
+ok 235 - 资源库密码锁：库里只存 scrypt 哈希，不存明文
+  ---
+  duration_ms: 239.6959
+  type: 'test'
+  ...
+# Subtest: 本机 / 内网主机名识别
+ok 236 - 本机 / 内网主机名识别
+  ---
+  duration_ms: 1.5235
+  type: 'test'
+  ...
+# Subtest: 网页壁纸 URL：默认只放公网 http(s)
+ok 237 - 网页壁纸 URL：默认只放公网 http(s)
+  ---
+  duration_ms: 0.3552
+  type: 'test'
+  ...
+# Subtest: 网页壁纸 URL：显式放开后仍按可信目录限制 file://
+ok 238 - 网页壁纸 URL：显式放开后仍按可信目录限制 file://
+  ---
+  duration_ms: 0.8871
+  type: 'test'
+  ...
+# Subtest: 暂停 App 列表：归一化、通配、大小写与脏值过滤
+ok 239 - 暂停 App 列表：归一化、通配、大小写与脏值过滤
+  ---
+  duration_ms: 1.4372
+  type: 'test'
+  ...
+# Subtest: 暂停策略：各规则命中且说明原因，计数器不可用时跳过 GPU
+ok 240 - 暂停策略：各规则命中且说明原因，计数器不可用时跳过 GPU
+  ---
+  duration_ms: 0.4519
+  type: 'test'
+  ...
+# Subtest: 挂载守护：父窗口失配才需要重挂，探测不到 WorkerW 不下结论
+ok 241 - 挂载守护：父窗口失配才需要重挂，探测不到 WorkerW 不下结论
+  ---
+  duration_ms: 0.2081
+  type: 'test'
+  ...
+# Subtest: 单张标记：未来时间不被更早的请求覆盖，计数照常累加
+ok 242 - 单张标记：未来时间不被更早的请求覆盖，计数照常累加
+  ---
+  duration_ms: 1.9563
+  type: 'test'
+  ...
+# Subtest: 批量标记：与单张交错也不会倒退
+ok 243 - 批量标记：与单张交错也不会倒退
+  ---
+  duration_ms: 0.4747
+  type: 'test'
+  ...
+# Subtest: 过去时间会被推进到当前，且不会写入非法值
+ok 244 - 过去时间会被推进到当前，且不会写入非法值
+  ---
+  duration_ms: 0.627
+  type: 'test'
+  ...
+# Subtest: 列数规则与旧实现一致
+ok 245 - 列数规则与旧实现一致
+  ---
+  duration_ms: 1.3648
+  type: 'test'
+  ...
+# Subtest: 每张卡落在当前最短的列，第一行四张都在 y=0
+ok 246 - 每张卡落在当前最短的列，第一行四张都在 y=0
+  ---
+  duration_ms: 0.7967
+  type: 'test'
+  ...
+# Subtest: 绝对定位不重叠：同列相邻卡片纵向间隔至少 GAP
+ok 247 - 绝对定位不重叠：同列相邻卡片纵向间隔至少 GAP
+  ---
+  duration_ms: 0.3317
+  type: 'test'
+  ...
+# Subtest: 增量追加与全量布局逐项一致
+ok 248 - 增量追加与全量布局逐项一致
+  ---
+  duration_ms: 1.5055
+  type: 'test'
+  ...
+# Subtest: 追加是就地复用：纯追加不重建整个布局
+ok 249 - 追加是就地复用：纯追加不重建整个布局
+  ---
+  duration_ms: 0.2323
+  type: 'test'
+  ...
+# Subtest: 中间某项尺寸变化会自动退回全量重建
+ok 250 - 中间某项尺寸变化会自动退回全量重建
+  ---
+  duration_ms: 0.4465
+  type: 'test'
+  ...
+# Subtest: 顺序变化会重建（同一批 id 换个顺序不该沿用旧坐标）
+ok 251 - 顺序变化会重建（同一批 id 换个顺序不该沿用旧坐标）
+  ---
+  duration_ms: 0.4755
+  type: 'test'
+  ...
+# Subtest: 几何签名只看 id/宽高/顺序：换引用但几何不变时签名稳定
+ok 252 - 几何签名只看 id/宽高/顺序：换引用但几何不变时签名稳定
+  ---
+  duration_ms: 0.1827
+  type: 'test'
+  ...
+# Subtest: 可见区查询只覆盖与区间相交的卡片，且按原顺序
+ok 253 - 可见区查询只覆盖与区间相交的卡片，且按原顺序
+  ---
+  duration_ms: 0.7688
+  type: 'test'
+  ...
+# Subtest: 超长卡片跨桶也能被查到
+ok 254 - 超长卡片跨桶也能被查到
+  ---
+  duration_ms: 0.5363
+  type: 'test'
+  ...
+# Subtest: 空列表与未测宽度的兜底
+ok 255 - 空列表与未测宽度的兜底
+  ---
+  duration_ms: 0.9434
+  type: 'test'
+  ...
+# Subtest: grid 模式高度统一，不按原图比例
+ok 256 - grid 模式高度统一，不按原图比例
+  ---
+  duration_ms: 0.2182
+  type: 'test'
+  ...
+# Subtest: 一万张的增量追加仍然只算新增部分（性能护栏）
+ok 257 - 一万张的增量追加仍然只算新增部分（性能护栏）
+  ---
+  duration_ms: 7.166
+  type: 'test'
+  ...
+# Subtest: 每个抠图档位都有对应的下载中心条目，且体积/来源一致
+ok 258 - 每个抠图档位都有对应的下载中心条目，且体积/来源一致
+  ---
+  duration_ms: 1.2986
+  type: 'test'
+  ...
+# Subtest: 落盘路径由档位定义推出（权重文件名跟仓库走，不写死 model.onnx）
+ok 259 - 落盘路径由档位定义推出（权重文件名跟仓库走，不写死 model.onnx）
+  ---
+  duration_ms: 0.4114
+  type: 'test'
+  ...
+# Subtest: 自动选档：装了哪档质量高就用哪档（BEN2 > BiRefNet > U-2-Net）
+ok 260 - 自动选档：装了哪档质量高就用哪档（BEN2 > BiRefNet > U-2-Net）
+  ---
+  duration_ms: 13.8075
+  type: 'test'
+  ...
+# Subtest: TUKU_MATTING 可以强指定档位，写错则回落到自动选档
+ok 261 - TUKU_MATTING 可以强指定档位，写错则回落到自动选档
+  ---
+  duration_ms: 0.4974
+  type: 'test'
+  ...
+# Subtest: 未知档位不会静默装错文件
+ok 262 - 未知档位不会静默装错文件
+  ---
+  duration_ms: 0.7753
+  type: 'test'
+  ...
+# Subtest: extOf 统一小写并去掉点
+ok 263 - extOf 统一小写并去掉点
+  ---
+  duration_ms: 1.0799
+  type: 'test'
+  ...
+# Subtest: 系统文件与下载残留判为垃圾
+ok 264 - 系统文件与下载残留判为垃圾
+  ---
+  duration_ms: 0.3881
+  type: 'test'
+  ...
+# Subtest: 正常素材不会被误判为垃圾
+ok 265 - 正常素材不会被误判为垃圾
+  ---
+  duration_ms: 0.1853
+  type: 'test'
+  ...
+# Subtest: kindOfPath 按扩展名分类
+ok 266 - kindOfPath 按扩展名分类
+  ---
+  duration_ms: 0.2196
+  type: 'test'
+  ...
+# Subtest: isMediaPath 只放行非图片素材
+ok 267 - isMediaPath 只放行非图片素材
+  ---
+  duration_ms: 0.1767
+  type: 'test'
+  ...
+# Subtest: mimeOfPath 给出可用于 <img>/<video> 的类型
+ok 268 - mimeOfPath 给出可用于 <img>/<video> 的类型
+  ---
+  duration_ms: 0.1981
+  type: 'test'
+  ...
+# Subtest: MEDIA_EXTS 与 EXT_BY_KIND 保持一致，且不含图片/垃圾扩展名
+ok 269 - MEDIA_EXTS 与 EXT_BY_KIND 保持一致，且不含图片/垃圾扩展名
+  ---
+  duration_ms: 0.2823
+  type: 'test'
+  ...
+# Subtest: mp4：读出时长与分辨率
+ok 270 - mp4：读出时长与分辨率
+  ---
+  duration_ms: 2.4239
+  type: 'test'
+  ...
+# Subtest: mp4：不同时长/尺寸按容器头计算
+ok 271 - mp4：不同时长/尺寸按容器头计算
+  ---
+  duration_ms: 1.1056
+  type: 'test'
+  ...
+# Subtest: webm：读出时长与分辨率
+ok 272 - webm：读出时长与分辨率
+  ---
+  duration_ms: 1.4811
+  type: 'test'
+  ...
+# Subtest: 未知格式返回全 0，不抛异常
+ok 273 - 未知格式返回全 0，不抛异常
+  ---
+  duration_ms: 1.3815
+  type: 'test'
+  ...
+# Subtest: 文件不存在返回全 0
+ok 274 - 文件不存在返回全 0
+  ---
+  duration_ms: 0.2727
+  type: 'test'
+  ...
+# Subtest: 空文件返回全 0
+ok 275 - 空文件返回全 0
+  ---
+  duration_ms: 1.892
+  type: 'test'
+  ...
+# Subtest: 清单：每个条目字段完整，id 唯一
+ok 276 - 清单：每个条目字段完整，id 唯一
+  ---
+  duration_ms: 1.3398
+  type: 'test'
+  ...
+# Subtest: 清单：id 前缀与分组一致（分发靠前缀，错了就永远装不上）
+ok 277 - 清单：id 前缀与分组一致（分发靠前缀，错了就永远装不上）
+  ---
+  duration_ms: 0.2787
+  type: 'test'
+  ...
+# Subtest: 清单：每个功能都有核心权重（required 不能全空）
+ok 278 - 清单：每个功能都有核心权重（required 不能全空）
+  ---
+  duration_ms: 0.2065
+  type: 'test'
+  ...
+# Subtest: catalogItem：找不到返回 null 而不是 undefined
+ok 279 - catalogItem：找不到返回 null 而不是 undefined
+  ---
+  duration_ms: 0.1756
+  type: 'test'
+  ...
+# Subtest: mergeCatalog：未安装不虚报体积，安装后取磁盘实际值
+ok 280 - mergeCatalog：未安装不虚报体积，安装后取磁盘实际值
+  ---
+  duration_ms: 0.4582
+  type: 'test'
+  ...
+# Subtest: mergeCatalog：进度被夹到 0~100，-1 保留表示「不知道总量」
+ok 281 - mergeCatalog：进度被夹到 0~100，-1 保留表示「不知道总量」
+  ---
+  duration_ms: 0.2453
+  type: 'test'
+  ...
+# Subtest: summarizeCatalog：汇总已装数、占用、可清理与下载中项
+ok 282 - summarizeCatalog：汇总已装数、占用、可清理与下载中项
+  ---
+  duration_ms: 0.5391
+  type: 'test'
+  ...
+# Subtest: summarizeCatalog：空清单不会除零或抛错
+ok 283 - summarizeCatalog：空清单不会除零或抛错
+  ---
+  duration_ms: 0.1568
+  type: 'test'
+  ...
+# Subtest: 随包可信哈希清单不再是空的，且条目格式合法
+ok 284 - 随包可信哈希清单不再是空的，且条目格式合法
+  ---
+  duration_ms: 1.6597
+  type: 'test'
+  ...
+# Subtest: 查哈希必须带仓库名：裸相对路径不许借别的仓库的哈希
+ok 285 - 查哈希必须带仓库名：裸相对路径不许借别的仓库的哈希
+  ---
+  duration_ms: 0.3168
+  type: 'test'
+  ...
+# Subtest: isPinned 与 pinnedSha 口径一致（同一路径不能「取得到哈希却声称未固定」）
+ok 286 - isPinned 与 pinnedSha 口径一致（同一路径不能「取得到哈希却声称未固定」）
+  ---
+  duration_ms: 0.3121
+  type: 'test'
+  ...
+# Subtest: 去背景 / 超分权重都在清单里（运行前必须能强校验）
+ok 287 - 去背景 / 超分权重都在清单里（运行前必须能强校验）
+  ---
+  duration_ms: 0.607
+  type: 'test'
+  ...
+# [model-fetch] 镜像下载失败： http://127.0.0.1:18231/onnx/model.onnx sha256 与随包可信清单不一致：模型可能被替换 
+# Subtest: downloadModelFile：前缀 + repoPath 只拼一次（误传完整 URL 不再产生重复路径）
+ok 288 - downloadModelFile：前缀 + repoPath 只拼一次（误传完整 URL 不再产生重复路径）
+  ---
+  duration_ms: 94.1261
+  type: 'test'
+  ...
+# Subtest: 爬虫 7 源结果走字段级 schema 校验，拒绝项可追溯且不污染返回数组
+ok 289 - 爬虫 7 源结果走字段级 schema 校验，拒绝项可追溯且不污染返回数组
+  ---
+  duration_ms: 1.0562
+  type: 'test'
+  ...
+# Subtest: 模板渲染：占位符、日期、序号与自动补扩展名
+ok 290 - 模板渲染：占位符、日期、序号与自动补扩展名
+  ---
+  duration_ms: 2.1003
+  type: 'test'
+  ...
+# Subtest: 模板渲染：过滤非法字符、未知占位符保留、空模板有兜底
+ok 291 - 模板渲染：过滤非法字符、未知占位符保留、空模板有兜底
+  ---
+  duration_ms: 0.514
+  type: 'test'
+  ...
+# Subtest: 重名自动加 -1 / -2，不覆盖已有文件
+ok 292 - 重名自动加 -1 / -2，不覆盖已有文件
+  ---
+  duration_ms: 3.2837
+  type: 'test'
+  ...
+# Subtest: 内存版去重：接着目录里已有的名字往后排，且同名几千条不重样又不慢
+ok 293 - 内存版去重：接着目录里已有的名字往后排，且同名几千条不重样又不慢
+  ---
+  duration_ms: 6.9495
+  type: 'test'
+  ...
+# Subtest: 预览：20 个目标名逐条递增，同名自动加后缀
+ok 294 - 预览：20 个目标名逐条递增，同名自动加后缀
+  ---
+  duration_ms: 1.8263
+  type: 'test'
+  ...
+# Subtest: parseClock 接受 HH:MM，非法输入回落
+ok 295 - parseClock 接受 HH:MM，非法输入回落
+  ---
+  duration_ms: 1.1556
+  type: 'test'
+  ...
+# Subtest: formatClock 补零，24:00 保留
+ok 296 - formatClock 补零，24:00 保留
+  ---
+  duration_ms: 0.1979
+  type: 'test'
+  ...
+# Subtest: 普通时段 02:00–06:00 左闭右开
+ok 297 - 普通时段 02:00–06:00 左闭右开
+  ---
+  duration_ms: 0.2031
+  type: 'test'
+  ...
+# Subtest: 跨午夜时段 22:00–06:00 两头都算
+ok 298 - 跨午夜时段 22:00–06:00 两头都算
+  ---
+  duration_ms: 0.1609
+  type: 'test'
+  ...
+# Subtest: 起止相同视为全天
+ok 299 - 起止相同视为全天
+  ---
+  duration_ms: 0.1527
+  type: 'test'
+  ...
+# Subtest: parseTasks 只留合法任务，空则两项都跑
+ok 300 - parseTasks 只留合法任务，空则两项都跑
+  ---
+  duration_ms: 0.9534
+  type: 'test'
+  ...
+# Subtest: rotateRaw：顺时针 90° 的像素落点与宽高互换
+ok 301 - rotateRaw：顺时针 90° 的像素落点与宽高互换
+  ---
+  duration_ms: 1.7734
+  type: 'test'
+  ...
+# Subtest: rotateRaw：逆时针 90° 是顺时针的逆运算
+ok 302 - rotateRaw：逆时针 90° 是顺时针的逆运算
+  ---
+  duration_ms: 0.2627
+  type: 'test'
+  ...
+# Subtest: rotateRaw：RGB 三通道按通道整体搬运，不串色
+ok 303 - rotateRaw：RGB 三通道按通道整体搬运，不串色
+  ---
+  duration_ms: 0.2997
+  type: 'test'
+  ...
+# Subtest: cropRaw：归一化框换算成像素并保证不越界
+ok 304 - cropRaw：归一化框换算成像素并保证不越界
+  ---
+  duration_ms: 0.4109
+  type: 'test'
+  ...
+# Subtest: cropRaw：右下班角粗取整也不越界（宽高至少 1 像素）
+ok 305 - cropRaw：右下班角粗取整也不越界（宽高至少 1 像素）
+  ---
+  duration_ms: 0.2151
+  type: 'test'
+  ...
+# Subtest: cropRaw：空框/零面积不改图（避免把整张图弄没了）
+ok 306 - cropRaw：空框/零面积不改图（避免把整张图弄没了）
+  ---
+  duration_ms: 0.1723
+  type: 'test'
+  ...
+# Subtest: effectiveSize：旋转换宽高、裁切按比例缩、输出尺寸优先
+ok 307 - effectiveSize：旋转换宽高、裁切按比例缩、输出尺寸优先
+  ---
+  duration_ms: 0.4895
+  type: 'test'
+  ...
+# Subtest: 数完页数句柄已关闭：Windows 上文件能立刻删除
+ok 308 - 数完页数句柄已关闭：Windows 上文件能立刻删除
+  ---
+  duration_ms: 2.731
+  type: 'test'
+  ...
+# Subtest: 打不开的文件返回 0，不抛错也不留句柄
+ok 309 - 打不开的文件返回 0，不抛错也不留句柄
+  ---
+  duration_ms: 0.3709
+  type: 'test'
+  ...
+# Subtest: 非 PDF 内容不抛错，按未知处理
+ok 310 - 非 PDF 内容不抛错，按未知处理
+  ---
+  duration_ms: 1.0359
+  type: 'test'
+  ...
+# Subtest: capabilitiesFor: macOS 明确降级而不是静默无效
+ok 311 - capabilitiesFor: macOS 明确降级而不是静默无效
+  ---
+  duration_ms: 1.1722
+  type: 'test'
+  ...
+# Subtest: capabilitiesFor: Windows 才给完整桌面能力
+ok 312 - capabilitiesFor: Windows 才给完整桌面能力
+  ---
+  duration_ms: 0.1711
+  type: 'test'
+  ...
+# Subtest: AppleScript 字符串转义: 引号与反斜杠不会破坏脚本
+ok 313 - AppleScript 字符串转义: 引号与反斜杠不会破坏脚本
+  ---
+  duration_ms: 0.3645
+  type: 'test'
+  ...
+# Subtest: 壁纸与废纸篓脚本带上正确路径
+ok 314 - 壁纸与废纸篓脚本带上正确路径
+  ---
+  duration_ms: 0.1768
+  type: 'test'
+  ...
+# Subtest: Windows：完整桌面能力
+ok 315 - Windows：完整桌面能力
+  ---
+  duration_ms: 1.6661
+  type: 'test'
+  ...
+# Subtest: macOS / Linux：图库能力齐全，动态壁纸降级但静态壁纸与屏保可用
+ok 316 - macOS / Linux：图库能力齐全，动态壁纸降级但静态壁纸与屏保可用
+  ---
+  duration_ms: 0.3018
+  type: 'test'
+  ...
+# Subtest: 未知平台：能力矩阵不谎报，仍能用图库
+ok 317 - 未知平台：能力矩阵不谎报，仍能用图库
+  ---
+  duration_ms: 0.1876
+  type: 'test'
+  ...
+# Subtest: 插件动态 import(node:fs) 被沙箱拒绝
+ok 318 - 插件动态 import(node:fs) 被沙箱拒绝
+  ---
+  duration_ms: 81.8189
+  type: 'test'
+  ...
+# Subtest: 正常插件（只读 + 返回 patch）仍可运行
+ok 319 - 正常插件（只读 + 返回 patch）仍可运行
+  ---
+  duration_ms: 74.3033
+  type: 'test'
+  ...
+# Subtest: 未声明 net：连 node:http 也进不来（默认禁网）
+ok 320 - 未声明 net：连 node:http 也进不来（默认禁网）
+  ---
+  duration_ms: 73.3881
+  type: 'test'
+  ...
+# Subtest: 声明 net 后放行 http 模块（白名单不是一律全禁）
+ok 321 - 声明 net 后放行 http 模块（白名单不是一律全禁）
+  ---
+  duration_ms: 114.2351
+  type: 'test'
+  ...
+# Subtest: 声明 fs:read 也不直接暴露 node:fs（只给受限 readFile）
+ok 322 - 声明 fs:read 也不直接暴露 node:fs（只给受限 readFile）
+  ---
+  duration_ms: 72.5221
+  type: 'test'
+  ...
+# Subtest: readFile 读插件目录外（../）被拒
+ok 323 - readFile 读插件目录外（../）被拒
+  ---
+  duration_ms: 82.9349
+  type: 'test'
+  ...
+# Subtest: fs:read 时 readFile 能读自己目录下的文件
+ok 324 - fs:read 时 readFile 能读自己目录下的文件
+  ---
+  duration_ms: 73.5416
+  type: 'test'
+  ...
+# Subtest: 没声明 fs:read 时没有 readFile 辅助函数
+ok 325 - 没声明 fs:read 时没有 readFile 辅助函数
+  ---
+  duration_ms: 71.4707
+  type: 'test'
+  ...
+# Subtest: 市场索引：字段收敛、非法索引拒绝
+ok 326 - 市场索引：字段收敛、非法索引拒绝
+  ---
+  duration_ms: 5.2097
+  type: 'test'
+  ...
+# Subtest: 插件包：随包 JSON、ZIP、非法路径与未知权限
+ok 327 - 插件包：随包 JSON、ZIP、非法路径与未知权限
+  ---
+  duration_ms: 12.8681
+  type: 'test'
+  ...
+# Subtest: 在线安装落地：宿主立刻发现、权限回显、卸载后运行态立即失效
+ok 328 - 在线安装落地：宿主立刻发现、权限回显、卸载后运行态立即失效
+  ---
+  duration_ms: 30.7264
+  type: 'test'
+  ...
+# Subtest: 影调作用在亮度域：提亮阴影后高饱和图仍是同一色相
+ok 329 - 影调作用在亮度域：提亮阴影后高饱和图仍是同一色相
+  ---
+  duration_ms: 2.3843
+  type: 'test'
+  ...
+# Subtest: 影调作用在亮度域：中性灰提亮后仍是中性灰
+ok 330 - 影调作用在亮度域：中性灰提亮后仍是中性灰
+  ---
+  duration_ms: 0.3726
+  type: 'test'
+  ...
+# Subtest: 曲线是逐通道的：只调红通道不动绿蓝
+ok 331 - 曲线是逐通道的：只调红通道不动绿蓝
+  ---
+  duration_ms: 0.672
+  type: 'test'
+  ...
+# Subtest: 只调曝光时没有额外的亮度损失（亮度表不该在无影调时参与）
+ok 332 - 只调曝光时没有额外的亮度损失（亮度表不该在无影调时参与）
+  ---
+  duration_ms: 0.9022
+  type: 'test'
+  ...
+# Subtest: 只调曝光时三通道同步缩放，不产生色偏
+ok 333 - 只调曝光时三通道同步缩放，不产生色偏
+  ---
+  duration_ms: 0.5258
+  type: 'test'
+  ...
+# Subtest: 默认参数是恒等变换（预览不做多余手脚）
+ok 334 - 默认参数是恒等变换（预览不做多余手脚）
+  ---
+  duration_ms: 0.4448
+  type: 'test'
+  ...
+# Subtest: 白平衡：暖调抬高红、压低蓝
+ok 335 - 白平衡：暖调抬高红、压低蓝
+  ---
+  duration_ms: 0.284
+  type: 'test'
+  ...
+# Subtest: off / system 不生成固定代理规则（交给 Chromium 自己决定）
+ok 336 - off / system 不生成固定代理规则（交给 Chromium 自己决定）
+  ---
+  duration_ms: 1.1052
+  type: 'test'
+  ...
+# Subtest: 各协议生成 scheme://host:port
+ok 337 - 各协议生成 scheme://host:port
+  ---
+  duration_ms: 0.1689
+  type: 'test'
+  ...
+# Subtest: 缺字段时回落到安全默认值（不会拼出 http://undefined:NaN）
+ok 338 - 缺字段时回落到安全默认值（不会拼出 http://undefined:NaN）
+  ---
+  duration_ms: 0.2295
+  type: 'test'
+  ...
+# Subtest: 端口字符串被转成数字，非法值回落
+ok 339 - 端口字符串被转成数字，非法值回落
+  ---
+  duration_ms: 0.1571
+  type: 'test'
+  ...
+# Subtest: 未知 mode 仍按 scheme 拼接（由 Chromium 报错，不静默改配置）
+ok 340 - 未知 mode 仍按 scheme 拼接（由 Chromium 报错，不静默改配置）
+  ---
+  duration_ms: 0.1376
+  type: 'test'
+  ...
+# Subtest: PROXY_MODES 覆盖全部合法模式且含中文说明
+ok 341 - PROXY_MODES 覆盖全部合法模式且含中文说明
+  ---
+  duration_ms: 0.9485
+  type: 'test'
+  ...
+# Subtest: 结构：尺寸、三个定位图形、时序图形、dark module
+ok 342 - 结构：尺寸、三个定位图形、时序图形、dark module
+  ---
+  duration_ms: 8.6215
+  type: 'test'
+  ...
+# Subtest: 往返解码：短 URL / 中文 / 跨 version 的长文本都能还原
+ok 343 - 往返解码：短 URL / 中文 / 跨 version 的长文本都能还原
+  ---
+  duration_ms: 18.0635
+  type: 'test'
+  ...
+# Subtest: 掩码选择是确定的；SVG 含静区且横向黑块已合并
+ok 344 - 掩码选择是确定的；SVG 含静区且横向黑块已合并
+  ---
+  duration_ms: 5.1193
+  type: 'test'
+  ...
+# Subtest: 空内容与超长内容明确报错
+ok 345 - 空内容与超长内容明确报错
+  ---
+  duration_ms: 0.7625
+  type: 'test'
+  ...
+# Subtest: TIFF：从 IFD0 的 JPEGInterchangeFormat 精确取到预览段
+ok 346 - TIFF：从 IFD0 的 JPEGInterchangeFormat 精确取到预览段
+  ---
+  duration_ms: 16.2554
+  type: 'test'
+  ...
+# Subtest: TIFF：预览挂在 SubIFD 上也能找到（NEF/ARW 的常见布局）
+ok 347 - TIFF：预览挂在 SubIFD 上也能找到（NEF/ARW 的常见布局）
+  ---
+  duration_ms: 14.0338
+  type: 'test'
+  ...
+# Subtest: TIFF：JPEG 压缩的条带预览按 StripOffsets 取（DNG 常见）
+ok 348 - TIFF：JPEG 压缩的条带预览按 StripOffsets 取（DNG 常见）
+  ---
+  duration_ms: 12.0343
+  type: 'test'
+  ...
+# Subtest: TIFF：12/14 位单通道的「无损 JPEG 原始数据」不会被当成预览
+ok 349 - TIFF：12/14 位单通道的「无损 JPEG 原始数据」不会被当成预览
+  ---
+  duration_ms: 11.345
+  type: 'test'
+  ...
+# Subtest: RAF：头部 84/88 字节给出 JPEG 偏移与长度
+ok 350 - RAF：头部 84/88 字节给出 JPEG 偏移与长度
+  ---
+  duration_ms: 13.532
+  type: 'test'
+  ...
+# Subtest: CR3：PRVW 盒子嵌在 uuid/moov 里也能定位，并跳过盒内前缀
+ok 351 - CR3：PRVW 盒子嵌在 uuid/moov 里也能定位，并跳过盒内前缀
+  ---
+  duration_ms: 16.0471
+  type: 'test'
+  ...
+# Subtest: designThumbJpeg：.dng 走容器解析直接出图
+ok 352 - designThumbJpeg：.dng 走容器解析直接出图
+  ---
+  duration_ms: 33.8183
+  type: 'test'
+  ...
+# Could not parse HEIF file Invalid input: Unspecified: File size too small.
+# Subtest: HEIC：非 HEIF 数据返回 null，不抛错
+ok 353 - HEIC：非 HEIF 数据返回 null，不抛错
+  ---
+  duration_ms: 89.0758
+  type: 'test'
+  ...
+# Subtest: HEIC 走「抽预览」通道：sharp 解不了，但仍按图片归类
+ok 354 - HEIC 走「抽预览」通道：sharp 解不了，但仍按图片归类
+  ---
+  duration_ms: 0.5993
+  type: 'test'
+  ...
+# Subtest: 新的相机扩展名都归类为 raw，HEIC 仍是 image
+ok 355 - 新的相机扩展名都归类为 raw，HEIC 仍是 image
+  ---
+  duration_ms: 0.6552
+  type: 'test'
+  ...
+# Subtest: 引擎清单：id 唯一、字段完整
+ok 356 - 引擎清单：id 唯一、字段完整
+  ---
+  duration_ms: 1.347
+  type: 'test'
+  ...
+# Subtest: 只有 Yandex / SauceNAO 走服务端上传
+ok 357 - 只有 Yandex / SauceNAO 走服务端上传
+  ---
+  duration_ms: 0.9001
+  type: 'test'
+  ...
+# Subtest: listEngines 返回的是副本，改调用方不会污染引擎表
+ok 358 - listEngines 返回的是副本，改调用方不会污染引擎表
+  ---
+  duration_ms: 0.2561
+  type: 'test'
+  ...
+# Subtest: 网络体检：上传档按探测结果标记不可用，手动档不受影响
+ok 359 - 网络体检：上传档按探测结果标记不可用，手动档不受影响
+  ---
+  duration_ms: 0.4317
+  type: 'test'
+  ...
+# Subtest: 采集图带公网地址时，Lens / TinEye 直接按地址搜（不用剪贴板）
+ok 360 - 采集图带公网地址时，Lens / TinEye 直接按地址搜（不用剪贴板）
+  ---
+  duration_ms: 0.5271
+  type: 'test'
+  ...
+# Subtest: 没有公网地址时回落到「打开页面 + 粘剪贴板」
+ok 361 - 没有公网地址时回落到「打开页面 + 粘剪贴板」
+  ---
+  duration_ms: 0.1859
+  type: 'test'
+  ...
+# Subtest: 只点了手动档引擎时不读文件：CR2 也能直接开页面
+ok 362 - 只点了手动档引擎时不读文件：CR2 也能直接开页面
+  ---
+  duration_ms: 0.5362
+  type: 'test'
+  ...
+# Subtest: 未知引擎不炸整次请求，只把原因带回自己那条
+ok 363 - 未知引擎不炸整次请求，只把原因带回自己那条
+  ---
+  duration_ms: 0.2449
+  type: 'test'
+  ...
+# Subtest: 上传档缺文件时明确报错，不假装成功
+ok 364 - 上传档缺文件时明确报错，不假装成功
+  ---
+  duration_ms: 14.6451
+  type: 'test'
+  ...
+# Subtest: 未知 id 直接问 runEngine 会被拒绝
+ok 365 - 未知 id 直接问 runEngine 会被拒绝
+  ---
+  duration_ms: 0.5716
+  type: 'test'
+  ...
+# Subtest: 空查询串 = 仪表盘 + 默认筛选
+ok 366 - 空查询串 = 仪表盘 + 默认筛选
+  ---
+  duration_ms: 2.2014
+  type: 'test'
+  ...
+# Subtest: 未知视图回落到仪表盘（坏链接不卡死）
+ok 367 - 未知视图回落到仪表盘（坏链接不卡死）
+  ---
+  duration_ms: 0.2724
+  type: 'test'
+  ...
+# Subtest: 所有合法视图都能往返
+ok 368 - 所有合法视图都能往返
+  ---
+  duration_ms: 0.7397
+  type: 'test'
+  ...
+# Subtest: 筛选字段解析：数组、数值、别名
+ok 369 - 筛选字段解析：数组、数值、别名
+  ---
+  duration_ms: 0.2833
+  type: 'test'
+  ...
+# Subtest: 非法 pending / 非法 folder 被忽略
+ok 370 - 非法 pending / 非法 folder 被忽略
+  ---
+  duration_ms: 0.2067
+  type: 'test'
+  ...
+# Subtest: 生成时省略默认值，URL 保持短
+ok 371 - 生成时省略默认值，URL 保持短
+  ---
+  duration_ms: 0.2211
+  type: 'test'
+  ...
+# Subtest: 数组字段为空时不写进 URL
+ok 372 - 数组字段为空时不写进 URL
+  ---
+  duration_ms: 0.2041
+  type: 'test'
+  ...
+# Subtest: sameRoute 按生成的 URL 判等
+ok 373 - sameRoute 按生成的 URL 判等
+  ---
+  duration_ms: 0.2003
+  type: 'test'
+  ...
+# Subtest: 解析 → 生成 → 再解析保持一致
+ok 374 - 解析 → 生成 → 再解析保持一致
+  ---
+  duration_ms: 1.2348
+  type: 'test'
+  ...
+# Subtest: 空输入立即返回空数组
+ok 375 - 空输入立即返回空数组
+  ---
+  duration_ms: 1.7333
+  type: 'test'
+  ...
+# Subtest: 过滤非 http(s)、超长 URL
+ok 376 - 过滤非 http(s)、超长 URL
+  ---
+  duration_ms: 0.544
+  type: 'test'
+  ...
+# Subtest: 按 URL 去重且保留首次出现的附加字段
+ok 377 - 按 URL 去重且保留首次出现的附加字段
+  ---
+  duration_ms: 0.3158
+  type: 'test'
+  ...
+# Subtest: limit 封顶且按顺序截断
+ok 378 - limit 封顶且按顺序截断
+  ---
+  duration_ms: 0.5394
+  type: 'test'
+  ...
+# Subtest: 默认 limit 为 240
+ok 379 - 默认 limit 为 240
+  ---
+  duration_ms: 1.7762
+  type: 'test'
+  ...
+# Subtest: 不改动原始数组与对象
+ok 380 - 不改动原始数组与对象
+  ---
+  duration_ms: 0.2667
+  type: 'test'
+  ...
+# Subtest: 关键词子句包含 abs_path（物理目录名可搜）
+ok 381 - 关键词子句包含 abs_path（物理目录名可搜）
+  ---
+  duration_ms: 1.4604
+  type: 'test'
+  ...
+# Subtest: 关键词子句包含虚拟夹名匹配（手动归档的夹也能搜）
+ok 382 - 关键词子句包含虚拟夹名匹配（手动归档的夹也能搜）
+  ---
+  duration_ms: 0.384
+  type: 'test'
+  ...
+# Subtest: 占位符个数必须等于参数个数（每个分支都要对）
+ok 383 - 占位符个数必须等于参数个数（每个分支都要对）
+  ---
+  duration_ms: 0.6246
+  type: 'test'
+  ...
+# Subtest: 长短关键词都走同一套「正文 + 路径 + 夹名」口径
+ok 384 - 长短关键词都走同一套「正文 + 路径 + 夹名」口径
+  ---
+  duration_ms: 0.4226
+  type: 'test'
+  ...
+# Subtest: 空关键词返回空串，不污染 WHERE
+ok 385 - 空关键词返回空串，不污染 WHERE
+  ---
+  duration_ms: 0.1654
+  type: 'test'
+  ...
+# Subtest: Wikimedia Commons：formatversion=2 数组与旧版对象都能解析
+ok 386 - Wikimedia Commons：formatversion=2 数组与旧版对象都能解析
+  ---
+  duration_ms: 2.1033
+  type: 'test'
+  ...
+# Subtest: 豆瓣：放大缩略图、去重、排除头像图标
+ok 387 - 豆瓣：放大缩略图、去重、排除头像图标
+  ---
+  duration_ms: 1.0142
+  type: 'test'
+  ...
+# Subtest: 贴吧：帖子 id 与图片 URL 提取
+ok 388 - 贴吧：帖子 id 与图片 URL 提取
+  ---
+  duration_ms: 0.7633
+  type: 'test'
+  ...
+# Subtest: 库数据目录 .tuku 一律跳过
+ok 389 - 库数据目录 .tuku 一律跳过
+  ---
+  duration_ms: 1.209
+  type: 'test'
+  ...
+# Subtest: Eagle 资产目录 .library 与 thumbs / trash 等内部目录同样跳过
+ok 390 - Eagle 资产目录 .library 与 thumbs / trash 等内部目录同样跳过
+  ---
+  duration_ms: 0.2526
+  type: 'test'
+  ...
+# Subtest: 正常素材目录不受影响
+ok 391 - 正常素材目录不受影响
+  ---
+  duration_ms: 0.201
+  type: 'test'
+  ...
+# Subtest: 素材根目录本身叫 storage / data 时，监听侧仍要能入库
+ok 392 - 素材根目录本身叫 storage / data 时，监听侧仍要能入库
+  ---
+  duration_ms: 0.3257
+  type: 'test'
+  ...
+# Subtest: 平坦条件仍按 AND 处理（老规则不变）
+ok 393 - 平坦条件仍按 AND 处理（老规则不变）
+  ---
+  duration_ms: 1.9208
+  type: 'test'
+  ...
+# Subtest: 单个 or 组内部任一命中即通过
+ok 394 - 单个 or 组内部任一命中即通过
+  ---
+  duration_ms: 0.4572
+  type: 'test'
+  ...
+# Subtest: 组间 AND：(UI 或 图标) 且 蓝色
+ok 395 - 组间 AND：(UI 或 图标) 且 蓝色
+  ---
+  duration_ms: 0.481
+  type: 'test'
+  ...
+# Subtest: 组间 OR：任一组满足即可
+ok 396 - 组间 OR：任一组满足即可
+  ---
+  duration_ms: 0.2639
+  type: 'test'
+  ...
+# Subtest: 空分组被忽略：不会因为 OR 变成全库命中
+ok 397 - 空分组被忽略：不会因为 OR 变成全库命中
+  ---
+  duration_ms: 0.2599
+  type: 'test'
+  ...
+# Subtest: 无任何条件 → 一张都不命中（以前退化成整库，用户看到「没条件却收了 7541 张」）
+ok 398 - 无任何条件 → 一张都不命中（以前退化成整库，用户看到「没条件却收了 7541 张」）
+  ---
+  duration_ms: 0.292
+  type: 'test'
+  ...
+# Subtest: 导入三张图作为堆叠样本
+ok 399 - 导入三张图作为堆叠样本
+  ---
+  duration_ms: 250.4713
+  type: 'test'
+  ...
+# Subtest: 图片堆叠：组主 = 评分最高，列表只显示组主，移出组主自动提升
+ok 400 - 图片堆叠：组主 = 评分最高，列表只显示组主，移出组主自动提升
+  ---
+  duration_ms: 8.5824
+  type: 'test'
+  ...
+# Subtest: 堆叠边界：少于两张不成立，跨组拖动后旧组不会残留成员
+ok 401 - 堆叠边界：少于两张不成立，跨组拖动后旧组不会残留成员
+  ---
+  duration_ms: 1.6149
+  type: 'test'
+  ...
+# Subtest: 文件夹外观：颜色白名单 + 图标截断
+ok 402 - 文件夹外观：颜色白名单 + 图标截断
+  ---
+  duration_ms: 1.7827
+  type: 'test'
+  ...
+# Subtest: 文件夹排序：只在同一父级内生效，跨级 id 被忽略
+ok 403 - 文件夹排序：只在同一父级内生效，跨级 id 被忽略
+  ---
+  duration_ms: 2.368
+  type: 'test'
+  ...
+# Subtest: 批量建夹：同一批内去重，已存在的同名夹跳过
+ok 404 - 批量建夹：同一批内去重，已存在的同名夹跳过
+  ---
+  duration_ms: 0.6641
+  type: 'test'
+  ...
+# Subtest: 计数口径：文件夹张数 / 标签云 / 待整理 都不把堆叠成员算两份
+ok 405 - 计数口径：文件夹张数 / 标签云 / 待整理 都不把堆叠成员算两份
+  ---
+  duration_ms: 3.3679
+  type: 'test'
+  ...
+# Subtest: 使用统计：复制 / 导出分别累加，并记最后使用时间
+ok 406 - 使用统计：复制 / 导出分别累加，并记最后使用时间
+  ---
+  duration_ms: 0.7348
+  type: 'test'
+  ...
+# Subtest: 删素材时笔记跟着删（触发器），不在笔记表里留孤儿
+ok 407 - 删素材时笔记跟着删（触发器），不在笔记表里留孤儿
+  ---
+  duration_ms: 1.3821
+  type: 'test'
+  ...
+# Subtest: 拖组主离开原堆叠：原组自动换主，不散架；两个堆叠可以互相合并
+ok 408 - 拖组主离开原堆叠：原组自动换主，不散架；两个堆叠可以互相合并
+  ---
+  duration_ms: 191.9215
+  type: 'test'
+  ...
+# Subtest: PID 记录：字段校验能挡住脏数据 / PID 复用 / 伪造时间
+ok 409 - PID 记录：字段校验能挡住脏数据 / PID 复用 / 伪造时间
+  ---
+  duration_ms: 1.8426
+  type: 'test'
+  ...
+# Subtest: 命令行特征：只认本服务的 standalone.js，别的应用不能误杀
+ok 410 - 命令行特征：只认本服务的 standalone.js，别的应用不能误杀
+  ---
+  duration_ms: 0.3078
+  type: 'test'
+  ...
+# Subtest: WMI 进程审计：CreationDate 的 /Date(ms)/ 与 ISO 都能解析
+ok 411 - WMI 进程审计：CreationDate 的 /Date(ms)/ 与 ISO 都能解析
+  ---
+  duration_ms: 1.0321
+  type: 'test'
+  ...
+# Subtest: 回收判定：时间/命令行/PID 三重不符一律拒绝，命中才杀
+ok 412 - 回收判定：时间/命令行/PID 三重不符一律拒绝，命中才杀
+  ---
+  duration_ms: 0.2876
+  type: 'test'
+  ...
+# Subtest: PID 文件：写入 → 读回 → 正常退出删除
+ok 413 - PID 文件：写入 → 读回 → 正常退出删除
+  ---
+  duration_ms: 1.9643
+  type: 'test'
+  ...
+# Subtest: clamp 正常夹取，越界与 NaN 都不会漏出去
+ok 414 - clamp 正常夹取，越界与 NaN 都不会漏出去
+  ---
+  duration_ms: 1.4194
+  type: 'test'
+  ...
+# Subtest: 倍率夹在 [min(zMin,1), 4]：比 zMin 还小就抬到 zMin，超上限按 4，非法按 1
+ok 415 - 倍率夹在 [min(zMin,1), 4]：比 zMin 还小就抬到 zMin，超上限按 4，非法按 1
+  ---
+  duration_ms: 0.4224
+  type: 'test'
+  ...
+# Subtest: 像素口径：拖动 N 像素只产生 N/rw 的焦点变化（不会一拖就跳边）
+ok 416 - 像素口径：拖动 N 像素只产生 N/rw 的焦点变化（不会一拖就跳边）
+  ---
+  duration_ms: 0.2656
+  type: 'test'
+  ...
+# Subtest: 余量边界：贴边后再拖同一方向不动，反向立刻能拉回来
+ok 417 - 余量边界：贴边后再拖同一方向不动，反向立刻能拉回来
+  ---
+  duration_ms: 0.2578
+  type: 'test'
+  ...
+# Subtest: 同比例的图 + z=1：两向都没余量，判 dry（拖不动是几何必然）
+ok 418 - 同比例的图 + z=1：两向都没余量，判 dry（拖不动是几何必然）
+  ---
+  duration_ms: 0.184
+  type: 'test'
+  ...
+# Subtest: 等比放大后就不再 dry，两向都有余量
+ok 419 - 等比放大后就不再 dry，两向都有余量
+  ---
+  duration_ms: 0.1714
+  type: 'test'
+  ...
+# Subtest: dry 与口径无关：比例口径同样判得出来（渲染路径靠它加光标类）
+ok 420 - dry 与口径无关：比例口径同样判得出来（渲染路径靠它加光标类）
+  ---
+  duration_ms: 0.325
+  type: 'test'
+  ...
+# Subtest: 联系表式 z<1：图比格子小，只能在格子里挪，左上不为负
+ok 421 - 联系表式 z<1：图比格子小，只能在格子里挪，左上不为负
+  ---
+  duration_ms: 0.1866
+  type: 'test'
+  ...
+# Subtest: focus 越界会被夹回 [0,1]，不会把图推出格子
+ok 422 - focus 越界会被夹回 [0,1]，不会把图推出格子
+  ---
+  duration_ms: 1.1228
+  type: 'test'
+  ...
+# Subtest: 零尺寸不会算出 NaN 样式（首帧还没量到格子时）
+ok 423 - 零尺寸不会算出 NaN 样式（首帧还没量到格子时）
+  ---
+  duration_ms: 0.5404
+  type: 'test'
+  ...
+# Subtest: 渲染样式只用比值：比例口径与像素口径得到同一套百分比
+ok 424 - 渲染样式只用比值：比例口径与像素口径得到同一套百分比
+  ---
+  duration_ms: 0.3948
+  type: 'test'
+  ...
+# Subtest: 滚轮放大：光标压住的那个图点不动（锚点不漂）
+ok 425 - 滚轮放大：光标压住的那个图点不动（锚点不漂）
+  ---
+  duration_ms: 0.3477
+  type: 'test'
+  ...
+# Subtest: 滚轮放大：光标压在格子中心时焦点不跟着乘，图仍居中
+ok 426 - 滚轮放大：光标压在格子中心时焦点不跟着乘，图仍居中
+  ---
+  duration_ms: 0.1809
+  type: 'test'
+  ...
+# Subtest: 滚轮到头（4× 或 zMin）返回 null，不产生抖动
+ok 427 - 滚轮到头（4× 或 zMin）返回 null，不产生抖动
+  ---
+  duration_ms: 0.1337
+  type: 'test'
+  ...
+# Subtest: 滚轮缩到 zMin 时不会把焦点甩出 [0,1]
+ok 428 - 滚轮缩到 zMin 时不会把焦点甩出 [0,1]
+  ---
+  duration_ms: 0.1452
+  type: 'test'
+  ...
+# Subtest: 自动版式按张数选择：≤2 海报、≤5 漫画、≤12 满版、更多整齐行
+ok 429 - 自动版式按张数选择：≤2 海报、≤5 漫画、≤12 满版、更多整齐行
+  ---
+  duration_ms: 2.8523
+  type: 'test'
+  ...
+# Subtest: 每种版式都给出与素材数一致的框，且不越出画布
+ok 430 - 每种版式都给出与素材数一致的框，且不越出画布
+  ---
+  duration_ms: 1.6366
+  type: 'test'
+  ...
+# Subtest: 指定比例时画布高度按比例算（1:1 就是正方）
+ok 431 - 指定比例时画布高度按比例算（1:1 就是正方）
+  ---
+  duration_ms: 0.2352
+  type: 'test'
+  ...
+# Subtest: 海报侧栏最后一行不满时铺满整行，不留白块
+ok 432 - 海报侧栏最后一行不满时铺满整行，不留白块
+  ---
+  duration_ms: 0.1933
+  type: 'test'
+  ...
+# Subtest: 张数超上限时按 STITCH_MAX 截断（buildStitch 入口同规则）
+ok 433 - 张数超上限时按 STITCH_MAX 截断（buildStitch 入口同规则）
+  ---
+  duration_ms: 0.141
+  type: 'test'
+  ...
+# Subtest: 比例/版式传入非法值时回落到默认，不抛异常
+ok 434 - 比例/版式传入非法值时回落到默认，不抛异常
+  ---
+  duration_ms: 0.2052
+  type: 'test'
+  ...
+# Subtest: 每个模板的框数 = min(张数, slots)，且不越出画布
+ok 435 - 每个模板的框数 = min(张数, slots)，且不越出画布
+  ---
+  duration_ms: 1.7963
+  type: 'test'
+  ...
+# Subtest: 常见张数都有海报模板可选，id 查不到返回 null
+ok 436 - 常见张数都有海报模板可选，id 查不到返回 null
+  ---
+  duration_ms: 0.7815
+  type: 'test'
+  ...
+# Subtest: 1~12 张每档都有不止一种排版可选（样式太少用户就没得挑）
+ok 437 - 1~12 张每档都有不止一种排版可选（样式太少用户就没得挑）
+  ---
+  duration_ms: 0.4342
+  type: 'test'
+  ...
+# Subtest: 无缝模板：贴边铺满整张，相邻格子共用像素边界（不留 1px 白线）
+ok 438 - 无缝模板：贴边铺满整张，相邻格子共用像素边界（不留 1px 白线）
+  ---
+  duration_ms: 0.5275
+  type: 'test'
+  ...
+# Subtest: 无缝开关：普通模板也能压掉留白与缝隙，关掉就恢复默认缝
+ok 439 - 无缝开关：普通模板也能压掉留白与缝隙，关掉就恢复默认缝
+  ---
+  duration_ms: 0.1884
+  type: 'test'
+  ...
+# Subtest: 算法版式 seamless 铺满、stack 按原比例接长图
+ok 440 - 算法版式 seamless 铺满、stack 按原比例接长图
+  ---
+  duration_ms: 0.4638
+  type: 'test'
+  ...
+# Subtest: 裁切窗口：zoom=1 等价 cover 居中，放大后窗口变小且永不越出源图
+ok 441 - 裁切窗口：zoom=1 等价 cover 居中，放大后窗口变小且永不越出源图
+  ---
+  duration_ms: 1.1099
+  type: 'test'
+  ...
+# Subtest: planGeometry 与真正出图的几何一致，且坐标能归一化到画布内
+ok 442 - planGeometry 与真正出图的几何一致，且坐标能归一化到画布内
+  ---
+  duration_ms: 0.8489
+  type: 'test'
+  ...
+# Subtest: planGeometry 的模板坐标带 gap/pad，不是裸 slots
+ok 443 - planGeometry 的模板坐标带 gap/pad，不是裸 slots
+  ---
+  duration_ms: 0.3135
+  type: 'test'
+  ...
+# Subtest: planGeometry 的 zMin 是像素口径：拿它裁同一张图正好整图入格
+ok 444 - planGeometry 的 zMin 是像素口径：拿它裁同一张图正好整图入格
+  ---
+  duration_ms: 0.3558
+  type: 'test'
+  ...
+# Subtest: 缩放下限 zMin：缩到 zMin 正好整图装进格子，再缩就停住
+ok 445 - 缩放下限 zMin：缩到 zMin 正好整图装进格子，再缩就停住
+  ---
+  duration_ms: 0.3219
+  type: 'test'
+  ...
+# Subtest: 联系表的格子按素材比例出框（cell 是最长边，不是乘上比例）
+ok 446 - 联系表的格子按素材比例出框（cell 是最长边，不是乘上比例）
+  ---
+  duration_ms: 0.1817
+  type: 'test'
+  ...
+# Subtest: crops 解析：auto/空 表示不指定，缺项补居中，非法值夹紧
+ok 447 - crops 解析：auto/空 表示不指定，缺项补居中，非法值夹紧
+  ---
+  duration_ms: 0.3801
+  type: 'test'
+  ...
+# Subtest: swapAt 交换两个槽位，原数组不动
+ok 448 - swapAt 交换两个槽位，原数组不动
+  ---
+  duration_ms: 1.7771
+  type: 'test'
+  ...
+# Subtest: swapAt 同一个位置 / 越界 / 非整数都原样返回同一个引用
+ok 449 - swapAt 同一个位置 / 越界 / 非整数都原样返回同一个引用
+  ---
+  duration_ms: 0.2258
+  type: 'test'
+  ...
+# Subtest: swapAt 换两次就回到原样（互换是可逆的）
+ok 450 - swapAt 换两次就回到原样（互换是可逆的）
+  ---
+  duration_ms: 0.2208
+  type: 'test'
+  ...
+# Subtest: normalizeOrder 修成 0..n-1 的排列：丢越界、丢重复、补缺位
+ok 451 - normalizeOrder 修成 0..n-1 的排列：丢越界、丢重复、补缺位
+  ---
+  duration_ms: 0.367
+  type: 'test'
+  ...
+# Subtest: normalizeOrder 对垃圾输入也不炸
+ok 452 - normalizeOrder 对垃圾输入也不炸
+  ---
+  duration_ms: 0.3008
+  type: 'test'
+  ...
+# Subtest: applyOrder 按槽位取图：order[槽] = 素材下标
+ok 453 - applyOrder 按槽位取图：order[槽] = 素材下标
+  ---
+  duration_ms: 0.2332
+  type: 'test'
+  ...
+# Subtest: 同步清单：格式 / 版本 / 文件校验和都必须合法
+ok 454 - 同步清单：格式 / 版本 / 文件校验和都必须合法
+  ---
+  duration_ms: 1.6666
+  type: 'test'
+  ...
+# Subtest: 拉取决策：已是最新跳过、脏数据默认冲突、force 才放行
+ok 455 - 拉取决策：已是最新跳过、脏数据默认冲突、force 才放行
+  ---
+  duration_ms: 0.265
+  type: 'test'
+  ...
+# Subtest: 发布决策：别的设备有更新的版本且本机没拉过，禁止覆盖
+ok 456 - 发布决策：别的设备有更新的版本且本机没拉过，禁止覆盖
+  ---
+  duration_ms: 0.3366
+  type: 'test'
+  ...
+# Subtest: 同步基线：只拉取过也算有基线，全新机器不报冲突
+ok 457 - 同步基线：只拉取过也算有基线，全新机器不报冲突
+  ---
+  duration_ms: 0.1862
+  type: 'test'
+  ...
+# Subtest: 本机指纹：四元组变化都会被识别
+ok 458 - 本机指纹：四元组变化都会被识别
+  ---
+  duration_ms: 0.2316
+  type: 'test'
+  ...
+# Subtest: 前后端主题变量白名单必须一致
+ok 459 - 前后端主题变量白名单必须一致
+  ---
+  duration_ms: 1.7459
+  type: 'test'
+  ...
+# Subtest: CSS 值：只收颜色 / 长度 / 渐变，注入写法一律拒绝
+ok 460 - CSS 值：只收颜色 / 长度 / 渐变，注入写法一律拒绝
+  ---
+  duration_ms: 0.8093
+  type: 'test'
+  ...
+# Subtest: 构建：剔掉不合规字段并在 skipped 里说明
+ok 461 - 构建：剔掉不合规字段并在 skipped 里说明
+  ---
+  duration_ms: 3.1622
+  type: 'test'
+  ...
+# Subtest: 往返：A 机导出的包，B 机导入后配色与壁纸设置都能还原
+ok 462 - 往返：A 机导出的包，B 机导入后配色与壁纸设置都能还原
+  ---
+  duration_ms: 1.1487
+  type: 'test'
+  ...
+# Subtest: 作者 / 字体：注入写法必须被剔掉，不能进 --ui-font
+ok 463 - 作者 / 字体：注入写法必须被剔掉，不能进 --ui-font
+  ---
+  duration_ms: 0.4719
+  type: 'test'
+  ...
+# Subtest: 壁纸设置：行为参数都进包，本机路径与安全开关一律排除
+ok 464 - 壁纸设置：行为参数都进包，本机路径与安全开关一律排除
+  ---
+  duration_ms: 0.3244
+  type: 'test'
+  ...
+# Subtest: 导入：拒绝非主题包、未来版本与坏 JSON
+ok 465 - 导入：拒绝非主题包、未来版本与坏 JSON
+  ---
+  duration_ms: 0.2739
+  type: 'test'
+  ...
+# [design-thumb] 容器解析失败，改用扫描 missing-129.jpg ENOENT: no such file or directory, open 'C:\\Users\\RUNNER~1\\AppData\\Local\\Temp\\tuku-thumbrebuild-sQqLlZ\\storage\\missing-129.jpg'
+# [design-thumb] 内嵌预览扫描失败 missing-129.jpg ENOENT: no such file or directory, open 'C:\\Users\\RUNNER~1\\AppData\\Local\\Temp\\tuku-thumbrebuild-sQqLlZ\\storage\\missing-129.jpg'
+# [thumb] 生成缩略图失败 131 Input file is missing: C:\\Users\\RUNNER~1\\AppData\\Local\\Temp\\tuku-thumbrebuild-sQqLlZ\\storage\\missing-129.jpg
+# [design-thumb] 容器解析失败，改用扫描 missing-128.jpg ENOENT: no such file or directory, open 'C:\\Users\\RUNNER~1\\AppData\\Local\\Temp\\tuku-thumbrebuild-sQqLlZ\\storage\\missing-128.jpg'
+# [design-thumb] 内嵌预览扫描失败 missing-128.jpg ENOENT: no such file or directory, open 'C:\\Users\\RUNNER~1\\AppData\\Local\\Temp\\tuku-thumbrebuild-sQqLlZ\\storage\\missing-128.jpg'
+# [thumb] 生成缩略图失败 130 Input file is missing: C:\\Users\\RUNNER~1\\AppData\\Local\\Temp\\tuku-thumbrebuild-sQqLlZ\\storage\\missing-128.jpg
+# [design-thumb] 容器解析失败，改用扫描 missing-127.jpg ENOENT: no such file or directory, open 'C:\\Users\\RUNNER~1\\AppData\\Local\\Temp\\tuku-thumbrebuild-sQqLlZ\\storage\\missing-127.jpg'
+# [design-thumb] 内嵌预览扫描失败 missing-127.jpg ENOENT: no such file or directory, open 'C:\\Users\\RUNNER~1\\AppData\\Local\\Temp\\tuku-thumbrebuild-sQqLlZ\\storage\\missing-127.jpg'
+# [thumb] 生成缩略图失败 129 Input file is missing: C:\\Users\\RUNNER~1\\AppData\\Local\\Temp\\tuku-thumbrebuild-sQqLlZ\\storage\\missing-127.jpg
+# [design-thumb] 容器解析失败，改用扫描 missing-126.jpg ENOENT: no such file or directory, open 'C:\\Users\\RUNNER~1\\AppData\\Local\\Temp\\tuku-thumbrebuild-sQqLlZ\\storage\\missing-126.jpg'
+# [design-thumb] 内嵌预览扫描失败 missing-126.jpg ENOENT: no such file or directory, open 'C:\\Users\\RUNNER~1\\AppData\\Local\\Temp\\tuku-thumbrebuild-sQqLlZ\\storage\\missing-126.jpg'
+# [thumb] 生成缩略图失败 128 Input file is missing: C:\\Users\\RUNNER~1\\AppData\\Local\\Temp\\tuku-thumbrebuild-sQqLlZ\\storage\\missing-126.jpg
+# [design-thumb] 容器解析失败，改用扫描 missing-125.jpg ENOENT: no such file or directory, open 'C:\\Users\\RUNNER~1\\AppData\\Local\\Temp\\tuku-thumbrebuild-sQqLlZ\\storage\\missing-125.jpg'
+# [design-thumb] 内嵌预览扫描失败 missing-125.jpg ENOENT: no such file or directory, open 'C:\\Users\\RUNNER~1\\AppData\\Local\\Temp\\tuku-thumbrebuild-sQqLlZ\\storage\\missing-125.jpg'
+# [thumb] 生成缩略图失败 127 Input file is missing: C:\\Users\\RUNNER~1\\AppData\\Local\\Temp\\tuku-thumbrebuild-sQqLlZ\\storage\\missing-125.jpg
+# [design-thumb] 容器解析失败，改用扫描 missing-124.jpg ENOENT: no such file or directory, open 'C:\\Users\\RUNNER~1\\AppData\\Local\\Temp\\tuku-thumbrebuild-sQqLlZ\\storage\\missing-124.jpg'
+# [design-thumb] 内嵌预览扫描失败 missing-124.jpg ENOENT: no such file or directory, open 'C:\\Users\\RUNNER~1\\AppData\\Local\\Temp\\tuku-thumbrebuild-sQqLlZ\\storage\\missing-124.jpg'
+# [thumb] 生成缩略图失败 126 Input file is missing: C:\\Users\\RUNNER~1\\AppData\\Local\\Temp\\tuku-thumbrebuild-sQqLlZ\\storage\\missing-124.jpg
+# [design-thumb] 容器解析失败，改用扫描 missing-123.jpg ENOENT: no such file or directory, open 'C:\\Users\\RUNNER~1\\AppData\\Local\\Temp\\tuku-thumbrebuild-sQqLlZ\\storage\\missing-123.jpg'
+# [design-thumb] 内嵌预览扫描失败 missing-123.jpg ENOENT: no such file or directory, open 'C:\\Users\\RUNNER~1\\AppData\\Local\\Temp\\tuku-thumbrebuild-sQqLlZ\\storage\\missing-123.jpg'
+# [thumb] 生成缩略图失败 125 Input file is missing: C:\\Users\\RUNNER~1\\AppData\\Local\\Temp\\tuku-thumbrebuild-sQqLlZ\\storage\\missing-123.jpg
+# [design-thumb] 容器解析失败，改用扫描 missing-122.jpg ENOENT: no such file or directory, open 'C:\\Users\\RUNNER~1\\AppData\\Local\\Temp\\tuku-thumbrebuild-sQqLlZ\\storage\\missing-122.jpg'
+# [design-thumb] 内嵌预览扫描失败 missing-122.jpg ENOENT: no such file or directory, open 'C:\\Users\\RUNNER~1\\AppData\\Local\\Temp\\tuku-thumbrebuild-sQqLlZ\\storage\\missing-122.jpg'
+# [thumb] 生成缩略图失败 124 Input file is missing: C:\\Users\\RUNNER~1\\AppData\\Local\\Temp\\tuku-thumbrebuild-sQqLlZ\\storage\\missing-122.jpg
+# [design-thumb] 容器解析失败，改用扫描 missing-121.jpg ENOENT: no such file or directory, open 'C:\\Users\\RUNNER~1\\AppData\\Local\\Temp\\tuku-thumbrebuild-sQqLlZ\\storage\\missing-121.jpg'
+# [design-thumb] 内嵌预览扫描失败 missing-121.jpg ENOENT: no such file or directory, open 'C:\\Users\\RUNNER~1\\AppData\\Local\\Temp\\tuku-thumbrebuild-sQqLlZ\\storage\\missing-121.jpg'
+# [thumb] 生成缩略图失败 123 Input file is missing: C:\\Users\\RUNNER~1\\AppData\\Local\\Temp\\tuku-thumbrebuild-sQqLlZ\\storage\\missing-121.jpg
+# [design-thumb] 容器解析失败，改用扫描 missing-120.jpg ENOENT: no such file or directory, open 'C:\\Users\\RUNNER~1\\AppData\\Local\\Temp\\tuku-thumbrebuild-sQqLlZ\\storage\\missing-120.jpg'
+# [design-thumb] 内嵌预览扫描失败 missing-120.jpg ENOENT: no such file or directory, open 'C:\\Users\\RUNNER~1\\AppData\\Local\\Temp\\tuku-thumbrebuild-sQqLlZ\\storage\\missing-120.jpg'
+# [thumb] 生成缩略图失败 122 Input file is missing: C:\\Users\\RUNNER~1\\AppData\\Local\\Temp\\tuku-thumbrebuild-sQqLlZ\\storage\\missing-120.jpg
+# [design-thumb] 容器解析失败，改用扫描 missing-119.jpg ENOENT: no such file or directory, open 'C:\\Users\\RUNNER~1\\AppData\\Local\\Temp\\tuku-thumbrebuild-sQqLlZ\\storage\\missing-119.jpg'
+# [design-thumb] 内嵌预览扫描失败 missing-119.jpg ENOENT: no such file or directory, open 'C:\\Users\\RUNNER~1\\AppData\\Local\\Temp\\tuku-thumbrebuild-sQqLlZ\\storage\\missing-119.jpg'
+# [thumb] 生成缩略图失败 121 Input file is missing: C:\\Users\\RUNNER~1\\AppData\\Local\\Temp\\tuku-thumbrebuild-sQqLlZ\\storage\\missing-119.jpg
+# [design-thumb] 容器解析失败，改用扫描 missing-118.jpg ENOENT: no such file or directory, open 'C:\\Users\\RUNNER~1\\AppData\\Local\\Temp\\tuku-thumbrebuild-sQqLlZ\\storage\\missing-118.jpg'
+# [design-thumb] 内嵌预览扫描失败 missing-118.jpg ENOENT: no such file or directory, open 'C:\\Users\\RUNNER~1\\AppData\\Local\\Temp\\tuku-thumbrebuild-sQqLlZ\\storage\\missing-118.jpg'
+# [thumb] 生成缩略图失败 120 Input file is missing: C:\\Users\\RUNNER~1\\AppData\\Local\\Temp\\tuku-thumbrebuild-sQqLlZ\\storage\\missing-118.jpg
+# [design-thumb] 容器解析失败，改用扫描 missing-117.jpg ENOENT: no such file or directory, open 'C:\\Users\\RUNNER~1\\AppData\\Local\\Temp\\tuku-thumbrebuild-sQqLlZ\\storage\\missing-117.jpg'
+# [design-thumb] 内嵌预览扫描失败 missing-117.jpg ENOENT: no such file or directory, open 'C:\\Users\\RUNNER~1\\AppData\\Local\\Temp\\tuku-thumbrebuild-sQqLlZ\\storage\\missing-117.jpg'
+# [thumb] 生成缩略图失败 119 Input file is missing: C:\\Users\\RUNNER~1\\AppData\\Local\\Temp\\tuku-thumbrebuild-sQqLlZ\\storage\\missing-117.jpg
+# [design-thumb] 容器解析失败，改用扫描 missing-116.jpg ENOENT: no such file or directory, open 'C:\\Users\\RUNNER~1\\AppData\\Local\\Temp\\tuku-thumbrebuild-sQqLlZ\\storage\\missing-116.jpg'
+# [design-thumb] 内嵌预览扫描失败 missing-116.jpg ENOENT: no such file or directory, open 'C:\\Users\\RUNNER~1\\AppData\\Local\\Temp\\tuku-thumbrebuild-sQqLlZ\\storage\\missing-116.jpg'
+# [thumb] 生成缩略图失败 118 Input file is missing: C:\\Users\\RUNNER~1\\AppData\\Local\\Temp\\tuku-thumbrebuild-sQqLlZ\\storage\\missing-116.jpg
+# [design-thumb] 容器解析失败，改用扫描 missing-115.jpg ENOENT: no such file or directory, open 'C:\\Users\\RUNNER~1\\AppData\\Local\\Temp\\tuku-thumbrebuild-sQqLlZ\\storage\\missing-115.jpg'
+# [design-thumb] 内嵌预览扫描失败 missing-115.jpg ENOENT: no such file or directory, open 'C:\\Users\\RUNNER~1\\AppData\\Local\\Temp\\tuku-thumbrebuild-sQqLlZ\\storage\\missing-115.jpg'
+# [thumb] 生成缩略图失败 117 Input file is missing: C:\\Users\\RUNNER~1\\AppData\\Local\\Temp\\tuku-thumbrebuild-sQqLlZ\\storage\\missing-115.jpg
+# [design-thumb] 容器解析失败，改用扫描 missing-114.jpg ENOENT: no such file or directory, open 'C:\\Users\\RUNNER~1\\AppData\\Local\\Temp\\tuku-thumbrebuild-sQqLlZ\\storage\\missing-114.jpg'
+# [design-thumb] 内嵌预览扫描失败 missing-114.jpg ENOENT: no such file or directory, open 'C:\\Users\\RUNNER~1\\AppData\\Local\\Temp\\tuku-thumbrebuild-sQqLlZ\\storage\\missing-114.jpg'
+# [thumb] 生成缩略图失败 116 Input file is missing: C:\\Users\\RUNNER~1\\AppData\\Local\\Temp\\tuku-thumbrebuild-sQqLlZ\\storage\\missing-114.jpg
+# [design-thumb] 容器解析失败，改用扫描 missing-113.jpg ENOENT: no such file or directory, open 'C:\\Users\\RUNNER~1\\AppData\\Local\\Temp\\tuku-thumbrebuild-sQqLlZ\\storage\\missing-113.jpg'
+# [design-thumb] 内嵌预览扫描失败 missing-113.jpg ENOENT: no such file or directory, open 'C:\\Users\\RUNNER~1\\AppData\\Local\\Temp\\tuku-thumbrebuild-sQqLlZ\\storage\\missing-113.jpg'
+# [thumb] 生成缩略图失败 115 Input file is missing: C:\\Users\\RUNNER~1\\AppData\\Local\\Temp\\tuku-thumbrebuild-sQqLlZ\\storage\\missing-113.jpg
+# [design-thumb] 容器解析失败，改用扫描 missing-112.jpg ENOENT: no such file or directory, open 'C:\\Users\\RUNNER~1\\AppData\\Local\\Temp\\tuku-thumbrebuild-sQqLlZ\\storage\\missing-112.jpg'
+# [design-thumb] 内嵌预览扫描失败 missing-112.jpg ENOENT: no such file or directory, open 'C:\\Users\\RUNNER~1\\AppData\\Local\\Temp\\tuku-thumbrebuild-sQqLlZ\\storage\\missing-112.jpg'
+# [thumb] 生成缩略图失败 114 Input file is missing: C:\\Users\\RUNNER~1\\AppData\\Local\\Temp\\tuku-thumbrebuild-sQqLlZ\\storage\\missing-112.jpg
+# [design-thumb] 容器解析失败，改用扫描 missing-111.jpg ENOENT: no such file or directory, open 'C:\\Users\\RUNNER~1\\AppData\\Local\\Temp\\tuku-thumbrebuild-sQqLlZ\\storage\\missing-111.jpg'
+# [design-thumb] 内嵌预览扫描失败 missing-111.jpg ENOENT: no such file or directory, open 'C:\\Users\\RUNNER~1\\AppData\\Local\\Temp\\tuku-thumbrebuild-sQqLlZ\\storage\\missing-111.jpg'
+# [thumb] 生成缩略图失败 113 Input file is missing: C:\\Users\\RUNNER~1\\AppData\\Local\\Temp\\tuku-thumbrebuild-sQqLlZ\\storage\\missing-111.jpg
+# [design-thumb] 容器解析失败，改用扫描 missing-110.jpg ENOENT: no such file or directory, open 'C:\\Users\\RUNNER~1\\AppData\\Local\\Temp\\tuku-thumbrebuild-sQqLlZ\\storage\\missing-110.jpg'
+# [design-thumb] 内嵌预览扫描失败 missing-110.jpg ENOENT: no such file or directory, open 'C:\\Users\\RUNNER~1\\AppData\\Local\\Temp\\tuku-thumbrebuild-sQqLlZ\\storage\\missing-110.jpg'
+# [thumb] 生成缩略图失败 112 Input file is missing: C:\\Users\\RUNNER~1\\AppData\\Local\\Temp\\tuku-thumbrebuild-sQqLlZ\\storage\\missing-110.jpg
+# [design-thumb] 容器解析失败，改用扫描 missing-109.jpg ENOENT: no such file or directory, open 'C:\\Users\\RUNNER~1\\AppData\\Local\\Temp\\tuku-thumbrebuild-sQqLlZ\\storage\\missing-109.jpg'
+# [design-thumb] 内嵌预览扫描失败 missing-109.jpg ENOENT: no such file or directory, open 'C:\\Users\\RUNNER~1\\AppData\\Local\\Temp\\tuku-thumbrebuild-sQqLlZ\\storage\\missing-109.jpg'
+# [thumb] 生成缩略图失败 111 Input file is missing: C:\\Users\\RUNNER~1\\AppData\\Local\\Temp\\tuku-thumbrebuild-sQqLlZ\\storage\\missing-109.jpg
+# [design-thumb] 容器解析失败，改用扫描 missing-108.jpg ENOENT: no such file or directory, open 'C:\\Users\\RUNNER~1\\AppData\\Local\\Temp\\tuku-thumbrebuild-sQqLlZ\\storage\\missing-108.jpg'
+# [design-thumb] 内嵌预览扫描失败 missing-108.jpg ENOENT: no such file or directory, open 'C:\\Users\\RUNNER~1\\AppData\\Local\\Temp\\tuku-thumbrebuild-sQqLlZ\\storage\\missing-108.jpg'
+# [thumb] 生成缩略图失败 110 Input file is missing: C:\\Users\\RUNNER~1\\AppData\\Local\\Temp\\tuku-thumbrebuild-sQqLlZ\\storage\\missing-108.jpg
+# [design-thumb] 容器解析失败，改用扫描 missing-107.jpg ENOENT: no such file or directory, open 'C:\\Users\\RUNNER~1\\AppData\\Local\\Temp\\tuku-thumbrebuild-sQqLlZ\\storage\\missing-107.jpg'
+# [design-thumb] 内嵌预览扫描失败 missing-107.jpg ENOENT: no such file or directory, open 'C:\\Users\\RUNNER~1\\AppData\\Local\\Temp\\tuku-thumbrebuild-sQqLlZ\\storage\\missing-107.jpg'
+# [thumb] 生成缩略图失败 109 Input file is missing: C:\\Users\\RUNNER~1\\AppData\\Local\\Temp\\tuku-thumbrebuild-sQqLlZ\\storage\\missing-107.jpg
+# [design-thumb] 容器解析失败，改用扫描 missing-106.jpg ENOENT: no such file or directory, open 'C:\\Users\\RUNNER~1\\AppData\\Local\\Temp\\tuku-thumbrebuild-sQqLlZ\\storage\\missing-106.jpg'
+# [design-thumb] 内嵌预览扫描失败 missing-106.jpg ENOENT: no such file or directory, open 'C:\\Users\\RUNNER~1\\AppData\\Local\\Temp\\tuku-thumbrebuild-sQqLlZ\\storage\\missing-106.jpg'
+# [thumb] 生成缩略图失败 108 Input file is missing: C:\\Users\\RUNNER~1\\AppData\\Local\\Temp\\tuku-thumbrebuild-sQqLlZ\\storage\\missing-106.jpg
+# [design-thumb] 容器解析失败，改用扫描 missing-105.jpg ENOENT: no such file or directory, open 'C:\\Users\\RUNNER~1\\AppData\\Local\\Temp\\tuku-thumbrebuild-sQqLlZ\\storage\\missing-105.jpg'
+# [design-thumb] 内嵌预览扫描失败 missing-105.jpg ENOENT: no such file or directory, open 'C:\\Users\\RUNNER~1\\AppData\\Local\\Temp\\tuku-thumbrebuild-sQqLlZ\\storage\\missing-105.jpg'
+# [thumb] 生成缩略图失败 107 Input file is missing: C:\\Users\\RUNNER~1\\AppData\\Local\\Temp\\tuku-thumbrebuild-sQqLlZ\\storage\\missing-105.jpg
+# [design-thumb] 容器解析失败，改用扫描 missing-104.jpg ENOENT: no such file or directory, open 'C:\\Users\\RUNNER~1\\AppData\\Local\\Temp\\tuku-thumbrebuild-sQqLlZ\\storage\\missing-104.jpg'
+# [design-thumb] 内嵌预览扫描失败 missing-104.jpg ENOENT: no such file or directory, open 'C:\\Users\\RUNNER~1\\AppData\\Local\\Temp\\tuku-thumbrebuild-sQqLlZ\\storage\\missing-104.jpg'
+# [thumb] 生成缩略图失败 106 Input file is missing: C:\\Users\\RUNNER~1\\AppData\\Local\\Temp\\tuku-thumbrebuild-sQqLlZ\\storage\\missing-104.jpg
+# [design-thumb] 容器解析失败，改用扫描 missing-103.jpg ENOENT: no such file or directory, open 'C:\\Users\\RUNNER~1\\AppData\\Local\\Temp\\tuku-thumbrebuild-sQqLlZ\\storage\\missing-103.jpg'
+# [design-thumb] 内嵌预览扫描失败 missing-103.jpg ENOENT: no such file or directory, open 'C:\\Users\\RUNNER~1\\AppData\\Local\\Temp\\tuku-thumbrebuild-sQqLlZ\\storage\\missing-103.jpg'
+# [thumb] 生成缩略图失败 105 Input file is missing: C:\\Users\\RUNNER~1\\AppData\\Local\\Temp\\tuku-thumbrebuild-sQqLlZ\\storage\\missing-103.jpg
+# [design-thumb] 容器解析失败，改用扫描 missing-102.jpg ENOENT: no such file or directory, open 'C:\\Users\\RUNNER~1\\AppData\\Local\\Temp\\tuku-thumbrebuild-sQqLlZ\\storage\\missing-102.jpg'
+# [design-thumb] 内嵌预览扫描失败 missing-102.jpg ENOENT: no such file or directory, open 'C:\\Users\\RUNNER~1\\AppData\\Local\\Temp\\tuku-thumbrebuild-sQqLlZ\\storage\\missing-102.jpg'
+# [thumb] 生成缩略图失败 104 Input file is missing: C:\\Users\\RUNNER~1\\AppData\\Local\\Temp\\tuku-thumbrebuild-sQqLlZ\\storage\\missing-102.jpg
+# [design-thumb] 容器解析失败，改用扫描 missing-101.jpg ENOENT: no such file or directory, open 'C:\\Users\\RUNNER~1\\AppData\\Local\\Temp\\tuku-thumbrebuild-sQqLlZ\\storage\\missing-101.jpg'
+# [design-thumb] 内嵌预览扫描失败 missing-101.jpg ENOENT: no such file or directory, open 'C:\\Users\\RUNNER~1\\AppData\\Local\\Temp\\tuku-thumbrebuild-sQqLlZ\\storage\\missing-101.jpg'
+# [thumb] 生成缩略图失败 103 Input file is missing: C:\\Users\\RUNNER~1\\AppData\\Local\\Temp\\tuku-thumbrebuild-sQqLlZ\\storage\\missing-101.jpg
+# [design-thumb] 容器解析失败，改用扫描 missing-100.jpg ENOENT: no such file or directory, open 'C:\\Users\\RUNNER~1\\AppData\\Local\\Temp\\tuku-thumbrebuild-sQqLlZ\\storage\\missing-100.jpg'
+# [design-thumb] 内嵌预览扫描失败 missing-100.jpg ENOENT: no such file or directory, open 'C:\\Users\\RUNNER~1\\AppData\\Local\\Temp\\tuku-thumbrebuild-sQqLlZ\\storage\\missing-100.jpg'
+# [thumb] 生成缩略图失败 102 Input file is missing: C:\\Users\\RUNNER~1\\AppData\\Local\\Temp\\tuku-thumbrebuild-sQqLlZ\\storage\\missing-100.jpg
+# [design-thumb] 容器解析失败，改用扫描 missing-99.jpg ENOENT: no such file or directory, open 'C:\\Users\\RUNNER~1\\AppData\\Local\\Temp\\tuku-thumbrebuild-sQqLlZ\\storage\\missing-99.jpg'
+# [design-thumb] 内嵌预览扫描失败 missing-99.jpg ENOENT: no such file or directory, open 'C:\\Users\\RUNNER~1\\AppData\\Local\\Temp\\tuku-thumbrebuild-sQqLlZ\\storage\\missing-99.jpg'
+# [thumb] 生成缩略图失败 101 Input file is missing: C:\\Users\\RUNNER~1\\AppData\\Local\\Temp\\tuku-thumbrebuild-sQqLlZ\\storage\\missing-99.jpg
+# [design-thumb] 容器解析失败，改用扫描 missing-98.jpg ENOENT: no such file or directory, open 'C:\\Users\\RUNNER~1\\AppData\\Local\\Temp\\tuku-thumbrebuild-sQqLlZ\\storage\\missing-98.jpg'
+# [design-thumb] 内嵌预览扫描失败 missing-98.jpg ENOENT: no such file or directory, open 'C:\\Users\\RUNNER~1\\AppData\\Local\\Temp\\tuku-thumbrebuild-sQqLlZ\\storage\\missing-98.jpg'
+# [thumb] 生成缩略图失败 100 Input file is missing: C:\\Users\\RUNNER~1\\AppData\\Local\\Temp\\tuku-thumbrebuild-sQqLlZ\\storage\\missing-98.jpg
+# [design-thumb] 容器解析失败，改用扫描 missing-97.jpg ENOENT: no such file or directory, open 'C:\\Users\\RUNNER~1\\AppData\\Local\\Temp\\tuku-thumbrebuild-sQqLlZ\\storage\\missing-97.jpg'
+# [design-thumb] 内嵌预览扫描失败 missing-97.jpg ENOENT: no such file or directory, open 'C:\\Users\\RUNNER~1\\AppData\\Local\\Temp\\tuku-thumbrebuild-sQqLlZ\\storage\\missing-97.jpg'
+# [thumb] 生成缩略图失败 99 Input file is missing: C:\\Users\\RUNNER~1\\AppData\\Local\\Temp\\tuku-thumbrebuild-sQqLlZ\\storage\\missing-97.jpg
+# [design-thumb] 容器解析失败，改用扫描 missing-96.jpg ENOENT: no such file or directory, open 'C:\\Users\\RUNNER~1\\AppData\\Local\\Temp\\tuku-thumbrebuild-sQqLlZ\\storage\\missing-96.jpg'
+# [design-thumb] 内嵌预览扫描失败 missing-96.jpg ENOENT: no such file or directory, open 'C:\\Users\\RUNNER~1\\AppData\\Local\\Temp\\tuku-thumbrebuild-sQqLlZ\\storage\\missing-96.jpg'
+# [thumb] 生成缩略图失败 98 Input file is missing: C:\\Users\\RUNNER~1\\AppData\\Local\\Temp\\tuku-thumbrebuild-sQqLlZ\\storage\\missing-96.jpg
+# [design-thumb] 容器解析失败，改用扫描 missing-95.jpg ENOENT: no such file or directory, open 'C:\\Users\\RUNNER~1\\AppData\\Local\\Temp\\tuku-thumbrebuild-sQqLlZ\\storage\\missing-95.jpg'
+# [design-thumb] 内嵌预览扫描失败 missing-95.jpg ENOENT: no such file or directory, open 'C:\\Users\\RUNNER~1\\AppData\\Local\\Temp\\tuku-thumbrebuild-sQqLlZ\\storage\\missing-95.jpg'
+# [thumb] 生成缩略图失败 97 Input file is missing: C:\\Users\\RUNNER~1\\AppData\\Local\\Temp\\tuku-thumbrebuild-sQqLlZ\\storage\\missing-95.jpg
+# [design-thumb] 容器解析失败，改用扫描 missing-94.jpg ENOENT: no such file or directory, open 'C:\\Users\\RUNNER~1\\AppData\\Local\\Temp\\tuku-thumbrebuild-sQqLlZ\\storage\\missing-94.jpg'
+# [design-thumb] 内嵌预览扫描失败 missing-94.jpg ENOENT: no such file or directory, open 'C:\\Users\\RUNNER~1\\AppData\\Local\\Temp\\tuku-thumbrebuild-sQqLlZ\\storage\\missing-94.jpg'
+# [thumb] 生成缩略图失败 96 Input file is missing: C:\\Users\\RUNNER~1\\AppData\\Local\\Temp\\tuku-thumbrebuild-sQqLlZ\\storage\\missing-94.jpg
+# [design-thumb] 容器解析失败，改用扫描 missing-93.jpg ENOENT: no such file or directory, open 'C:\\Users\\RUNNER~1\\AppData\\Local\\Temp\\tuku-thumbrebuild-sQqLlZ\\storage\\missing-93.jpg'
+# [design-thumb] 内嵌预览扫描失败 missing-93.jpg ENOENT: no such file or directory, open 'C:\\Users\\RUNNER~1\\AppData\\Local\\Temp\\tuku-thumbrebuild-sQqLlZ\\storage\\missing-93.jpg'
+# [thumb] 生成缩略图失败 95 Input file is missing: C:\\Users\\RUNNER~1\\AppData\\Local\\Temp\\tuku-thumbrebuild-sQqLlZ\\storage\\missing-93.jpg
+# [design-thumb] 容器解析失败，改用扫描 missing-92.jpg ENOENT: no such file or directory, open 'C:\\Users\\RUNNER~1\\AppData\\Local\\Temp\\tuku-thumbrebuild-sQqLlZ\\storage\\missing-92.jpg'
+# [design-thumb] 内嵌预览扫描失败 missing-92.jpg ENOENT: no such file or directory, open 'C:\\Users\\RUNNER~1\\AppData\\Local\\Temp\\tuku-thumbrebuild-sQqLlZ\\storage\\missing-92.jpg'
+# [thumb] 生成缩略图失败 94 Input file is missing: C:\\Users\\RUNNER~1\\AppData\\Local\\Temp\\tuku-thumbrebuild-sQqLlZ\\storage\\missing-92.jpg
+# [design-thumb] 容器解析失败，改用扫描 missing-91.jpg ENOENT: no such file or directory, open 'C:\\Users\\RUNNER~1\\AppData\\Local\\Temp\\tuku-thumbrebuild-sQqLlZ\\storage\\missing-91.jpg'
+# [design-thumb] 内嵌预览扫描失败 missing-91.jpg ENOENT: no such file or directory, open 'C:\\Users\\RUNNER~1\\AppData\\Local\\Temp\\tuku-thumbrebuild-sQqLlZ\\storage\\missing-91.jpg'
+# [thumb] 生成缩略图失败 93 Input file is missing: C:\\Users\\RUNNER~1\\AppData\\Local\\Temp\\tuku-thumbrebuild-sQqLlZ\\storage\\missing-91.jpg
+# [design-thumb] 容器解析失败，改用扫描 missing-90.jpg ENOENT: no such file or directory, open 'C:\\Users\\RUNNER~1\\AppData\\Local\\Temp\\tuku-thumbrebuild-sQqLlZ\\storage\\missing-90.jpg'
+# [design-thumb] 内嵌预览扫描失败 missing-90.jpg ENOENT: no such file or directory, open 'C:\\Users\\RUNNER~1\\AppData\\Local\\Temp\\tuku-thumbrebuild-sQqLlZ\\storage\\missing-90.jpg'
+# [thumb] 生成缩略图失败 92 Input file is missing: C:\\Users\\RUNNER~1\\AppData\\Local\\Temp\\tuku-thumbrebuild-sQqLlZ\\storage\\missing-90.jpg
+# [design-thumb] 容器解析失败，改用扫描 missing-89.jpg ENOENT: no such file or directory, open 'C:\\Users\\RUNNER~1\\AppData\\Local\\Temp\\tuku-thumbrebuild-sQqLlZ\\storage\\missing-89.jpg'
+# [design-thumb] 内嵌预览扫描失败 missing-89.jpg ENOENT: no such file or directory, open 'C:\\Users\\RUNNER~1\\AppData\\Local\\Temp\\tuku-thumbrebuild-sQqLlZ\\storage\\missing-89.jpg'
+# [thumb] 生成缩略图失败 91 Input file is missing: C:\\Users\\RUNNER~1\\AppData\\Local\\Temp\\tuku-thumbrebuild-sQqLlZ\\storage\\missing-89.jpg
+# [design-thumb] 容器解析失败，改用扫描 missing-88.jpg ENOENT: no such file or directory, open 'C:\\Users\\RUNNER~1\\AppData\\Local\\Temp\\tuku-thumbrebuild-sQqLlZ\\storage\\missing-88.jpg'
+# [design-thumb] 内嵌预览扫描失败 missing-88.jpg ENOENT: no such file or directory, open 'C:\\Users\\RUNNER~1\\AppData\\Local\\Temp\\tuku-thumbrebuild-sQqLlZ\\storage\\missing-88.jpg'
+# [thumb] 生成缩略图失败 90 Input file is missing: C:\\Users\\RUNNER~1\\AppData\\Local\\Temp\\tuku-thumbrebuild-sQqLlZ\\storage\\missing-88.jpg
+# [design-thumb] 容器解析失败，改用扫描 missing-87.jpg ENOENT: no such file or directory, open 'C:\\Users\\RUNNER~1\\AppData\\Local\\Temp\\tuku-thumbrebuild-sQqLlZ\\storage\\missing-87.jpg'
+# [design-thumb] 内嵌预览扫描失败 missing-87.jpg ENOENT: no such file or directory, open 'C:\\Users\\RUNNER~1\\AppData\\Local\\Temp\\tuku-thumbrebuild-sQqLlZ\\storage\\missing-87.jpg'
+# [thumb] 生成缩略图失败 89 Input file is missing: C:\\Users\\RUNNER~1\\AppData\\Local\\Temp\\tuku-thumbrebuild-sQqLlZ\\storage\\missing-87.jpg
+# [design-thumb] 容器解析失败，改用扫描 missing-86.jpg ENOENT: no such file or directory, open 'C:\\Users\\RUNNER~1\\AppData\\Local\\Temp\\tuku-thumbrebuild-sQqLlZ\\storage\\missing-86.jpg'
+# [design-thumb] 内嵌预览扫描失败 missing-86.jpg ENOENT: no such file or directory, open 'C:\\Users\\RUNNER~1\\AppData\\Local\\Temp\\tuku-thumbrebuild-sQqLlZ\\storage\\missing-86.jpg'
+# [thumb] 生成缩略图失败 88 Input file is missing: C:\\Users\\RUNNER~1\\AppData\\Local\\Temp\\tuku-thumbrebuild-sQqLlZ\\storage\\missing-86.jpg
+# [design-thumb] 容器解析失败，改用扫描 missing-85.jpg ENOENT: no such file or directory, open 'C:\\Users\\RUNNER~1\\AppData\\Local\\Temp\\tuku-thumbrebuild-sQqLlZ\\storage\\missing-85.jpg'
+# [design-thumb] 内嵌预览扫描失败 missing-85.jpg ENOENT: no such file or directory, open 'C:\\Users\\RUNNER~1\\AppData\\Local\\Temp\\tuku-thumbrebuild-sQqLlZ\\storage\\missing-85.jpg'
+# [thumb] 生成缩略图失败 87 Input file is missing: C:\\Users\\RUNNER~1\\AppData\\Local\\Temp\\tuku-thumbrebuild-sQqLlZ\\storage\\missing-85.jpg
+# [design-thumb] 容器解析失败，改用扫描 missing-84.jpg ENOENT: no such file or directory, open 'C:\\Users\\RUNNER~1\\AppData\\Local\\Temp\\tuku-thumbrebuild-sQqLlZ\\storage\\missing-84.jpg'
+# [design-thumb] 内嵌预览扫描失败 missing-84.jpg ENOENT: no such file or directory, open 'C:\\Users\\RUNNER~1\\AppData\\Local\\Temp\\tuku-thumbrebuild-sQqLlZ\\storage\\missing-84.jpg'
+# [thumb] 生成缩略图失败 86 Input file is missing: C:\\Users\\RUNNER~1\\AppData\\Local\\Temp\\tuku-thumbrebuild-sQqLlZ\\storage\\missing-84.jpg
+# [design-thumb] 容器解析失败，改用扫描 missing-83.jpg ENOENT: no such file or directory, open 'C:\\Users\\RUNNER~1\\AppData\\Local\\Temp\\tuku-thumbrebuild-sQqLlZ\\storage\\missing-83.jpg'
+# [design-thumb] 内嵌预览扫描失败 missing-83.jpg ENOENT: no such file or directory, open 'C:\\Users\\RUNNER~1\\AppData\\Local\\Temp\\tuku-thumbrebuild-sQqLlZ\\storage\\missing-83.jpg'
+# [thumb] 生成缩略图失败 85 Input file is missing: C:\\Users\\RUNNER~1\\AppData\\Local\\Temp\\tuku-thumbrebuild-sQqLlZ\\storage\\missing-83.jpg
+# [design-thumb] 容器解析失败，改用扫描 missing-82.jpg ENOENT: no such file or directory, open 'C:\\Users\\RUNNER~1\\AppData\\Local\\Temp\\tuku-thumbrebuild-sQqLlZ\\storage\\missing-82.jpg'
+# [design-thumb] 内嵌预览扫描失败 missing-82.jpg ENOENT: no such file or directory, open 'C:\\Users\\RUNNER~1\\AppData\\Local\\Temp\\tuku-thumbrebuild-sQqLlZ\\storage\\missing-82.jpg'
+# [thumb] 生成缩略图失败 84 Input file is missing: C:\\Users\\RUNNER~1\\AppData\\Local\\Temp\\tuku-thumbrebuild-sQqLlZ\\storage\\missing-82.jpg
+# [design-thumb] 容器解析失败，改用扫描 missing-81.jpg ENOENT: no such file or directory, open 'C:\\Users\\RUNNER~1\\AppData\\Local\\Temp\\tuku-thumbrebuild-sQqLlZ\\storage\\missing-81.jpg'
+# [design-thumb] 内嵌预览扫描失败 missing-81.jpg ENOENT: no such file or directory, open 'C:\\Users\\RUNNER~1\\AppData\\Local\\Temp\\tuku-thumbrebuild-sQqLlZ\\storage\\missing-81.jpg'
+# [thumb] 生成缩略图失败 83 Input file is missing: C:\\Users\\RUNNER~1\\AppData\\Local\\Temp\\tuku-thumbrebuild-sQqLlZ\\storage\\missing-81.jpg
+# [design-thumb] 容器解析失败，改用扫描 missing-80.jpg ENOENT: no such file or directory, open 'C:\\Users\\RUNNER~1\\AppData\\Local\\Temp\\tuku-thumbrebuild-sQqLlZ\\storage\\missing-80.jpg'
+# [design-thumb] 内嵌预览扫描失败 missing-80.jpg ENOENT: no such file or directory, open 'C:\\Users\\RUNNER~1\\AppData\\Local\\Temp\\tuku-thumbrebuild-sQqLlZ\\storage\\missing-80.jpg'
+# [thumb] 生成缩略图失败 82 Input file is missing: C:\\Users\\RUNNER~1\\AppData\\Local\\Temp\\tuku-thumbrebuild-sQqLlZ\\storage\\missing-80.jpg
+# [design-thumb] 容器解析失败，改用扫描 missing-79.jpg ENOENT: no such file or directory, open 'C:\\Users\\RUNNER~1\\AppData\\Local\\Temp\\tuku-thumbrebuild-sQqLlZ\\storage\\missing-79.jpg'
+# [design-thumb] 内嵌预览扫描失败 missing-79.jpg ENOENT: no such file or directory, open 'C:\\Users\\RUNNER~1\\AppData\\Local\\Temp\\tuku-thumbrebuild-sQqLlZ\\storage\\missing-79.jpg'
+# [thumb] 生成缩略图失败 81 Input file is missing: C:\\Users\\RUNNER~1\\AppData\\Local\\Temp\\tuku-thumbrebuild-sQqLlZ\\storage\\missing-79.jpg
+# [design-thumb] 容器解析失败，改用扫描 missing-78.jpg ENOENT: no such file or directory, open 'C:\\Users\\RUNNER~1\\AppData\\Local\\Temp\\tuku-thumbrebuild-sQqLlZ\\storage\\missing-78.jpg'
+# [design-thumb] 内嵌预览扫描失败 missing-78.jpg ENOENT: no such file or directory, open 'C:\\Users\\RUNNER~1\\AppData\\Local\\Temp\\tuku-thumbrebuild-sQqLlZ\\storage\\missing-78.jpg'
+# [thumb] 生成缩略图失败 80 Input file is missing: C:\\Users\\RUNNER~1\\AppData\\Local\\Temp\\tuku-thumbrebuild-sQqLlZ\\storage\\missing-78.jpg
+# [design-thumb] 容器解析失败，改用扫描 missing-77.jpg ENOENT: no such file or directory, open 'C:\\Users\\RUNNER~1\\AppData\\Local\\Temp\\tuku-thumbrebuild-sQqLlZ\\storage\\missing-77.jpg'
+# [design-thumb] 内嵌预览扫描失败 missing-77.jpg ENOENT: no such file or directory, open 'C:\\Users\\RUNNER~1\\AppData\\Local\\Temp\\tuku-thumbrebuild-sQqLlZ\\storage\\missing-77.jpg'
+# [thumb] 生成缩略图失败 79 Input file is missing: C:\\Users\\RUNNER~1\\AppData\\Local\\Temp\\tuku-thumbrebuild-sQqLlZ\\storage\\missing-77.jpg
+# [design-thumb] 容器解析失败，改用扫描 missing-76.jpg ENOENT: no such file or directory, open 'C:\\Users\\RUNNER~1\\AppData\\Local\\Temp\\tuku-thumbrebuild-sQqLlZ\\storage\\missing-76.jpg'
+# [design-thumb] 内嵌预览扫描失败 missing-76.jpg ENOENT: no such file or directory, open 'C:\\Users\\RUNNER~1\\AppData\\Local\\Temp\\tuku-thumbrebuild-sQqLlZ\\storage\\missing-76.jpg'
+# [thumb] 生成缩略图失败 78 Input file is missing: C:\\Users\\RUNNER~1\\AppData\\Local\\Temp\\tuku-thumbrebuild-sQqLlZ\\storage\\missing-76.jpg
+# [design-thumb] 容器解析失败，改用扫描 missing-75.jpg ENOENT: no such file or directory, open 'C:\\Users\\RUNNER~1\\AppData\\Local\\Temp\\tuku-thumbrebuild-sQqLlZ\\storage\\missing-75.jpg'
+# [design-thumb] 内嵌预览扫描失败 missing-75.jpg ENOENT: no such file or directory, open 'C:\\Users\\RUNNER~1\\AppData\\Local\\Temp\\tuku-thumbrebuild-sQqLlZ\\storage\\missing-75.jpg'
+# [thumb] 生成缩略图失败 77 Input file is missing: C:\\Users\\RUNNER~1\\AppData\\Local\\Temp\\tuku-thumbrebuild-sQqLlZ\\storage\\missing-75.jpg
+# [design-thumb] 容器解析失败，改用扫描 missing-74.jpg ENOENT: no such file or directory, open 'C:\\Users\\RUNNER~1\\AppData\\Local\\Temp\\tuku-thumbrebuild-sQqLlZ\\storage\\missing-74.jpg'
+# [design-thumb] 内嵌预览扫描失败 missing-74.jpg ENOENT: no such file or directory, open 'C:\\Users\\RUNNER~1\\AppData\\Local\\Temp\\tuku-thumbrebuild-sQqLlZ\\storage\\missing-74.jpg'
+# [thumb] 生成缩略图失败 76 Input file is missing: C:\\Users\\RUNNER~1\\AppData\\Local\\Temp\\tuku-thumbrebuild-sQqLlZ\\storage\\missing-74.jpg
+# [design-thumb] 容器解析失败，改用扫描 missing-73.jpg ENOENT: no such file or directory, open 'C:\\Users\\RUNNER~1\\AppData\\Local\\Temp\\tuku-thumbrebuild-sQqLlZ\\storage\\missing-73.jpg'
+# [design-thumb] 内嵌预览扫描失败 missing-73.jpg ENOENT: no such file or directory, open 'C:\\Users\\RUNNER~1\\AppData\\Local\\Temp\\tuku-thumbrebuild-sQqLlZ\\storage\\missing-73.jpg'
+# [thumb] 生成缩略图失败 75 Input file is missing: C:\\Users\\RUNNER~1\\AppData\\Local\\Temp\\tuku-thumbrebuild-sQqLlZ\\storage\\missing-73.jpg
+# [design-thumb] 容器解析失败，改用扫描 missing-72.jpg ENOENT: no such file or directory, open 'C:\\Users\\RUNNER~1\\AppData\\Local\\Temp\\tuku-thumbrebuild-sQqLlZ\\storage\\missing-72.jpg'
+# [design-thumb] 内嵌预览扫描失败 missing-72.jpg ENOENT: no such file or directory, open 'C:\\Users\\RUNNER~1\\AppData\\Local\\Temp\\tuku-thumbrebuild-sQqLlZ\\storage\\missing-72.jpg'
+# [thumb] 生成缩略图失败 74 Input file is missing: C:\\Users\\RUNNER~1\\AppData\\Local\\Temp\\tuku-thumbrebuild-sQqLlZ\\storage\\missing-72.jpg
+# [design-thumb] 容器解析失败，改用扫描 missing-71.jpg ENOENT: no such file or directory, open 'C:\\Users\\RUNNER~1\\AppData\\Local\\Temp\\tuku-thumbrebuild-sQqLlZ\\storage\\missing-71.jpg'
+# [design-thumb] 内嵌预览扫描失败 missing-71.jpg ENOENT: no such file or directory, open 'C:\\Users\\RUNNER~1\\AppData\\Local\\Temp\\tuku-thumbrebuild-sQqLlZ\\storage\\missing-71.jpg'
+# [thumb] 生成缩略图失败 73 Input file is missing: C:\\Users\\RUNNER~1\\AppData\\Local\\Temp\\tuku-thumbrebuild-sQqLlZ\\storage\\missing-71.jpg
+# [design-thumb] 容器解析失败，改用扫描 missing-70.jpg ENOENT: no such file or directory, open 'C:\\Users\\RUNNER~1\\AppData\\Local\\Temp\\tuku-thumbrebuild-sQqLlZ\\storage\\missing-70.jpg'
+# [design-thumb] 内嵌预览扫描失败 missing-70.jpg ENOENT: no such file or directory, open 'C:\\Users\\RUNNER~1\\AppData\\Local\\Temp\\tuku-thumbrebuild-sQqLlZ\\storage\\missing-70.jpg'
+# [thumb] 生成缩略图失败 72 Input file is missing: C:\\Users\\RUNNER~1\\AppData\\Local\\Temp\\tuku-thumbrebuild-sQqLlZ\\storage\\missing-70.jpg
+# [design-thumb] 容器解析失败，改用扫描 missing-69.jpg ENOENT: no such file or directory, open 'C:\\Users\\RUNNER~1\\AppData\\Local\\Temp\\tuku-thumbrebuild-sQqLlZ\\storage\\missing-69.jpg'
+# [design-thumb] 内嵌预览扫描失败 missing-69.jpg ENOENT: no such file or directory, open 'C:\\Users\\RUNNER~1\\AppData\\Local\\Temp\\tuku-thumbrebuild-sQqLlZ\\storage\\missing-69.jpg'
+# [thumb] 生成缩略图失败 71 Input file is missing: C:\\Users\\RUNNER~1\\AppData\\Local\\Temp\\tuku-thumbrebuild-sQqLlZ\\storage\\missing-69.jpg
+# [design-thumb] 容器解析失败，改用扫描 missing-68.jpg ENOENT: no such file or directory, open 'C:\\Users\\RUNNER~1\\AppData\\Local\\Temp\\tuku-thumbrebuild-sQqLlZ\\storage\\missing-68.jpg'
+# [design-thumb] 内嵌预览扫描失败 missing-68.jpg ENOENT: no such file or directory, open 'C:\\Users\\RUNNER~1\\AppData\\Local\\Temp\\tuku-thumbrebuild-sQqLlZ\\storage\\missing-68.jpg'
+# [thumb] 生成缩略图失败 70 Input file is missing: C:\\Users\\RUNNER~1\\AppData\\Local\\Temp\\tuku-thumbrebuild-sQqLlZ\\storage\\missing-68.jpg
+# [design-thumb] 容器解析失败，改用扫描 missing-67.jpg ENOENT: no such file or directory, open 'C:\\Users\\RUNNER~1\\AppData\\Local\\Temp\\tuku-thumbrebuild-sQqLlZ\\storage\\missing-67.jpg'
+# [design-thumb] 内嵌预览扫描失败 missing-67.jpg ENOENT: no such file or directory, open 'C:\\Users\\RUNNER~1\\AppData\\Local\\Temp\\tuku-thumbrebuild-sQqLlZ\\storage\\missing-67.jpg'
+# [thumb] 生成缩略图失败 69 Input file is missing: C:\\Users\\RUNNER~1\\AppData\\Local\\Temp\\tuku-thumbrebuild-sQqLlZ\\storage\\missing-67.jpg
+# [design-thumb] 容器解析失败，改用扫描 missing-66.jpg ENOENT: no such file or directory, open 'C:\\Users\\RUNNER~1\\AppData\\Local\\Temp\\tuku-thumbrebuild-sQqLlZ\\storage\\missing-66.jpg'
+# [design-thumb] 内嵌预览扫描失败 missing-66.jpg ENOENT: no such file or directory, open 'C:\\Users\\RUNNER~1\\AppData\\Local\\Temp\\tuku-thumbrebuild-sQqLlZ\\storage\\missing-66.jpg'
+# [thumb] 生成缩略图失败 68 Input file is missing: C:\\Users\\RUNNER~1\\AppData\\Local\\Temp\\tuku-thumbrebuild-sQqLlZ\\storage\\missing-66.jpg
+# [design-thumb] 容器解析失败，改用扫描 missing-65.jpg ENOENT: no such file or directory, open 'C:\\Users\\RUNNER~1\\AppData\\Local\\Temp\\tuku-thumbrebuild-sQqLlZ\\storage\\missing-65.jpg'
+# [design-thumb] 内嵌预览扫描失败 missing-65.jpg ENOENT: no such file or directory, open 'C:\\Users\\RUNNER~1\\AppData\\Local\\Temp\\tuku-thumbrebuild-sQqLlZ\\storage\\missing-65.jpg'
+# [thumb] 生成缩略图失败 67 Input file is missing: C:\\Users\\RUNNER~1\\AppData\\Local\\Temp\\tuku-thumbrebuild-sQqLlZ\\storage\\missing-65.jpg
+# [design-thumb] 容器解析失败，改用扫描 missing-64.jpg ENOENT: no such file or directory, open 'C:\\Users\\RUNNER~1\\AppData\\Local\\Temp\\tuku-thumbrebuild-sQqLlZ\\storage\\missing-64.jpg'
+# [design-thumb] 内嵌预览扫描失败 missing-64.jpg ENOENT: no such file or directory, open 'C:\\Users\\RUNNER~1\\AppData\\Local\\Temp\\tuku-thumbrebuild-sQqLlZ\\storage\\missing-64.jpg'
+# [thumb] 生成缩略图失败 66 Input file is missing: C:\\Users\\RUNNER~1\\AppData\\Local\\Temp\\tuku-thumbrebuild-sQqLlZ\\storage\\missing-64.jpg
+# [design-thumb] 容器解析失败，改用扫描 missing-63.jpg ENOENT: no such file or directory, open 'C:\\Users\\RUNNER~1\\AppData\\Local\\Temp\\tuku-thumbrebuild-sQqLlZ\\storage\\missing-63.jpg'
+# [design-thumb] 内嵌预览扫描失败 missing-63.jpg ENOENT: no such file or directory, open 'C:\\Users\\RUNNER~1\\AppData\\Local\\Temp\\tuku-thumbrebuild-sQqLlZ\\storage\\missing-63.jpg'
+# [thumb] 生成缩略图失败 65 Input file is missing: C:\\Users\\RUNNER~1\\AppData\\Local\\Temp\\tuku-thumbrebuild-sQqLlZ\\storage\\missing-63.jpg
+# [design-thumb] 容器解析失败，改用扫描 missing-62.jpg ENOENT: no such file or directory, open 'C:\\Users\\RUNNER~1\\AppData\\Local\\Temp\\tuku-thumbrebuild-sQqLlZ\\storage\\missing-62.jpg'
+# [design-thumb] 内嵌预览扫描失败 missing-62.jpg ENOENT: no such file or directory, open 'C:\\Users\\RUNNER~1\\AppData\\Local\\Temp\\tuku-thumbrebuild-sQqLlZ\\storage\\missing-62.jpg'
+# [thumb] 生成缩略图失败 64 Input file is missing: C:\\Users\\RUNNER~1\\AppData\\Local\\Temp\\tuku-thumbrebuild-sQqLlZ\\storage\\missing-62.jpg
+# [design-thumb] 容器解析失败，改用扫描 missing-61.jpg ENOENT: no such file or directory, open 'C:\\Users\\RUNNER~1\\AppData\\Local\\Temp\\tuku-thumbrebuild-sQqLlZ\\storage\\missing-61.jpg'
+# [design-thumb] 内嵌预览扫描失败 missing-61.jpg ENOENT: no such file or directory, open 'C:\\Users\\RUNNER~1\\AppData\\Local\\Temp\\tuku-thumbrebuild-sQqLlZ\\storage\\missing-61.jpg'
+# [thumb] 生成缩略图失败 63 Input file is missing: C:\\Users\\RUNNER~1\\AppData\\Local\\Temp\\tuku-thumbrebuild-sQqLlZ\\storage\\missing-61.jpg
+# [design-thumb] 容器解析失败，改用扫描 missing-60.jpg ENOENT: no such file or directory, open 'C:\\Users\\RUNNER~1\\AppData\\Local\\Temp\\tuku-thumbrebuild-sQqLlZ\\storage\\missing-60.jpg'
+# [design-thumb] 内嵌预览扫描失败 missing-60.jpg ENOENT: no such file or directory, open 'C:\\Users\\RUNNER~1\\AppData\\Local\\Temp\\tuku-thumbrebuild-sQqLlZ\\storage\\missing-60.jpg'
+# [thumb] 生成缩略图失败 62 Input file is missing: C:\\Users\\RUNNER~1\\AppData\\Local\\Temp\\tuku-thumbrebuild-sQqLlZ\\storage\\missing-60.jpg
+# [design-thumb] 容器解析失败，改用扫描 missing-59.jpg ENOENT: no such file or directory, open 'C:\\Users\\RUNNER~1\\AppData\\Local\\Temp\\tuku-thumbrebuild-sQqLlZ\\storage\\missing-59.jpg'
+# [design-thumb] 内嵌预览扫描失败 missing-59.jpg ENOENT: no such file or directory, open 'C:\\Users\\RUNNER~1\\AppData\\Local\\Temp\\tuku-thumbrebuild-sQqLlZ\\storage\\missing-59.jpg'
+# [thumb] 生成缩略图失败 61 Input file is missing: C:\\Users\\RUNNER~1\\AppData\\Local\\Temp\\tuku-thumbrebuild-sQqLlZ\\storage\\missing-59.jpg
+# [design-thumb] 容器解析失败，改用扫描 missing-58.jpg ENOENT: no such file or directory, open 'C:\\Users\\RUNNER~1\\AppData\\Local\\Temp\\tuku-thumbrebuild-sQqLlZ\\storage\\missing-58.jpg'
+# [design-thumb] 内嵌预览扫描失败 missing-58.jpg ENOENT: no such file or directory, open 'C:\\Users\\RUNNER~1\\AppData\\Local\\Temp\\tuku-thumbrebuild-sQqLlZ\\storage\\missing-58.jpg'
+# [thumb] 生成缩略图失败 60 Input file is missing: C:\\Users\\RUNNER~1\\AppData\\Local\\Temp\\tuku-thumbrebuild-sQqLlZ\\storage\\missing-58.jpg
+# [design-thumb] 容器解析失败，改用扫描 missing-57.jpg ENOENT: no such file or directory, open 'C:\\Users\\RUNNER~1\\AppData\\Local\\Temp\\tuku-thumbrebuild-sQqLlZ\\storage\\missing-57.jpg'
+# [design-thumb] 内嵌预览扫描失败 missing-57.jpg ENOENT: no such file or directory, open 'C:\\Users\\RUNNER~1\\AppData\\Local\\Temp\\tuku-thumbrebuild-sQqLlZ\\storage\\missing-57.jpg'
+# [thumb] 生成缩略图失败 59 Input file is missing: C:\\Users\\RUNNER~1\\AppData\\Local\\Temp\\tuku-thumbrebuild-sQqLlZ\\storage\\missing-57.jpg
+# [design-thumb] 容器解析失败，改用扫描 missing-56.jpg ENOENT: no such file or directory, open 'C:\\Users\\RUNNER~1\\AppData\\Local\\Temp\\tuku-thumbrebuild-sQqLlZ\\storage\\missing-56.jpg'
+# [design-thumb] 内嵌预览扫描失败 missing-56.jpg ENOENT: no such file or directory, open 'C:\\Users\\RUNNER~1\\AppData\\Local\\Temp\\tuku-thumbrebuild-sQqLlZ\\storage\\missing-56.jpg'
+# [thumb] 生成缩略图失败 58 Input file is missing: C:\\Users\\RUNNER~1\\AppData\\Local\\Temp\\tuku-thumbrebuild-sQqLlZ\\storage\\missing-56.jpg
+# [design-thumb] 容器解析失败，改用扫描 missing-55.jpg ENOENT: no such file or directory, open 'C:\\Users\\RUNNER~1\\AppData\\Local\\Temp\\tuku-thumbrebuild-sQqLlZ\\storage\\missing-55.jpg'
+# [design-thumb] 内嵌预览扫描失败 missing-55.jpg ENOENT: no such file or directory, open 'C:\\Users\\RUNNER~1\\AppData\\Local\\Temp\\tuku-thumbrebuild-sQqLlZ\\storage\\missing-55.jpg'
+# [thumb] 生成缩略图失败 57 Input file is missing: C:\\Users\\RUNNER~1\\AppData\\Local\\Temp\\tuku-thumbrebuild-sQqLlZ\\storage\\missing-55.jpg
+# [design-thumb] 容器解析失败，改用扫描 missing-54.jpg ENOENT: no such file or directory, open 'C:\\Users\\RUNNER~1\\AppData\\Local\\Temp\\tuku-thumbrebuild-sQqLlZ\\storage\\missing-54.jpg'
+# [design-thumb] 内嵌预览扫描失败 missing-54.jpg ENOENT: no such file or directory, open 'C:\\Users\\RUNNER~1\\AppData\\Local\\Temp\\tuku-thumbrebuild-sQqLlZ\\storage\\missing-54.jpg'
+# [thumb] 生成缩略图失败 56 Input file is missing: C:\\Users\\RUNNER~1\\AppData\\Local\\Temp\\tuku-thumbrebuild-sQqLlZ\\storage\\missing-54.jpg
+# [design-thumb] 容器解析失败，改用扫描 missing-53.jpg ENOENT: no such file or directory, open 'C:\\Users\\RUNNER~1\\AppData\\Local\\Temp\\tuku-thumbrebuild-sQqLlZ\\storage\\missing-53.jpg'
+# [design-thumb] 内嵌预览扫描失败 missing-53.jpg ENOENT: no such file or directory, open 'C:\\Users\\RUNNER~1\\AppData\\Local\\Temp\\tuku-thumbrebuild-sQqLlZ\\storage\\missing-53.jpg'
+# [thumb] 生成缩略图失败 55 Input file is missing: C:\\Users\\RUNNER~1\\AppData\\Local\\Temp\\tuku-thumbrebuild-sQqLlZ\\storage\\missing-53.jpg
+# [design-thumb] 容器解析失败，改用扫描 missing-52.jpg ENOENT: no such file or directory, open 'C:\\Users\\RUNNER~1\\AppData\\Local\\Temp\\tuku-thumbrebuild-sQqLlZ\\storage\\missing-52.jpg'
+# [design-thumb] 内嵌预览扫描失败 missing-52.jpg ENOENT: no such file or directory, open 'C:\\Users\\RUNNER~1\\AppData\\Local\\Temp\\tuku-thumbrebuild-sQqLlZ\\storage\\missing-52.jpg'
+# [thumb] 生成缩略图失败 54 Input file is missing: C:\\Users\\RUNNER~1\\AppData\\Local\\Temp\\tuku-thumbrebuild-sQqLlZ\\storage\\missing-52.jpg
+# [design-thumb] 容器解析失败，改用扫描 missing-51.jpg ENOENT: no such file or directory, open 'C:\\Users\\RUNNER~1\\AppData\\Local\\Temp\\tuku-thumbrebuild-sQqLlZ\\storage\\missing-51.jpg'
+# [design-thumb] 内嵌预览扫描失败 missing-51.jpg ENOENT: no such file or directory, open 'C:\\Users\\RUNNER~1\\AppData\\Local\\Temp\\tuku-thumbrebuild-sQqLlZ\\storage\\missing-51.jpg'
+# [thumb] 生成缩略图失败 53 Input file is missing: C:\\Users\\RUNNER~1\\AppData\\Local\\Temp\\tuku-thumbrebuild-sQqLlZ\\storage\\missing-51.jpg
+# [design-thumb] 容器解析失败，改用扫描 missing-50.jpg ENOENT: no such file or directory, open 'C:\\Users\\RUNNER~1\\AppData\\Local\\Temp\\tuku-thumbrebuild-sQqLlZ\\storage\\missing-50.jpg'
+# [design-thumb] 内嵌预览扫描失败 missing-50.jpg ENOENT: no such file or directory, open 'C:\\Users\\RUNNER~1\\AppData\\Local\\Temp\\tuku-thumbrebuild-sQqLlZ\\storage\\missing-50.jpg'
+# [thumb] 生成缩略图失败 52 Input file is missing: C:\\Users\\RUNNER~1\\AppData\\Local\\Temp\\tuku-thumbrebuild-sQqLlZ\\storage\\missing-50.jpg
+# [design-thumb] 容器解析失败，改用扫描 missing-49.jpg ENOENT: no such file or directory, open 'C:\\Users\\RUNNER~1\\AppData\\Local\\Temp\\tuku-thumbrebuild-sQqLlZ\\storage\\missing-49.jpg'
+# [design-thumb] 内嵌预览扫描失败 missing-49.jpg ENOENT: no such file or directory, open 'C:\\Users\\RUNNER~1\\AppData\\Local\\Temp\\tuku-thumbrebuild-sQqLlZ\\storage\\missing-49.jpg'
+# [thumb] 生成缩略图失败 51 Input file is missing: C:\\Users\\RUNNER~1\\AppData\\Local\\Temp\\tuku-thumbrebuild-sQqLlZ\\storage\\missing-49.jpg
+# [design-thumb] 容器解析失败，改用扫描 missing-48.jpg ENOENT: no such file or directory, open 'C:\\Users\\RUNNER~1\\AppData\\Local\\Temp\\tuku-thumbrebuild-sQqLlZ\\storage\\missing-48.jpg'
+# [design-thumb] 内嵌预览扫描失败 missing-48.jpg ENOENT: no such file or directory, open 'C:\\Users\\RUNNER~1\\AppData\\Local\\Temp\\tuku-thumbrebuild-sQqLlZ\\storage\\missing-48.jpg'
+# [thumb] 生成缩略图失败 50 Input file is missing: C:\\Users\\RUNNER~1\\AppData\\Local\\Temp\\tuku-thumbrebuild-sQqLlZ\\storage\\missing-48.jpg
+# [design-thumb] 容器解析失败，改用扫描 missing-47.jpg ENOENT: no such file or directory, open 'C:\\Users\\RUNNER~1\\AppData\\Local\\Temp\\tuku-thumbrebuild-sQqLlZ\\storage\\missing-47.jpg'
+# [design-thumb] 内嵌预览扫描失败 missing-47.jpg ENOENT: no such file or directory, open 'C:\\Users\\RUNNER~1\\AppData\\Local\\Temp\\tuku-thumbrebuild-sQqLlZ\\storage\\missing-47.jpg'
+# [thumb] 生成缩略图失败 49 Input file is missing: C:\\Users\\RUNNER~1\\AppData\\Local\\Temp\\tuku-thumbrebuild-sQqLlZ\\storage\\missing-47.jpg
+# [design-thumb] 容器解析失败，改用扫描 missing-46.jpg ENOENT: no such file or directory, open 'C:\\Users\\RUNNER~1\\AppData\\Local\\Temp\\tuku-thumbrebuild-sQqLlZ\\storage\\missing-46.jpg'
+# [design-thumb] 内嵌预览扫描失败 missing-46.jpg ENOENT: no such file or directory, open 'C:\\Users\\RUNNER~1\\AppData\\Local\\Temp\\tuku-thumbrebuild-sQqLlZ\\storage\\missing-46.jpg'
+# [thumb] 生成缩略图失败 48 Input file is missing: C:\\Users\\RUNNER~1\\AppData\\Local\\Temp\\tuku-thumbrebuild-sQqLlZ\\storage\\missing-46.jpg
+# [design-thumb] 容器解析失败，改用扫描 missing-45.jpg ENOENT: no such file or directory, open 'C:\\Users\\RUNNER~1\\AppData\\Local\\Temp\\tuku-thumbrebuild-sQqLlZ\\storage\\missing-45.jpg'
+# [design-thumb] 内嵌预览扫描失败 missing-45.jpg ENOENT: no such file or directory, open 'C:\\Users\\RUNNER~1\\AppData\\Local\\Temp\\tuku-thumbrebuild-sQqLlZ\\storage\\missing-45.jpg'
+# [thumb] 生成缩略图失败 47 Input file is missing: C:\\Users\\RUNNER~1\\AppData\\Local\\Temp\\tuku-thumbrebuild-sQqLlZ\\storage\\missing-45.jpg
+# [design-thumb] 容器解析失败，改用扫描 missing-44.jpg ENOENT: no such file or directory, open 'C:\\Users\\RUNNER~1\\AppData\\Local\\Temp\\tuku-thumbrebuild-sQqLlZ\\storage\\missing-44.jpg'
+# [design-thumb] 内嵌预览扫描失败 missing-44.jpg ENOENT: no such file or directory, open 'C:\\Users\\RUNNER~1\\AppData\\Local\\Temp\\tuku-thumbrebuild-sQqLlZ\\storage\\missing-44.jpg'
+# [thumb] 生成缩略图失败 46 Input file is missing: C:\\Users\\RUNNER~1\\AppData\\Local\\Temp\\tuku-thumbrebuild-sQqLlZ\\storage\\missing-44.jpg
+# [design-thumb] 容器解析失败，改用扫描 missing-43.jpg ENOENT: no such file or directory, open 'C:\\Users\\RUNNER~1\\AppData\\Local\\Temp\\tuku-thumbrebuild-sQqLlZ\\storage\\missing-43.jpg'
+# [design-thumb] 内嵌预览扫描失败 missing-43.jpg ENOENT: no such file or directory, open 'C:\\Users\\RUNNER~1\\AppData\\Local\\Temp\\tuku-thumbrebuild-sQqLlZ\\storage\\missing-43.jpg'
+# [thumb] 生成缩略图失败 45 Input file is missing: C:\\Users\\RUNNER~1\\AppData\\Local\\Temp\\tuku-thumbrebuild-sQqLlZ\\storage\\missing-43.jpg
+# [design-thumb] 容器解析失败，改用扫描 missing-42.jpg ENOENT: no such file or directory, open 'C:\\Users\\RUNNER~1\\AppData\\Local\\Temp\\tuku-thumbrebuild-sQqLlZ\\storage\\missing-42.jpg'
+# [design-thumb] 内嵌预览扫描失败 missing-42.jpg ENOENT: no such file or directory, open 'C:\\Users\\RUNNER~1\\AppData\\Local\\Temp\\tuku-thumbrebuild-sQqLlZ\\storage\\missing-42.jpg'
+# [thumb] 生成缩略图失败 44 Input file is missing: C:\\Users\\RUNNER~1\\AppData\\Local\\Temp\\tuku-thumbrebuild-sQqLlZ\\storage\\missing-42.jpg
+# [design-thumb] 容器解析失败，改用扫描 missing-41.jpg ENOENT: no such file or directory, open 'C:\\Users\\RUNNER~1\\AppData\\Local\\Temp\\tuku-thumbrebuild-sQqLlZ\\storage\\missing-41.jpg'
+# [design-thumb] 内嵌预览扫描失败 missing-41.jpg ENOENT: no such file or directory, open 'C:\\Users\\RUNNER~1\\AppData\\Local\\Temp\\tuku-thumbrebuild-sQqLlZ\\storage\\missing-41.jpg'
+# [thumb] 生成缩略图失败 43 Input file is missing: C:\\Users\\RUNNER~1\\AppData\\Local\\Temp\\tuku-thumbrebuild-sQqLlZ\\storage\\missing-41.jpg
+# [design-thumb] 容器解析失败，改用扫描 missing-40.jpg ENOENT: no such file or directory, open 'C:\\Users\\RUNNER~1\\AppData\\Local\\Temp\\tuku-thumbrebuild-sQqLlZ\\storage\\missing-40.jpg'
+# [design-thumb] 内嵌预览扫描失败 missing-40.jpg ENOENT: no such file or directory, open 'C:\\Users\\RUNNER~1\\AppData\\Local\\Temp\\tuku-thumbrebuild-sQqLlZ\\storage\\missing-40.jpg'
+# [thumb] 生成缩略图失败 42 Input file is missing: C:\\Users\\RUNNER~1\\AppData\\Local\\Temp\\tuku-thumbrebuild-sQqLlZ\\storage\\missing-40.jpg
+# [design-thumb] 容器解析失败，改用扫描 missing-39.jpg ENOENT: no such file or directory, open 'C:\\Users\\RUNNER~1\\AppData\\Local\\Temp\\tuku-thumbrebuild-sQqLlZ\\storage\\missing-39.jpg'
+# [design-thumb] 内嵌预览扫描失败 missing-39.jpg ENOENT: no such file or directory, open 'C:\\Users\\RUNNER~1\\AppData\\Local\\Temp\\tuku-thumbrebuild-sQqLlZ\\storage\\missing-39.jpg'
+# [thumb] 生成缩略图失败 41 Input file is missing: C:\\Users\\RUNNER~1\\AppData\\Local\\Temp\\tuku-thumbrebuild-sQqLlZ\\storage\\missing-39.jpg
+# [design-thumb] 容器解析失败，改用扫描 missing-38.jpg ENOENT: no such file or directory, open 'C:\\Users\\RUNNER~1\\AppData\\Local\\Temp\\tuku-thumbrebuild-sQqLlZ\\storage\\missing-38.jpg'
+# [design-thumb] 内嵌预览扫描失败 missing-38.jpg ENOENT: no such file or directory, open 'C:\\Users\\RUNNER~1\\AppData\\Local\\Temp\\tuku-thumbrebuild-sQqLlZ\\storage\\missing-38.jpg'
+# [thumb] 生成缩略图失败 40 Input file is missing: C:\\Users\\RUNNER~1\\AppData\\Local\\Temp\\tuku-thumbrebuild-sQqLlZ\\storage\\missing-38.jpg
+# [design-thumb] 容器解析失败，改用扫描 missing-37.jpg ENOENT: no such file or directory, open 'C:\\Users\\RUNNER~1\\AppData\\Local\\Temp\\tuku-thumbrebuild-sQqLlZ\\storage\\missing-37.jpg'
+# [design-thumb] 内嵌预览扫描失败 missing-37.jpg ENOENT: no such file or directory, open 'C:\\Users\\RUNNER~1\\AppData\\Local\\Temp\\tuku-thumbrebuild-sQqLlZ\\storage\\missing-37.jpg'
+# [thumb] 生成缩略图失败 39 Input file is missing: C:\\Users\\RUNNER~1\\AppData\\Local\\Temp\\tuku-thumbrebuild-sQqLlZ\\storage\\missing-37.jpg
+# [design-thumb] 容器解析失败，改用扫描 missing-36.jpg ENOENT: no such file or directory, open 'C:\\Users\\RUNNER~1\\AppData\\Local\\Temp\\tuku-thumbrebuild-sQqLlZ\\storage\\missing-36.jpg'
+# [design-thumb] 内嵌预览扫描失败 missing-36.jpg ENOENT: no such file or directory, open 'C:\\Users\\RUNNER~1\\AppData\\Local\\Temp\\tuku-thumbrebuild-sQqLlZ\\storage\\missing-36.jpg'
+# [thumb] 生成缩略图失败 38 Input file is missing: C:\\Users\\RUNNER~1\\AppData\\Local\\Temp\\tuku-thumbrebuild-sQqLlZ\\storage\\missing-36.jpg
+# [design-thumb] 容器解析失败，改用扫描 missing-35.jpg ENOENT: no such file or directory, open 'C:\\Users\\RUNNER~1\\AppData\\Local\\Temp\\tuku-thumbrebuild-sQqLlZ\\storage\\missing-35.jpg'
+# [design-thumb] 内嵌预览扫描失败 missing-35.jpg ENOENT: no such file or directory, open 'C:\\Users\\RUNNER~1\\AppData\\Local\\Temp\\tuku-thumbrebuild-sQqLlZ\\storage\\missing-35.jpg'
+# [thumb] 生成缩略图失败 37 Input file is missing: C:\\Users\\RUNNER~1\\AppData\\Local\\Temp\\tuku-thumbrebuild-sQqLlZ\\storage\\missing-35.jpg
+# [design-thumb] 容器解析失败，改用扫描 missing-34.jpg ENOENT: no such file or directory, open 'C:\\Users\\RUNNER~1\\AppData\\Local\\Temp\\tuku-thumbrebuild-sQqLlZ\\storage\\missing-34.jpg'
+# [design-thumb] 内嵌预览扫描失败 missing-34.jpg ENOENT: no such file or directory, open 'C:\\Users\\RUNNER~1\\AppData\\Local\\Temp\\tuku-thumbrebuild-sQqLlZ\\storage\\missing-34.jpg'
+# [thumb] 生成缩略图失败 36 Input file is missing: C:\\Users\\RUNNER~1\\AppData\\Local\\Temp\\tuku-thumbrebuild-sQqLlZ\\storage\\missing-34.jpg
+# [design-thumb] 容器解析失败，改用扫描 missing-33.jpg ENOENT: no such file or directory, open 'C:\\Users\\RUNNER~1\\AppData\\Local\\Temp\\tuku-thumbrebuild-sQqLlZ\\storage\\missing-33.jpg'
+# [design-thumb] 内嵌预览扫描失败 missing-33.jpg ENOENT: no such file or directory, open 'C:\\Users\\RUNNER~1\\AppData\\Local\\Temp\\tuku-thumbrebuild-sQqLlZ\\storage\\missing-33.jpg'
+# [thumb] 生成缩略图失败 35 Input file is missing: C:\\Users\\RUNNER~1\\AppData\\Local\\Temp\\tuku-thumbrebuild-sQqLlZ\\storage\\missing-33.jpg
+# [design-thumb] 容器解析失败，改用扫描 missing-32.jpg ENOENT: no such file or directory, open 'C:\\Users\\RUNNER~1\\AppData\\Local\\Temp\\tuku-thumbrebuild-sQqLlZ\\storage\\missing-32.jpg'
+# [design-thumb] 内嵌预览扫描失败 missing-32.jpg ENOENT: no such file or directory, open 'C:\\Users\\RUNNER~1\\AppData\\Local\\Temp\\tuku-thumbrebuild-sQqLlZ\\storage\\missing-32.jpg'
+# [thumb] 生成缩略图失败 34 Input file is missing: C:\\Users\\RUNNER~1\\AppData\\Local\\Temp\\tuku-thumbrebuild-sQqLlZ\\storage\\missing-32.jpg
+# [design-thumb] 容器解析失败，改用扫描 missing-31.jpg ENOENT: no such file or directory, open 'C:\\Users\\RUNNER~1\\AppData\\Local\\Temp\\tuku-thumbrebuild-sQqLlZ\\storage\\missing-31.jpg'
+# [design-thumb] 内嵌预览扫描失败 missing-31.jpg ENOENT: no such file or directory, open 'C:\\Users\\RUNNER~1\\AppData\\Local\\Temp\\tuku-thumbrebuild-sQqLlZ\\storage\\missing-31.jpg'
+# [thumb] 生成缩略图失败 33 Input file is missing: C:\\Users\\RUNNER~1\\AppData\\Local\\Temp\\tuku-thumbrebuild-sQqLlZ\\storage\\missing-31.jpg
+# [design-thumb] 容器解析失败，改用扫描 missing-30.jpg ENOENT: no such file or directory, open 'C:\\Users\\RUNNER~1\\AppData\\Local\\Temp\\tuku-thumbrebuild-sQqLlZ\\storage\\missing-30.jpg'
+# [design-thumb] 内嵌预览扫描失败 missing-30.jpg ENOENT: no such file or directory, open 'C:\\Users\\RUNNER~1\\AppData\\Local\\Temp\\tuku-thumbrebuild-sQqLlZ\\storage\\missing-30.jpg'
+# [thumb] 生成缩略图失败 32 Input file is missing: C:\\Users\\RUNNER~1\\AppData\\Local\\Temp\\tuku-thumbrebuild-sQqLlZ\\storage\\missing-30.jpg
+# [design-thumb] 容器解析失败，改用扫描 missing-29.jpg ENOENT: no such file or directory, open 'C:\\Users\\RUNNER~1\\AppData\\Local\\Temp\\tuku-thumbrebuild-sQqLlZ\\storage\\missing-29.jpg'
+# [design-thumb] 内嵌预览扫描失败 missing-29.jpg ENOENT: no such file or directory, open 'C:\\Users\\RUNNER~1\\AppData\\Local\\Temp\\tuku-thumbrebuild-sQqLlZ\\storage\\missing-29.jpg'
+# [thumb] 生成缩略图失败 31 Input file is missing: C:\\Users\\RUNNER~1\\AppData\\Local\\Temp\\tuku-thumbrebuild-sQqLlZ\\storage\\missing-29.jpg
+# [design-thumb] 容器解析失败，改用扫描 missing-28.jpg ENOENT: no such file or directory, open 'C:\\Users\\RUNNER~1\\AppData\\Local\\Temp\\tuku-thumbrebuild-sQqLlZ\\storage\\missing-28.jpg'
+# [design-thumb] 内嵌预览扫描失败 missing-28.jpg ENOENT: no such file or directory, open 'C:\\Users\\RUNNER~1\\AppData\\Local\\Temp\\tuku-thumbrebuild-sQqLlZ\\storage\\missing-28.jpg'
+# [thumb] 生成缩略图失败 30 Input file is missing: C:\\Users\\RUNNER~1\\AppData\\Local\\Temp\\tuku-thumbrebuild-sQqLlZ\\storage\\missing-28.jpg
+# [design-thumb] 容器解析失败，改用扫描 missing-27.jpg ENOENT: no such file or directory, open 'C:\\Users\\RUNNER~1\\AppData\\Local\\Temp\\tuku-thumbrebuild-sQqLlZ\\storage\\missing-27.jpg'
+# [design-thumb] 内嵌预览扫描失败 missing-27.jpg ENOENT: no such file or directory, open 'C:\\Users\\RUNNER~1\\AppData\\Local\\Temp\\tuku-thumbrebuild-sQqLlZ\\storage\\missing-27.jpg'
+# [thumb] 生成缩略图失败 29 Input file is missing: C:\\Users\\RUNNER~1\\AppData\\Local\\Temp\\tuku-thumbrebuild-sQqLlZ\\storage\\missing-27.jpg
+# [design-thumb] 容器解析失败，改用扫描 missing-26.jpg ENOENT: no such file or directory, open 'C:\\Users\\RUNNER~1\\AppData\\Local\\Temp\\tuku-thumbrebuild-sQqLlZ\\storage\\missing-26.jpg'
+# [design-thumb] 内嵌预览扫描失败 missing-26.jpg ENOENT: no such file or directory, open 'C:\\Users\\RUNNER~1\\AppData\\Local\\Temp\\tuku-thumbrebuild-sQqLlZ\\storage\\missing-26.jpg'
+# [thumb] 生成缩略图失败 28 Input file is missing: C:\\Users\\RUNNER~1\\AppData\\Local\\Temp\\tuku-thumbrebuild-sQqLlZ\\storage\\missing-26.jpg
+# [design-thumb] 容器解析失败，改用扫描 missing-25.jpg ENOENT: no such file or directory, open 'C:\\Users\\RUNNER~1\\AppData\\Local\\Temp\\tuku-thumbrebuild-sQqLlZ\\storage\\missing-25.jpg'
+# [design-thumb] 内嵌预览扫描失败 missing-25.jpg ENOENT: no such file or directory, open 'C:\\Users\\RUNNER~1\\AppData\\Local\\Temp\\tuku-thumbrebuild-sQqLlZ\\storage\\missing-25.jpg'
+# [thumb] 生成缩略图失败 27 Input file is missing: C:\\Users\\RUNNER~1\\AppData\\Local\\Temp\\tuku-thumbrebuild-sQqLlZ\\storage\\missing-25.jpg
+# [design-thumb] 容器解析失败，改用扫描 missing-24.jpg ENOENT: no such file or directory, open 'C:\\Users\\RUNNER~1\\AppData\\Local\\Temp\\tuku-thumbrebuild-sQqLlZ\\storage\\missing-24.jpg'
+# [design-thumb] 内嵌预览扫描失败 missing-24.jpg ENOENT: no such file or directory, open 'C:\\Users\\RUNNER~1\\AppData\\Local\\Temp\\tuku-thumbrebuild-sQqLlZ\\storage\\missing-24.jpg'
+# [thumb] 生成缩略图失败 26 Input file is missing: C:\\Users\\RUNNER~1\\AppData\\Local\\Temp\\tuku-thumbrebuild-sQqLlZ\\storage\\missing-24.jpg
+# [design-thumb] 容器解析失败，改用扫描 missing-23.jpg ENOENT: no such file or directory, open 'C:\\Users\\RUNNER~1\\AppData\\Local\\Temp\\tuku-thumbrebuild-sQqLlZ\\storage\\missing-23.jpg'
+# [design-thumb] 内嵌预览扫描失败 missing-23.jpg ENOENT: no such file or directory, open 'C:\\Users\\RUNNER~1\\AppData\\Local\\Temp\\tuku-thumbrebuild-sQqLlZ\\storage\\missing-23.jpg'
+# [thumb] 生成缩略图失败 25 Input file is missing: C:\\Users\\RUNNER~1\\AppData\\Local\\Temp\\tuku-thumbrebuild-sQqLlZ\\storage\\missing-23.jpg
+# [design-thumb] 容器解析失败，改用扫描 missing-22.jpg ENOENT: no such file or directory, open 'C:\\Users\\RUNNER~1\\AppData\\Local\\Temp\\tuku-thumbrebuild-sQqLlZ\\storage\\missing-22.jpg'
+# [design-thumb] 内嵌预览扫描失败 missing-22.jpg ENOENT: no such file or directory, open 'C:\\Users\\RUNNER~1\\AppData\\Local\\Temp\\tuku-thumbrebuild-sQqLlZ\\storage\\missing-22.jpg'
+# [thumb] 生成缩略图失败 24 Input file is missing: C:\\Users\\RUNNER~1\\AppData\\Local\\Temp\\tuku-thumbrebuild-sQqLlZ\\storage\\missing-22.jpg
+# [design-thumb] 容器解析失败，改用扫描 missing-21.jpg ENOENT: no such file or directory, open 'C:\\Users\\RUNNER~1\\AppData\\Local\\Temp\\tuku-thumbrebuild-sQqLlZ\\storage\\missing-21.jpg'
+# [design-thumb] 内嵌预览扫描失败 missing-21.jpg ENOENT: no such file or directory, open 'C:\\Users\\RUNNER~1\\AppData\\Local\\Temp\\tuku-thumbrebuild-sQqLlZ\\storage\\missing-21.jpg'
+# [thumb] 生成缩略图失败 23 Input file is missing: C:\\Users\\RUNNER~1\\AppData\\Local\\Temp\\tuku-thumbrebuild-sQqLlZ\\storage\\missing-21.jpg
+# [design-thumb] 容器解析失败，改用扫描 missing-20.jpg ENOENT: no such file or directory, open 'C:\\Users\\RUNNER~1\\AppData\\Local\\Temp\\tuku-thumbrebuild-sQqLlZ\\storage\\missing-20.jpg'
+# [design-thumb] 内嵌预览扫描失败 missing-20.jpg ENOENT: no such file or directory, open 'C:\\Users\\RUNNER~1\\AppData\\Local\\Temp\\tuku-thumbrebuild-sQqLlZ\\storage\\missing-20.jpg'
+# [thumb] 生成缩略图失败 22 Input file is missing: C:\\Users\\RUNNER~1\\AppData\\Local\\Temp\\tuku-thumbrebuild-sQqLlZ\\storage\\missing-20.jpg
+# [design-thumb] 容器解析失败，改用扫描 missing-19.jpg ENOENT: no such file or directory, open 'C:\\Users\\RUNNER~1\\AppData\\Local\\Temp\\tuku-thumbrebuild-sQqLlZ\\storage\\missing-19.jpg'
+# [design-thumb] 内嵌预览扫描失败 missing-19.jpg ENOENT: no such file or directory, open 'C:\\Users\\RUNNER~1\\AppData\\Local\\Temp\\tuku-thumbrebuild-sQqLlZ\\storage\\missing-19.jpg'
+# [thumb] 生成缩略图失败 21 Input file is missing: C:\\Users\\RUNNER~1\\AppData\\Local\\Temp\\tuku-thumbrebuild-sQqLlZ\\storage\\missing-19.jpg
+# [design-thumb] 容器解析失败，改用扫描 missing-18.jpg ENOENT: no such file or directory, open 'C:\\Users\\RUNNER~1\\AppData\\Local\\Temp\\tuku-thumbrebuild-sQqLlZ\\storage\\missing-18.jpg'
+# [design-thumb] 内嵌预览扫描失败 missing-18.jpg ENOENT: no such file or directory, open 'C:\\Users\\RUNNER~1\\AppData\\Local\\Temp\\tuku-thumbrebuild-sQqLlZ\\storage\\missing-18.jpg'
+# [thumb] 生成缩略图失败 20 Input file is missing: C:\\Users\\RUNNER~1\\AppData\\Local\\Temp\\tuku-thumbrebuild-sQqLlZ\\storage\\missing-18.jpg
+# [design-thumb] 容器解析失败，改用扫描 missing-17.jpg ENOENT: no such file or directory, open 'C:\\Users\\RUNNER~1\\AppData\\Local\\Temp\\tuku-thumbrebuild-sQqLlZ\\storage\\missing-17.jpg'
+# [design-thumb] 内嵌预览扫描失败 missing-17.jpg ENOENT: no such file or directory, open 'C:\\Users\\RUNNER~1\\AppData\\Local\\Temp\\tuku-thumbrebuild-sQqLlZ\\storage\\missing-17.jpg'
+# [thumb] 生成缩略图失败 19 Input file is missing: C:\\Users\\RUNNER~1\\AppData\\Local\\Temp\\tuku-thumbrebuild-sQqLlZ\\storage\\missing-17.jpg
+# [design-thumb] 容器解析失败，改用扫描 missing-16.jpg ENOENT: no such file or directory, open 'C:\\Users\\RUNNER~1\\AppData\\Local\\Temp\\tuku-thumbrebuild-sQqLlZ\\storage\\missing-16.jpg'
+# [design-thumb] 内嵌预览扫描失败 missing-16.jpg ENOENT: no such file or directory, open 'C:\\Users\\RUNNER~1\\AppData\\Local\\Temp\\tuku-thumbrebuild-sQqLlZ\\storage\\missing-16.jpg'
+# [thumb] 生成缩略图失败 18 Input file is missing: C:\\Users\\RUNNER~1\\AppData\\Local\\Temp\\tuku-thumbrebuild-sQqLlZ\\storage\\missing-16.jpg
+# [design-thumb] 容器解析失败，改用扫描 missing-15.jpg ENOENT: no such file or directory, open 'C:\\Users\\RUNNER~1\\AppData\\Local\\Temp\\tuku-thumbrebuild-sQqLlZ\\storage\\missing-15.jpg'
+# [design-thumb] 内嵌预览扫描失败 missing-15.jpg ENOENT: no such file or directory, open 'C:\\Users\\RUNNER~1\\AppData\\Local\\Temp\\tuku-thumbrebuild-sQqLlZ\\storage\\missing-15.jpg'
+# [thumb] 生成缩略图失败 17 Input file is missing: C:\\Users\\RUNNER~1\\AppData\\Local\\Temp\\tuku-thumbrebuild-sQqLlZ\\storage\\missing-15.jpg
+# [design-thumb] 容器解析失败，改用扫描 missing-14.jpg ENOENT: no such file or directory, open 'C:\\Users\\RUNNER~1\\AppData\\Local\\Temp\\tuku-thumbrebuild-sQqLlZ\\storage\\missing-14.jpg'
+# [design-thumb] 内嵌预览扫描失败 missing-14.jpg ENOENT: no such file or directory, open 'C:\\Users\\RUNNER~1\\AppData\\Local\\Temp\\tuku-thumbrebuild-sQqLlZ\\storage\\missing-14.jpg'
+# [thumb] 生成缩略图失败 16 Input file is missing: C:\\Users\\RUNNER~1\\AppData\\Local\\Temp\\tuku-thumbrebuild-sQqLlZ\\storage\\missing-14.jpg
+# [design-thumb] 容器解析失败，改用扫描 missing-13.jpg ENOENT: no such file or directory, open 'C:\\Users\\RUNNER~1\\AppData\\Local\\Temp\\tuku-thumbrebuild-sQqLlZ\\storage\\missing-13.jpg'
+# [design-thumb] 内嵌预览扫描失败 missing-13.jpg ENOENT: no such file or directory, open 'C:\\Users\\RUNNER~1\\AppData\\Local\\Temp\\tuku-thumbrebuild-sQqLlZ\\storage\\missing-13.jpg'
+# [thumb] 生成缩略图失败 15 Input file is missing: C:\\Users\\RUNNER~1\\AppData\\Local\\Temp\\tuku-thumbrebuild-sQqLlZ\\storage\\missing-13.jpg
+# [design-thumb] 容器解析失败，改用扫描 missing-12.jpg ENOENT: no such file or directory, open 'C:\\Users\\RUNNER~1\\AppData\\Local\\Temp\\tuku-thumbrebuild-sQqLlZ\\storage\\missing-12.jpg'
+# [design-thumb] 内嵌预览扫描失败 missing-12.jpg ENOENT: no such file or directory, open 'C:\\Users\\RUNNER~1\\AppData\\Local\\Temp\\tuku-thumbrebuild-sQqLlZ\\storage\\missing-12.jpg'
+# [thumb] 生成缩略图失败 14 Input file is missing: C:\\Users\\RUNNER~1\\AppData\\Local\\Temp\\tuku-thumbrebuild-sQqLlZ\\storage\\missing-12.jpg
+# [design-thumb] 容器解析失败，改用扫描 missing-11.jpg ENOENT: no such file or directory, open 'C:\\Users\\RUNNER~1\\AppData\\Local\\Temp\\tuku-thumbrebuild-sQqLlZ\\storage\\missing-11.jpg'
+# [design-thumb] 内嵌预览扫描失败 missing-11.jpg ENOENT: no such file or directory, open 'C:\\Users\\RUNNER~1\\AppData\\Local\\Temp\\tuku-thumbrebuild-sQqLlZ\\storage\\missing-11.jpg'
+# [thumb] 生成缩略图失败 13 Input file is missing: C:\\Users\\RUNNER~1\\AppData\\Local\\Temp\\tuku-thumbrebuild-sQqLlZ\\storage\\missing-11.jpg
+# [design-thumb] 容器解析失败，改用扫描 missing-10.jpg ENOENT: no such file or directory, open 'C:\\Users\\RUNNER~1\\AppData\\Local\\Temp\\tuku-thumbrebuild-sQqLlZ\\storage\\missing-10.jpg'
+# [design-thumb] 内嵌预览扫描失败 missing-10.jpg ENOENT: no such file or directory, open 'C:\\Users\\RUNNER~1\\AppData\\Local\\Temp\\tuku-thumbrebuild-sQqLlZ\\storage\\missing-10.jpg'
+# [thumb] 生成缩略图失败 12 Input file is missing: C:\\Users\\RUNNER~1\\AppData\\Local\\Temp\\tuku-thumbrebuild-sQqLlZ\\storage\\missing-10.jpg
+# [design-thumb] 容器解析失败，改用扫描 missing-9.jpg ENOENT: no such file or directory, open 'C:\\Users\\RUNNER~1\\AppData\\Local\\Temp\\tuku-thumbrebuild-sQqLlZ\\storage\\missing-9.jpg'
+# [design-thumb] 内嵌预览扫描失败 missing-9.jpg ENOENT: no such file or directory, open 'C:\\Users\\RUNNER~1\\AppData\\Local\\Temp\\tuku-thumbrebuild-sQqLlZ\\storage\\missing-9.jpg'
+# [thumb] 生成缩略图失败 11 Input file is missing: C:\\Users\\RUNNER~1\\AppData\\Local\\Temp\\tuku-thumbrebuild-sQqLlZ\\storage\\missing-9.jpg
+# [design-thumb] 容器解析失败，改用扫描 missing-8.jpg ENOENT: no such file or directory, open 'C:\\Users\\RUNNER~1\\AppData\\Local\\Temp\\tuku-thumbrebuild-sQqLlZ\\storage\\missing-8.jpg'
+# [design-thumb] 内嵌预览扫描失败 missing-8.jpg ENOENT: no such file or directory, open 'C:\\Users\\RUNNER~1\\AppData\\Local\\Temp\\tuku-thumbrebuild-sQqLlZ\\storage\\missing-8.jpg'
+# [thumb] 生成缩略图失败 10 Input file is missing: C:\\Users\\RUNNER~1\\AppData\\Local\\Temp\\tuku-thumbrebuild-sQqLlZ\\storage\\missing-8.jpg
+# [design-thumb] 容器解析失败，改用扫描 missing-7.jpg ENOENT: no such file or directory, open 'C:\\Users\\RUNNER~1\\AppData\\Local\\Temp\\tuku-thumbrebuild-sQqLlZ\\storage\\missing-7.jpg'
+# [design-thumb] 内嵌预览扫描失败 missing-7.jpg ENOENT: no such file or directory, open 'C:\\Users\\RUNNER~1\\AppData\\Local\\Temp\\tuku-thumbrebuild-sQqLlZ\\storage\\missing-7.jpg'
+# [thumb] 生成缩略图失败 9 Input file is missing: C:\\Users\\RUNNER~1\\AppData\\Local\\Temp\\tuku-thumbrebuild-sQqLlZ\\storage\\missing-7.jpg
+# [design-thumb] 容器解析失败，改用扫描 missing-6.jpg ENOENT: no such file or directory, open 'C:\\Users\\RUNNER~1\\AppData\\Local\\Temp\\tuku-thumbrebuild-sQqLlZ\\storage\\missing-6.jpg'
+# [design-thumb] 内嵌预览扫描失败 missing-6.jpg ENOENT: no such file or directory, open 'C:\\Users\\RUNNER~1\\AppData\\Local\\Temp\\tuku-thumbrebuild-sQqLlZ\\storage\\missing-6.jpg'
+# [thumb] 生成缩略图失败 8 Input file is missing: C:\\Users\\RUNNER~1\\AppData\\Local\\Temp\\tuku-thumbrebuild-sQqLlZ\\storage\\missing-6.jpg
+# [design-thumb] 容器解析失败，改用扫描 missing-5.jpg ENOENT: no such file or directory, open 'C:\\Users\\RUNNER~1\\AppData\\Local\\Temp\\tuku-thumbrebuild-sQqLlZ\\storage\\missing-5.jpg'
+# [design-thumb] 内嵌预览扫描失败 missing-5.jpg ENOENT: no such file or directory, open 'C:\\Users\\RUNNER~1\\AppData\\Local\\Temp\\tuku-thumbrebuild-sQqLlZ\\storage\\missing-5.jpg'
+# [thumb] 生成缩略图失败 7 Input file is missing: C:\\Users\\RUNNER~1\\AppData\\Local\\Temp\\tuku-thumbrebuild-sQqLlZ\\storage\\missing-5.jpg
+# [design-thumb] 容器解析失败，改用扫描 missing-4.jpg ENOENT: no such file or directory, open 'C:\\Users\\RUNNER~1\\AppData\\Local\\Temp\\tuku-thumbrebuild-sQqLlZ\\storage\\missing-4.jpg'
+# [design-thumb] 内嵌预览扫描失败 missing-4.jpg ENOENT: no such file or directory, open 'C:\\Users\\RUNNER~1\\AppData\\Local\\Temp\\tuku-thumbrebuild-sQqLlZ\\storage\\missing-4.jpg'
+# [thumb] 生成缩略图失败 6 Input file is missing: C:\\Users\\RUNNER~1\\AppData\\Local\\Temp\\tuku-thumbrebuild-sQqLlZ\\storage\\missing-4.jpg
+# [design-thumb] 容器解析失败，改用扫描 missing-3.jpg ENOENT: no such file or directory, open 'C:\\Users\\RUNNER~1\\AppData\\Local\\Temp\\tuku-thumbrebuild-sQqLlZ\\storage\\missing-3.jpg'
+# [design-thumb] 内嵌预览扫描失败 missing-3.jpg ENOENT: no such file or directory, open 'C:\\Users\\RUNNER~1\\AppData\\Local\\Temp\\tuku-thumbrebuild-sQqLlZ\\storage\\missing-3.jpg'
+# [thumb] 生成缩略图失败 5 Input file is missing: C:\\Users\\RUNNER~1\\AppData\\Local\\Temp\\tuku-thumbrebuild-sQqLlZ\\storage\\missing-3.jpg
+# [design-thumb] 容器解析失败，改用扫描 missing-2.jpg ENOENT: no such file or directory, open 'C:\\Users\\RUNNER~1\\AppData\\Local\\Temp\\tuku-thumbrebuild-sQqLlZ\\storage\\missing-2.jpg'
+# [design-thumb] 内嵌预览扫描失败 missing-2.jpg ENOENT: no such file or directory, open 'C:\\Users\\RUNNER~1\\AppData\\Local\\Temp\\tuku-thumbrebuild-sQqLlZ\\storage\\missing-2.jpg'
+# [thumb] 生成缩略图失败 4 Input file is missing: C:\\Users\\RUNNER~1\\AppData\\Local\\Temp\\tuku-thumbrebuild-sQqLlZ\\storage\\missing-2.jpg
+# [design-thumb] 容器解析失败，改用扫描 missing-1.jpg ENOENT: no such file or directory, open 'C:\\Users\\RUNNER~1\\AppData\\Local\\Temp\\tuku-thumbrebuild-sQqLlZ\\storage\\missing-1.jpg'
+# [design-thumb] 内嵌预览扫描失败 missing-1.jpg ENOENT: no such file or directory, open 'C:\\Users\\RUNNER~1\\AppData\\Local\\Temp\\tuku-thumbrebuild-sQqLlZ\\storage\\missing-1.jpg'
+# [thumb] 生成缩略图失败 3 Input file is missing: C:\\Users\\RUNNER~1\\AppData\\Local\\Temp\\tuku-thumbrebuild-sQqLlZ\\storage\\missing-1.jpg
+# [design-thumb] 容器解析失败，改用扫描 missing-0.jpg ENOENT: no such file or directory, open 'C:\\Users\\RUNNER~1\\AppData\\Local\\Temp\\tuku-thumbrebuild-sQqLlZ\\storage\\missing-0.jpg'
+# [design-thumb] 内嵌预览扫描失败 missing-0.jpg ENOENT: no such file or directory, open 'C:\\Users\\RUNNER~1\\AppData\\Local\\Temp\\tuku-thumbrebuild-sQqLlZ\\storage\\missing-0.jpg'
+# [thumb] 生成缩略图失败 2 Input file is missing: C:\\Users\\RUNNER~1\\AppData\\Local\\Temp\\tuku-thumbrebuild-sQqLlZ\\storage\\missing-0.jpg
+# Subtest: 补缩略图：坏行之后的图也要被补到（游标必须往前推）
+ok 466 - 补缩略图：坏行之后的图也要被补到（游标必须往前推）
+  ---
+  duration_ms: 638.9022
+  type: 'test'
+  ...
+# Subtest: 五档预设：小/中小/中/中大/大，宽度递增且唯一
+not ok 467 - 五档预设：小/中小/中/中大/大，宽度递增且唯一
+  ---
+  duration_ms: 3.0607
+  type: 'test'
+  location: 'D:\\a\\gallery\\gallery\\test\\thumb-size.test.mjs:9:1'
+  failureType: 'testCodeFailure'
+  error: |-
+    Expected values to be strictly deep-equal:
+    + actual - expected
+    
+      [
+    +   'Small',
+    +   'Small–medium',
+    +   'Medium',
+    +   'Medium–large',
+    +   'Large'
+    -   '小',
+    -   '中小',
+    -   '中',
+    -   '中大',
+    -   '大'
+      ]
+    
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  expected:
+    0: '小'
+    1: '中小'
+    2: '中'
+    3: '中大'
+    4: '大'
+  actual:
+    0: 'Small'
+    1: 'Small–medium'
+    2: 'Medium'
+    3: 'Medium–large'
+    4: 'Large'
+  operator: 'deepStrictEqual'
+  stack: |-
+    TestContext.<anonymous> (file:///D:/a/gallery/gallery/test/thumb-size.test.mjs:10:10)
+    Test.runInAsyncScope (node:async_hooks:214:14)
+    Test.run (node:internal/test_runner/test:1047:25)
+    Test.start (node:internal/test_runner/test:944:17)
+    startSubtestAfterBootstrap (node:internal/test_runner/harness:296:17)
+  ...
+# Subtest: 默认值 = 中小档（老版默认 250 不能被改掉）
+not ok 468 - 默认值 = 中小档（老版默认 250 不能被改掉）
+  ---
+  duration_ms: 0.5888
+  type: 'test'
+  location: 'D:\\a\\gallery\\gallery\\test\\thumb-size.test.mjs:22:1'
+  failureType: 'testCodeFailure'
+  error: |-
+    Expected values to be strictly equal:
+    + actual - expected
+    
+    + 'Small–medium'
+    - '中小'
+    
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  expected: '中小'
+  actual: 'Small–medium'
+  operator: 'strictEqual'
+  stack: |-
+    TestContext.<anonymous> (file:///D:/a/gallery/gallery/test/thumb-size.test.mjs:24:10)
+    Test.runInAsyncScope (node:async_hooks:214:14)
+    Test.run (node:internal/test_runner/test:1047:25)
+    Test.processPendingSubtests (node:internal/test_runner/test:744:18)
+    Test.postRun (node:internal/test_runner/test:1173:19)
+    Test.run (node:internal/test_runner/test:1101:12)
+    async startSubtestAfterBootstrap (node:internal/test_runner/harness:296:3)
+  ...
+# Subtest: clampThumbWidth：越界收边、脏值回落默认
+ok 469 - clampThumbWidth：越界收边、脏值回落默认
+  ---
+  duration_ms: 0.2383
+  type: 'test'
+  ...
+# Subtest: thumbPresetOf：滑块拖到档位附近仍算该档，偏远则无档位
+not ok 470 - thumbPresetOf：滑块拖到档位附近仍算该档，偏远则无档位
+  ---
+  duration_ms: 0.2369
+  type: 'test'
+  location: 'D:\\a\\gallery\\gallery\\test\\thumb-size.test.mjs:34:1'
+  failureType: 'testCodeFailure'
+  error: |-
+    Expected values to be strictly equal:
+    + actual - expected
+    
+    + 'Small–medium'
+    - '中小'
+    
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  expected: '中小'
+  actual: 'Small–medium'
+  operator: 'strictEqual'
+  stack: |-
+    TestContext.<anonymous> (file:///D:/a/gallery/gallery/test/thumb-size.test.mjs:35:10)
+    Test.runInAsyncScope (node:async_hooks:214:14)
+    Test.run (node:internal/test_runner/test:1047:25)
+    Test.processPendingSubtests (node:internal/test_runner/test:744:18)
+    Test.postRun (node:internal/test_runner/test:1173:19)
+    Test.run (node:internal/test_runner/test:1101:12)
+    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+  ...
+# Subtest: isCacheFresh：早于源文件的缓存一律不算命中
+ok 471 - isCacheFresh：早于源文件的缓存一律不算命中
+  ---
+  duration_ms: 2.0961
+  type: 'test'
+  ...
+# Subtest: isCacheFresh：空文件 / 不存在都不算命中
+ok 472 - isCacheFresh：空文件 / 不存在都不算命中
+  ---
+  duration_ms: 2.6044
+  type: 'test'
+  ...
+# Subtest: existingThumbPath：旧 id 残留的缩略图不会被认领
+ok 473 - existingThumbPath：旧 id 残留的缩略图不会被认领
+  ---
+  duration_ms: 1.8066
+  type: 'test'
+  ...
+# Subtest: existingThumbPath：旧平铺目录仍然兼容，但同样要比 mtime
+ok 474 - existingThumbPath：旧平铺目录仍然兼容，但同样要比 mtime
+  ---
+  duration_ms: 1.6084
+  type: 'test'
+  ...
+# Subtest: existingThumbPath：桶内优先于旧平铺
+ok 475 - existingThumbPath：桶内优先于旧平铺
+  ---
+  duration_ms: 2.1203
+  type: 'test'
+  ...
+# Subtest: existingPreviewPath：灯箱预览图同样按 mtime 判定
+ok 476 - existingPreviewPath：灯箱预览图同样按 mtime 判定
+  ---
+  duration_ms: 2.4992
+  type: 'test'
+  ...
+# Subtest: mtimeOf：取不到返回 0
+ok 477 - mtimeOf：取不到返回 0
+  ---
+  duration_ms: 0.3638
+  type: 'test'
+  ...
+# Subtest: EXIF 拍摄时间优先于文件时间
+ok 478 - EXIF 拍摄时间优先于文件时间
+  ---
+  duration_ms: 1.4049
+  type: 'test'
+  ...
+# Subtest: EXIF 脏值（相机重置的 2000 年）不吞掉真实文件时间
+ok 479 - EXIF 脏值（相机重置的 2000 年）不吞掉真实文件时间
+  ---
+  duration_ms: 0.3524
+  type: 'test'
+  ...
+# Subtest: 没有 EXIF 时用文件修改 / 创建时间里较早的那个
+ok 480 - 没有 EXIF 时用文件修改 / 创建时间里较早的那个
+  ---
+  duration_ms: 0.201
+  type: 'test'
+  ...
+# Subtest: 取不到任何时间就返回空串 —— 不再拿「现在」冒充拍摄时间
+ok 481 - 取不到任何时间就返回空串 —— 不再拿「现在」冒充拍摄时间
+  ---
+  duration_ms: 0.1349
+  type: 'test'
+  ...
+# Subtest: 时间串能直接切年月
+ok 482 - 时间串能直接切年月
+  ---
+  duration_ms: 0.2309
+  type: 'test'
+  ...
+# Subtest: 修复：UTC 口径的入库时间 → 文件修改时间
+ok 483 - 修复：UTC 口径的入库时间 → 文件修改时间
+  ---
+  duration_ms: 55.5664
+  type: 'test'
+  ...
+# Subtest: 修复：本地口径的入库时间（旧兜底逻辑写的是本地时钟）也要认出来
+ok 484 - 修复：本地口径的入库时间（旧兜底逻辑写的是本地时钟）也要认出来
+  ---
+  duration_ms: 89.2125
+  type: 'test'
+  ...
+# Subtest: 修复：真实的 EXIF 时间不动
+ok 485 - 修复：真实的 EXIF 时间不动
+  ---
+  duration_ms: 37.2165
+  type: 'test'
+  ...
+# Subtest: 修复：连文件指纹都没有的行退回「未排入」，不再写入库时间
+ok 486 - 修复：连文件指纹都没有的行退回「未排入」，不再写入库时间
+  ---
+  duration_ms: 92.075
+  type: 'test'
+  ...
+# Subtest: 修复可重复执行（幂等）
+ok 487 - 修复可重复执行（幂等）
+  ---
+  duration_ms: 53.9822
+  type: 'test'
+  ...
+# Subtest: 库结构不全时安静跳过，不抛异常
+ok 488 - 库结构不全时安静跳过，不抛异常
+  ---
+  duration_ms: 1.0109
+  type: 'test'
+  ...
+# Subtest: nextMonth 普通月份
+ok 489 - nextMonth 普通月份
+  ---
+  duration_ms: 1.1148
+  type: 'test'
+  ...
+# Subtest: nextMonth 十二月跨年
+ok 490 - nextMonth 十二月跨年
+  ---
+  duration_ms: 0.1524
+  type: 'test'
+  ...
+# Subtest: nextDay 月内
+ok 491 - nextDay 月内
+  ---
+  duration_ms: 0.7931
+  type: 'test'
+  ...
+# Subtest: nextDay 月末跨月
+ok 492 - nextDay 月末跨月
+  ---
+  duration_ms: 0.2063
+  type: 'test'
+  ...
+# Subtest: nextDay 年末跨年
+ok 493 - nextDay 年末跨年
+  ---
+  duration_ms: 0.1462
+  type: 'test'
+  ...
+# Subtest: nextDay 闰年 2 月
+ok 494 - nextDay 闰年 2 月
+  ---
+  duration_ms: 0.137
+  type: 'test'
+  ...
+# Subtest: 区间上界必须严格大于下界（否则当天/当月最后一张会被排除）
+ok 495 - 区间上界必须严格大于下界（否则当天/当月最后一张会被排除）
+  ---
+  duration_ms: 0.2885
+  type: 'test'
+  ...
+# Subtest: curveFn：无控制点时是恒等映射
+ok 496 - curveFn：无控制点时是恒等映射
+  ---
+  duration_ms: 1.5208
+  type: 'test'
+  ...
+# Subtest: curveFn：恒等控制点保持恒等
+ok 497 - curveFn：恒等控制点保持恒等
+  ---
+  duration_ms: 0.266
+  type: 'test'
+  ...
+# Subtest: curveFn：提亮曲线在中间调上调且两端固定
+ok 498 - curveFn：提亮曲线在中间调上调且两端固定
+  ---
+  duration_ms: 0.1587
+  type: 'test'
+  ...
+# Subtest: curveFn：单调控制点产生单调输出（不超过 1e-3 抖动）
+ok 499 - curveFn：单调控制点产生单调输出（不超过 1e-3 抖动）
+  ---
+  duration_ms: 0.329
+  type: 'test'
+  ...
+# Subtest: toneMap：结果被夹在 0..1
+ok 500 - toneMap：结果被夹在 0..1
+  ---
+  duration_ms: 0.2353
+  type: 'test'
+  ...
+# Subtest: toneMap：提阴影主要作用于暗部，提亮高光主要作用于亮部
+ok 501 - toneMap：提阴影主要作用于暗部，提亮高光主要作用于亮部
+  ---
+  duration_ms: 0.1966
+  type: 'test'
+  ...
+# Subtest: hasToneAdjust / hasCurveAdjust 只在真的调过时为 true
+ok 502 - hasToneAdjust / hasCurveAdjust 只在真的调过时为 true
+  ---
+  duration_ms: 0.1895
+  type: 'test'
+  ...
+# Subtest: wbFromRgb：中性灰算出接近 0 的色温/色调
+ok 503 - wbFromRgb：中性灰算出接近 0 的色温/色调
+  ---
+  duration_ms: 0.2421
+  type: 'test'
+  ...
+# Subtest: wbFromRgb：偏蓝画面需要向暖调拉（与偏红方向相反）
+ok 504 - wbFromRgb：偏蓝画面需要向暖调拉（与偏红方向相反）
+  ---
+  duration_ms: 0.3239
+  type: 'test'
+  ...
+# Subtest: wbGains：无白平衡时三通道增益均为 1
+ok 505 - wbGains：无白平衡时三通道增益均为 1
+  ---
+  duration_ms: 0.5348
+  type: 'test'
+  ...
+# Subtest: wbGains：暖调抬高红、压低蓝，且增益恒正
+ok 506 - wbGains：暖调抬高红、压低蓝，且增益恒正
+  ---
+  duration_ms: 0.1721
+  type: 'test'
+  ...
+# Subtest: 全自动：暗图提亮，但白场仍在安全线内（不多撞白）
+ok 507 - 全自动：暗图提亮，但白场仍在安全线内（不多撞白）
+  ---
+  duration_ms: 45.2928
+  type: 'test'
+  ...
+# Subtest: 全自动：已经撞白的图回收高光、不推白点
+ok 508 - 全自动：已经撞白的图回收高光、不推白点
+  ---
+  duration_ms: 146.6278
+  type: 'test'
+  ...
+# Subtest: 全自动：灰雾图靠曲线去灰（压黑点 + 拉中间对比），而不是只堆滑块
+ok 509 - 全自动：灰雾图靠曲线去灰（压黑点 + 拉中间对比），而不是只堆滑块
+  ---
+  duration_ms: 27.6198
+  type: 'test'
+  ...
+# Subtest: 全自动：曲线控制点单调递增、值域合法、白场锚点收在安全线内
+ok 510 - 全自动：曲线控制点单调递增、值域合法、白场锚点收在安全线内
+  ---
+  duration_ms: 163.658
+  type: 'test'
+  ...
+# Subtest: 全自动：中性灰不动白平衡与饱和；发闷的图才补自然饱和度
+ok 511 - 全自动：中性灰不动白平衡与饱和；发闷的图才补自然饱和度
+  ---
+  duration_ms: 47.9955
+  type: 'test'
+  ...
+# Subtest: 全自动：正常曝光的照片只做微调（自动不该大幅乱动好照片）
+ok 512 - 全自动：正常曝光的照片只做微调（自动不该大幅乱动好照片）
+  ---
+  duration_ms: 30.2828
+  type: 'test'
+  ...
+# Subtest: 全自动：舞台/逆光（暗背景 + 大面积撞白）不许加曝光，还要回收高光
+ok 513 - 全自动：舞台/逆光（暗背景 + 大面积撞白）不许加曝光，还要回收高光
+  ---
+  duration_ms: 28.3385
+  type: 'test'
+  ...
+# Subtest: 全自动：偏色图只做部分白平衡（不把舞台灯抹平）
+ok 514 - 全自动：偏色图只做部分白平衡（不把舞台灯抹平）
+  ---
+  duration_ms: 24.8664
+  type: 'test'
+  ...
+# Subtest: 全自动：人像保护肤色（橙红降饱和、橙色提亮、自然饱和度收敛）
+ok 515 - 全自动：人像保护肤色（橙红降饱和、橙色提亮、自然饱和度收敛）
+  ---
+  duration_ms: 40.2855
+  type: 'test'
+  ...
+# Subtest: 全自动：蓝天/绿植单独加强（不是全图一刀切加饱和）
+ok 516 - 全自动：蓝天/绿植单独加强（不是全图一刀切加饱和）
+  ---
+  duration_ms: 21.3607
+  type: 'test'
+  ...
+# Subtest: 全自动：多种图上都不新增撞白（硬约束）
+ok 517 - 全自动：多种图上都不新增撞白（硬约束）
+  ---
+  duration_ms: 140.3987
+  type: 'test'
+  ...
+# Subtest: 全自动：空图返回全 0，不产生 NaN
+ok 518 - 全自动：空图返回全 0，不产生 NaN
+  ---
+  duration_ms: 0.2481
+  type: 'test'
+  ...
+# Subtest: 全自动：2MP 预览图的分析耗时在预算内
+ok 519 - 全自动：2MP 预览图的分析耗时在预算内
+  ---
+  duration_ms: 96.7883
+  type: 'test'
+  ...
+# Subtest: markAllViewed 可以在 withTransaction 内嵌套调用，且外层回滚会带走它
+ok 520 - markAllViewed 可以在 withTransaction 内嵌套调用，且外层回滚会带走它
+  ---
+  duration_ms: 1.8251
+  type: 'test'
+  ...
+# Subtest: markAllViewed 单独调用照常提交
+ok 521 - markAllViewed 单独调用照常提交
+  ---
+  duration_ms: 0.3586
+  type: 'test'
+  ...
+# Subtest: applySmartFolderTags 同样可在事务内嵌套，且不吞掉外层异常
+ok 522 - applySmartFolderTags 同样可在事务内嵌套，且不吞掉外层异常
+  ---
+  duration_ms: 1.1844
+  type: 'test'
+  ...
+# Subtest: 回收站恢复保住全部列：媒体类型/时长/评分/备注/指纹 都不丢
+ok 523 - 回收站恢复保住全部列：媒体类型/时长/评分/备注/指纹 都不丢
+  ---
+  duration_ms: 206.8322
+  type: 'test'
+  ...
+# Subtest: deleteTrashItem：记录不存在返回 ok:false 且不抛错
+ok 524 - deleteTrashItem：记录不存在返回 ok:false 且不抛错
+  ---
+  duration_ms: 1.1984
+  type: 'test'
+  ...
+# [trash] 彻底删除失败，保留记录以便重试： C:\\Users\\RUNNER~1\\AppData\\Local\\Temp\\tuku-trash-BYyfKe\\noclear-veOn6C Path is a directory: rm returned EISDIR (is a directory) C:\\Users\\RUNNER~1\\AppData\\Local\\Temp\\tuku-trash-BYyfKe\\noclear-veOn6C
+# Subtest: deleteTrashItem：文件删不掉时返回 ok:false 且记录保留
+ok 525 - deleteTrashItem：文件删不掉时返回 ok:false 且记录保留
+  ---
+  duration_ms: 13.3026
+  type: 'test'
+  ...
+# [trash] 清空回收站有 1 个文件没删掉，记录已保留以便重试
+# Subtest: emptyTrash：返回 {removed,failed} 且删不掉的进入 failed 并保留
+ok 526 - emptyTrash：返回 {removed,failed} 且删不掉的进入 failed 并保留
+  ---
+  duration_ms: 7.9734
+  type: 'test'
+  ...
+# Subtest: compareVersions 逐段比较数字
+ok 527 - compareVersions 逐段比较数字
+  ---
+  duration_ms: 1.2961
+  type: 'test'
+  ...
+# Subtest: deferralVerdict：记账比当前新 = 本次必须先装
+ok 528 - deferralVerdict：记账比当前新 = 本次必须先装
+  ---
+  duration_ms: 0.2119
+  type: 'test'
+  ...
+# Subtest: deferralVerdict：已经升到记账版本 = 上次装成了，清账
+ok 529 - deferralVerdict：已经升到记账版本 = 上次装成了，清账
+  ---
+  duration_ms: 0.1752
+  type: 'test'
+  ...
+# Subtest: deferralVerdict：没有记账或记账损坏 = 正常流程
+ok 530 - deferralVerdict：没有记账或记账损坏 = 正常流程
+  ---
+  duration_ms: 0.1992
+  type: 'test'
+  ...
+# Subtest: scope 归一化：非法值丢弃，write 隐含 read + ingest
+ok 531 - scope 归一化：非法值丢弃，write 隐含 read + ingest
+  ---
+  duration_ms: 1.9413
+  type: 'test'
+  ...
+# Subtest: 令牌表：数组/对象两种写法都支持，非法 scope 的令牌整条丢弃
+ok 532 - 令牌表：数组/对象两种写法都支持，非法 scope 的令牌整条丢弃
+  ---
+  duration_ms: 0.389
+  type: 'test'
+  ...
+# Subtest: 令牌解析：主令牌全权限，附加令牌只读/仅投送
+ok 533 - 令牌解析：主令牌全权限，附加令牌只读/仅投送
+  ---
+  duration_ms: 1.2812
+  type: 'test'
+  ...
+# Subtest: 内部 /api/* 仍兼容 GET 的 ?token=，/api/v1 的 headerOnly 则拒绝
+ok 534 - 内部 /api/* 仍兼容 GET 的 ?token=，/api/v1 的 headerOnly 则拒绝
+  ---
+  duration_ms: 0.2831
+  type: 'test'
+  ...
+# Subtest: v1Auth：无令牌 401；write 令牌放行；同源豁免不生效
+ok 535 - v1Auth：无令牌 401；write 令牌放行；同源豁免不生效
+  ---
+  duration_ms: 0.8003
+  type: 'test'
+  ...
+# Subtest: requireScope：只读令牌写接口 403（不是 401），ingest 令牌只能投送
+ok 536 - requireScope：只读令牌写接口 403（不是 401），ingest 令牌只能投送
+  ---
+  duration_ms: 0.4296
+  type: 'test'
+  ...
+# Subtest: 限流：同一令牌每分钟 120 次后返回 429
+ok 537 - 限流：同一令牌每分钟 120 次后返回 429
+  ---
+  duration_ms: 0.3235
+  type: 'test'
+  ...
+# Subtest: 准备测试图片
+ok 538 - 准备测试图片
+  ---
+  duration_ms: 20.3725
+  type: 'test'
+  ...
+# Subtest: 选项表：23 款水印 + 20 款相框 + 信息项 + 品牌
+ok 539 - 选项表：23 款水印 + 20 款相框 + 信息项 + 品牌
+  ---
+  duration_ms: 3760.2911
+  type: 'test'
+  ...
+# Subtest: normalizeParams 收敛脏参数
+ok 540 - normalizeParams 收敛脏参数
+  ---
+  duration_ms: 1.8439
+  type: 'test'
+  ...
+# Subtest: 文字颜色：语义色 / 自选十六进制 / 脏值回落
+ok 541 - 文字颜色：语义色 / 自选十六进制 / 脏值回落
+  ---
+  duration_ms: 0.4916
+  type: 'test'
+  ...
+# Subtest: EXIF：sharp 带 "Exif\\0\\0" 前缀也能解出来
+ok 542 - EXIF：sharp 带 "Exif\\0\\0" 前缀也能解出来
+  ---
+  duration_ms: 9.6736
+  type: 'test'
+  ...
+# Subtest: parseExif 对空/垃圾输入返回空对象，不炸
+ok 543 - parseExif 对空/垃圾输入返回空对象，不炸
+  ---
+  duration_ms: 0.2844
+  type: 'test'
+  ...
+# Subtest: buildFieldText / detectBrand
+ok 544 - buildFieldText / detectBrand
+  ---
+  duration_ms: 1.0388
+  type: 'test'
+  ...
+# Subtest: 23 款水印排版都返回真实 SVG（不许出现 [object Object]）
+ok 545 - 23 款水印排版都返回真实 SVG（不许出现 [object Object]）
+  ---
+  duration_ms: 6.5242
+  type: 'test'
+  ...
+# Subtest: 相框几何：白框四边等宽，画布按比例扩边
+ok 546 - 相框几何：白框四边等宽，画布按比例扩边
+  ---
+  duration_ms: 0.7546
+  type: 'test'
+  ...
+# Subtest: 错误处理：什么都没选就报错
+ok 547 - 错误处理：什么都没选就报错
+  ---
+  duration_ms: 11.5848
+  type: 'test'
+  ...
+# Subtest: 只有品牌 logo 时保留所选样式（不再偷换成居中的品牌落款）
+ok 548 - 只有品牌 logo 时保留所选样式（不再偷换成居中的品牌落款）
+  ---
+  duration_ms: 1210.0231
+  type: 'test'
+  ...
+# Subtest: logo-only：选了左下角就画在左边，右下角就画在右边
+ok 549 - logo-only：选了左下角就画在左边，右下角就画在右边
+  ---
+  duration_ms: 0.8164
+  type: 'test'
+  ...
+# Subtest: 边框款：型号不压字标、品牌不重复、黑框白字白框黑字
+ok 550 - 边框款：型号不压字标、品牌不重复、黑框白字白框黑字
+  ---
+  duration_ms: 0.8222
+  type: 'test'
+  ...
+# Subtest: 品牌型号清单：主要品牌都有常见型号，且与品牌表对齐
+ok 551 - 品牌型号清单：主要品牌都有常见型号，且与品牌表对齐
+  ---
+  duration_ms: 0.9394
+  type: 'test'
+  ...
+# Subtest: 型号：手选的型号盖过 EXIF，没品牌时只写型号
+ok 552 - 型号：手选的型号盖过 EXIF，没品牌时只写型号
+  ---
+  duration_ms: 148.7668
+  type: 'test'
+  ...
+# Subtest: 拍摄地点：手动填写优先于 EXIF，脏值被清理
+ok 553 - 拍摄地点：手动填写优先于 EXIF，脏值被清理
+  ---
+  duration_ms: 53.3963
+  type: 'test'
+  ...
+# Subtest: 本机字体：sys:<家族名> 通过白名单，未知家族回落 auto
+ok 554 - 本机字体：sys:<家族名> 通过白名单，未知家族回落 auto
+  ---
+  duration_ms: 52.7143
+  type: 'test'
+  ...
+# Subtest: 读取 EXIF 出图：字段齐全、尺寸不变
+ok 555 - 读取 EXIF 出图：字段齐全、尺寸不变
+  ---
+  duration_ms: 60.5442
+  type: 'test'
+  ...
+# Subtest: resolveMainColor：自选色优先，light/dark 说了算，auto 跟样式走
+ok 556 - resolveMainColor：自选色优先，light/dark 说了算，auto 跟样式走
+  ---
+  duration_ms: 0.2512
+  type: 'test'
+  ...
+# Subtest: 自选色能跑完整条出图链路
+ok 557 - 自选色能跑完整条出图链路
+  ---
+  duration_ms: 49.1098
+  type: 'test'
+  ...
+# Subtest: 只加相框也会扩画布，且允许没有文字
+ok 558 - 只加相框也会扩画布，且允许没有文字
+  ---
+  duration_ms: 47.6578
+  type: 'test'
+  ...
+# Subtest: 水印 + 相框叠加，字号随画幅缩放
+ok 559 - 水印 + 相框叠加，字号随画幅缩放
+  ---
+  duration_ms: 60.0377
+  type: 'test'
+  ...
+# Subtest: 品牌字标：光圈环不许压在字上（左/中/右对齐都要留缝）
+ok 560 - 品牌字标：光圈环不许压在字上（左/中/右对齐都要留缝）
+  ---
+  duration_ms: 46.8569
+  type: 'test'
+  ...
+# Subtest: 信息项键名与样式 id 都是稳定值
+ok 561 - 信息项键名与样式 id 都是稳定值
+  ---
+  duration_ms: 0.3331
+  type: 'test'
+  ...
+# Subtest: 型号不会印两遍：主行写了型号，副行就不再重复
+ok 562 - 型号不会印两遍：主行写了型号，副行就不再重复
+  ---
+  duration_ms: 3.1451
+  type: 'test'
+  ...
+# Subtest: 样式能力：声明能排哪些信息，选错了要能告诉用户
+ok 563 - 样式能力：声明能排哪些信息，选错了要能告诉用户
+  ---
+  duration_ms: 0.3098
+  type: 'test'
+  ...
+# Subtest: 只勾型号却选了日期戳：明确报错，不再静默交出一张原图
+ok 564 - 只勾型号却选了日期戳：明确报错，不再静默交出一张原图
+  ---
+  duration_ms: 94.692
+  type: 'test'
+  ...
+# Subtest: 品牌只收「自己能拍」的：纯镜头厂不进清单，且每个品牌都有型号可选
+ok 565 - 品牌只收「自己能拍」的：纯镜头厂不进清单，且每个品牌都有型号可选
+  ---
+  duration_ms: 0.7536
+  type: 'test'
+  ...
+# Subtest: 型号表是当季的：头部必须是最新旗舰，不能只有一年前的机器
+ok 566 - 型号表是当季的：头部必须是最新旗舰，不能只有一年前的机器
+  ---
+  duration_ms: 0.5167
+  type: 'test'
+  ...
+# Subtest: 清理临时文件
+ok 567 - 清理临时文件
+  ---
+  duration_ms: 1.8541
+  type: 'test'
+  ...
+# Subtest: sidecar 路径与原图同目录同基名（Lightroom 就读这个位置）
+ok 568 - sidecar 路径与原图同目录同基名（Lightroom 就读这个位置）
+  ---
+  duration_ms: 1.6707
+  type: 'test'
+  ...
+# Subtest: 写进去的标题 / 标签 / 评分 / 备注能原样读回来
+ok 569 - 写进去的标题 / 标签 / 评分 / 备注能原样读回来
+  ---
+  duration_ms: 6.3518
+  type: 'test'
+  ...
+# Subtest: 没有 sidecar 时返回 null（导入流程不该因此报错）
+ok 570 - 没有 sidecar 时返回 null（导入流程不该因此报错）
+  ---
+  duration_ms: 2.3253
+  type: 'test'
+  ...
+# Subtest: 别人写的 sidecar 不被整份覆盖，只追加我们这段
+ok 571 - 别人写的 sidecar 不被整份覆盖，只追加我们这段
+  ---
+  duration_ms: 3.5935
+  type: 'test'
+  ...
+# Subtest: removeSidecar 只删本应用写的那份
+ok 572 - removeSidecar 只删本应用写的那份
+  ---
+  duration_ms: 4.1267
+  type: 'test'
+  ...
+# Subtest: 空标签不写空 rdf:li
+ok 573 - 空标签不写空 rdf:li
+  ---
+  duration_ms: 0.3891
+  type: 'test'
+  ...
+1..573
+# tests 573
+# suites 0
+# pass 569
+# fail 4
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 44468.3326

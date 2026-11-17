@@ -1,0 +1,324 @@
+/* 批量裁切台（Eagle 批量裁剪）：左侧逐张框选网格 + 右侧参数面板 */
+
+.crop-studio {
+  position: fixed;
+  inset: 0;
+  z-index: 130;
+  display: flex;
+  flex-direction: column;
+  background: var(--bg);
+  color: var(--text);
+}
+
+/* ---------------------------------- 顶栏 ---------------------------------- */
+
+.cs-bar {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  height: 52px;
+  flex: none;
+  padding: 0 14px;
+  border-bottom: 1px solid var(--border);
+  background: var(--surface-head);
+  backdrop-filter: blur(12px);
+  /* 五档尺寸按钮 + 滑块会把顶栏撑长，窄窗口下让提示语先换行/收缩，别把按钮挤出去 */
+  overflow: hidden;
+}
+.cs-bar .cs-hint {
+  min-width: 0;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+.cs-bar > svg {
+  width: 16px;
+  height: 16px;
+  color: var(--accent);
+}
+.cs-bar b {
+  font-size: 13px;
+}
+.cs-count {
+  font-size: 12px;
+  color: var(--muted);
+  padding: 2px 8px;
+  border-radius: 999px;
+  border: 1px solid var(--border);
+  background: var(--panel);
+}
+.cs-hint,
+.cs-focus-state {
+  font-size: 12px;
+  color: var(--muted);
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+.cs-focus-state {
+  color: var(--accent);
+}
+.cs-focus-state .spinner {
+  width: 12px;
+  height: 12px;
+  border-width: 2px;
+}
+.cs-zoom {
+  margin-left: auto;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+/* 五档按钮之外再给一条无级滑块：介于两档之间的大小不必被迫二选一 */
+.cs-zoom-slider {
+  width: 116px;
+  height: 4px;
+  margin: 0 4px 0 0;
+  accent-color: var(--accent);
+  cursor: pointer;
+}
+.cs-close {
+  margin-left: 4px;
+}
+
+/* ---------------------------------- 主体 ---------------------------------- */
+
+.cs-main {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+}
+
+.cs-grid-wrap {
+  flex: 1;
+  min-width: 0;
+  overflow: auto;
+  padding: 16px;
+}
+
+.cs-grid {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 16px;
+  align-content: flex-start;
+}
+
+.cs-cell {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.cs-empty {
+  margin: 40px auto;
+  color: var(--muted);
+  font-size: 13px;
+}
+
+/* 图片按 contain 摆进正方形格子；裁切框用的坐标系就是这个真实显示区域 */
+.cs-box {
+  position: relative;
+  border-radius: 10px;
+  overflow: hidden;
+  background: #000 center/cover no-repeat;
+  box-shadow: 0 0 0 1px var(--border);
+}
+.cs-img {
+  position: absolute;
+  object-fit: cover;
+  user-select: none;
+  -webkit-user-drag: none;
+  pointer-events: none;
+}
+
+.cs-cap {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 11px;
+  color: var(--muted);
+  height: 18px;
+}
+.cs-idx {
+  flex: none;
+  min-width: 18px;
+  text-align: center;
+  border-radius: 4px;
+  background: var(--panel);
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
+}
+.cs-name {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.cs-size {
+  flex: none;
+  color: var(--muted);
+  opacity: 0.7;
+  font-variant-numeric: tabular-nums;
+}
+.cs-focus-btn {
+  flex: none;
+  width: 18px;
+  height: 18px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 5px;
+  border: 1px solid var(--border);
+  background: var(--panel);
+  color: var(--muted);
+  font-size: 10px;
+  line-height: 1;
+  cursor: pointer;
+  padding: 0;
+}
+.cs-focus-btn:hover {
+  color: var(--text);
+  border-color: var(--border-strong);
+}
+.cs-focus-btn.on {
+  color: var(--accent);
+  border-color: color-mix(in srgb, var(--accent) 50%, transparent);
+}
+
+/* --------------------------------- 右侧面板 -------------------------------- */
+
+.cs-side {
+  flex: none;
+  width: 306px;
+  display: flex;
+  flex-direction: column;
+  overflow: auto;
+  border-left: 1px solid var(--border);
+  background: var(--surface-side);
+}
+
+.cs-sec {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 14px;
+  border-bottom: 1px solid var(--border);
+}
+.cs-sec-title {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text);
+  letter-spacing: 0.02em;
+}
+
+.cs-wh {
+  display: flex;
+  align-items: flex-end;
+  gap: 6px;
+}
+.cs-wh label {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: 11px;
+  color: var(--muted);
+}
+.cs-wh .input {
+  width: 100%;
+  padding: 6px 8px;
+  font-size: 12px;
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+.cs-link {
+  flex: none;
+  width: 28px;
+  height: 30px;
+  border-radius: 8px;
+  border: 1px solid var(--border);
+  background: var(--panel);
+  color: var(--muted);
+  cursor: pointer;
+  font-size: 12px;
+}
+.cs-link.on {
+  color: var(--accent);
+  border-color: color-mix(in srgb, var(--accent) 45%, transparent);
+}
+
+.cs-check {
+  margin: 0;
+  font-size: 12px;
+}
+
+.cs-tip {
+  margin: 0;
+  font-size: 11px;
+  line-height: 1.5;
+  color: var(--muted);
+}
+
+.cs-presets,
+.cs-orient,
+.cs-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.cs-presets .btn,
+.cs-orient .btn,
+.cs-actions .btn {
+  flex: 1;
+  justify-content: center;
+  padding: 6px 8px;
+  font-size: 12px;
+}
+
+.cs-custom {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.cs-custom .input {
+  width: 64px;
+  padding: 5px 6px;
+  font-size: 12px;
+  text-align: center;
+  font-variant-numeric: tabular-nums;
+}
+.cs-custom span {
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.cs-job {
+  margin: 10px 14px 0;
+}
+
+.cs-foot {
+  margin-top: auto;
+  display: flex;
+  gap: 8px;
+  padding: 12px 14px;
+  border-top: 1px solid var(--border);
+  background: var(--surface-head);
+  position: sticky;
+  bottom: 0;
+}
+.cs-foot .btn {
+  flex: 1;
+  justify-content: center;
+}
+
+/* 小屏：面板收窄，网格自动换行 */
+@media (max-width: 900px) {
+  .cs-side {
+    width: 258px;
+  }
+  .cs-hint {
+    display: none;
+  }
+}

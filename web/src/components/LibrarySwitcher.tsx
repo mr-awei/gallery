@@ -1,0 +1,264 @@
+import { useEffect, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
+import { api } from '../api';
+import type { Library, SwitchLibraryResult } from '../types';
+import { IconCheck, IconChevronDown, IconFolder, IconLock, IconMore } from './Icons';
+import LibraryLockDialog from './LibraryLockDialog';
+import i18n from '../i18n';
+
+/**
+ * Eagle 式资源库切换器：左上角触发按钮 → 库列表面板。
+ * - 点行切换库；当前库带 ✓；设了密码的库带锁标，点过去要先输密码
+ * - 每行 hover 出现 …，点开上下文菜单（打开目录 / 加密码 / 立即上锁 / 取消密码 / 从列表删除）
+ * - 「从列表删除」可删任意库，不必先切换过去（后端对非激活库直接移除注册）
+ * - 面板与菜单用 fixed 定位：侧栏 overflow-x hidden 会裁剪 absolute 弹层
+ */
+interface Props {
+  libraries: Library[];
+  activeLibId: number | null;
+  /** 切库（带密码走同一条路）：失败结果里 needsPassword 为真就弹密码框 */
+  onSwitch: (id: number, password?: string) => Promise<SwitchLibraryResult>;
+  onDelete: (lib: Library) => void;
+  onCreate: () => void;
+  onOpenInExplorer: (lib: Library) => void;
+  /** 密码状态变化后刷新库列表的 hasPassword / locked */
+  onReload: () => void;
+}
+
+export default function LibrarySwitcher({
+  libraries,
+  activeLibId,
+  onSwitch,
+  onDelete,
+  onCreate,
+  onOpenInExplorer,
+  onReload,
+}: Props) {
+  const [open, setOpen] = useState(false);
+  const [menuFor, setMenuFor] = useState<number | null>(null);
+  const [panelPos, setPanelPos] = useState<{ top: number; left: number }>({ top: 0, left: 0 });
+  const [menuPos, setMenuPos] = useState<{ top: number; left: number }>({ top: 0, left: 0 });
+  const [dialog, setDialog] = useState<{ lib: Library; mode: 'unlock' | 'set' | 'change' | 'remove' } | null>(null);
+  const triggerRef = useRef<HTMLButtonElement>(null);
+  const wrapRef = useRef<HTMLDivElement>(null);
+  const panelRef = useRef<HTMLDivElement>(null);
+  const menuRef = useRef<HTMLDivElement>(null);
+
+  const active = libraries.find((l) => l.id === activeLibId);
+
+  // 点外部 / Esc 关闭（面板与菜单已 portal 到 body，需一并排除）
+  useEffect(() => {
+    if (!open) return;
+    const onDown = (e: MouseEvent) => {
+      const t = e.target as Node;
+      if (
+        wrapRef.current?.contains(t) ||
+        panelRef.current?.contains(t) ||
+        menuRef.current?.contains(t)
+      ) {
+        return;
+      }
+      setOpen(false);
+      setMenuFor(null);
+    };
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        setOpen(false);
+        setMenuFor(null);
+      }
+    };
+    window.addEventListener('mousedown', onDown);
+    window.addEventListener('keydown', onKey);
+    return () => {
+      window.removeEventListener('mousedown', onDown);
+      window.removeEventListener('keydown', onKey);
+    };
+  }, [open]);
+
+  const togglePanel = () => {
+    if (!open && triggerRef.current) {
+      const r = triggerRef.current.getBoundingClientRect();
+      setPanelPos({ top: r.bottom + 6, left: r.left });
+    }
+    setMenuFor(null);
+    setOpen(!open);
+  };
+
+  const openRowMenu = (e: React.MouseEvent, lib: Library) => {
+    e.stopPropagation();
+    if (menuFor === lib.id) {
+      setMenuFor(null);
+      return;
+    }
+    // 以整行定位，不拿 ⋯ 按钮：它平时是 opacity:0，行内尺寸为 0 时算出来的位置会跑到屏幕左上角
+    const row = (e.currentTarget as HTMLElement).closest('.lib-row') as HTMLElement | null;
+    const r = (row || (e.currentTarget as HTMLElement)).getBoundingClientRect();
+    setMenuPos({
+      top: Math.max(8, Math.min(r.bottom + 4, window.innerHeight - 230)),
+      left: Math.max(8, Math.min(r.right - 170, window.innerWidth - 180)),
+    });
+    setMenuFor(lib.id);
+  };
+
+  const pick = (fn: () => void) => () => {
+    fn();
+    setOpen(false);
+    setMenuFor(null);
+  };
+
+  /** 点行切库：本地知道它锁着就先要密码；不知道（本地状态过期）也要在 423 后回落到密码框 */
+  const pickLibrary = async (lib: Library) => {
+    setOpen(false);
+    setMenuFor(null);
+    if (lib.id === activeLibId) return;
+    const r = await onSwitch(lib.id);
+    if (r.ok) return;
+    // needsPassword：服务端说这个库其实还锁着（本地 locked 快照过期）。
+    // 以前这里只有一句「请输入密码后再切换」toast，没有任何入口能输密码，只好重启应用。
+    if (r.needsPassword) setDialog({ lib, mode: 'unlock' });
+    // 其余失败 App 里已经 toast 过了，不再叠一层
+  };
+
+  const menuLib = libraries.find((l) => l.id === menuFor);
+
+  /** 立即上锁：接口成功后让 App 立刻切到锁定屏（后续请求都会 423） */
+  const sealNow = async (lib: Library) => {
+    try {
+      await api.lockLibrary(lib.id);
+      onReload();
+      window.dispatchEvent(new CustomEvent('tuku:library-locked'));
+    } catch {
+      /* 失败就保持原状，下一次请求仍会走真实状态 */
+    }
+  };
+
+  // 面板/菜单 portal 到 body：脱离侧栏的层叠上下文，避免 fixed 弹层被主内容盖住
+  return (
+    <div className="lib-switcher-wrap" ref={wrapRef}>
+      <button ref={triggerRef} type="button" className="lib-trigger" onClick={togglePanel} title={i18n.t('ka63be475')}>
+        <IconFolder />
+        <span className="lib-trigger-name">{active?.name ?? i18n.t('k23a9576a')}</span>
+        {active?.hasPassword && (
+          <span className="lib-trigger-lock" title={i18n.t('k217fd8a7')}>
+            <IconLock size={12} />
+          </span>
+        )}
+        <span className="lib-trigger-caret">
+          <IconChevronDown size={13} />
+        </span>
+      </button>
+
+      {open &&
+        createPortal(
+          <div className="lib-panel" ref={panelRef} style={{ top: panelPos.top, left: panelPos.left }}>
+            <div className="lib-panel-head">{i18n.t('kc99f5cf1')}</div>
+            <div className="lib-panel-list">
+              {libraries.map((lib) => (
+                <div
+                  key={lib.id}
+                  className={`lib-row${lib.id === activeLibId ? ' active' : ''}`}
+                  onClick={() => {
+                    // 加锁的库不能直接 activate：服务端会 423，先要密码。
+                    // 本地 locked 可能是过期快照（切走时服务端会把旧库重新锁上），
+                    // 所以 pickLibrary 里还会接一次 needsPassword 的回落
+                    if (lib.locked) {
+                      setOpen(false);
+                      setMenuFor(null);
+                      setDialog({ lib, mode: 'unlock' });
+                    } else {
+                      void pickLibrary(lib);
+                    }
+                  }}
+                  title={lib.root_path ? i18n.t('k6a1172a2', { p0: lib.root_path }) : lib.path}
+                >
+                  <span className="lib-row-icon">
+                    <IconFolder />
+                  </span>
+                  <span className="lib-row-name">{lib.name}</span>
+                  {lib.hasPassword && (
+                    <span className="lib-row-lock" title={lib.locked ? i18n.t('k089cf362') : i18n.t('k4c447a9c')}>
+                      <IconLock size={12} />
+                    </span>
+                  )}
+                  {lib.id === activeLibId && (
+                    <span className="lib-row-check" title={i18n.t('ke8e1189e')}>
+                      <IconCheck size={13} />
+                    </span>
+                  )}
+                  <button
+                    type="button"
+                    className="lib-row-more"
+                    title={i18n.t('ka2a8b260')}
+                    onClick={(e) => openRowMenu(e, lib)}
+                  >
+                    <IconMore size={14} />
+                  </button>
+                </div>
+              ))}
+            </div>
+            <button type="button" className="lib-panel-create" onClick={pick(onCreate)}>
+              {i18n.t('kd5aa0341')}
+            </button>
+          </div>,
+          document.body
+        )}
+
+      {open &&
+        menuFor != null &&
+        menuLib &&
+        createPortal(
+          <div className="lib-menu" ref={menuRef} style={{ top: menuPos.top, left: menuPos.left }}>
+            <button
+              type="button"
+              onClick={pick(() => {
+                const lib = libraries.find((l) => l.id === menuFor);
+                if (lib) onOpenInExplorer(lib);
+              })}
+            >
+              {i18n.t('kedca2c1f')}
+            </button>
+            <button
+              type="button"
+              onClick={pick(() =>
+                setDialog({ lib: menuLib, mode: menuLib.hasPassword ? 'change' : 'set' })
+              )}
+            >
+              {menuLib.hasPassword ? i18n.t('k0d885e5c') : i18n.t('kc6439126')}
+            </button>
+            {menuLib.hasPassword && menuLib.id === activeLibId && !menuLib.locked && (
+              <button type="button" onClick={pick(() => void sealNow(menuLib))}>
+                {i18n.t('kb00619f2')}
+              </button>
+            )}
+            {menuLib.hasPassword && (
+              <button type="button" onClick={pick(() => setDialog({ lib: menuLib, mode: 'remove' }))}>
+                {i18n.t('k1daca059')}
+              </button>
+            )}
+            <button
+              type="button"
+              className="danger"
+              disabled={!menuLib.deletable}
+              onClick={pick(() => {
+                const lib = libraries.find((l) => l.id === menuFor);
+                if (lib) onDelete(lib);
+              })}
+            >
+              {i18n.t('k0d1438f3')}
+            </button>
+          </div>,
+          document.body
+        )}
+
+      {dialog && (
+        <LibraryLockDialog
+          library={dialog.lib}
+          mode={dialog.mode}
+          onClose={() => setDialog(null)}
+          onChanged={onReload}
+          onSwitch={onSwitch}
+        />
+      )}
+    </div>
+  );
+}
