@@ -19,14 +19,15 @@ const resources = {
 
 /** 从 localStorage 读语言偏好，没有就跟随浏览器 */
 function pickInitialLang(): string {
+  // 非浏览器环境（Node 单测 / 服务端）没有 localStorage 与真实 navigator。
+  // Node 22+ 的全局 navigator.language 默认是 en-US，会把单测断言带偏；直接走中文默认值。
+  if (typeof window === 'undefined') return 'zh-CN';
   try {
     const stored = localStorage.getItem('tuku.lang');
     if (stored && resources[stored as keyof typeof resources]) return stored;
   } catch { /* ignore */ }
-  if (typeof navigator !== 'undefined') {
-    const raw = navigator.language || 'zh-CN';
-    if (raw.toLowerCase().startsWith('en')) return 'en-US';
-  }
+  const raw = navigator.language || 'zh-CN';
+  if (raw.toLowerCase().startsWith('en')) return 'en-US';
   return 'zh-CN';
 }
 
