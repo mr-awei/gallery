@@ -1061,8 +1061,20 @@ export const CURVE_CHANNELS: { key: CurveChannel; label: string; color: string }
   { key: 'b', label: i18n.t('k2fc8da52'), color: '#60a5fa' },
 ];
 
-/** PS「色相/饱和度」的通道：全图 + 六个色带 */
-export type HueBandKey = 'master' | 'red' | 'yellow' | 'green' | 'cyan' | 'blue' | 'magenta';
+/**
+ * PS / Camera Raw 色彩混合器的通道：全图 + 八个色带。
+ * 和 PS 一致：红、橙、黄、绿、浅绿（青）、蓝、紫、洋红。
+ */
+export type HueBandKey =
+  | 'master'
+  | 'red'
+  | 'orange'
+  | 'yellow'
+  | 'green'
+  | 'aqua'
+  | 'blue'
+  | 'purple'
+  | 'magenta';
 
 /** 单个通道的三项：色相角偏移（度，-180..180）、饱和度（-100..100）、明度（-100..100） */
 export interface HueBand {
@@ -1086,11 +1098,13 @@ export interface HueSatParams {
 
 export const HUE_BANDS: { key: HueBandKey; label: string; color: string }[] = [
   { key: 'master', label: i18n.t('kef02e280'), color: '#e6e8f2' },
-  { key: 'red', label: i18n.t('k52636511'), color: '#ff5c5c' },
+  { key: 'red', label: i18n.t('k52636511'), color: '#ff4d4d' },
+  { key: 'orange', label: i18n.t('kd9bbeb44'), color: '#ff9f1a' },
   { key: 'yellow', label: i18n.t('kddb86dd3'), color: '#ffd93d' },
   { key: 'green', label: i18n.t('kb2c712c7'), color: '#4ade80' },
-  { key: 'cyan', label: i18n.t('kbcec032e'), color: '#38d6e0' },
+  { key: 'aqua', label: i18n.t('k54a92697'), color: '#38d6e0' },
   { key: 'blue', label: i18n.t('k9c9aabab'), color: '#5b9dff' },
+  { key: 'purple', label: i18n.t('ke1e14bd3'), color: '#a78bfa' },
   { key: 'magenta', label: i18n.t('k3f6e447f'), color: '#e879f9' },
 ];
 
@@ -1100,10 +1114,12 @@ export const HUE_SAT_DEFAULTS: HueSatParams = {
   bands: {
     master: zeroBand(),
     red: zeroBand(),
+    orange: zeroBand(),
     yellow: zeroBand(),
     green: zeroBand(),
-    cyan: zeroBand(),
+    aqua: zeroBand(),
     blue: zeroBand(),
+    purple: zeroBand(),
     magenta: zeroBand(),
   },
   colorize: false,

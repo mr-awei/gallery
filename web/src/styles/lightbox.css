@@ -1395,7 +1395,9 @@
   object-fit: contain;
   border-radius: 0;
   box-shadow: none;
-  filter: blur(8px) saturate(1.06);
+  /* 640 的缩略图放大后会糊成一片色块，4px 刚好遮住像素块又还能看出画面内容；
+     以前 8px 太狠，等待期看着就像「什么都没打开」 */
+  filter: blur(4px) saturate(1.06);
   transform: scale(1.01); /* 吃掉模糊后边缘的一圈透明缝 */
   pointer-events: none;
   user-select: none;
@@ -1403,5 +1405,5 @@
 
 /* 垫底的是 1920 的预览图（放大换原图时的那一瞬）：几乎就是成品，只要轻微柔化 */
 .lightbox-body .lightbox-blur.is-hd {
-  filter: blur(3px) saturate(1.02);
+  filter: blur(2px) saturate(1.02);
 }

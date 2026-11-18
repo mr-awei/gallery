@@ -7,6 +7,7 @@ import { confirmDialog, promptDialog } from '../components/Dialogs';
 import VirtualGrid from '../components/VirtualGrid';
 import { formatDate } from '../api';
 import i18n from '../i18n';
+import { previewHoverProps } from '../lib/preview-prefetch';
 
 export default function Playlists({
   onToast,
@@ -317,6 +318,7 @@ export default function Playlists({
                     src={item.thumbUrl}
                     alt={item.title}
                     loading="lazy"
+                    {...previewHoverProps(item)}
                     onClick={() => onOpen(item, items)}
                     title={`${item.width}×${item.height}`}
                   />

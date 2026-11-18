@@ -5,6 +5,7 @@ import type { Filters, ImageItem } from '../types';
 import { IconLink, IconRefresh, IconSearch, IconTrash } from '../components/Icons';
 import { confirmDialog } from '../components/Dialogs';
 import i18n from '../i18n';
+import { previewHoverProps } from '../lib/preview-prefetch';
 
 /** 一次取多少条：以前固定只取前 300 条，顶部却显示真实总数，数字和列表永远对不上 */
 const PAGE = 100;
@@ -160,6 +161,7 @@ export default function Bookmarks({ onToast, onOpen, onLibraryChanged }: Props) 
               <button
                 key={it.id}
                 className={`bm-item${it.id === curId ? ' on' : ''}`}
+                {...previewHoverProps(it)}
                 onClick={() => setCurId(it.id)}
                 onDoubleClick={() => onOpen(it, items)}
                 title={`${it.title}\n${it.sourceUrl || ''}`}

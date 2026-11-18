@@ -270,14 +270,16 @@ export function register(app, ctx) {
    * 与上面的 rebuild-thumbs 的区别：那个是「前端一轮轮点」，这个是服务端自己按记录补完，
    * 进度写进任务表，适合「旧库合并进来 / 上次导入被强杀」这种成片缺图。
    */
-  app.post('/api/maintenance/rebuild-missing', (_req, res) => {
-    const r = ctx.startThumbRebuild?.({
-      onProgress: (s) => {
-        if (s.finished) ctx.sseBroadcast?.('library', { thumbRebuild: s });
-      },
-    }) || { started: false, reason: 'unavailable' };
+  app.post('/api/maintenance/rebuild-missing', asyncRoute(async (_req, res) => {
+    const r = ctx.startThumbRebuild
+      ? await ctx.startThumbRebuild({
+          onProgress: (s) => {
+            if (s.finished) ctx.sseBroadcast?.('library', { thumbRebuild: s });
+          },
+        })
+      : { started: false, reason: 'unavailable' };
     res.json({ ok: true, ...r });
-  });
+  }));
 
   app.get('/api/maintenance/rebuild-missing', (_req, res) => {
     res.json({ ok: true, ...thumbRebuildStatus() });

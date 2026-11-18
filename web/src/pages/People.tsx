@@ -18,6 +18,7 @@ import ReverseSearchDialog, { type ReverseTarget } from '../components/ReverseSe
 import Select from '../components/Select';
 import { ensureHardware } from '../lib/hardware';
 import i18n from '../i18n';
+import { previewHoverProps } from '../lib/preview-prefetch';
 
 type Props = {
   onToast: (msg: string, kind?: 'info' | 'error') => void;
@@ -799,6 +800,7 @@ export default function People({ onToast, onOpen, focusPersonId, focusNonce }: P
               }}
             >
               <button
+                {...previewHoverProps(it)}
                 onClick={() => onOpen(it, items || [])}
                 className="people-tile-img"
                 title={it.title}

@@ -115,7 +115,10 @@ export function useGallerySync({
 
   // 窗口重新获得焦点（托盘恢复 / 多窗口来回切）时补一次刷新，防止错过推送
   useEffect(() => {
-    const onWake = () => refreshStats();
+    // visibilitychange 在「隐藏」和「重新可见」时都会触发；隐藏时再刷四个统计接口纯属浪费
+    const onWake = () => {
+      if (!document.hidden) refreshStats();
+    };
     window.addEventListener('focus', onWake);
     document.addEventListener('visibilitychange', onWake);
     return () => {

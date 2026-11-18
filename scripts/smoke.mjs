@@ -130,6 +130,19 @@ try {
     check('所属资源库永不缺失', !!(lib && lib.name && lib.path), JSON.stringify(lib));
   }
 
+  // 异步补图入口即使返回 Promise，空库也应正常应答，而不是被 Express 当成未处理请求
+  const rebuildMissing = await fetch(`${BASE}/api/maintenance/rebuild-missing`, {
+    method: 'POST',
+    headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+    body: '{}',
+  });
+  const rebuildMissingBody = await rebuildMissing.json().catch(() => ({}));
+  check(
+    '空库一键补图异步入口正常返回',
+    rebuildMissing.status === 200 && rebuildMissingBody?.ok === true && rebuildMissingBody?.reason === 'nothing',
+    `${rebuildMissing.status} ${JSON.stringify(rebuildMissingBody)}`
+  );
+
   // settings 脱敏：weiboCookie 永不回传
   const settings = await (await fetch(`${BASE}/api/settings`, { headers: { Authorization: `Bearer ${token}` } })).json();
   check('settings 脱敏（无 weiboCookie 明文）', !settings.weiboCookie && 'hasWeiboCookie' in settings);
@@ -682,6 +695,39 @@ try {
     return Array.isArray(list) ? list.find((o) => o.op === op && !o.undone) : null;
   };
   const undoById = (id) => fetch(`${BASE}/api/ops/${id}/undo`, { method: 'POST', ...auth });
+
+  if (imageId) {
+    // 501 个唯一 id 强制跨两次 SQL IN；同时核对不存在的 id 不会被误报为已更新
+    const absentIds = Array.from({ length: 500 }, (_, i) => 1_000_000_000 + i);
+    const bulk = await fetch(`${BASE}/api/images/bulk-metadata`, {
+      method: 'POST',
+      headers: { ...auth.headers, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ ids: [imageId, ...absentIds], rating: 4 }),
+    });
+    const bulkBody = await bulk.json().catch(() => ({}));
+    check(
+      '批量元数据跨 500 条分批并保持更新/跳过计数',
+      bulk.status === 200 &&
+        bulkBody?.updated === 1 &&
+        bulkBody?.skipped === 500 &&
+        bulkBody?.items?.length === 1 &&
+        bulkBody.items[0]?.id === imageId &&
+        bulkBody.items[0]?.rating === 4,
+      `${bulk.status} ${JSON.stringify({ updated: bulkBody?.updated, skipped: bulkBody?.skipped, items: bulkBody?.items?.length })}`
+    );
+
+    const actionCount = await fetch(`${BASE}/api/actions/count`, {
+      method: 'POST',
+      headers: { ...auth.headers, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ ids: [imageId, imageId, ...absentIds] }),
+    });
+    const actionCountBody = await actionCount.json().catch(() => ({}));
+    check(
+      '动作计数跨 500 条分批且按唯一存在素材计数',
+      actionCount.status === 200 && actionCountBody?.ok === true && actionCountBody?.count === 1,
+      `${actionCount.status} ${JSON.stringify(actionCountBody)}`
+    );
+  }
 
   if (imageId) {
     await fetch(`${BASE}/api/images/${imageId}`, {

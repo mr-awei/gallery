@@ -15,25 +15,38 @@ import { curveFn, toneMap } from './tone';
  * 改动这里任何一个系数，必须同步 server/lib/edit.js 的 applyRaw，smoke 里有逐像素比对兜底。
  */
 
-/** PS 色带：中心角与羽化宽度（30° 内全强度，45° 处衰减到 0） */
-const BAND_DEFS: { key: Exclude<HueBandKey, 'master'>; center: number }[] = [
-  { key: 'red', center: 0 },
-  { key: 'yellow', center: 60 },
-  { key: 'green', center: 120 },
-  { key: 'cyan', center: 180 },
-  { key: 'blue', center: 240 },
-  { key: 'magenta', center: 300 },
+/**
+ * PS / Camera Raw 的 8 个色段（度）——和 PS 的 HSB 色轮完全一致，首尾相接铺满 360°：
+ *   红 345→15 · 橙 15→45 · 黄 45→75 · 绿 75→165 · 浅绿 165→195 · 蓝 195→255 · 紫 255→285 · 洋红 285→345
+ * 每段半步全强度、再外扩 12° 羽化到相邻色段，保证过渡连续。
+ */
+export const HUE_BAND_RANGES: { key: Exclude<HueBandKey, 'master'>; start: number; end: number }[] = [
+  { key: 'red', start: 345, end: 15 },
+  { key: 'orange', start: 15, end: 45 },
+  { key: 'yellow', start: 45, end: 75 },
+  { key: 'green', start: 75, end: 165 },
+  { key: 'aqua', start: 165, end: 195 },
+  { key: 'blue', start: 195, end: 255 },
+  { key: 'purple', start: 255, end: 285 },
+  { key: 'magenta', start: 285, end: 345 },
 ];
-const BAND_FULL = 30;
-const BAND_EDGE = 45;
+
+const FEATHER = 12;
+
+/** 色段宽度 / 中心 / 全强度半径 / 归零半径 */
+export function bandGeometry(start: number, end: number) {
+  const width = ((end - start) % 360 + 360) % 360 || 360;
+  const center = (start + width / 2) % 360;
+  return { center, full: width / 2, edge: width / 2 + FEATHER };
+}
 
 /** 某色相（度）落在某个色带上的权重 */
-export function bandWeight(deg: number, center: number): number {
+export function bandWeight(deg: number, center: number, full = 30, edge = 45): number {
   let d = Math.abs(deg - center);
   if (d > 180) d = 360 - d;
-  if (d <= BAND_FULL) return 1;
-  if (d >= BAND_EDGE) return 0;
-  return (BAND_EDGE - d) / (BAND_EDGE - BAND_FULL);
+  if (d <= full) return 1;
+  if (d >= edge) return 0;
+  return (edge - d) / (edge - full);
 }
 
 /** RGB(0..1) → HSL(0..1) */
@@ -207,7 +220,9 @@ export function renderPixels(data: Uint8ClampedArray | Uint8Array, channels: num
   const cSat = (hs?.colorizeSat ?? 0) / 100;
   const cLight = hs?.colorizeLight ?? 0;
   const mBand = hs?.bands?.master;
-  const bandArr = hs ? BAND_DEFS.map((d) => ({ center: d.center, b: hs.bands[d.key] })) : [];
+  const bandArr = hs
+    ? HUE_BAND_RANGES.map((d) => ({ ...bandGeometry(d.start, d.end), b: hs.bands[d.key] }))
+    : [];
   const anyBand = bandArr.some((x) => x.b && (x.b.h || x.b.s || x.b.l));
 
   // 混色器 / 颜色分级：只在真正调过时才进入 HSL 分支
@@ -291,7 +306,7 @@ export function renderPixels(data: Uint8ClampedArray | Uint8Array, channels: num
           for (let k = 0; k < bandArr.length; k++) {
             const item = bandArr[k];
             if (!item.b || (!item.b.h && !item.b.s && !item.b.l)) continue;
-            const w = bandWeight(deg, item.center);
+            const w = bandWeight(deg, item.center, item.full, item.edge);
             if (!w) continue;
             dH += item.b.h * w;
             dS += item.b.s * w;

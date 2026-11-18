@@ -1,6 +1,6 @@
 // @ts-check
 // 动作（Actions）路由
-import * as lib from '../library.js';
+import { db } from '../db.js';
 import { deleteAction, listActions, runAction, saveAction, STEP_TYPES } from '../lib/actions.js';
 
 export function register(app, ctx) {
@@ -46,8 +46,17 @@ export function register(app, ctx) {
 
   /* 选区信息（动作面板显示「将对 N 张执行」） */
   app.post('/api/actions/count', (req, res) => {
-    const ids = Array.isArray(req.body?.ids) ? req.body.ids : [];
-    const exist = ids.map((n) => lib.getImage(Number(n))).filter(Boolean).length;
+    const ids = Array.isArray(req.body?.ids)
+      ? [...new Set(req.body.ids.map(Number).filter((n) => Number.isInteger(n) && n > 0))]
+      : [];
+    let exist = 0;
+    // 全选可能有几万个 id：逐条 getImage 会同步阻塞服务，按 500 个一批 COUNT 即可
+    for (let i = 0; i < ids.length; i += 500) {
+      const chunk = ids.slice(i, i + 500);
+      exist += Number(
+        db.prepare(`SELECT COUNT(*) AS c FROM images WHERE id IN (${chunk.map(() => '?').join(',')})`).get(...chunk)?.c || 0
+      );
+    }
     res.json({ ok: true, count: exist });
   });
 }

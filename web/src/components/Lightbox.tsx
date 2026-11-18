@@ -8,6 +8,7 @@ import WallpaperPreview from './WallpaperPreview';
 import ImageToolkit, { type ToolkitTab } from './ImageToolkit';
 import CompareView from './CompareView';
 import i18n from '../i18n';
+import { previewHoverProps } from '../lib/preview-prefetch';
 
 /** 取文件路径所在目录（用于「另存副本」默认落到原图目录） */
 const dirOfPath = (p: string) => p.replace(/[\\/][^\\/]*$/, '') || p;
@@ -85,7 +86,20 @@ function LbThumb({ item, fallback }: { item: ImageItem; fallback: React.ReactNod
   const src = stage
     ? `${BASE}${item.thumbUrl}${sep}retry=1&grt=${item.id}`
     : `${BASE}${item.thumbUrl}`;
-  return <img src={src} alt="" loading="lazy" draggable={false} onError={() => setStage((s) => s + 1)} />;
+  return (
+    <img
+      src={src}
+      alt=""
+      loading="lazy"
+      decoding="async"
+      // 底部胶片条只做导航，别跟主图抢带宽/连接
+      ref={(el) => {
+        if (el) el.setAttribute('fetchpriority', 'low');
+      }}
+      draggable={false}
+      onError={() => setStage((s) => s + 1)}
+    />
+  );
 }
 
 interface Props {
@@ -388,7 +402,14 @@ export default function Lightbox({
    * 现在缩略图 + 预览图各预一份：缩略图保证「立刻有画面」，预览图保证换过去就是清晰的。 */
   useEffect(() => {
     const preloaded: HTMLImageElement[] = [];
-    for (const it of [items[index + 1], items[index - 1]]) {
+    // 前后各 3 张：方向键连按、或者直接点胶片条附近那几张都能立刻出图；
+    // 再远就交给悬停预取（见 preview-prefetch），不然一次开一张图会顺带生成十几张。
+    const near: (typeof items)[number][] = [];
+    for (let d = 1; d <= 3; d++) {
+      if (items[index + d]) near.push(items[index + d]);
+      if (items[index - d]) near.push(items[index - d]);
+    }
+    for (const it of near) {
       if (!it) continue;
       const kind = it.mediaKind || 'image';
       // RAW / 设计稿的预览图同样来自内嵌 JPEG，翻页前一起预取，换过去立刻有画面
@@ -1434,7 +1455,12 @@ export default function Lightbox({
           )}
           <img
             key={item.id}
-            ref={imgRef}
+            ref={(el) => {
+              imgRef.current = el;
+              // 主图优先级拉到最高：灯箱一打开还会顺带请求胶片条那几十张缩略图，
+              // 不声明优先级时主图会被排在后面，正是「大图迟迟不出来」的一段
+              if (el) el.setAttribute('fetchpriority', 'high');
+            }}
             src={mainSrc}
             alt={item.title}
             decoding="async"
@@ -1668,6 +1694,8 @@ export default function Lightbox({
                 data-thumb={it.id}
                 className={`lb-thumb${from + i === index ? ' on' : ''}`}
                 title={it.title}
+                // 胶片条上停一下就把这张的 1920 预览取好，点过去基本是命中
+                {...previewHoverProps(it)}
                 onClick={() => onIndex(from + i)}
               >
                 {hasBitmap ? (

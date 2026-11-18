@@ -75,15 +75,16 @@ export function useAppServices({
     return () => window.removeEventListener('tuku:reverse-search', onReverse);
   }, []);
 
-  /* 「在图库中定位」：人物页右键一张照片 → 切回图库、把筛选切到它所在的文件夹，
-     并直接打开这张图（信息面板里能看到归属文件夹 / 资源库，关掉就在那一夹里）。 */
+  /* 「在图库中定位」：切回图库、把筛选切到它所在的文件夹。
+     默认还会直接打开这张图（人物页的用法：关掉大图就停在那张图旁边）；
+     时间线只要求「用图库打开所在文件夹」，传 openImage:false 就不弹大图。 */
   useEffect(() => {
     const onLocate = (e: Event) => {
-      const d = (e as CustomEvent<{ item?: ImageItem; folderId?: number | null }>).detail;
+      const d = (e as CustomEvent<{ item?: ImageItem; folderId?: number | null; openImage?: boolean }>).detail;
       if (!d || !d.item) return;
       setView('gallery');
       setFolderId(d.folderId ?? null);
-      openItem(d.item, [d.item]);
+      if (d.openImage !== false) openItem(d.item, [d.item]);
     };
     window.addEventListener('tuku:locate-image', onLocate);
     return () => window.removeEventListener('tuku:locate-image', onLocate);

@@ -4720,6 +4720,7 @@
   "ke4e1c25f": "Undone: {{p0}}{{p1}}",
   "ke59b8731": "Updated {{p0}} assets{{p1}}",
   "ke59c46c5": "Load more ({{p0}} left)",
+  "k2f7c14d0": "Load this day ({{p0}} photos)",
   "ke5f8ed00": "Delete tag \"{{p0}}\" (it will be removed from all images)?",
   "ke617ba7e": "Hotfix #{{p0}} downloaded{{p1}}, {{p2}}",
   "ke6205fc0": "Lock \"{{p0}}\"",
@@ -4834,5 +4835,13 @@
   "k2f4d4a55": "{{p0}} critical components missing",
   "kf4b5c881": "{{p0}} native modules failed to load",
   "k92f18a55": "Installation complete — a system restart is recommended",
-  "k8e3b4a55": "Installation complete"
+  "k8e3b4a55": "Installation complete",
+  "k3d2a8710": "Refresh timeline",
+  "k51e4c8ab": "Prune missing files",
+  "k86c34d73": "Open library folder",
+  "kf59ce297": "Removed {{p0}} missing records",
+  "k7c1d5e92": "Timeline refreshed",
+  "k5f0a2b31": "Copied: {{p0}}",
+  "k4a6b8e33": "Copy file name",
+  "k2b8f4a10": "Open preview"
 }

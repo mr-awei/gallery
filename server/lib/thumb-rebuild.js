@@ -30,14 +30,17 @@ const MISSING_SQL =
  * 为什么必须有这一步：补图只挑 `thumb = ''` 的行，而这些行的 thumb 字段是好的、
  * 文件被人为删掉（用户清过 thumbs 目录、同步软件漏掉、崩溃在 rm 之后写 DB 之前）。
  * 结果是修图任务报「没有缺图」，卡片却永远是空白 —— 失败被伪装成了「不缺」。
- * 全表 stat 一次是 O(行数)，只在补图任务开始时做，不在计数接口里做。
- * @returns {number} 被清理的行数
+ * 全表检查一次是 O(行数)，只在补图任务开始时做，不在计数接口里做。
+ * 磁盘访问必须异步：大库或慢盘上同步 existsSync 会把整个服务的事件循环卡住。
+ * @returns {Promise<number>} 被清理的行数
  */
-export function clearStaleThumbPaths() {
+export async function clearStaleThumbPaths() {
   let cleared = 0;
+  const gen = getLibraryGeneration();
   try {
     let cursor = Number.MAX_SAFE_INTEGER;
     for (;;) {
+      if (stopFlag || getLibraryGeneration() !== gen) break;
       const rows = db
         .prepare(
           `SELECT id, thumb FROM images WHERE COALESCE(thumb, '') <> '' AND id < ? ORDER BY id DESC LIMIT 500`
@@ -45,13 +48,17 @@ export function clearStaleThumbPaths() {
         .all(cursor);
       if (!rows.length) break;
       cursor = rows[rows.length - 1].id;
-      const stale = rows.filter((r) => {
+      const stale = [];
+      await mapLimit(rows, 16, async (r) => {
+        if (stopFlag || getLibraryGeneration() !== gen) return;
         try {
-          return !fs.existsSync(String(r.thumb));
+          await fs.promises.access(String(r.thumb));
         } catch {
-          return false;
+          stale.push(r);
         }
       });
+      // await 期间可能已切库：旧库 id 绝不能写进新库，旧连接也已经关闭
+      if (stopFlag || getLibraryGeneration() !== gen) break;
       if (!stale.length) continue;
       const upd = db.prepare("UPDATE images SET thumb = '' WHERE id = ?");
       db.exec('BEGIN');
@@ -91,69 +98,86 @@ export function stopThumbRebuild() {
  * 开始补图（同一时刻只跑一个）。
  * @param {{onProgress?:(s:object)=>void, minBatch?:boolean}} opts
  */
-export function startThumbRebuild({ onProgress = null } = {}) {
+export async function startThumbRebuild({ onProgress = null } = {}) {
   if (running) return { started: false, reason: 'running', ...thumbRebuildStatus() };
-  // 先把「字段有路径、文件其实没了」的行清理出来，否则它们永远不在补图范围内
-  clearStaleThumbPaths();
-  const total = thumbMissingCount();
-  if (!total) return { started: false, reason: 'nothing', total: 0 };
-
   running = true;
   stopFlag = false;
-  attempted.clear();
+  stats = { done: 0, failed: 0, total: 0, jobId: 0 };
   const gen = getLibraryGeneration();
-  const jobId = createJob({ kind: 'thumb-rebuild', title: '重建缺失缩略图', total });
-  stats = { done: 0, failed: 0, total, jobId };
+  let jobId = 0;
+  try {
+    // 先把「字段有路径、文件其实没了」的行清理出来，否则它们永远不在补图范围内。
+    // 这里只等待准备阶段；真正逐张补图仍在下面的后台任务里，接口不会等整库补完。
+    await clearStaleThumbPaths();
+    if (stopFlag || getLibraryGeneration() !== gen) return { started: false, reason: 'cancelled', total: 0 };
+    const total = thumbMissingCount();
+    if (!total) return { started: false, reason: 'nothing', total: 0 };
+    attempted.clear();
+    jobId = createJob({ kind: 'thumb-rebuild', title: '重建缺失缩略图', total });
+    stats = { done: 0, failed: 0, total, jobId };
 
-  void (async () => {
-    try {
-      // 游标必须往前推进，不能每轮都重新取「最新 120 行再在内存里 filter attempted」：
-      // 一批补不出来的图（文件确实不在）thumb 仍为空，会永久占住 id DESC 的窗口，
-      // 下一轮过滤后为空 → break，库里其余缺图的记录再也补不到，任务还报 done。
-      let cursor = Number.MAX_SAFE_INTEGER;
-      for (;;) {
-        if (stopFlag || getLibraryGeneration() !== gen) break;
-        const raw = db.prepare(`${MISSING_SQL} AND id < ? ORDER BY id DESC LIMIT ?`).all(cursor, BATCH);
-        if (!raw.length) break;
-        cursor = raw[raw.length - 1].id;
-        const rows = raw.filter((r) => !attempted.has(r.id));
-        if (!rows.length) continue;
-        await mapLimit(rows, CONCURRENCY, async (r) => {
-          if (stopFlag || getLibraryGeneration() !== gen) return;
-          attempted.add(r.id);
-          let ok;
-          try {
-            ok = Boolean(await ensureThumb(r.id, r.abs_path));
-          } catch {
-            ok = false;
-          }
-          if (ok) stats.done++;
-          else stats.failed++;
-        });
-        jobProgress(jobId, {
-          done: stats.done,
-          failed: stats.failed,
-          total,
-          progress: Math.round(((stats.done + stats.failed) / total) * 100),
-          message: `已补 ${stats.done} 张${stats.failed ? `，失败 ${stats.failed} 张` : ''}`,
-        });
-        onProgress?.({ ...stats, running: true });
+    void (async () => {
+      try {
+        // 游标必须往前推进，不能每轮都重新取「最新 120 行再在内存里 filter attempted」：
+        // 一批补不出来的图（文件确实不在）thumb 仍为空，会永久占住 id DESC 的窗口，
+        // 下一轮过滤后为空 → break，库里其余缺图的记录再也补不到，任务还报 done。
+        let cursor = Number.MAX_SAFE_INTEGER;
+        for (;;) {
+          if (stopFlag || getLibraryGeneration() !== gen) break;
+          const raw = db.prepare(`${MISSING_SQL} AND id < ? ORDER BY id DESC LIMIT ?`).all(cursor, BATCH);
+          if (!raw.length) break;
+          cursor = raw[raw.length - 1].id;
+          const rows = raw.filter((r) => !attempted.has(r.id));
+          if (!rows.length) continue;
+          await mapLimit(rows, CONCURRENCY, async (r) => {
+            if (stopFlag || getLibraryGeneration() !== gen) return;
+            attempted.add(r.id);
+            let ok;
+            try {
+              ok = Boolean(await ensureThumb(r.id, r.abs_path));
+            } catch {
+              ok = false;
+            }
+            if (ok) stats.done++;
+            else stats.failed++;
+          });
+          // jobs 表也随资源库切换：旧任务 id 可能在新库对应另一条任务，不能跨库更新
+          if (stopFlag || getLibraryGeneration() !== gen) break;
+          jobProgress(jobId, {
+            done: stats.done,
+            failed: stats.failed,
+            total,
+            progress: Math.round(((stats.done + stats.failed) / total) * 100),
+            message: `已补 ${stats.done} 张${stats.failed ? `，失败 ${stats.failed} 张` : ''}`,
+          });
+          onProgress?.({ ...stats, running: true });
+        }
+        const cancelled = stopFlag || getLibraryGeneration() !== gen;
+        if (getLibraryGeneration() === gen) {
+          finishJob(jobId, {
+            status: cancelled ? 'canceled' : stats.done ? 'done' : 'failed',
+            result: { done: stats.done, failed: stats.failed },
+            error: cancelled ? '已切换资源库' : '',
+          });
+        }
+        onProgress?.({ ...stats, running: false, finished: true, cancelled });
+      } catch (err) {
+        if (getLibraryGeneration() === gen) {
+          finishJob(jobId, { status: 'failed', error: err?.message || String(err) });
+        }
+        onProgress?.({ ...stats, running: false, error: String(err?.message || err) });
+      } finally {
+        running = false;
+        stopFlag = false;
       }
-      const cancelled = stopFlag || getLibraryGeneration() !== gen;
-      finishJob(jobId, {
-        status: cancelled ? 'canceled' : stats.done ? 'done' : 'failed',
-        result: { done: stats.done, failed: stats.failed },
-        error: cancelled ? '已切换资源库' : '',
-      });
-      onProgress?.({ ...stats, running: false, finished: true, cancelled });
-    } catch (err) {
-      finishJob(jobId, { status: 'failed', error: err?.message || String(err) });
-      onProgress?.({ ...stats, running: false, error: String(err?.message || err) });
-    } finally {
+    })();
+
+    return { started: true, total, jobId };
+  } finally {
+    // 准备阶段提前返回/抛错时没有后台任务负责复位；成功交出任务后由后台 finally 复位
+    if (!jobId) {
       running = false;
       stopFlag = false;
     }
-  })();
-
-  return { started: true, total, jobId };
+  }
 }

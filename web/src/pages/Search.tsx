@@ -28,15 +28,19 @@ export default function Search({ onToast, onOpenItem }: Props) {
    *  以前四种情况在界面上没有任何区别，用户会以为「AI 语义搜索」在理解画面。 */
   const [engineNote, setEngineNote] = useState('');
 
+  /** 三种搜索共用一个请求代次：旧响应不能覆盖新模式，也不能结束新请求的加载态 */
+  const searchSeq = useRef(0);
   const runSearch = useCallback(
-    async (fn: () => Promise<void>) => {
+    async (fn: (isCurrent: () => boolean) => Promise<void>) => {
+      const my = ++searchSeq.current;
+      const isCurrent = () => searchSeq.current === my;
       setLoading(true);
       try {
-        await fn();
+        await fn(isCurrent);
       } catch (err) {
-        onToast((err as Error).message, 'error');
+        if (isCurrent()) onToast((err as Error).message, 'error');
       } finally {
-        setLoading(false);
+        if (isCurrent()) setLoading(false);
       }
     },
     [onToast]
@@ -45,42 +49,47 @@ export default function Search({ onToast, onOpenItem }: Props) {
   /* ---- 颜色搜索：Eagle 式「停下即搜」 ----
    * 色盘拖动高频更新 hex/tol，这里 150ms 静止后才真正请求；
    * 用递增序号丢弃过期响应，快速拖动也不会出现旧结果盖新结果。 */
-  const colorSeq = useRef(0);
   useEffect(() => {
-    if (mode !== 'color') return;
+    const my = ++searchSeq.current;
+    if (mode !== 'color') {
+      // 切走时让颜色 / AI / 以图搜图的在途响应全部失效
+      setLoading(false);
+      return;
+    }
     setEngineNote(''); // 颜色搜索没有 AI 参与，别留着上一次的引擎说明
-    const my = ++colorSeq.current;
     const timer = setTimeout(async () => {
       try {
         setLoading(true);
         const r = await api.searchColor(hex, tol, 120);
-        if (colorSeq.current !== my) return; // 已有更新的搜索，丢弃过期响应
+        if (searchSeq.current !== my) return; // 已有更新的搜索，丢弃过期响应
         setItems(r.items);
         setTotal(r.total);
       } catch (err) {
-        if (colorSeq.current === my) onToast((err as Error).message, 'error');
+        if (searchSeq.current === my) onToast((err as Error).message, 'error');
       } finally {
-        if (colorSeq.current === my) setLoading(false);
+        if (searchSeq.current === my) setLoading(false);
       }
     }, 150);
     return () => clearTimeout(timer);
   }, [hex, tol, mode, onToast]);
 
   const byAi = () =>
-    runSearch(async () => {
+    runSearch(async (isCurrent) => {
       const q = query.trim();
       if (!q) return onToast(i18n.t('k6bac639c'));
       // 语义检索要本地加载 CLIP 文本塔（约 85MB）：内存/核心不够时先说明，再让用户决定
-      if (!(await ensureHardware('semantic'))) return;
+      if (!(await ensureHardware('semantic')) || !isCurrent()) return;
       let r = await api.hybridSearch(q, 60);
       // 文本塔首次加载要下载 ~85MB：后端会先回 loading，这里等它，最多等约 25 秒
       let tries = 0;
-      while (r.engine === 'loading' && tries < 10) {
+      while (r.engine === 'loading' && tries < 10 && isCurrent()) {
         tries++;
         setEngineNote(i18n.t('k26a77290', { p0: tries }));
         await new Promise((res) => setTimeout(res, 2500));
+        if (!isCurrent()) return;
         r = await api.hybridSearch(q, 60);
       }
+      if (!isCurrent()) return;
       setItems(r.items);
       setTotal(r.total);
       const cov = r.covered?.total ? i18n.t('k5a0db73a', { p0: r.covered.indexed, p1: r.covered.total }) : '';
@@ -97,15 +106,17 @@ export default function Search({ onToast, onOpenItem }: Props) {
     });
 
   const byImage = (file: File) =>
-    runSearch(async () => {
+    runSearch(async (isCurrent) => {
       const dataUrl = await new Promise<string>((resolve, reject) => {
         const fr = new FileReader();
         fr.onload = () => resolve(fr.result as string);
         fr.onerror = () => reject(new Error(i18n.t('kd48083ae')));
         fr.readAsDataURL(file);
       });
+      if (!isCurrent()) return;
       setQueryPreview(dataUrl);
       const r = await api.searchByImage(dataUrl, 10, 24);
+      if (!isCurrent()) return;
       setItems(r.items);
       setTotal(r.total);
       setEngineNote(

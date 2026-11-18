@@ -10,6 +10,7 @@ import { useEscClose } from '../lib/useEscClose';
 import type { ImageItem } from '../types';
 import { IconClose, IconStack } from './Icons';
 import i18n from '../i18n';
+import { previewHoverProps } from '../lib/preview-prefetch';
 
 interface Props {
   stackId: number;
@@ -168,6 +169,7 @@ export default function StackViewer({ stackId, onClose, onChanged, onToast, onOp
               key={it.id}
               className={`stack-tile${it.id === sid || it.stackPrimary ? ' on' : ''}`}
               title={i18n.t('k1f608e3f', { p0: it.title })}
+              {...previewHoverProps(it)}
               onClick={() => onOpenItem?.(it)}
             >
               <img src={it.thumbUrl} alt={it.title} loading="lazy" />

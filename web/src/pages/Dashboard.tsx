@@ -4,6 +4,7 @@ import type { ImageItem, Stats } from '../types';
 import { Bars, Donut, TrendLine } from '../components/Charts';
 import { BUCKET_LABELS, ORIENTATION_LABELS, SOURCE_LABELS, api, formatSize } from '../api';
 import i18n from '../i18n';
+import { previewHoverProps } from '../lib/preview-prefetch';
 
 /** 使用统计：最常复制 / 导出的素材。没有记录时整块不出现，别占着版面说「暂无」。 */
 function UsageBoard() {
@@ -187,6 +188,7 @@ export default function Dashboard({ stats, error, onOpen, onNavigate }: Props) {
                 src={item.thumbUrl}
                 alt={item.title}
                 loading="lazy"
+                {...previewHoverProps(item)}
                 onClick={() => onOpen(item, stats.recent)}
               />
             ))}
@@ -208,6 +210,7 @@ export default function Dashboard({ stats, error, onOpen, onNavigate }: Props) {
                 src={item.thumbUrl}
                 alt={item.title}
                 loading="lazy"
+                {...previewHoverProps(item)}
                 onClick={() => onOpen(item, stats.largest)}
                 title={`${item.width}×${item.height}`}
               />

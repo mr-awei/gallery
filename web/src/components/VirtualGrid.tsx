@@ -57,7 +57,11 @@ export default function VirtualGrid<T>({
   const [scrollTop, setScrollTop] = useState(() => (typeof window === 'undefined' ? 0 : window.scrollY));
   const [viewH, setViewH] = useState(() => (typeof window === 'undefined' ? 0 : window.innerHeight));
   const scrollElRef = useRef<HTMLElement | null>(null);
-  const docTopRef = useRef(0);
+  /**
+   * 容器在滚动内容里的纵向位置。必须进 state：上面那些月份/日期陆续加载图片后
+   * 整体会被往下顶，只放 ref 的话可见行一直按挂载时的位置算。
+   */
+  const [docTop, setDocTop] = useState(0);
   const rafRef = useRef(0);
 
   const measure = useCallback(() => {
@@ -78,11 +82,26 @@ export default function VirtualGrid<T>({
     // 置空后所有 scrollTop 都读成 window.scrollY（恒 0），虚拟窗口会永远停在顶部
     if (!scroller && scrollElRef.current?.isConnected) scroller = scrollElRef.current;
     scrollElRef.current = scroller;
-    if (scroller) {
-      docTopRef.current = rect.top - scroller.getBoundingClientRect().top + scroller.scrollTop;
-    } else {
-      docTopRef.current = rect.top + window.scrollY;
-    }
+    const v = scroller
+      ? rect.top - scroller.getBoundingClientRect().top + scroller.scrollTop
+      : rect.top + window.scrollY;
+    setDocTop(v);
+  }, []);
+
+  /**
+   * 滚动中的轻量重测：只用已探明的容器做 rect 相减，不做祖先 getComputedStyle 遍历，
+   * 避免每帧强制样式计算（时间线里同时挂着好几个网格）。
+   */
+  const refreshDocTop = useCallback(() => {
+    const wrap = wrapRef.current;
+    if (!wrap) return;
+    const scroller = scrollElRef.current;
+    const rect = wrap.getBoundingClientRect();
+    setDocTop(
+      scroller
+        ? rect.top - scroller.getBoundingClientRect().top + scroller.scrollTop
+        : rect.top + window.scrollY
+    );
   }, []);
 
   useLayoutEffect(() => {
@@ -111,6 +130,8 @@ export default function VirtualGrid<T>({
         const scroller = scrollElRef.current;
         setScrollTop(scroller ? scroller.scrollTop : window.scrollY);
         setViewH(scroller ? scroller.clientHeight : window.innerHeight);
+        // 滚动时重测一次：上面那一屏的图片加载完会把本网格往下顶，docTop 跟着变
+        refreshDocTop();
       });
     };
     document.addEventListener('scroll', onScroll, { capture: true, passive: true });
@@ -123,7 +144,7 @@ export default function VirtualGrid<T>({
       window.removeEventListener('scroll', onScroll);
       cancelAnimationFrame(rafRef.current);
     };
-  }, []);
+  }, [refreshDocTop]);
 
   const effWidth = width || (typeof window === 'undefined' ? 0 : Math.max(320, window.innerWidth - 280));
 
@@ -139,12 +160,17 @@ export default function VirtualGrid<T>({
 
   const visible = useMemo(() => {
     if (!count) return [] as number[];
-    if (!geo.rows) return [];
-    const top = docTopRef.current + scrollTop - gap;
-    const bottom = docTopRef.current + scrollTop + (viewH || 800) + gap;
-    // 行 → 局部坐标：容器内的行顶 = r * rowH
-    const firstRow = Math.max(0, Math.floor((top - docTopRef.current) / geo.rowH) - overscanRows);
-    const lastRow = Math.min(geo.rows - 1, Math.ceil((bottom - docTopRef.current) / geo.rowH) + overscanRows);
+    // 宽度还没量出来时也算一行，别让「有数据」的网格直接空白
+    const rows = geo.rows || 1;
+    /*
+      视口窗口换算到「容器内坐标」：scrollTop 是滚动容器的偏移，docTop 是容器在滚动
+      内容里的位置，两者相减才是「视口顶落在容器第几像素」。以前直接用 scrollTop，
+      位置靠下的网格 firstRow 会算到视口之外 → 头上有张数、下面一张都不渲染。
+    */
+    const viewTop = scrollTop - docTop;
+    const viewBottom = viewTop + (viewH || 800);
+    const firstRow = Math.max(0, Math.floor(viewTop / geo.rowH) - overscanRows);
+    const lastRow = Math.min(rows - 1, Math.ceil(viewBottom / geo.rowH) + overscanRows);
     const out: number[] = [];
     for (let r = firstRow; r <= lastRow; r++) {
       for (let c = 0; c < geo.cols; c++) {
@@ -154,10 +180,12 @@ export default function VirtualGrid<T>({
       }
     }
     if (out.length) return out;
-    // 偏移测量失效时的兜底：绝不能返回空数组（表现为「有数据但整页空白」）
-    const rows = Math.max(1, Math.min(fallbackRows, geo.rows));
-    return Array.from({ length: Math.min(count, rows * geo.cols) }, (_, i) => i);
-  }, [count, geo, scrollTop, viewH, gap, overscanRows, fallbackRows]);
+    // 兜底：偏移测量还没生效时，从当前行起渲染几行，绝不能返回空数组
+    const start = Math.min(firstRow, Math.max(0, rows - 1));
+    const take = Math.max(1, Math.min(fallbackRows, rows - start));
+    const from = start * geo.cols;
+    return Array.from({ length: Math.max(0, Math.min(count - from, take * geo.cols)) }, (_, i) => from + i);
+  }, [count, geo, docTop, scrollTop, viewH, gap, overscanRows, fallbackRows]);
 
   return (
     <div

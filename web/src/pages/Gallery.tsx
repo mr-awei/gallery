@@ -5,6 +5,7 @@ import type { Filters, ImageItem, FolderNode, Playlist, ViewMode } from '../type
 import FilterBar from '../components/FilterBar';
 import ImageCard from '../components/ImageCard';
 import { promptDialog } from '../components/Dialogs';
+import { downloadPreview, previewHoverProps } from '../lib/preview-prefetch';
 import type { CropItem } from '../components/BatchCropStudio';
 import MasonryGrid from '../components/MasonryGrid';
 import ActionsPanel from '../components/ActionsPanel';
@@ -226,13 +227,21 @@ const KIND_TEXT: Record<string, string> = {
 function Gallery(props: Props) {
   const sentinel = useRef<HTMLDivElement | null>(null);
   /**
-   * 可见区预览预热：把屏幕上这几张的预览图挪到服务端预取队首。
-   * 列表是整页顺序预取，用户滚到页尾点开时那张往往还没轮到 —— 那 1~2 秒模糊
-   * 就是这么来的。滚动停顿后上报一次，看哪儿哪儿就绪。
+   * 可见区预览预热：屏幕上的这几张，除了让服务端把生成任务插到队首，
+   * 还要把预览图字节真的拉进浏览器缓存 —— 只生成不下载的话，点开时浏览器
+   * 仍要再发一次请求，那就是「大图先糊一秒」的来源。点开即命中，几十毫秒出图。
    */
+  const itemsRef = useRef(props.items);
+  itemsRef.current = props.items;
   const warmVisible = useCallback((ids: number[]) => {
     if (!ids.length) return;
     api.warmPreviews(ids).catch(quiet);
+    const byId = new Map(itemsRef.current.map((it) => [it.id, it]));
+    for (const id of ids.slice(0, 60)) {
+      const it = byId.get(id);
+      // 服务端刚用一次批量 warm 插过队了，这里只负责把字节拉进浏览器缓存
+      if (it) downloadPreview(it);
+    }
   }, []);
   const [missingDismissed, setMissingDismissed] = useState(false);
   const [playlists, setPlaylists] = useState<Playlist[]>([]);
@@ -434,7 +443,7 @@ function Gallery(props: Props) {
   useEffect(() => {
     if (!listIdsSig) return;
     const ids = listIdsSig.split(',').map(Number);
-    const t = window.setTimeout(() => warmVisible(ids), 700);
+    const t = window.setTimeout(() => warmVisible(ids), 300);
     return () => window.clearTimeout(t);
   }, [listIdsSig, warmVisible]);
 
@@ -791,6 +800,7 @@ function Gallery(props: Props) {
                 stackOverId === it.id ? ' stack-hint' : ''
               }`}
               data-image-id={it.id}
+              {...previewHoverProps(it)}
               onClick={() => props.onOpen(it)}
               // 列表行和网格卡片一样要能用键盘打开：Tab 到行、回车/空格进入预览
               role="button"

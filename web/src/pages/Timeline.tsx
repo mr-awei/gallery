@@ -1,15 +1,36 @@
-﻿import React, { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
+﻿﻿import React, { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import type { ImageItem, TimelineSummary } from '../types';
 import type { JobItem } from '../api';
-import { api } from '../api';
-import { openFolder } from '../api/core';
+import { api, BASE } from '../api';
+import { copyText, openFolder, revealFile } from '../api/core';
+import { confirmDialog, promptDialog } from '../components/Dialogs';
+import { cancelPrefetchPreview, schedulePrefetchPreview } from '../lib/preview-prefetch';
 import VirtualGrid from '../components/VirtualGrid';
 import i18n from '../i18n';
 
 /** 右键菜单项类型（和 Gallery 页面菜单共用 ctx-menu 样式） */
 interface CtxItem { label: string; icon?: string; action: () => void; }
 interface CtxMenuState { x: number; y: number; items: CtxItem[] }
+
+/** 卡片角标：kind → 短标签（视频/音频/3D 等） */
+const KIND_TAG: Record<string, string> = {
+  video: 'VIDEO',
+  audio: 'AUDIO',
+  model: '3D',
+  pdf: 'PDF',
+  office: 'DOC',
+  design: 'PSD',
+  raw: 'RAW',
+  bookmark: 'LINK',
+  other: 'FILE',
+};
+
+/** 取扩展名（大写），普通图片用它做角标 */
+function extTag(title: string) {
+  const m = title.match(/\.([a-z0-9]+)$/i);
+  return m ? m[1].toUpperCase() : '';
+}
 
 /**
  * 时间线视图：按拍摄时间倒序，三级索引「年 → 月 → 日」，图片按天懒加载。
@@ -73,6 +94,7 @@ function DayBlock({
   onLoad,
   onLoadMore,
   onOpen,
+  onItemMenu,
 }: {
   day: string;
   count: number;
@@ -80,27 +102,50 @@ function DayBlock({
   onLoad: () => void;
   onLoadMore: () => void;
   onOpen: (item: ImageItem, pool: ImageItem[]) => void;
+  /** 卡片右键菜单（由上层持有菜单状态） */
+  onItemMenu: (e: React.MouseEvent, item: ImageItem, pool: ImageItem[]) => void;
 }) {
   const ref = useRef<HTMLElement | null>(null);
-  const [seen, setSeen] = useState(false);
+  const seenRef = useRef(false);
+  // 回调放 ref：父组件每次渲染都会新建 onLoad，若写进 effect 依赖会不停重建 observer，
+  // 回调可能永远等不到 → 表现为「这天写着 200 多张，却一张都不显示」
+  const loadRef = useRef(onLoad);
+  loadRef.current = onLoad;
 
-  // 每一天也懒加载：一个月 3000 张、30 天，滚到哪天拉哪天
   useEffect(() => {
     const el = ref.current;
-    if (!el || seen) return;
-    const io = new IntersectionObserver(
-      (entries) => {
-        if (entries.some((e) => e.isIntersecting)) {
-          setSeen(true);
-          onLoad();
-          io.disconnect();
-        }
-      },
-      { rootMargin: '600px 0px' }
-    );
-    io.observe(el);
-    return () => io.disconnect();
-  }, [seen, onLoad]);
+    if (!el) return;
+    const trigger = () => {
+      if (seenRef.current) return;
+      seenRef.current = true;
+      loadRef.current();
+    };
+    let io: IntersectionObserver | undefined;
+    if (typeof IntersectionObserver !== 'undefined') {
+      io = new IntersectionObserver(
+        (entries) => {
+          if (entries.some((e) => e.isIntersecting)) {
+            trigger();
+            io?.disconnect();
+          }
+        },
+        { rootMargin: '600px 0px' }
+      );
+      io.observe(el);
+    }
+    // 兜底：挂载 1.2s 后若仍在视口附近却没触发过（observer 被裁剪/时序问题漏掉），主动拉一次
+    const timer = window.setTimeout(() => {
+      const r = el.getBoundingClientRect();
+      if (r.top < window.innerHeight + 800 && r.bottom > -800) {
+        trigger();
+        io?.disconnect();
+      }
+    }, 1200);
+    return () => {
+      io?.disconnect();
+      window.clearTimeout(timer);
+    };
+  }, []);
 
   const items = state?.items || [];
   const total = state?.total ?? count;
@@ -127,18 +172,44 @@ function DayBlock({
           colWidth={148}
           gap={8}
           ratio={1}
-          renderItem={(it) => (
-            <button
-              type="button"
-              className="tl-cell"
-              title={it.title}
-              onClick={() => onOpen(it, items)}
-            >
-              <img src={it.thumbUrl} alt={it.title} loading="lazy" decoding="async" />
-              {(it.editOps || 0) > 0 && <span className="tl-nondestructive" title={i18n.t('k01a40c23')}>◐</span>}
-            </button>
-          )}
+          renderItem={(it) => {
+            const k = it.mediaKind || 'image';
+            const tag = k === 'image' || k === 'gif' ? extTag(it.title) : KIND_TAG[k] || k.toUpperCase();
+            return (
+              <button
+                type="button"
+                className="tl-cell"
+                title={it.title}
+                onClick={() => onOpen(it, items)}
+                // 悬停先把灯箱主图预热好，点开时基本是缓存命中
+                onPointerEnter={() => schedulePrefetchPreview(it)}
+                onPointerLeave={() => cancelPrefetchPreview(it.id)}
+                onContextMenu={(e) => {
+                  e.preventDefault();
+                  e.stopPropagation();
+                  onItemMenu(e, it, items);
+                }}
+              >
+                <img src={it.thumbUrl} alt={it.title} loading="lazy" decoding="async" />
+                {tag && (
+                  <span className={`tl-kind tl-kind-${k}`} title={it.title}>
+                    {tag}
+                  </span>
+                )}
+                {(it.editOps || 0) > 0 && <span className="tl-nondestructive" title={i18n.t('k01a40c23')}>◐</span>}
+              </button>
+            );
+          }}
         />
+      )}
+      {total > 0 && !items.length && !state?.loading && (
+        /*
+          有张数却一张没渲染（懒加载没触发 / 上次请求失败）时的兜底：给一个明确的
+          可点入口，而不是让用户对着「217 张」和一片空白。
+        */
+        <button type="button" className="tl-more" onClick={onLoadMore}>
+          {i18n.t('k2f7c14d0', { p0: total })}
+        </button>
       )}
       {items.length > 0 && items.length < total && (
         <button type="button" className="tl-more" disabled={state?.loading} onClick={onLoadMore}>
@@ -158,6 +229,7 @@ function MonthBlock({
   onLoadDay,
   onMoreDay,
   onOpen,
+  onItemMenu,
 }: {
   month: string;
   count: number;
@@ -167,27 +239,47 @@ function MonthBlock({
   onLoadDay: (day: string) => void;
   onMoreDay: (day: string, offset: number) => void;
   onOpen: (item: ImageItem, pool: ImageItem[]) => void;
+  onItemMenu: (e: React.MouseEvent, item: ImageItem, pool: ImageItem[]) => void;
 }) {
   const ref = useRef<HTMLElement | null>(null);
-  const [seen, setSeen] = useState(false);
+  const seenRef = useRef(false);
+  const loadRef = useRef(onLoadDays);
+  loadRef.current = onLoadDays;
 
   // 进入视口才请求：首屏只加载当前月份的日期索引，往下滚一屏加载一屏
   useEffect(() => {
     const el = ref.current;
-    if (!el || seen) return;
-    const io = new IntersectionObserver(
-      (entries) => {
-        if (entries.some((e) => e.isIntersecting)) {
-          setSeen(true);
-          onLoadDays();
-          io.disconnect();
-        }
-      },
-      { rootMargin: '600px 0px' }
-    );
-    io.observe(el);
-    return () => io.disconnect();
-  }, [seen, onLoadDays]);
+    if (!el) return;
+    const trigger = () => {
+      if (seenRef.current) return;
+      seenRef.current = true;
+      loadRef.current();
+    };
+    let io: IntersectionObserver | undefined;
+    if (typeof IntersectionObserver !== 'undefined') {
+      io = new IntersectionObserver(
+        (entries) => {
+          if (entries.some((e) => e.isIntersecting)) {
+            trigger();
+            io?.disconnect();
+          }
+        },
+        { rootMargin: '600px 0px' }
+      );
+      io.observe(el);
+    }
+    const timer = window.setTimeout(() => {
+      const r = el.getBoundingClientRect();
+      if (r.top < window.innerHeight + 800 && r.bottom > -800) {
+        trigger();
+        io?.disconnect();
+      }
+    }, 1200);
+    return () => {
+      io?.disconnect();
+      window.clearTimeout(timer);
+    };
+  }, []);
 
   const days = state?.days || [];
   const total = state?.total ?? count;
@@ -212,6 +304,7 @@ function MonthBlock({
           onLoad={() => onLoadDay(b.day)}
           onLoadMore={() => onMoreDay(b.day, dayStates[b.day]?.items.length || 0)}
           onOpen={onOpen}
+          onItemMenu={onItemMenu}
         />
       ))}
     </section>
@@ -238,19 +331,17 @@ export function Timeline({ onToast, onOpen }: Props) {
   const [ctxMenu, setCtxMenu] = useState<CtxMenuState | null>(null);
   const ctxMenuRef = useRef<HTMLDivElement | null>(null);
 
-  // 右键菜单：Esc / 点击 / 滚动 / resize 都关掉
+  // 右键菜单：Esc / 点击 / resize 都关掉；scroll 不关（用户滚时间线时菜单不应消失）
   useEffect(() => {
     if (!ctxMenu) return;
     const close = () => setCtxMenu(null);
     const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') setCtxMenu(null); };
     window.addEventListener('click', close);
     window.addEventListener('resize', close);
-    window.addEventListener('scroll', close, true);
     window.addEventListener('keydown', onKey);
     return () => {
       window.removeEventListener('click', close);
       window.removeEventListener('resize', close);
-      window.removeEventListener('scroll', close, true);
       window.removeEventListener('keydown', onKey);
     };
   }, [ctxMenu]);
@@ -262,6 +353,137 @@ export function Timeline({ onToast, onOpen }: Props) {
     el.style.left = `${Math.max(4, Math.min(ctxMenu.x, window.innerWidth - r.width - 4))}px`;
     el.style.top = `${Math.max(4, Math.min(ctxMenu.y, window.innerHeight - r.height - 4))}px`;
   }, [ctxMenu]);
+
+  /** 时间线卡片右键：完整对齐图库卡片的菜单 */
+  const openItemMenu = useCallback(
+    (e: React.MouseEvent, item: ImageItem, pool: ImageItem[]) => {
+      const run = (fn: () => void | Promise<unknown>) => () => {
+        setCtxMenu(null);
+        Promise.resolve()
+          .then(fn)
+          .catch((err) => onToast(String((err as Error)?.message || err), 'error'));
+      };
+      setCtxMenu({
+        x: e.clientX,
+        y: e.clientY,
+        items: [
+          {
+            label: i18n.t('k3b3b4717'),
+            icon: '⌘',
+            action: () => {
+              setCtxMenu(null);
+              window.dispatchEvent(new CustomEvent('tuku:palette', { detail: { mode: 'command', itemId: item.id } }));
+            },
+          },
+          { label: i18n.t('ka1c43723'), icon: '🔍', action: () => { setCtxMenu(null); onOpen(item, pool); } },
+          {
+            label: item.favorite ? i18n.t('kf22cec28') : i18n.t('kae336cd0'),
+            icon: '♥',
+            action: run(async () => {
+              await api.patch(item.id, { favorite: !item.favorite });
+              onToast(item.favorite ? i18n.t('kf22cec28') : i18n.t('kae336cd0'));
+            }),
+          },
+          {
+            label: i18n.t('kb91e3e16'),
+            icon: '🖼',
+            action: run(async () => { await api.wallpaper(item.id); onToast(i18n.t('kb91e3e16')); }),
+          },
+          { label: i18n.t('k0d403239'), icon: '↻', action: run(async () => { await api.rotateImage(item.id, 'cw'); onToast(i18n.t('k015f7038')); }) },
+          { label: i18n.t('k9b95ba68'), icon: '↺', action: run(async () => { await api.rotateImage(item.id, 'ccw'); onToast(i18n.t('k015f7038')); }) },
+          {
+            label: i18n.t('k866748d6'),
+            icon: '🏷',
+            action: run(async () => {
+              const input = await promptDialog(i18n.t('kddffd4cb'), (item.tags || []).join(', '));
+              if (input === null) return;
+              const list = input.split(/[,，]/).map((t) => t.trim()).filter(Boolean);
+              await api.patch(item.id, { tags: list });
+              onToast(i18n.t('kb69b12c9', { p0: list.length }));
+            }),
+          },
+          {
+            label: i18n.t('k5f5eb2ec'),
+            icon: '🔗',
+            action: run(async () => {
+              const ok = await copyText(`${BASE}${item.url}`);
+              if (ok) await api.bumpUsage('copy', [item.id]).catch(() => undefined);
+              onToast(i18n.t('k5f0a2b31', { p0: `${BASE}${item.url}` }));
+            }),
+          },
+          {
+            label: i18n.t('k4a6b8e33'),
+            icon: '⧉',
+            action: run(async () => {
+              const ok = await copyText(item.title);
+              onToast(ok ? i18n.t('k5f0a2b31', { p0: item.title }) : item.title, ok ? 'info' : 'error');
+            }),
+          },
+          {
+            label: i18n.t('k87f5fb6d'),
+            icon: '📄',
+            action: run(async () => {
+              const ok = await copyText(item.path);
+              onToast(ok ? i18n.t('k5f0a2b31', { p0: item.path }) : item.path, ok ? 'info' : 'error');
+            }),
+          },
+          {
+            label: i18n.t('k375e3ed7'),
+            icon: '🔎',
+            action: () => {
+              setCtxMenu(null);
+              window.dispatchEvent(
+                new CustomEvent('tuku:reverse-search', {
+                  detail: { imageId: item.id, title: item.title, previewUrl: `${BASE}${item.thumbUrl}` },
+                })
+              );
+            },
+          },
+          { label: i18n.t('k69c50ffd'), icon: '📁', action: run(() => revealFile(item.path)) },
+          {
+            // 「在图库中定位」= 用图库打开这张图所在的文件夹，不是打开大图
+            // （归属夹要现查：列表 DTO 不带 folders，省掉每行一次 JOIN）
+            label: i18n.t('k3be29c7f'),
+            icon: '⌖',
+            action: run(async () => {
+              let folderId: number | null = null;
+              try {
+                const r = await api.imageFolders(item.id);
+                folderId = r.folders[0]?.id ?? null;
+              } catch {
+                // 查不到归属夹就按全库定位，不影响「切回图库」
+                folderId = null;
+              }
+              window.dispatchEvent(
+                new CustomEvent('tuku:locate-image', { detail: { item, folderId, openImage: false } })
+              );
+            }),
+          },
+          {
+            label: i18n.t('kf26ef914'),
+            icon: '⬇',
+            action: () => {
+              setCtxMenu(null);
+              const a = document.createElement('a');
+              a.href = `${BASE}${item.downloadUrl}`;
+              a.download = item.title;
+              a.click();
+            },
+          },
+          {
+            label: i18n.t('k1e96a9c8'),
+            icon: '🗑',
+            action: run(async () => {
+              if (!(await confirmDialog(i18n.t('kc8cae2a6')))) return;
+              await api.remove(item.id);
+              onToast(i18n.t('k1e96a9c8'));
+            }),
+          },
+        ],
+      });
+    },
+    [onOpen, onToast]
+  );
 
   const loadSummary = useCallback(async () => {
     try {
@@ -668,15 +890,15 @@ export function Timeline({ onToast, onOpen }: Props) {
           className="tl-scroll"
           onScroll={onTimelineScroll}
           onContextMenu={(e) => {
-            // 不拦截卡片按钮 / 链接的右键（它们有自己的行为）
+            // 卡片自己处理右键（见 openItemMenu）；这里只管空白处
             const t = e.target as HTMLElement;
-            if (t.closest('button') || t.closest('a')) return;
+            if (t.closest('.tl-cell') || t.closest('a')) return;
             e.preventDefault();
             setCtxMenu({
               x: e.clientX,
               y: e.clientY,
               items: [
-                { label: i18n.t('k3d2a8710'), icon: '↻', action: async () => { await loadSummary(); onToast(i18n.t('k8e3b4a55')); } },
+                { label: i18n.t('k3d2a8710'), icon: '↻', action: async () => { await loadSummary(); onToast(i18n.t('k7c1d5e92')); } },
                 { label: i18n.t('k51e4c8ab'), icon: '✕', action: async () => { try { const r = await api.purgeMissing(); onToast(i18n.t('kf59ce297', { p0: r.removed || 0 })); } catch (err: any) { onToast(String(err?.message || err), 'error'); } } },
                 { label: i18n.t('k86c34d73'), icon: '📁', action: async () => { try { await openFolder(); } catch { /* 非桌面端无此能力，静默 */ } } },
               ],
@@ -694,6 +916,7 @@ export function Timeline({ onToast, onOpen }: Props) {
               onLoadDay={(day) => loadDay(day, 0)}
               onMoreDay={(day, offset) => loadDay(day, offset)}
               onOpen={onOpen}
+              onItemMenu={openItemMenu}
             />
           ))}
           {summary.unplaced > 0 && (

@@ -170,7 +170,7 @@ export function register(app, ctx) {
       if (!row || !fs.existsSync(row.abs_path)) return res.status(404).end('not found');
       // 带 ?v=（文件指纹）的请求可以放心长缓存：增强/旋转写回后指纹变，URL 也就变了。
       // 不带版本的保持 no-cache + ETag，避免外部直连拿到旧图。
-      const cacheHeader = req.query.v ? 'private, max-age=604800' : 'no-cache';
+      const cacheHeader = req.query.v ? 'private, max-age=604800, immutable' : 'no-cache';
       // 非破坏操作链优先：预览要显示成品（裁切过就别再给整幅）
       if (Number(row.edit_ops_count) > 0) {
         const ndPreview = await nd.ensureDerived(row, 'preview');
@@ -254,10 +254,11 @@ export function register(app, ctx) {
    * 文件名优先用素材标题（重名自动加序号），比「壁纸_WxH_id」更好认。
    */
   async function streamZip(ids, res, opts = {}) {
+    // 先截断再查库：请求体可能塞入几十万个 id，不能在 500 张上限生效前做几十万次 SQL + stat
     const rows = ids
+      .slice(0, MAX_ZIP_ITEMS)
       .map((id) => lib.getImage(id))
-      .filter((r) => r && fs.existsSync(r.abs_path))
-      .slice(0, MAX_ZIP_ITEMS);
+      .filter((r) => r && fs.existsSync(r.abs_path));
     if (!rows.length) {
       res.status(400).json({ error: '没有可下载的图片' });
       return;
@@ -271,10 +272,22 @@ export function register(app, ctx) {
     res.set('Content-Disposition', `attachment; filename="tuku_export.zip"; filename*=UTF-8''${encodeURIComponent(zipName)}`);
     res.set('Content-Type', 'application/zip');
     const archive = archiver('zip', { zlib: { level: 5 } });
-    archive.on('error', (err) => res.status(500).end(err.message));
+    let disconnected = false;
+    // 用户取消下载 / 关闭页面后，后续几百张不应继续读盘、转码、压 ZIP
+    res.once('close', () => {
+      if (res.writableEnded) return;
+      disconnected = true;
+      archive.destroy();
+    });
+    archive.on('error', (err) => {
+      if (disconnected || res.destroyed) return;
+      if (!res.headersSent) res.status(500);
+      res.end(err.message);
+    });
     archive.pipe(res);
     const used = new Set();
     for (const row of rows) {
+      if (disconnected || res.destroyed) return;
       // 有非破坏操作链的图，导出的是「套用操作后」的成品，不是原图字节
       const srcPath =
         Number(row.edit_ops_count) > 0 ? (await nd.ensureDerived(row, 'full')) || row.abs_path : row.abs_path;
@@ -285,10 +298,11 @@ export function register(app, ctx) {
       while (used.has(name)) name = `${base}_${++i}${ext}`;
       used.add(name);
       const buf = await encodeEntry(row, format, quality, maxSide, srcPath);
+      if (disconnected || res.destroyed) return;
       if (buf) archive.append(buf, { name });
       else archive.file(srcPath, { name: format ? base + (path.extname(srcPath) || '.bin') : name });
     }
-    await archive.finalize();
+    if (!disconnected && !res.destroyed) await archive.finalize();
   }
 
   const zipOpts = (src = {}) => ({

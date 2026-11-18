@@ -40,7 +40,8 @@ test('补缩略图：坏行之后的图也要被补到（游标必须往前推�
 
   const [good] = db.prepare('SELECT id, thumb FROM images').all();
   fs.rmSync(good.thumb, { force: true });
-  db.prepare("UPDATE images SET thumb = '' WHERE id = ?").run(good.id);
+  // 留一个「DB 有路径、磁盘没文件」的坏路径，同时覆盖启动前的失效路径清理
+  db.prepare('UPDATE images SET thumb = ? WHERE id = ?').run(path.join(tmp, 'missing-thumb.jpg'), good.id);
 
   // 130 条「记录在、文件不在」的坏行，id 全部大于好图：旧实现会一直卡在它们身上
   const ins = db.prepare(
@@ -59,7 +60,9 @@ test('补缩略图：坏行之后的图也要被补到（游标必须往前推�
     );
   }
 
-  const started = startThumbRebuild({});
+  const pending = startThumbRebuild({});
+  assert.equal(typeof pending.then, 'function', '失效路径清理必须异步执行，不能同步扫全表阻塞事件循环');
+  const started = await pending;
   assert.equal(started.started, true, `补图任务应能启动：${JSON.stringify(started)}`);
   assert.ok(started.total >= 131, `缺失数应覆盖好图与坏行：${started.total}`);
 

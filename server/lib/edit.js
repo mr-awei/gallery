@@ -37,15 +37,17 @@ export const ADJUST_DEFAULTS = {
   saturation: 0, // 饱和度                                -100..100
   vibrance: 0, // 自然饱和度（只作用于低饱和）               -100..100
   hue: 0, // 色相旋转（±45°）                            -100..100
-  // PS「色相/饱和度」：全图 + 六个色带，各带色相/饱和度/明度 + 着色
+  // PS「色相/饱和度」：全图 + 八个色带（与 PS 色轮一致），各带色相/饱和度/明度 + 着色
   hueSat: {
     bands: {
       master: { h: 0, s: 0, l: 0 },
       red: { h: 0, s: 0, l: 0 },
+      orange: { h: 0, s: 0, l: 0 },
       yellow: { h: 0, s: 0, l: 0 },
       green: { h: 0, s: 0, l: 0 },
-      cyan: { h: 0, s: 0, l: 0 },
+      aqua: { h: 0, s: 0, l: 0 },
       blue: { h: 0, s: 0, l: 0 },
+      purple: { h: 0, s: 0, l: 0 },
       magenta: { h: 0, s: 0, l: 0 },
     },
     colorize: false,
@@ -101,7 +103,7 @@ function normalizeCurve(input) {
   return uniq.slice(0, 16);
 }
 
-const HUE_BAND_KEYS = ['master', 'red', 'yellow', 'green', 'cyan', 'blue', 'magenta'];
+const HUE_BAND_KEYS = ['master', 'red', 'orange', 'yellow', 'green', 'aqua', 'blue', 'purple', 'magenta'];
 
 /** 色相/饱和度归一化：7 个通道各自夹紧，着色字段补齐 */
 function normalizeHueSat(input) {
@@ -114,6 +116,16 @@ function normalizeHueSat(input) {
       h: clamp(Number(b.h), -180, 180),
       s: clamp(Number(b.s), -100, 100),
       l: clamp(Number(b.l), -100, 100),
+    };
+  }
+  /* 旧数据兼容：早期 6 通道时代青色叫 cyan，现在 PS 8 通道叫 aqua（浅绿）。
+     若 aqua 全零而 cyan 有值，把 cyan 迁到 aqua，避免老编辑记录失效。 */
+  const legacy = srcBands.cyan;
+  if (legacy && typeof legacy === 'object' && !bands.aqua.h && !bands.aqua.s && !bands.aqua.l) {
+    bands.aqua = {
+      h: clamp(Number(legacy.h), -180, 180),
+      s: clamp(Number(legacy.s), -100, 100),
+      l: clamp(Number(legacy.l), -100, 100),
     };
   }
   const num = (v, fallback) => (Number.isFinite(Number(v)) ? Number(v) : fallback);
@@ -343,24 +355,29 @@ function needsRaw(p) {
 }
 
 /* ===== PS 色相/饱和度：HSL 工具（与 web/src/lib/adjust.ts 保持同一套公式） ===== */
+/* PS 的 8 个色段（度）首尾相接铺满 360°：
+   红 345→15 · 橙 15→45 · 黄 45→75 · 绿 75→165 · 浅绿 165→195 · 蓝 195→255 · 紫 255→285 · 洋红 285→345 */
 const HUE_BAND_DEFS = [
-  { key: 'red', center: 0 },
-  { key: 'yellow', center: 60 },
-  { key: 'green', center: 120 },
-  { key: 'cyan', center: 180 },
-  { key: 'blue', center: 240 },
-  { key: 'magenta', center: 300 },
-];
-const BAND_FULL = 30; // 中心 ±30° 全强度
-const BAND_EDGE = 45; // ±45° 处衰减到 0
+  { key: 'red', start: 345, end: 15 },
+  { key: 'orange', start: 15, end: 45 },
+  { key: 'yellow', start: 45, end: 75 },
+  { key: 'green', start: 75, end: 165 },
+  { key: 'aqua', start: 165, end: 195 },
+  { key: 'blue', start: 195, end: 255 },
+  { key: 'purple', start: 255, end: 285 },
+  { key: 'magenta', start: 285, end: 345 },
+].map((d) => {
+  const width = ((d.end - d.start + 360) % 360) || 360;
+  return { ...d, center: (d.start + width / 2) % 360, full: width / 2, edge: width / 2 + 12 };
+});
 
 /** 某色相（度）落在某色带上的权重 */
-function bandWeight(deg, center) {
+function bandWeight(deg, center, full, edge) {
   let d = Math.abs(deg - center);
   if (d > 180) d = 360 - d;
-  if (d <= BAND_FULL) return 1;
-  if (d >= BAND_EDGE) return 0;
-  return (BAND_EDGE - d) / (BAND_EDGE - BAND_FULL);
+  if (d <= full) return 1;
+  if (d >= edge) return 0;
+  return (edge - d) / (edge - full);
 }
 
 /** RGB(0..1) → [h(0..1), s(0..1), l(0..1)] */
@@ -478,7 +495,9 @@ export function applyRaw(data, channels, p, luts) {
   const cSat = (hs?.colorizeSat || 0) / 100;
   const cLight = hs?.colorizeLight || 0;
   const mBand = hs?.bands?.master;
-  const bandArr = hs ? HUE_BAND_DEFS.map((d) => ({ center: d.center, b: hs.bands[d.key] })) : [];
+  const bandArr = hs
+    ? HUE_BAND_DEFS.map((d) => ({ center: d.center, full: d.full, edge: d.edge, b: hs.bands[d.key] }))
+    : [];
   const anyBand = bandArr.some((x) => x.b && (x.b.h || x.b.s || x.b.l));
 
   // 混色器 / 颜色分级（只在真正调过时进入 HSL 分支）
@@ -562,7 +581,7 @@ export function applyRaw(data, channels, p, luts) {
           if (anyBand) {
             for (const item of bandArr) {
               if (!item.b || (!item.b.h && !item.b.s && !item.b.l)) continue;
-              const w = bandWeight(deg, item.center);
+              const w = bandWeight(deg, item.center, item.full, item.edge);
               if (!w) continue;
               dH += item.b.h * w;
               dS += item.b.s * w;

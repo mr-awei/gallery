@@ -53,11 +53,32 @@ export function useStatsAndTags({
   // 标签是全量扫 images.tags 算出来的，比 stats 贵得多；而导入进度推送期间
   // 标签集合不会变（入库不带标签）。2s 内重复拉只是白扫一遍全表。
   const tagsFetchedAtRef = useRef(0);
+  // 服务端是当前库全局连接，响应本身不带库 id；必须在发起时记下库，并在落地前复核。
+  // ref 在 render 时更新，activeLibId 一切换，旧库的慢响应立刻失效（不必等 effect）。
+  const activeLibRef = useRef(activeLibId);
+  activeLibRef.current = activeLibId;
+  const statsReqRef = useRef(0);
+  const tagsReqRef = useRef(0);
+  const pendingReqRef = useRef(0);
+  const missingReqRef = useRef(0);
+
+  useEffect(() => {
+    // A→B→A 快切时只靠 libId 仍会误收第一次 A 的响应，因此每次换库同时作废旧代次
+    statsReqRef.current++;
+    tagsReqRef.current++;
+    pendingReqRef.current++;
+    missingReqRef.current++;
+    libTotalRef.current = -1;
+    tagsFetchedAtRef.current = 0;
+  }, [activeLibId, libTotalRef]);
 
   const refreshStats = useCallback(() => {
+    const libId = activeLibId;
+    const statsReq = ++statsReqRef.current;
     api
       .stats()
       .then((s) => {
+        if (activeLibRef.current !== libId || statsReq !== statsReqRef.current) return;
         setStats(s);
         const prev = libTotalRef.current;
         libTotalRef.current = s.total;
@@ -80,18 +101,26 @@ export function useStatsAndTags({
     const now = Date.now();
     if (now - tagsFetchedAtRef.current >= 2000) {
       tagsFetchedAtRef.current = now;
+      const tagsReq = ++tagsReqRef.current;
       api
         .tags({ limit: 500 })
         .then((r) => {
+          if (activeLibRef.current !== libId || tagsReq !== tagsReqRef.current) return;
           setTags(r.tags);
           setTagGroups(r.groups);
           setTagTotal(r.total ?? r.tags.length);
         })
         .catch(quiet);
     }
-    api.pending().then(setPendingCounts).catch(quiet);
-    api.missingFiles().then((m) => setMissingCount(m.count)).catch(quiet);
-  }, [load, pageRef, newAtTopRef, setTotal, isImporting, showToast]);
+    const pendingReq = ++pendingReqRef.current;
+    api.pending().then((r) => {
+      if (activeLibRef.current === libId && pendingReq === pendingReqRef.current) setPendingCounts(r);
+    }).catch(quiet);
+    const missingReq = ++missingReqRef.current;
+    api.missingFiles().then((m) => {
+      if (activeLibRef.current === libId && missingReq === missingReqRef.current) setMissingCount(m.count);
+    }).catch(quiet);
+  }, [load, pageRef, newAtTopRef, setTotal, isImporting, showToast, activeLibId]);
 
   /**
    * 统计刷新节流（800ms）。
@@ -144,44 +173,61 @@ export function useStatsAndTags({
 
   /** 只重取标签/分组：智能文件夹页改名、合并、删除后要让侧栏同步，不必重拉统计 */
   const reloadTags = useCallback(() => {
+    const libId = activeLibId;
+    const tagsReq = ++tagsReqRef.current;
     api
       .tags({ limit: 500 })
       .then((r) => {
+        if (activeLibRef.current !== libId || tagsReq !== tagsReqRef.current) return;
         setTags(r.tags);
         setTagGroups(r.groups);
         setTagTotal(r.total ?? r.tags.length);
       })
       .catch(quiet);
-  }, []);
+  }, [activeLibId]);
 
   /** 侧栏标签按需加载更多页（标签很多时初始只拉前 500，避免一次拉完） */
   const loadMoreTags = useCallback(() => {
+    const libId = activeLibId;
+    const tagsReq = ++tagsReqRef.current;
     api
       .tags({ limit: 500, offset: tags.length })
       .then((r) => {
+        if (activeLibRef.current !== libId || tagsReq !== tagsReqRef.current) return;
         setTags((prev) => [...prev, ...r.tags]);
         setTagTotal((prevTotal) => r.total ?? prevTotal + r.tags.length);
       })
       .catch(quiet);
-  }, [tags.length]);
+  }, [tags.length, activeLibId]);
 
   /* 卡片角标与「待整理」数字：换库 / 手动刷新时重取（标注 & MD5 重复都是低频变更） */
   useEffect(() => {
+    let alive = true;
     api
       .annotationCounts()
-      .then((r) => setAnnotationCounts(r.counts || {}))
+      .then((r) => {
+        if (alive) setAnnotationCounts(r.counts || {});
+      })
       .catch(quiet);
+    return () => {
+      alive = false;
+    };
   }, [refreshSeq, activeLibId]);
 
   useEffect(() => {
+    let alive = true;
     api
       .md5Dupes()
       .then((r) => {
+        if (!alive) return;
         const map: Record<string, number> = {};
         for (const g of r.groups) for (const it of g.items) map[String(it.id)] = g.items.length;
         setDupeCounts(map);
       })
       .catch(quiet);
+    return () => {
+      alive = false;
+    };
   }, [refreshSeq, activeLibId]);
 
   /**

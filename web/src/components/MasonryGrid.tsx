@@ -335,7 +335,7 @@ export default function MasonryGrid({
   useEffect(() => {
     if (!onVisibleIds || !visibleSig) return;
     const ids = visibleSig.split(',').map(Number);
-    const t = window.setTimeout(() => onVisibleIds(ids), 700);
+    const t = window.setTimeout(() => onVisibleIds(ids), 300);
     return () => window.clearTimeout(t);
   }, [visibleSig, onVisibleIds]);
 

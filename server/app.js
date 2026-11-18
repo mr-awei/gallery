@@ -2,7 +2,7 @@ import express from 'express';
 import fs from 'node:fs';
 import path from 'node:path';
 import { PORT, WEB_DIST, WEB_OVERLAY } from './config.js';
-import { db, getSettings } from './db.js';
+import { db, getSettings, withTransaction } from './db.js';
 import { logOp } from './oplog.js';
 import * as lib from './library.js';
 import { undoLastEdit, redoLastEdit, lastEdit, hasUndo, undoStatus } from './lib/undo.js';
@@ -117,12 +117,15 @@ function scheduleThumbRebuild(reason = '') {
   // 少量缺图（顺手一两张）不值得起任务：在线队列很快就补上了
   if (missing < 20) return { started: false, reason: 'below-threshold', missing };
   const timer = setTimeout(() => {
-    const r = startThumbRebuild({
+    void startThumbRebuild({
       onProgress: (s) => {
         if (s.finished) sseBroadcast('library', { thumbRebuild: { ...s, reason } });
       },
-    });
-    if (r.started) console.info(`[thumb] 后台补图 ${r.total} 张（${reason || '自动'}）`);
+    })
+      .then((r) => {
+        if (r.started) console.info(`[thumb] 后台补图 ${r.total} 张（${reason || '自动'}）`);
+      })
+      .catch((err) => console.warn('[thumb] 后台补图启动失败', err?.message || err));
   }, 2000);
   // 别让定时器把进程吊着（Electron 退出时）
   if (typeof timer.unref === 'function') timer.unref();
@@ -791,9 +794,20 @@ export function buildApp({ desktop = false } = {}) {
       const cleanTags = [...new Set(tagList.map((t) => String(t).trim()).filter(Boolean))].slice(0, 100);
       if (has('tags') && !cleanTags.length) return res.status(400).json({ error: '标签不能为空' });
 
+      // 每 500 个 id 一批取行并保持入参顺序：5000 张从一万次点查降为约 20 次批量查询
+      const rowsByIds = (wanted) => {
+        const byId = new Map();
+        for (let i = 0; i < wanted.length; i += 500) {
+          const chunk = wanted.slice(i, i + 500);
+          const rows = db.prepare(`SELECT * FROM images WHERE id IN (${chunk.map(() => '?').join(',')})`).all(...chunk);
+          for (const row of rows) byId.set(Number(row.id), row);
+        }
+        return wanted.map((id) => byId.get(id)).filter(Boolean);
+      };
+      const beforeRows = rowsByIds(ids);
       const before = { items: [] };
       let updated = 0;
-      let skipped = 0;
+      const skipped = ids.length - beforeRows.length;
       // 直接 UPDATE 而不是调 lib.setXxx：后者每张还要 getImage + toDTO，
       // 5000 张会多出上万次查询，批量操作不该为「顺手返回 DTO」付这个代价
       const upd = {
@@ -802,13 +816,9 @@ export function buildApp({ desktop = false } = {}) {
         note: db.prepare('UPDATE images SET note = ? WHERE id = ?'),
         tags: db.prepare('UPDATE images SET tags = ? WHERE id = ?'),
       };
-      db.transaction(() => {
-        for (const id of ids) {
-          const row = lib.getImage(id);
-          if (!row) {
-            skipped++;
-            continue;
-          }
+      withTransaction(() => {
+        for (const row of beforeRows) {
+          const id = Number(row.id);
           before.items.push({
             id,
             before: { tags: row.tags || '', rating: row.rating || 0, favorite: row.favorite ? 1 : 0, note: row.note || '' },
@@ -835,7 +845,7 @@ export function buildApp({ desktop = false } = {}) {
           }
           updated++;
         }
-      })();
+      });
 
       if (updated && before.items.length) {
         const parts = [];
@@ -850,10 +860,7 @@ export function buildApp({ desktop = false } = {}) {
         });
       }
 
-      const fresh = ids
-        .map((id) => lib.getImage(id))
-        .filter(Boolean)
-        .map((row) => lib.toDTO(row));
+      const fresh = rowsByIds(ids).map((row) => lib.toDTO(row));
       res.json({ ok: true, updated, skipped, items: attachStackInfo(fresh) });
     })
   );

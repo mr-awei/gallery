@@ -25,28 +25,46 @@ import CurveEditor from './CurveEditor';
 import { IconRotateCcw, IconRotateCw, IconWand } from './Icons';
 import i18n from '../i18n';
 
-/** 每个色相通道的中心 hue（PS 风格：选中某通道时滑块轨道显示该通道范围内的色相） */
-const HUE_BAND_CENTER: Record<HueBandKey, number> = {
-  master: -1, // master 显示完整彩虹
-  red: 0,
-  yellow: 60,
-  green: 120,
-  cyan: 180,
-  blue: 240,
-  magenta: 300,
+/**
+ * Photoshop / Camera Raw 的 HSL 色相滑块轨道。
+ *
+ * PS 的 8 个色段在色轮上首尾相接、铺满 360°：
+ *   红 345→15 · 橙 15→45 · 黄 45→75 · 绿 75→165 · 浅绿 165→195 · 蓝 195→255 · 紫 255→285 · 洋红 285→345
+ * 滑块轨道在每段两端各向外多染 15°，所以「红色」条是从洋红过渡到橙、
+ * 「绿色」条是从黄过渡到青，和 PS 面板里看到的完全一致。
+ */
+const HUE_BAND_RANGE: Record<Exclude<HueBandKey, 'master'>, { start: number; end: number }> = {
+  red: { start: 345, end: 15 },
+  orange: { start: 15, end: 45 },
+  yellow: { start: 45, end: 75 },
+  green: { start: 75, end: 165 },
+  aqua: { start: 165, end: 195 },
+  blue: { start: 195, end: 255 },
+  purple: { start: 255, end: 285 },
+  magenta: { start: 285, end: 345 },
 };
 
-/** 生成色相滑块轨道渐变：master → 完整彩虹；单通道 → 该通道 ±35° 的范围 */
+/** 轨道向左右各多染多少度（PS 面板观感） */
+const TRACK_BLEED = 15;
+
+/** 把 hue 转成 CSS hsl() 字符串——PS 式饱和+亮度 */
+const h = (deg: number, s = 88, l = 55) => `hsl(${deg},${s}%,${l}%)`;
+
+/**
+ * 生成 PS 式色相滑块轨道渐变：
+ *   master  → 完整彩虹（0→360）
+ *   单通道  → 该通道名义范围外扩 15° 的三段渐变
+ */
 function hueTrackGradient(channel: HueBandKey, colorize: boolean) {
-  if (channel === 'master') {
-    return colorize
-      ? 'linear-gradient(90deg,hsl(0,85%,55%),hsl(60,85%,55%),hsl(120,85%,55%),hsl(180,85%,55%),hsl(240,85%,55%),hsl(300,85%,55%),hsl(360,85%,55%))'
-      : 'linear-gradient(90deg,hsl(145,85%,55%),hsl(325,85%,55%))';
+  if (channel === 'master' || colorize) {
+    return `linear-gradient(90deg,${h(0)},${h(45)},${h(75)},${h(120)},${h(180)},${h(225)},${h(270)},${h(315)},${h(360)})`;
   }
-  const center = HUE_BAND_CENTER[channel] ?? 0;
-  const start = (center - 35 + 360) % 360;
-  const end = (center + 35) % 360;
-  return `linear-gradient(90deg,hsl(${start},85%,55%),hsl(${center},85%,55%),hsl(${end},85%,55%))`;
+  const r = HUE_BAND_RANGE[channel];
+  const start = r.start;
+  // 跨 0° 的段（红 345→15）把 end 补成 375，保证 CSS 渐变单调递增
+  const end = r.end < r.start ? r.end + 360 : r.end;
+  const mid = (start + end) / 2;
+  return `linear-gradient(90deg,${h(start - TRACK_BLEED)},${h(mid)},${h(end + TRACK_BLEED)})`;
 }
 
 type NumericKey = Exclude<keyof AdjustParams, 'curves' | 'hueSat' | 'colorMixer' | 'colorGrade'>;
@@ -416,7 +434,7 @@ function AdjustPanelInner(
             const v = cm.bands[b.key]?.[mixProp] ?? 0;
             const track =
               mixTab === 'hue'
-                ? 'linear-gradient(90deg,#ff4d4d,#ffd93d,#4ade80,#38d6e0,#5b9dff,#a78bfa,#e879f9,#ff4d4d)'
+                ? hueTrackGradient(b.key as HueBandKey, false)
                 : mixTab === 'sat'
                   ? `linear-gradient(90deg,#3a3d47 0%,#8a8f9e 50%,${b.color} 100%)`
                   : `linear-gradient(90deg,#0d0e12,${b.color},#f4f6ff)`;

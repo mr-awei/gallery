@@ -175,6 +175,15 @@ export default function App() {
     importingRef.current = importing;
   }, [importing]);
 
+  // 灯箱是 lazy 分片（Suspense fallback 是 null）：启动后顺手取回来，
+  // 第一次点开大图就不用再等分片下载 + 解析 —— 那段时间屏幕上是全黑的
+  useEffect(() => {
+    const t = window.setTimeout(() => {
+      void import('./components/Lightbox').catch(() => undefined);
+    }, 800);
+    return () => window.clearTimeout(t);
+  }, []);
+
   // effect 9-13：后台错误收口 / 本地服务状态 / 事件异常 toast / 全网搜图 / 在图库中定位
   const { rsTarget, setRsTarget, peopleFocus, setPeopleFocus } = useAppServices({
     setLoadError, showToast, setView, setFolderId, openItem,

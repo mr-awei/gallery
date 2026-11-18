@@ -7,6 +7,7 @@ import { confirmDialog, promptDialog } from './Dialogs';
 import { fontFrameDataUrl, imageFrameDataUrl, videoElementDataUrl, videoFrameDataUrl } from '../lib/coverFrame';
 import { captureVideoSprite, frameIndexAt, type SpriteResult } from '../lib/video-frames';
 import { IMAGE_MIME, TAG_MIME } from '../lib/dnd';
+import { cancelPrefetchPreview, prefetchPreviewNow, schedulePrefetchPreview } from '../lib/preview-prefetch';
 import {
   IconBox,
   IconCamera,
@@ -109,6 +110,19 @@ const KIND_ICON: Record<string, (p: { size?: number }) => React.ReactElement> = 
   raw: IconCamera,
   bookmark: IconLink,
   other: IconBox,
+};
+
+/** 角标短标签：非图片素材按类型，普通图片用扩展名 */
+const KIND_TAG: Record<string, string> = {
+  video: 'VIDEO',
+  audio: 'AUDIO',
+  pdf: 'PDF',
+  office: 'DOC',
+  model: '3D',
+  design: 'PSD',
+  raw: 'RAW',
+  bookmark: 'LINK',
+  other: 'FILE',
 };
 
 /** 秒 → 0:00 / 0:00:00 */
@@ -777,6 +791,10 @@ const ImageCard = React.memo(function ImageCard({
         onStackDrop(ids, item);
       }}
       onClick={() => onOpen(item)}
+      // 悬停/聚焦就先把灯箱主图（1920 预览）预热好：这半秒通常正是「看一眼然后点开」
+      onPointerEnter={() => schedulePrefetchPreview(item)}
+      onPointerLeave={() => cancelPrefetchPreview(item.id)}
+      onFocus={() => prefetchPreviewNow(item)}
       onContextMenu={(e) => {
         e.preventDefault();
         // 阻止冒泡：页面的右键菜单（撤销/刷新/清理缺失…）只处理空白区域，
@@ -829,6 +847,24 @@ const ImageCard = React.memo(function ImageCard({
           <IconStack size={11} /> {item.stackCount}
         </button>
       )}
+      {(() => {
+        // 所有卡片都有格式角标：普通图片显示扩展名，其余按媒体类型显示不同颜色
+        const isImg = kind === 'image' || kind === 'gif';
+        const tag = isImg
+          ? (item.title.match(/\.([a-z0-9]+)$/i)?.[1] || '').toUpperCase()
+          : KIND_TAG[kind] || kind.toUpperCase();
+        if (!tag) return null;
+        return (
+          <span className={`card-badge kind kind-${kind}`} title={item.title}>
+            {KIND_ICON[kind] ? (
+              <span style={{ display: 'inline-flex', alignItems: 'center', marginRight: 3 }}>
+                {KIND_ICON[kind]({ size: 10 })}
+              </span>
+            ) : null}
+            {tag}
+          </span>
+        );
+      })()}
       {kind === 'video' && durationText && (
         <span className="media-duration" title={i18n.t('k5bdfd7ee')}>
           {durationText}
