@@ -7,6 +7,26 @@ import VideoTrimExport from './VideoTrimExport';
 import type { ImageItem } from '../types';
 import i18n from '../i18n';
 
+/** 扩展名 → media_kind fallback（覆盖老库误标的 image 记录） */
+const EXT_KIND_FALLBACK: Record<string, string> = {
+  mp4: 'video', webm: 'video', mov: 'video', m4v: 'video', mkv: 'video', avi: 'video', flv: 'video', wmv: 'video',
+  gif: 'gif',
+  mp3: 'audio', wav: 'audio', flac: 'audio', aac: 'audio', ogg: 'audio', m4a: 'audio', opus: 'audio', wma: 'audio',
+  ttf: 'font', otf: 'font', woff: 'font', woff2: 'font',
+  pdf: 'pdf',
+  doc: 'office', docx: 'office', xls: 'office', xlsx: 'office', ppt: 'office', pptx: 'office', key: 'office', numbers: 'office', pages: 'office', epub: 'office',
+  obj: 'model', fbx: 'model', glb: 'model', gltf: 'model', stl: 'model', blend: 'model', '3ds': 'model', dae: 'model', ply: 'model',
+  psd: 'design', psb: 'design', ai: 'design', eps: 'design', sketch: 'design', xd: 'design', fig: 'design', indd: 'design', afdesign: 'design', afphoto: 'design', cdr: 'design',
+  cr2: 'raw', cr3: 'raw', crw: 'raw', nef: 'raw', nrw: 'raw', arw: 'raw', sr2: 'raw', srf: 'raw', raf: 'raw', orf: 'raw', ori: 'raw', rw2: 'raw', rwl: 'raw', pef: 'raw', srw: 'raw', dng: 'raw',
+};
+
+/** 根据 path 扩展名修正 media_kind（老数据兜底） */
+function resolveKindFromPath(path: string, dbKind: string): string {
+  const ext = (path.split('.').pop() || '').toLowerCase();
+  if (ext && EXT_KIND_FALLBACK[ext]) return EXT_KIND_FALLBACK[ext];
+  return dbKind;
+}
+
 /**
  * Office 预览要带上 SheetJS / mammoth / JSZip（压缩后仍近 600KB），
  * 而打开一张普通照片根本用不到。静态导入会把它们全塞进灯箱 chunk，
@@ -207,7 +227,9 @@ function PdfViewer({ item, onToast }: { item: ImageItem; onToast?: (m: string, k
 }
 
 export default function MediaViewer({ item, onReplaceItem, onToast }: Props) {
-  const kind = item.mediaKind || 'image';
+  /* 老数据兜底：有些老版本入库没写 media_kind 或写错，DB 里是 'image' 但扩展名实际是 3D/RAW/设计。
+     这里用扩展名修正一次，避免点开 FBX 走图片分支打不开。 */
+  const kind = resolveKindFromPath(item.path || '', item.mediaKind || 'image');
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const [fontText, setFontText] = useState(i18n.t('k5fcdce51'));
@@ -560,6 +582,9 @@ export default function MediaViewer({ item, onReplaceItem, onToast }: Props) {
   if (kind === 'design' || kind === 'raw') {
     const kindLabel = kind === 'raw' ? 'RAW' : i18n.t('kfdb21fa1');
     const ext = (item.title.split('.').pop() || '').toUpperCase();
+    // 灯箱里显示 previewUrl（后端已把 PSD 合成图层 / RAW 内嵌预览解码到 1920px JPEG）；
+    // thumbUrl 只有 256px，卡片用的，灯箱里太糊。
+    const src = item.previewUrl || item.thumbUrl;
     return (
       <div className="mv-wrap" onClick={(e) => e.stopPropagation()}>
         {thumbFailed ? (
@@ -577,7 +602,7 @@ export default function MediaViewer({ item, onReplaceItem, onToast }: Props) {
           </div>
         ) : (
           <img
-            src={item.thumbUrl}
+            src={src}
             alt={item.title}
             draggable={false}
             onError={() => setThumbFailed(true)}
@@ -590,9 +615,23 @@ export default function MediaViewer({ item, onReplaceItem, onToast }: Props) {
             {item.width > 0 ? ` · ${item.width}×${item.height}` : ''} · {formatSize(item.sizeBytes)}
             {!thumbFailed && <span style={{ opacity: 0.6 }}> {i18n.t('k8ca2a856')}</span>}
           </span>
-          <button className="btn sm ghost" onClick={() => revealFile(item.path)}>
-            {i18n.t('ka0f822d9')}
-          </button>
+          <div style={{ display: 'flex', gap: 8 }}>
+            {!thumbFailed && (
+              <a
+                className="btn sm ghost"
+                href={`/api/images/${item.id}/file`}
+                target="_blank"
+                rel="noopener noreferrer"
+                onClick={(e) => e.stopPropagation()}
+                title={i18n.t('k99c30a7b')}
+              >
+                {i18n.t('k99c30a7b')}
+              </a>
+            )}
+            <button className="btn sm ghost" onClick={() => revealFile(item.path)}>
+              {i18n.t('ka0f822d9')}
+            </button>
+          </div>
         </div>
       </div>
     );

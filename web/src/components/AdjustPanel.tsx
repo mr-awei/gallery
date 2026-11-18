@@ -25,6 +25,30 @@ import CurveEditor from './CurveEditor';
 import { IconRotateCcw, IconRotateCw, IconWand } from './Icons';
 import i18n from '../i18n';
 
+/** 每个色相通道的中心 hue（PS 风格：选中某通道时滑块轨道显示该通道范围内的色相） */
+const HUE_BAND_CENTER: Record<HueBandKey, number> = {
+  master: -1, // master 显示完整彩虹
+  red: 0,
+  yellow: 60,
+  green: 120,
+  cyan: 180,
+  blue: 240,
+  magenta: 300,
+};
+
+/** 生成色相滑块轨道渐变：master → 完整彩虹；单通道 → 该通道 ±35° 的范围 */
+function hueTrackGradient(channel: HueBandKey, colorize: boolean) {
+  if (channel === 'master') {
+    return colorize
+      ? 'linear-gradient(90deg,hsl(0,85%,55%),hsl(60,85%,55%),hsl(120,85%,55%),hsl(180,85%,55%),hsl(240,85%,55%),hsl(300,85%,55%),hsl(360,85%,55%))'
+      : 'linear-gradient(90deg,hsl(145,85%,55%),hsl(325,85%,55%))';
+  }
+  const center = HUE_BAND_CENTER[channel] ?? 0;
+  const start = (center - 35 + 360) % 360;
+  const end = (center + 35) % 360;
+  return `linear-gradient(90deg,hsl(${start},85%,55%),hsl(${center},85%,55%),hsl(${end},85%,55%))`;
+}
+
 type NumericKey = Exclude<keyof AdjustParams, 'curves' | 'hueSat' | 'colorMixer' | 'colorGrade'>;
 
 interface SliderDef {
@@ -588,7 +612,8 @@ function AdjustPanelInner(
             step={1}
             value={hueValue}
             disabled={disabled}
-            style={{ background: 'linear-gradient(90deg,#ff5c5c,#ffd93d,#4ade80,#38d6e0,#5b9dff,#e879f9,#ff5c5c)' }}
+            /* 每个色相通道显示自己色相范围内的渐变：PS/LR 风格 */
+            style={{ background: hueTrackGradient(channel, colorize) }}
             onChange={(e) => setHue(Number(e.target.value))}
             onDoubleClick={() => setHue(colorize ? 210 : 0)}
             title={i18n.t('k04b2e348')}

@@ -177,6 +177,24 @@ END;
   // 图片以外的素材不走 sharp，缩略图由前端用对应元素渲染，故 thumb 留空。
   ensureColumn('images', 'media_kind', "media_kind TEXT NOT NULL DEFAULT 'image'");
   conn.exec("UPDATE images SET media_kind = 'image' WHERE media_kind = ''");
+  /* 老数据迁移：media_kind='image' 但扩展名实际是 3D/视频/音频/PDF/Office/字体/RAW/设计 的，
+     修正为正确的 kind —— 早期版本 media_kind 列不存在或不写 model/design/raw，
+     用户的 FBX/OBJ 会被当成 image，点开 MediaViewer 就走图片分支打不开。 */
+  const NON_IMAGE_KIND_EXTS = [
+    { kind: 'video', exts: ['mp4','webm','mov','m4v','mkv','avi','flv','wmv'] },
+    { kind: 'gif', exts: ['gif'] },
+    { kind: 'audio', exts: ['mp3','wav','flac','aac','ogg','m4a','opus','wma'] },
+    { kind: 'font', exts: ['ttf','otf','woff','woff2'] },
+    { kind: 'pdf', exts: ['pdf'] },
+    { kind: 'office', exts: ['doc','docx','xls','xlsx','ppt','pptx','key','numbers','pages','epub'] },
+    { kind: 'model', exts: ['obj','fbx','glb','gltf','stl','blend','3ds','dae','ply'] },
+    { kind: 'design', exts: ['psd','psb','ai','eps','sketch','xd','fig','indd','afdesign','afphoto','cdr'] },
+    { kind: 'raw', exts: ['cr2','cr3','crw','nef','nrw','arw','sr2','srf','raf','orf','ori','rw2','rwl','pef','srw','dng','3fr','fff','iiq','mos','mef','kdc','dcr','k25','erf','mrw','x3f','gpr'] },
+  ];
+  for (const { kind, exts } of NON_IMAGE_KIND_EXTS) {
+    const cond = exts.map((e) => `LOWER(abs_path) LIKE '%.${e}'`).join(' OR ');
+    conn.exec(`UPDATE images SET media_kind='${kind}' WHERE media_kind='image' AND (${cond})`);
+  }
   ensureColumn('images', 'duration', 'duration REAL NOT NULL DEFAULT 0');   // 音视频时长（秒），前端读元数据后回写
   ensureColumn('images', 'cover_ts', 'cover_ts REAL NOT NULL DEFAULT 0');    // 自定义封面帧（秒），视频/GIF 用
   // 内容指纹：完全重复检测（pHash 只能找「看起来像」的，MD5 找「字节完全相同」的）

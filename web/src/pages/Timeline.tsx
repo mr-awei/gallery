@@ -1,9 +1,15 @@
-﻿import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+﻿import React, { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
 import type { ImageItem, TimelineSummary } from '../types';
 import type { JobItem } from '../api';
 import { api } from '../api';
+import { openFolder } from '../api/core';
 import VirtualGrid from '../components/VirtualGrid';
 import i18n from '../i18n';
+
+/** 右键菜单项类型（和 Gallery 页面菜单共用 ctx-menu 样式） */
+interface CtxItem { label: string; icon?: string; action: () => void; }
+interface CtxMenuState { x: number; y: number; items: CtxItem[] }
 
 /**
  * 时间线视图：按拍摄时间倒序，三级索引「年 → 月 → 日」，图片按天懒加载。
@@ -228,6 +234,34 @@ export function Timeline({ onToast, onOpen }: Props) {
   const [openMonth, setOpenMonth] = useState<string | null>(null);
   /** 滚动位置所在的日期，用于左栏高亮 */
   const [activeDay, setActiveDay] = useState('');
+  /** 页面级右键菜单（tl-scroll 空白处右键） */
+  const [ctxMenu, setCtxMenu] = useState<CtxMenuState | null>(null);
+  const ctxMenuRef = useRef<HTMLDivElement | null>(null);
+
+  // 右键菜单：Esc / 点击 / 滚动 / resize 都关掉
+  useEffect(() => {
+    if (!ctxMenu) return;
+    const close = () => setCtxMenu(null);
+    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') setCtxMenu(null); };
+    window.addEventListener('click', close);
+    window.addEventListener('resize', close);
+    window.addEventListener('scroll', close, true);
+    window.addEventListener('keydown', onKey);
+    return () => {
+      window.removeEventListener('click', close);
+      window.removeEventListener('resize', close);
+      window.removeEventListener('scroll', close, true);
+      window.removeEventListener('keydown', onKey);
+    };
+  }, [ctxMenu]);
+  // 渲染后收进视口
+  useLayoutEffect(() => {
+    const el = ctxMenuRef.current;
+    if (!ctxMenu || !el) return;
+    const r = el.getBoundingClientRect();
+    el.style.left = `${Math.max(4, Math.min(ctxMenu.x, window.innerWidth - r.width - 4))}px`;
+    el.style.top = `${Math.max(4, Math.min(ctxMenu.y, window.innerHeight - r.height - 4))}px`;
+  }, [ctxMenu]);
 
   const loadSummary = useCallback(async () => {
     try {
@@ -550,6 +584,7 @@ export function Timeline({ onToast, onOpen }: Props) {
   }
 
   return (
+    <>
     <div className="tl-root">
       <header className="tl-head">
         <div>
@@ -629,7 +664,25 @@ export function Timeline({ onToast, onOpen }: Props) {
           ))}
         </nav>
 
-        <div className="tl-scroll" onScroll={onTimelineScroll}>
+        <div
+          className="tl-scroll"
+          onScroll={onTimelineScroll}
+          onContextMenu={(e) => {
+            // 不拦截卡片按钮 / 链接的右键（它们有自己的行为）
+            const t = e.target as HTMLElement;
+            if (t.closest('button') || t.closest('a')) return;
+            e.preventDefault();
+            setCtxMenu({
+              x: e.clientX,
+              y: e.clientY,
+              items: [
+                { label: i18n.t('k3d2a8710'), icon: '↻', action: async () => { await loadSummary(); onToast(i18n.t('k8e3b4a55')); } },
+                { label: i18n.t('k51e4c8ab'), icon: '✕', action: async () => { try { const r = await api.purgeMissing(); onToast(i18n.t('kf59ce297', { p0: r.removed || 0 })); } catch (err: any) { onToast(String(err?.message || err), 'error'); } } },
+                { label: i18n.t('k86c34d73'), icon: '📁', action: async () => { try { await openFolder(); } catch { /* 非桌面端无此能力，静默 */ } } },
+              ],
+            });
+          }}
+        >
           {summary.months.map((m) => (
             <MonthBlock
               key={m.month}
@@ -651,5 +704,28 @@ export function Timeline({ onToast, onOpen }: Props) {
         </div>
       </div>
     </div>
+
+    {/* 页面级右键菜单：portal 到 body，避免被父容器 overflow:hidden 裁掉 */}
+    {ctxMenu && createPortal(
+      <div
+        ref={ctxMenuRef}
+        className="card-ctx"
+        style={{ left: ctxMenu.x, top: ctxMenu.y }}
+        onClick={(e) => e.stopPropagation()}
+        onContextMenu={(e) => e.preventDefault()}
+      >
+        {ctxMenu.items.map((it, i) => (
+          <button
+            key={i}
+            onClick={() => { setCtxMenu(null); it.action(); }}
+          >
+            {it.icon && <span className="card-ctx-icon" style={{ marginRight: 8 }}>{it.icon}</span>}
+            {it.label}
+          </button>
+        ))}
+      </div>,
+      document.body
+    )}
+    </>
   );
 }
