@@ -13,7 +13,6 @@ import fsp from 'node:fs/promises';
 import path from 'node:path';
 import crypto from 'node:crypto';
 import { Worker } from 'node:worker_threads';
-import { pipeline, env, AutoTokenizer, CLIPTextModelWithProjection } from '@huggingface/transformers';
 import { db, getLibraryGeneration, getActiveLibrary } from './db.js';
 import { MODEL_CACHE_DIR, DATA_DIR } from './config.js';
 import { KNOWN_SHA256 } from './model-fetch.js';
@@ -22,11 +21,29 @@ import { withDevicePreference } from './lib/onnx-device.js';
 import { openIndex } from './lib/clip-index.js';
 import { scanBuckets } from './lib/clip-scan.js';
 
-// 模型缓存放可写目录：打包版代码在只读 asar 内，指向 asar 会导致首次下载必挂
-env.cacheDir = MODEL_CACHE_DIR;
-env.allowLocalModels = false;
-// 国内直连 huggingface.co 基本不通，默认走 hf-mirror 镜像；需要切换时设环境变量 CLIP_HUB_HOST
-env.remoteHost = process.env.CLIP_HUB_HOST || 'https://hf-mirror.com';
+/**
+ * 懒加载 @huggingface/transformers。
+ *
+ * 为什么不在顶层 import：这个 npm 包的 require 会立刻触发 onnxruntime-node 的原生二进制加载
+ * （onnxruntime_binding.node → onnxruntime.dll → DirectML.dll 链式依赖）。用户机器缺 VC++ Runtime
+ * 或杀毒软件拦截 DLL 时，服务进程会在启动阶段直接崩溃，主进程弹「本服务没能启动」的错误窗口。
+ * 只有真正用到 AI 功能（CLIP 语义搜索 / SR 超分）时才加载，加载失败只让对应功能置灰。
+ */
+let transformersPromise = null;
+async function getTransformers() {
+  if (!transformersPromise) {
+    transformersPromise = (async () => {
+      const mod = await import('@huggingface/transformers');
+      // 模型缓存放可写目录：打包版代码在只读 asar 内，指向 asar 会导致首次下载必挂
+      mod.env.cacheDir = MODEL_CACHE_DIR;
+      mod.env.allowLocalModels = false;
+      // 国内直连 huggingface.co 基本不通，默认走 hf-mirror 镜像；需要切换时设环境变量 CLIP_HUB_HOST
+      mod.env.remoteHost = process.env.CLIP_HUB_HOST || 'https://hf-mirror.com';
+      return mod;
+    })();
+  }
+  return transformersPromise;
+}
 
 const MODEL_ID = 'Xenova/clip-vit-base-patch32';
 const DIM = 512;
@@ -110,20 +127,18 @@ const onProgress = (tag) => (p) => {
   }
 };
 
-/** 懒加载特征提取器（首次调用触发模型下载） */
-function getExtractor() {
-  if (CLIP_DISABLED) return Promise.reject(new Error('CLIP 已通过 TUKU_CLIP=off 关闭'));
-  try {
-    verifyPinnedModels();
-  } catch (err) {
-    return Promise.reject(err);
-  }
+/** 懒加载特征提取器（首次调用触发模型下载 + transformers 加载） */
+async function getExtractor() {
+  if (CLIP_DISABLED) throw new Error('CLIP 已通过 TUKU_CLIP=off 关闭');
+  verifyPinnedModels();
   if (!extractorPromise) {
     extractorReady = false;
+    // 先确保 transformers 已加载（只真正走到 AI 功能时才触发 onnxruntime 加载）
+    const { pipeline: tfPipeline } = await getTransformers();
     // 有显卡就挂在显卡上跑：视觉塔是导入时逐张过，CPU 上是大头
     extractorPromise = withDevicePreference(
       (device) =>
-        pipeline('image-feature-extraction', MODEL_ID, {
+        tfPipeline('image-feature-extraction', MODEL_ID, {
           dtype: 'q8',
           device,
           progress_callback: onProgress('视觉塔'),
@@ -242,9 +257,10 @@ function getTextEncoder() {
     textReady = false;
     textPromise = (async () => {
       verifyPinnedModels(); // 文本塔与图像塔共用仓库权重，同样先过可信哈希清单
-      const tokenizer = await AutoTokenizer.from_pretrained(MODEL_ID);
+      const { AutoTokenizer: tfTokenizer, CLIPTextModelWithProjection: tfTextModel } = await getTransformers();
+      const tokenizer = await tfTokenizer.from_pretrained(MODEL_ID);
       const model = await withDevicePreference(
-        (device) => CLIPTextModelWithProjection.from_pretrained(MODEL_ID, { dtype: 'q8', device }),
+        (device) => tfTextModel.from_pretrained(MODEL_ID, { dtype: 'q8', device }),
         'CLIP 文本塔'
       );
       textReady = true;

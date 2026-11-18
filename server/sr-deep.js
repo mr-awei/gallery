@@ -6,16 +6,32 @@
 import path from 'node:path';
 import fs from 'node:fs';
 import fsp from 'node:fs/promises';
-import { createRequire } from 'node:module';
-import { pipeline, env } from '@huggingface/transformers';
 import sharp from 'sharp';
 import { MODEL_CACHE_DIR } from './config.js';
 import { withDevicePreference } from './lib/onnx-device.js';
 
-// 模型缓存放可写目录：打包版代码在只读 asar 内，指向 asar 会导致首次下载必挂
-env.cacheDir = MODEL_CACHE_DIR;
-env.allowLocalModels = false;
-env.remoteHost = process.env.CLIP_HUB_HOST || 'https://hf-mirror.com';
+/**
+ * 懒加载 @huggingface/transformers。
+ *
+ * 为什么不在顶层 import：ESM 顶层 import 在模块加载时立即执行，会触发 onnxruntime-node
+ * 的原生二进制链式加载（onnxruntime_binding.node → onnxruntime.dll → DirectML.dll）。
+ * 用户机器缺 VC++ Runtime 或杀毒软件拦截 DLL 时，异常在 ESM import 层面抛出，整个
+ * app.js 加载失败 → 服务进程直接崩溃 → 主进程弹「本服务没能启动」。
+ * 动态 import 是运行时行为，可以被 try-catch 捕获；只有真正用到 SR 功能时才加载。
+ */
+let transformersPromise = null;
+async function getTransformers() {
+  if (!transformersPromise) {
+    transformersPromise = (async () => {
+      const mod = await import('@huggingface/transformers');
+      mod.env.cacheDir = MODEL_CACHE_DIR;
+      mod.env.allowLocalModels = false;
+      mod.env.remoteHost = process.env.CLIP_HUB_HOST || 'https://hf-mirror.com';
+      return mod;
+    })();
+  }
+  return transformersPromise;
+}
 
 /** 可用模型（x2/x4；48/64 为训练窗口大小） */
 export const SR_MODELS = [
@@ -62,7 +78,7 @@ const state = { loading: '', progress: 0, message: '', error: '' };
 /** 下载中心用：模型在 HF 缓存里的落地目录（同一份拼法，别另抄） */
 export function srCacheDir(modelId) {
   const m = srModelOf(modelId);
-  return m ? path.join(env.cacheDir, m.repo) : '';
+  return m ? path.join(MODEL_CACHE_DIR, m.repo) : '';
 }
 
 /** 删除权重并释放已加载的 pipeline（Windows 上句柄不放就删不掉） */
@@ -79,14 +95,14 @@ export async function removeSrModel(modelId) {
       /* 老版本没有 dispose；文件删不动时下面的报错会如实反馈 */
     }
   }
-  await fsp.rm(path.join(env.cacheDir, m.repo), { recursive: true, force: true });
+  await fsp.rm(path.join(MODEL_CACHE_DIR, m.repo), { recursive: true, force: true });
   return srStatus();
 }
 
 /** 模型是否已下载到本地缓存（避免 UI 显示不确定状态）。.onnx 太小视为半截损坏文件 */
 function modelCached(repo) {
   try {
-    const dir = path.join(env.cacheDir, repo);
+    const dir = path.join(MODEL_CACHE_DIR, repo);
     if (!fs.existsSync(dir)) return false;
     return fs
       .readdirSync(dir, { recursive: true })
@@ -105,24 +121,32 @@ function modelCached(repo) {
 }
 
 /**
- * 运行库可用性：包本体由顶层 import 保证存在，真正会挂的是 onnxruntime-node
- * 的原生绑定（asar 没解包 / 平台包缺失时会抛）。
- * 以前这个档位在界面上无条件标成「可用」，用户点了才在 pipeline() 里报错。
+ * 运行库可用性：**懒探针**，不启动时就碰 onnxruntime。
+ * 以前在启动阶段（或 SR 功能第一次被请求时）立刻 `require('onnxruntime-node')` ——
+ * 用户机器缺 VC++ Runtime 或杀毒软件拦截 DLL 时，这个同步 require 会让整个服务
+ * 进程崩溃。现在缓存占位状态，真正调用 SR 时才探针；前端查询状态看到 ok: true 只是
+ * 「还没试」，不代表一定能用。
  */
-let runtimeStatus = null;
+let runtimeProbed = false;
+let runtimeCache = { ok: true, lazy: true };
 export function srRuntimeStatus() {
-  if (runtimeStatus) return runtimeStatus;
+  if (!runtimeProbed) return runtimeCache;
+  return runtimeCache;
+}
+
+/** 真正跑推理前的强制探针（失败会 reject，上层 catch 住后 SR 功能显示不可用） */
+async function ensureRuntime() {
+  if (runtimeProbed) return runtimeCache;
+  runtimeProbed = true;
+  const { createRequire } = require('node:module');
+  const req = createRequire(import.meta.url);
   try {
-    const req = createRequire(import.meta.url);
     const ort = req('onnxruntime-node');
-    runtimeStatus = {
-      ok: true,
-      version: String(ort?.env?.versions?.onnx || ort?.version || 'ok'),
-    };
+    runtimeCache = { ok: true, version: String(ort?.env?.versions?.onnx || ort?.version || 'ok') };
   } catch (err) {
-    runtimeStatus = { ok: false, error: err?.message || String(err) };
+    runtimeCache = { ok: false, error: err?.message || String(err) };
   }
-  return runtimeStatus;
+  return runtimeCache;
 }
 
 export function srStatus() {
@@ -170,15 +194,20 @@ export async function loadSrModel(modelId) {
   const model = srModelOf(modelId);
   if (!model) throw new Error('未知的超分模型');
   if (pipes.has(model.repo)) return srStatus();
+  // 启动时不碰 onnxruntime，真正加载模型前才探针（缺 VC++ Runtime 的机器在这里被 catch）
+  const rt = await ensureRuntime();
+  if (!rt.ok) throw new Error(`onnxruntime 不可用：${rt.error}`);
   state.loading = model.repo;
   state.progress = 0;
   state.message = '准备下载…';
   state.error = '';
   try {
+    // transformers 也懒加载：只在真正用到时才触发 native 依赖链
+    const { pipeline: tfPipeline } = await getTransformers();
     // Swin2SR 是这一档最慢的环节，能从 CPU 挪到显卡就挪（DirectML / CUDA，失败自动回退）
     const pipe = await withDevicePreference(
       (device) =>
-        pipeline('image-to-image', model.repo, {
+        tfPipeline('image-to-image', model.repo, {
           device,
           progress_callback: (p) => {
             if (typeof p?.progress === 'number') {
