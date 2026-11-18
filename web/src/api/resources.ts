@@ -3,7 +3,7 @@
  * 由 api.ts 组合成单一的 `api` 对象对外暴露（调用点不需要改 import）。
  */
 import { request, buildQuery } from './core';
-import type { TagNode, ModelsPayload, Filters, FolderNode, ImageItem, ImageNote, SavedFilter, Library, Stats, TimelineDay, TimelineSummary } from '../types';
+import type { TagNode, ModelsPayload, Filters, FolderNode, ImageItem, ImageNote, SavedFilter, Library, Stats, TimelineDay, TimelineSummary, RuntimeComponent, RuntimeProbe } from '../types';
 
 export const resourcesAPI = {
   stats: () => request<Stats>('/api/stats'),
@@ -214,6 +214,30 @@ export const resourcesAPI = {
       `/api/models/${encodeURIComponent(id)}/verify`,
       { method: 'POST' }
     ),
+
+  /* ------------------------------- 运行环境 ------------------------------- */
+
+  /** 检测当前机器的运行时（VC++ / onnxruntime / sharp） */
+  listRuntime: () =>
+    request<{
+      ok: boolean;
+      supported: boolean;
+      platform: string;
+      components: RuntimeComponent[];
+      probes: RuntimeProbe[];
+      summary: { total: number; installed: number; missing: number; criticalMissing: number };
+      state: Record<string, { status: string; progress: number; message: string; error: string; needsReboot: boolean }>;
+    }>('/api/runtime'),
+  /** 下载某个组件的安装器（后台异步，状态走 listRuntime 返回的 state） */
+  downloadRuntime: (id: string) =>
+    request<{ ok: boolean; started: boolean }>(`/api/runtime/${encodeURIComponent(id)}/download`, {
+      method: 'POST',
+    }),
+  /** 静默下载 + 执行安装；安装完成后返回 needsReboot 提示 */
+  installRuntime: (id: string) =>
+    request<{ ok: boolean; needsReboot?: boolean; error?: string }>(`/api/runtime/${encodeURIComponent(id)}/install`, {
+      method: 'POST',
+    }),
 
   /* ------------------------------- 素材笔记 ------------------------------- */
 

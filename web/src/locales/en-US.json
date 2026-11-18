@@ -4828,5 +4828,11 @@
   "k723e93fb": "e.g. E:\\WhiteBackground",
   "ka6b9cb43": "Rebuild people groups?\n\nThis reclusters by existing features, dissolves clearly unreliable clusters (e.g. \"people\" that are just the backs of heads or ears), and picks new covers by sharpness and size. Named people keep their names where possible.",
   "k8874bf9d": "Backups include gallery.db (folders / tags / notes / ratings / OCR / actions), readable library.json, and thumbnails;",
-  "kbae514dc": "Trusted local page folder (absolute path), e.g. E:\\wallpapers\\pages"
+  "kbae514dc": "Trusted local page folder (absolute path), e.g. E:\\wallpapers\\pages",
+  "k17c39a01": "Runtime Environment",
+  "k8d2a6f11": "AI features (semantic search / super-resolution) and image processing depend on system components; install missing ones here with one click",
+  "k2f4d4a55": "{{p0}} critical components missing",
+  "kf4b5c881": "{{p0}} native modules failed to load",
+  "k92f18a55": "Installation complete — a system restart is recommended",
+  "k8e3b4a55": "Installation complete"
 }

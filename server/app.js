@@ -58,6 +58,7 @@ import { register as registerSync } from './routes/sync.js';
 import { register as registerFace } from './routes/face.js';
 import { register as registerTimeline } from './routes/timeline.js';
 import { register as registerModels } from './routes/models.js';
+import { register as registerRuntime } from './routes/runtime.js';
 import { register as registerReverse } from './routes/reverse.js';
 import { register as registerDocs } from './routes/docs.js';
 import { register as registerNightBatch } from './routes/night-batch.js';
@@ -504,6 +505,7 @@ export function buildApp({ desktop = false } = {}) {
   registerFace(app, ctx);
   registerTimeline(app, ctx);
   registerModels(app, ctx);
+  registerRuntime(app, ctx);
   registerReverse(app, ctx);
   registerNightBatch(app, ctx);
   // 放在最后注册：/api/docs 要自省整个路由表，晚注册才不会漏掉别人的接口

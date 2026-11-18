@@ -3,7 +3,7 @@ import type { ReactNode } from 'react';
 import Card from './Card';
 import { api } from '../../api';
 import { subscribeEvents } from '../../events';
-import type { ModelItem, ModelsPayload } from '../../types';
+import type { ModelItem, ModelsPayload, RuntimeComponent, RuntimeProbe } from '../../types';
 import i18n from '../../i18n';
 
 /**
@@ -25,6 +25,38 @@ export default function DownloadSection({
   /** 进度只由 SSE 推送更新，避免「每秒重算目录体积」把主线程拖住 */
   const [live, setLive] = useState<Record<string, { progress: number; message: string }>>({});
   const alive = useRef(true);
+
+  // ---- 运行环境（独立于模型检测；非 Windows 平台 supported=false，整个块隐藏） ----
+  const [runtime, setRuntime] = useState<RuntimePayload | null>(null);
+  const [runtimeBusy, setRuntimeBusy] = useState<string>('');
+  const runtimeAlive = useRef(true);
+
+  const loadRuntime = useCallback(async () => {
+    try {
+      const r = await api.listRuntime();
+      if (!runtimeAlive.current) return;
+      setRuntime(r);
+    } catch {
+      // runtime 接口挂了不影响模型下载中心主流程；静默失败
+    }
+  }, []);
+
+  useEffect(() => {
+    runtimeAlive.current = true;
+    void loadRuntime();
+    return () => { runtimeAlive.current = false; };
+  }, [loadRuntime]);
+
+  // 有 runtime 组件正在下载 / 安装 → 每 2 秒刷新状态
+  const runtimeActive = useMemo(() => {
+    if (!runtime) return false;
+    return Object.values(runtime.state || {}).some((s: any) => s.status === 'downloading' || s.status === 'installing');
+  }, [runtime]);
+  useEffect(() => {
+    if (!runtimeActive) return;
+    const t = setInterval(() => void loadRuntime(), 2000);
+    return () => clearInterval(t);
+  }, [runtimeActive, loadRuntime]);
 
   const load = useCallback(async () => {
     try {
@@ -160,6 +192,21 @@ export default function DownloadSection({
     }
   }
 
+  async function installOneRuntime(id: string) {
+    setRuntimeBusy(id);
+    try {
+      const r = await api.installRuntime(id);
+      if (r.error) onToast(r.error);
+      else if (r.needsReboot) onToast(i18n.t('k92f18a55')); // 安装完成，建议重启系统
+      else onToast(i18n.t('k8e3b4a55')); // 安装完成
+      await loadRuntime();
+    } catch (err: any) {
+      onToast(String(err?.message || err));
+    } finally {
+      setRuntimeBusy('');
+    }
+  }
+
   if (error && !data) {
     return (
       <Card title={i18n.t('k937902e1')} desc={i18n.t('k7ddf83bd')}>
@@ -179,6 +226,10 @@ export default function DownloadSection({
       title={i18n.t('k937902e1')}
       desc={i18n.t('k84725777')}
     >
+      {runtime?.supported && (
+        <RuntimeBlock runtime={runtime} busy={runtimeBusy} onInstall={installOneRuntime} />
+      )}
+
       {/* 总览 */}
       <div
         style={{
@@ -410,4 +461,159 @@ function fmtBytes(n: number) {
   if (n < 1024 * 1024) return `${(n / 1024).toFixed(0)} KB`;
   if (n < 1024 * 1024 * 1024) return `${(n / 1024 / 1024).toFixed(1)} MB`;
   return `${(n / 1024 / 1024 / 1024).toFixed(2)} GB`;
+}
+
+/** 运行环境 payload（和 resources.ts 的 listRuntime 返回对齐） */
+interface RuntimePayload {
+  supported: boolean;
+  platform: string;
+  components: RuntimeComponent[];
+  probes: RuntimeProbe[];
+  summary: { total: number; installed: number; missing: number; criticalMissing: number };
+  state: Record<string, { status: string; progress: number; message: string; error: string; needsReboot: boolean }>;
+}
+
+/** 运行环境分组：检测到缺系统组件时，展示「XX 未安装 · 一键下载安装」 */
+function RuntimeBlock({
+  runtime,
+  busy,
+  onInstall,
+}: {
+  runtime: RuntimePayload;
+  busy: string;
+  onInstall: (id: string) => void;
+}) {
+  const missingComp = runtime.components.filter((c) => !c.installed);
+  const failingProbes = runtime.probes.filter((p) => !p.ok);
+
+  if (!missingComp.length && !failingProbes.length) {
+    return (
+      <div style={{ marginBottom: 16 }}>
+        <div style={{ fontSize: 13.5, fontWeight: 600, marginBottom: 6 }}>
+          {i18n.t('k17c39a01')}
+        </div>
+        <div style={{ fontSize: 12, color: 'var(--text-3, #8a8f98)', marginBottom: 8 }}>
+          {i18n.t('k8d2a6f11')}
+        </div>
+        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginBottom: 12 }}>
+          {runtime.probes.map((p) => (
+            <Badge key={p.id} tone="ok">
+              {p.label}{p.version ? ` ${p.version}` : ''}
+            </Badge>
+          ))}
+          {runtime.components.filter((c) => c.installed).map((c) => (
+            <Badge key={c.id} tone="ok">{c.label}</Badge>
+          ))}
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div style={{ marginBottom: 16 }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6 }}>
+        <span style={{ fontSize: 13.5, fontWeight: 600 }}>{i18n.t('k17c39a01')}</span>
+        {runtime.summary.criticalMissing > 0 && (
+          <Badge tone="warn">{i18n.t('k2f4d4a55', { p0: runtime.summary.criticalMissing })}</Badge>
+        )}
+        {failingProbes.length > 0 && (
+          <Badge tone="warn">{i18n.t('kf4b5c881', { p0: failingProbes.length })}</Badge>
+        )}
+      </div>
+      <div style={{ fontSize: 12, color: 'var(--text-3, #8a8f98)', marginBottom: 8 }}>
+        {i18n.t('k8d2a6f11')}
+      </div>
+
+      {/* 原生模块探针状态（总览性，告诉用户 onnxruntime / sharp 能不能用） */}
+      {failingProbes.length > 0 && (
+        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginBottom: 10 }}>
+          {runtime.probes.map((p) => (
+            <Badge key={p.id} tone={p.ok ? 'ok' : 'warn'}>
+              {p.label} {p.ok ? i18n.t('k9719fec8') : i18n.t('k33618963')}
+              {!p.ok && p.error ? `（${p.error.slice(0, 40)}）` : ''}
+            </Badge>
+          ))}
+        </div>
+      )}
+
+      {/* 可安装组件：缺哪个列哪个，每个有「下载安装」按钮 */}
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginBottom: 12 }}>
+        {missingComp.map((c) => {
+          const st = runtime.state[c.id];
+          const rowBusy = busy === c.id;
+          const downloading = st?.status === 'downloading';
+          const installing = st?.status === 'installing';
+          const done = st?.status === 'done';
+          const err = st?.status === 'error';
+          return (
+            <div
+              key={c.id}
+              style={{
+                border: '1px solid var(--border, #e6e8eb)',
+                borderRadius: 8,
+                padding: '10px 12px',
+                background: 'var(--bg-soft, #fafbfc)',
+              }}
+            >
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                <span style={{ fontSize: 13, fontWeight: 600 }}>{c.label}</span>
+                {c.critical && <Badge tone="warn">{i18n.t('k976a3e8e')}</Badge>}
+                <Badge tone="muted">{i18n.t('k33618963')}</Badge>
+                <span style={{ marginLeft: 'auto', fontSize: 12, color: 'var(--text-3, #8a8f98)' }}>
+                  {fmtBytes(c.sizeHint)}
+                </span>
+              </div>
+              <div style={{ fontSize: 12, color: 'var(--text-2, #555b63)', marginTop: 4, lineHeight: 1.6 }}>
+                {c.desc}
+              </div>
+              {(downloading || installing) && (
+                <>
+                  <div style={{ marginTop: 8 }}>
+                    <div style={{ height: 4, borderRadius: 2, background: 'var(--border, #e6e8eb)', overflow: 'hidden' }}>
+                      <div
+                        style={{
+                          height: '100%',
+                          width: `${st.progress ?? 0}%`,
+                          background: installing ? 'var(--warn, #c47f17)' : 'var(--accent, #2563eb)',
+                          transition: 'width .2s',
+                        }}
+                      />
+                    </div>
+                    <div style={{ fontSize: 11.5, color: 'var(--text-3, #8a8f98)', marginTop: 4 }}>
+                      {st.message}
+                    </div>
+                  </div>
+                </>
+              )}
+              {err && (
+                <div style={{ fontSize: 11.5, color: 'var(--danger, #d33)', marginTop: 6 }}>
+                  {st.error}
+                </div>
+              )}
+              {done && (
+                <div style={{ fontSize: 11.5, color: 'var(--accent, #2563eb)', marginTop: 6 }}>
+                  {st.message}
+                </div>
+              )}
+              <div style={{ display: 'flex', gap: 8, marginTop: 8 }}>
+                <button
+                  className="btn btn-primary"
+                  disabled={rowBusy || downloading || installing}
+                  onClick={() => void onInstall(c.id)}
+                >
+                  {installing
+                    ? i18n.t('kf6196bb1')
+                    : downloading
+                    ? i18n.t('k0164eeb4')
+                    : rowBusy
+                    ? i18n.t('kf6196bb1')
+                    : i18n.t('kf26ef914')}
+                </button>
+              </div>
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
 }

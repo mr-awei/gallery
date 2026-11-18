@@ -987,6 +987,29 @@ export interface ModelsPayload {
   };
 }
 
+/** 运行环境检测：一项可安装的系统级组件（如 VC++ Runtime） */
+export interface RuntimeComponent {
+  id: string;
+  label: string;
+  desc: string;
+  critical: boolean;
+  installed: boolean;
+  installerUrl: string;
+  installerName: string;
+  sizeHint: number;
+  localPath?: string;
+}
+
+/** 运行环境检测：一项原生模块探针（onnxruntime / sharp） */
+export interface RuntimeProbe {
+  id: string;
+  label: string;
+  desc: string;
+  ok: boolean;
+  version?: string;
+  error?: string;
+}
+
 export interface EnhanceJobStatus {
   running: boolean;
   cancelled: boolean;
