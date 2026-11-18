@@ -353,41 +353,77 @@ export default function Crawl({ onToast }: { onToast: (msg: string, kind?: 'info
             <span style={{ color: 'var(--muted)', fontWeight: 400, fontSize: 12 }}>{phaseText}</span>
           </h4>
 
-          {/* 采集（搜索）进度 */}
-          <div style={{ fontSize: 12.5, marginBottom: 6, display: 'flex', justifyContent: 'space-between' }}>
-            <span>
-              ① 搜索候选：{search.done}/{search.total} 次
-              {search.failed > 0 && <span style={{ color: 'var(--err)' }}>（失败 {search.failed}）</span>}
-            </span>
-            <span style={{ color: 'var(--muted)' }}>{Math.round(searchPct)}%</span>
-          </div>
-          <div className="progress-track">
-            <div className="progress-fill" style={{ width: `${searchPct}%` }} />
+          {/* 汇总条：一行看清当前三阶段状态 */}
+          <div
+            style={{
+              display: 'grid',
+              gridTemplateColumns: '1fr 1fr 1fr',
+              gap: 10,
+              marginBottom: 12,
+            }}
+          >
+            <div className="crawl-phase">
+              <div className="crawl-phase-num">①</div>
+              <div style={{ flex: 1 }}>
+                <div className="crawl-phase-label">{i18n.t('k5a3d0e72')}</div>
+                <div className="crawl-phase-num-big">
+                  {search.done}
+                  <span className="crawl-phase-total">/{search.total}</span>
+                  {search.failed > 0 && (
+                    <span className="crawl-phase-fail">· {i18n.t('kf6a3b2c1')} {search.failed}</span>
+                  )}
+                </div>
+                <div className="progress-track sm" style={{ marginTop: 4 }}>
+                  <div className="progress-fill" style={{ width: `${searchPct}%` }} />
+                </div>
+              </div>
+            </div>
+            <div className="crawl-phase">
+              <div className="crawl-phase-num">②</div>
+              <div style={{ flex: 1 }}>
+                <div className="crawl-phase-label">{i18n.t('k044526b2')}</div>
+                <div className="crawl-phase-num-big">
+                  {download.done}
+                  <span className="crawl-phase-total">/{download.queued}</span>
+                  {download.active > 0 && (
+                    <span className="crawl-phase-fail" style={{ color: 'var(--warn)' }}>
+                      · {download.active} {i18n.t('kd4c55b0d')}
+                    </span>
+                  )}
+                </div>
+                <div className="progress-track sm" style={{ marginTop: 4 }}>
+                  <div className="progress-fill" style={{ width: `${downloadPct}%` }} />
+                </div>
+              </div>
+            </div>
+            <div className="crawl-phase">
+              <div className="crawl-phase-num">③</div>
+              <div style={{ flex: 1 }}>
+                <div className="crawl-phase-label">{i18n.t('kf8dfedcd')}</div>
+                <div className="crawl-phase-num-big" style={{ color: 'var(--ok)' }}>
+                  {download.saved}
+                  {download.failed > 0 && (
+                    <span className="crawl-phase-fail">· {i18n.t('kf6a3b2c1')} {download.failed}</span>
+                  )}
+                </div>
+                <div className="progress-track sm" style={{ marginTop: 4 }}>
+                  <div
+                    className="progress-fill"
+                    style={{
+                      width: `${download.queued ? (download.saved / download.queued) * 100 : 0}%`,
+                      background: 'var(--ok, #2ea043)',
+                    }}
+                  />
+                </div>
+              </div>
+            </div>
           </div>
 
-          {/* 下载进度 */}
-          <div style={{ fontSize: 12.5, margin: '12px 0 6px', display: 'flex', justifyContent: 'space-between' }}>
-            <span>
-              ② 下载入库：{download.done}/{download.queued}
-              {download.active > 0 && (
-                <span style={{ color: 'var(--warn)' }}>（进行中 {download.active}）</span>
-              )}
-              {download.failed > 0 && <span style={{ color: 'var(--err)' }}>（失败 {download.failed}）</span>}
-            </span>
-            <span style={{ color: 'var(--muted)' }}>{Math.round(downloadPct)}%</span>
-          </div>
-          <div className="progress-track">
-            <div className="progress-fill" style={{ width: `${downloadPct}%` }} />
-          </div>
-
-          <div className="counter-grid" style={{ marginTop: 14 }}>
+          {/* 统计：一行数字卡，点开失败数自动切到失败 tab */}
+          <div className="counter-grid" style={{ marginTop: 6 }}>
             <div className="counter">
               <div className="k">{i18n.t('kf21434be')}</div>
               <div className="v">{stats?.candidates ?? 0}</div>
-            </div>
-            <div className="counter">
-              <div className="k">{i18n.t('k044526b2')}</div>
-              <div className="v">{download.queued}</div>
             </div>
             <div className="counter">
               <div className="k">{i18n.t('k9719fec8')}</div>
@@ -395,24 +431,11 @@ export default function Crawl({ onToast }: { onToast: (msg: string, kind?: 'info
             </div>
             <div className="counter">
               <div className="k">{i18n.t('kf8dfedcd')}</div>
-              <div className="v" style={{ color: 'var(--ok)' }}>
-                {download.saved}
-              </div>
+              <div className="v" style={{ color: 'var(--ok)' }}>{download.saved}</div>
             </div>
             <div className="counter">
               <div className="k">{i18n.t('k33e3c0d2')}</div>
-              <div className="v" style={{ color: 'var(--warn)' }}>
-                {stats?.dropped?.duplicate ?? 0}
-              </div>
-            </div>
-            <div className="counter">
-              <div className="k">{i18n.t('k15218acc')}</div>
-              <div className="v" style={{ color: 'var(--warn)' }}>
-                {(stats?.dropped?.lowres ?? 0) +
-                  (stats?.dropped?.small ?? 0) +
-                  (stats?.dropped?.format ?? 0) +
-                  (stats?.dropped?.aiFilter ?? 0)}
-              </div>
+              <div className="v" style={{ color: 'var(--warn)' }}>{stats?.dropped?.duplicate ?? 0}</div>
             </div>
             <div className="counter">
               <div className="k">{i18n.t('kacd5cb84')}</div>
@@ -435,16 +458,34 @@ export default function Crawl({ onToast }: { onToast: (msg: string, kind?: 'info
             </div>
           )}
 
-          <div style={{ display: 'flex', gap: 6, margin: '12px 0 8px' }}>
+          <div style={{ display: 'flex', gap: 6, margin: '12px 0 8px', alignItems: 'center' }}>
             <button className={`chip${tab === 'log' ? ' active' : ''}`} onClick={() => setTab('log')}>
               {i18n.t('ka94180c2')}
             </button>
-            <button
-              className={`chip${tab === 'fail' ? ' active' : ''}`}
-              onClick={() => setTab('fail')}
-            >
+            <button className={`chip${tab === 'fail' ? ' active' : ''}`} onClick={() => setTab('fail')}>
               失败明细（{status?.failureCount ?? 0}）
             </button>
+            {!running && status?.failureCount && (
+              <button
+                className="btn sm"
+                style={{ marginLeft: 'auto' }}
+                onClick={async () => {
+                  // 拿当前 crawl 任务 id：如果不是当前正在跑的（已结束），需要用 jobs 列表找
+                  const jobs = await api.jobs('crawl', 10).catch(() => []);
+                  const last = jobs.find((j: JobItem) => j.status !== 'running');
+                  if (!last) return onToast(i18n.t('k6cabb785'));
+                  try {
+                    await api.retryJob(last.id);
+                    onToast(i18n.t('k4c767e26'));
+                  } catch (err) {
+                    onToast((err as Error).message, 'error');
+                  }
+                }}
+                title="用原参数重跑一次，已入库的会自动跳过，上次失败的会被重新尝试"
+              >
+                🔄 {i18n.t('k10b3b81c')} {i18n.t('kf6a3b2c1')}
+              </button>
+            )}
           </div>
 
           {tab === 'log' ? (
