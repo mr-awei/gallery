@@ -24,6 +24,9 @@ export const resourcesAPI = {
     request<{ ok: boolean; jobId: number; already?: boolean }>('/api/timeline/backfill', { method: 'POST' }),
   cancelTimelineBackfill: () =>
     request<{ ok: boolean }>('/api/timeline/backfill/cancel', { method: 'POST' }),
+  /** 按 id 批量取素材（无限画布恢复布局）：顺序与入参一致，已删除的 id 会被跳过 */
+  imagesByIds: (ids: number[], opts?: { signal?: AbortSignal }) =>
+    request<{ items: ImageItem[] }>(`/api/images/by-ids?ids=${ids.join(',')}`, { signal: opts?.signal }),
   images: (filters: Filters, page: number, pageSize: number, opts?: { signal?: AbortSignal }) =>
     request<{ items: ImageItem[]; total: number; page: number; pageSize: number; hasMore: boolean }>(
       `/api/images?${buildQuery(filters, page, pageSize)}`, opts
@@ -363,6 +366,8 @@ export const resourcesAPI = {
     tags?: string[];
     tagMode?: 'add' | 'remove' | 'set';
     note?: string;
+    inbox?: boolean;
+    colorLabel?: string;
   }) =>
     request<{ ok: boolean; updated: number; skipped: number; items: ImageItem[] }>('/api/images/bulk-metadata', {
       method: 'POST',

@@ -13,6 +13,8 @@
       }
       h3 { margin: 0 0 10px; font-size: 14px; }
       label { display: block; margin-top: 8px; color: #9aa; font-size: 12px; }
+      label.check { display: flex; align-items: center; gap: 6px; color: #ccc; }
+      label.check input { width: auto; margin: 0; }
       input, button { width: 100%; box-sizing: border-box; }
       input {
         margin-top: 4px; padding: 6px 8px; border-radius: 6px; border: 1px solid #333; background: #22222c; color: #eee;
@@ -33,6 +35,7 @@
     <label>标签（可选，多个用逗号分隔）
       <input id="tags" placeholder="如：写真,舞台" />
     </label>
+    <label class="check"><input type="checkbox" id="toCanvas" /> 采集后存入无限画布</label>
     <button id="batch">抓取本页所有图片</button>
     <button id="shot" class="ghost">截取可见区域</button>
     <button id="fullshot" class="ghost">整页截图存图库</button>

@@ -5,7 +5,7 @@
 // 文件名走 query，一次一个文件。省一个依赖，也避免 multipart 解析大文件时的内存抖动。
 import express from 'express';
 import * as lib from '../library.js';
-import { getSettings } from '../db.js';
+import { db, getSettings } from '../db.js';
 import { ingestMedia, isMediaPath } from '../lib/media.js';
 
 export function register(app, ctx) {
@@ -51,6 +51,8 @@ export function register(app, ctx) {
           copyToStorage: true,
         });
         if (!r.ok) return res.status(400).json({ error: '该格式暂不支持' });
+        // 采集收件箱：上传/粘贴默认先进收件箱，整理完再移出；可在设置里关掉
+        if (settings.inboxOnCapture !== false) db.prepare('UPDATE images SET inbox = 1 WHERE id = ?').run(r.id);
         return res.json({ ok: true, image: lib.toDTO(lib.getImage(r.id)) });
       }
 
@@ -73,6 +75,8 @@ export function register(app, ctx) {
         };
         return res.status(400).json({ error: map[r.reason] || '导入失败' });
       }
+      // 采集收件箱：上传/粘贴默认先进收件箱，整理完再移出；可在设置里关掉
+      if (settings.inboxOnCapture !== false) db.prepare('UPDATE images SET inbox = 1 WHERE id = ?').run(r.id);
       res.json({ ok: true, image: lib.toDTO(lib.getImage(r.id)) });
     })
   );

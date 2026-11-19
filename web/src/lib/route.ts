@@ -9,6 +9,7 @@ export const VIEWS = [
   'dashboard',
   'gallery',
   'timeline',
+  'canvas',
   'favorites',
   'people',
   'tidy',
@@ -40,6 +41,7 @@ export const DEFAULT_FILTERS: Filters = {
   colorHex: '',
   colorTol: 48,
   bbox: '',
+  colorLabel: '',
 };
 
 /** 参与 URL 的筛选字段（数组用逗号连接，默认值不写入） */
@@ -58,6 +60,7 @@ const FILTER_KEYS = [
   'colorTol',
   'kind',
   'pending',
+  'colorLabel',
   // 地图框选也进 URL：把「某个地点的照片」发出去，对方打开就是那块地图
   'bbox',
 ] as const;
@@ -96,11 +99,14 @@ export function parseRoute(search: string): RouteState {
     colorHex: p.get('colorHex') || '',
     colorTol: Number(p.get('colorTol')) || d.colorTol,
     bbox: p.get('bbox') || '',
+    colorLabel: p.get('colorLabel') || '',
   };
   const kind = p.get('kind');
   if (kind) filters.kind = kind;
   const pending = p.get('pending');
-  if (pending === 'noFolder' || pending === 'noTags' || pending === 'noRating') filters.pending = pending;
+  if (pending === 'inbox' || pending === 'noFolder' || pending === 'noTags' || pending === 'noRating') {
+    filters.pending = pending;
+  }
   const fid = Number(p.get('folder'));
   return { view, filters, folderId: Number.isFinite(fid) && fid > 0 ? fid : null };
 }

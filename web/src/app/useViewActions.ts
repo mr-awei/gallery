@@ -110,9 +110,9 @@ export function useViewActions({
 
   /** 「待整理」入口：进入图库并套用对应筛选 */
   const openPending = useCallback(
-    (kind: 'noFolder' | 'noTags' | 'noRating') => {
+    (kind: 'inbox' | 'noFolder' | 'noTags' | 'noRating') => {
       setFolderId(null);
-      setFilters((prev) => ({ ...prev, pending: kind, tag: '' }));
+      setFilters((prev) => ({ ...prev, pending: kind, tag: '', colorLabel: '' }));
       setView('gallery');
     },
     [setFilters, setFolderId, setView]

@@ -24,6 +24,17 @@ type TagMode = 'add' | 'remove' | 'set';
 
 const RATINGS = [0, 1, 2, 3, 4, 5];
 
+/** 颜色旗标：与评分互补，表达流程状态（待修 / 已选 / 已交付…） */
+const COLORS: { key: string; hex: string }[] = [
+  { key: 'red', hex: '#e5484d' },
+  { key: 'orange', hex: '#f76b15' },
+  { key: 'yellow', hex: '#e2a300' },
+  { key: 'green', hex: '#30a46c' },
+  { key: 'blue', hex: '#3b82f6' },
+  { key: 'purple', hex: '#8b5cf6' },
+  { key: 'gray', hex: '#8b8b8b' },
+];
+
 export default function BulkMetadataDialog({ ids, onClose, onToast, onUpdated }: Props) {
   const [busy, setBusy] = useState(false);
   const [rating, setRating] = useState<string>('');
@@ -32,13 +43,24 @@ export default function BulkMetadataDialog({ ids, onClose, onToast, onUpdated }:
   const [tagsText, setTagsText] = useState('');
   const [note, setNote] = useState('');
   const [clearNote, setClearNote] = useState(false);
+  /** '' = 不修改；'none' = 清除；其余是颜色名 */
+  const [colorLabel, setColorLabel] = useState('');
+  /** '' = 不修改；'1' 移入 / '0' 移出 */
+  const [inbox, setInbox] = useState('');
 
   const tagList = tagsText
     .split(/[,，\n]/)
     .map((t) => t.trim())
     .filter(Boolean);
 
-  const dirty = rating !== '' || favorite !== '' || tagsText.trim() !== '' || note.trim() !== '' || clearNote;
+  const dirty =
+    rating !== '' ||
+    favorite !== '' ||
+    tagsText.trim() !== '' ||
+    note.trim() !== '' ||
+    clearNote ||
+    colorLabel !== '' ||
+    inbox !== '';
 
   const submit = async () => {
     if (busy || !dirty) return;
@@ -53,6 +75,8 @@ export default function BulkMetadataDialog({ ids, onClose, onToast, onUpdated }:
       }
       if (clearNote) body.note = '';
       else if (note.trim() !== '') body.note = note.trim();
+      if (colorLabel !== '') body.colorLabel = colorLabel === 'none' ? '' : colorLabel;
+      if (inbox !== '') body.inbox = inbox === '1';
       const r = await api.bulkMetadata(body);
       onUpdated(r.items || []);
       const skipped = r.skipped ? i18n.t('kfc0cec8c', { p0: r.skipped }) : '';
@@ -98,6 +122,44 @@ export default function BulkMetadataDialog({ ids, onClose, onToast, onUpdated }:
               <option value="">{i18n.t('k8229ad29')}</option>
               <option value="1">{i18n.t('k05b72da9')}</option>
               <option value="0">{i18n.t('kf22cec28')}</option>
+            </select>
+          </div>
+
+          <div className="field">
+            <label>{i18n.t('k7c3f1b03')}</label>
+            <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
+              {COLORS.map((c) => (
+                <button
+                  type="button"
+                  key={c.key}
+                  title={i18n.t(`k7c3f1b0${9 + COLORS.indexOf(c)}`)}
+                  onClick={() => setColorLabel(colorLabel === c.key ? '' : c.key)}
+                  style={{
+                    width: 22,
+                    height: 22,
+                    borderRadius: '50%',
+                    border: colorLabel === c.key ? '2px solid var(--ink)' : '2px solid transparent',
+                    background: c.hex,
+                    cursor: 'pointer',
+                  }}
+                />
+              ))}
+              <button
+                type="button"
+                className={colorLabel === 'none' ? 'btn sm primary' : 'btn sm'}
+                onClick={() => setColorLabel(colorLabel === 'none' ? '' : 'none')}
+              >
+                {i18n.t('k7c3f1b08')}
+              </button>
+            </div>
+          </div>
+
+          <div className="field">
+            <label>{i18n.t('k7c3f1b04')}</label>
+            <select className="input" style={{ width: 200 }} value={inbox} onChange={(e) => setInbox(e.target.value)}>
+              <option value="">{i18n.t('k7c3f1b05')}</option>
+              <option value="0">{i18n.t('k7c3f1b06')}</option>
+              <option value="1">{i18n.t('k7c3f1b07')}</option>
             </select>
           </div>
 

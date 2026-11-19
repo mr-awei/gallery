@@ -19,15 +19,20 @@ import {
   IconPin,
   IconSearch,
   IconSpider,
+  IconSquare,
   IconUsers,
   IconWand,
 } from '../components/Icons';
 import i18n from '../i18n';
 
 /** 「待整理」智能视图（Eagle 侧栏固定三项） */
-export const PENDING_ITEMS: { key: 'noFolder' | 'noTags' | 'noRating'; label: string; hint: string }[] =
-  [
-    { key: 'noFolder', label: i18n.t('kecf7ebb5'), hint: i18n.t('k5c223f82') },
+export const PENDING_ITEMS: {
+  key: 'inbox' | 'noFolder' | 'noTags' | 'noRating';
+  label: string;
+  hint: string;
+}[] = [
+  { key: 'inbox', label: i18n.t('k7c3f1b01'), hint: i18n.t('k7c3f1b02') },
+  { key: 'noFolder', label: i18n.t('kecf7ebb5'), hint: i18n.t('k5c223f82') },
     { key: 'noTags', label: i18n.t('k3f9afcd7'), hint: i18n.t('kc65f2452') },
     { key: 'noRating', label: i18n.t('k7be04a8b'), hint: i18n.t('ka4cabfd3') },
   ];
@@ -39,6 +44,7 @@ export const PRIMARY_NAV: NavItem[] = [
   { key: 'dashboard', label: i18n.t('k3fa8b34a'), icon: <IconDashboard /> },
   { key: 'gallery', label: i18n.t('k6084bc4b'), icon: <IconImages /> },
   { key: 'timeline', label: i18n.t('k4404a8da'), icon: <IconCalendar /> },
+  { key: 'canvas', label: i18n.t('k7c3f1a2e'), icon: <IconSquare /> },
 ];
 
 /** 低频入口：收进可折叠的「更多导航」分区，默认收起 */

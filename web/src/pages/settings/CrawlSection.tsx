@@ -122,6 +122,17 @@ export default function CrawlSection({
         </Card>
 
         <Card title={i18n.t('ke3a573fb')} desc={i18n.t('k15da038a')}>
+          <div className="switch-row" title={i18n.t('k7c3f1d02')}>
+            <span>
+              {i18n.t('k7c3f1d01')}
+              <div className="hint" style={{ marginTop: 2 }}>{i18n.t('k7c3f1d02')}</div>
+            </span>
+            <input
+              type="checkbox"
+              checked={settings.inboxOnCapture !== false}
+              onChange={(e) => patch({ inboxOnCapture: e.target.checked })}
+            />
+          </div>
           <div className="field">
             <label>{i18n.t('k0e7bf5d0')}</label>
             <input

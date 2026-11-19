@@ -14,7 +14,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import crypto from 'node:crypto';
 import sharp from 'sharp';
-import { db, getThumbDir } from './db.js';
+import { db, getSettings, getThumbDir } from './db.js';
 import { getImage, setCustomThumb, setNote, setTags, toDTO } from './library.js';
 import { httpFetch } from './http.js';
 import { readBodyLimited } from './lib/safe-url.js';
@@ -172,8 +172,8 @@ export async function saveBookmark({ url, tags = [], note = '', keyword = '' } =
   const info = db
     .prepare(
       `INSERT INTO images (title, abs_path, thumb, source, keyword, source_url, width, height,
-        size_bytes, mime, phash, favorite, tags, created_at, fs_mtime, md5, media_kind)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, ?, ?, ?, ?, ?)`
+        size_bytes, mime, phash, favorite, tags, created_at, fs_mtime, md5, media_kind, inbox)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, ?, ?, ?, ?, ?, ?)`
     )
     .run(
       meta.title || finalUrl,
@@ -191,7 +191,8 @@ export async function saveBookmark({ url, tags = [], note = '', keyword = '' } =
       new Date().toISOString(),
       Math.round(stat.mtimeMs / 1000),
       '',
-      'bookmark'
+      'bookmark',
+      getSettings().inboxOnCapture !== false ? 1 : 0
     );
 
   const id = Number(info.lastInsertRowid);

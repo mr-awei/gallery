@@ -79,7 +79,10 @@ async function ensure(): Promise<void> {
  * 卸载（快速进出页面），清理执行的还是空函数，handler 就永远留在全局 Map 里。
  * handler 是同步入队的，退订没有理由异步化。
  */
-export function subscribeEvents(type: 'job' | 'library' | 'live' | 'hello', fn: Handler): () => void {
+export function subscribeEvents(
+  type: 'job' | 'library' | 'live' | 'hello' | 'canvas',
+  fn: Handler
+): () => void {
   let set = handlersByType.get(type);
   if (!set) {
     set = new Set();

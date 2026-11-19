@@ -33,6 +33,8 @@ export interface ImageDTOShape {
   viewCount?: unknown;
   viewedAt?: unknown;
   rating?: unknown;
+  inbox?: unknown;
+  colorLabel?: unknown;
   note?: unknown;
   dominant?: unknown;
   palette?: unknown;

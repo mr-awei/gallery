@@ -7,6 +7,7 @@ import { copyText, openFolder, revealFile } from '../api/core';
 import { confirmDialog, promptDialog } from '../components/Dialogs';
 import { cancelPrefetchPreview, schedulePrefetchPreview } from '../lib/preview-prefetch';
 import VirtualGrid from '../components/VirtualGrid';
+import { IconRefresh, IconWarning } from '../components/Icons';
 import i18n from '../i18n';
 
 /** 右键菜单项类型（和 Gallery 页面菜单共用 ctx-menu 样式） */
@@ -30,6 +31,88 @@ const KIND_TAG: Record<string, string> = {
 function extTag(title: string) {
   const m = title.match(/\.([a-z0-9]+)$/i);
   return m ? m[1].toUpperCase() : '';
+}
+
+/**
+ * 时间线缩略图：后端还没生成好缩略图时会先回 404，同时把它排进补图队列。
+ * 以前这里直接渲染 <img>，一次 404 就会停在浏览器的「坏图」图标上不再重试，
+ * 只有切走再回来（组件重新挂载）才会重新请求 —— 用户看到的就是「偶尔一张坏图，
+ * 过一会回来又好了」。这里按退避自动重试，等待期间显示占位，不直接露出坏图图标。
+ */
+function TlThumb({ src, alt, resetKey }: { src: string; alt: string; resetKey?: number }) {
+  /** 重试间隔：前几次快，后面逐步退避，整库补图时也能等到自己那张 */
+  const DELAYS = [1200, 2500, 4000, 6000, 10000, 15000, 20000, 30000, 45000];
+  const [tick, setTick] = useState(0);
+  const [pending, setPending] = useState(false);
+  const [failed, setFailed] = useState(false);
+  const triesRef = useRef(0);
+  const timerRef = useRef(0);
+  /** 这张图是否失败过：手动刷新只重试失败过的，正常显示的图不重复请求 */
+  const hadErrorRef = useRef(false);
+
+  useEffect(
+    () => () => {
+      if (timerRef.current) window.clearTimeout(timerRef.current);
+    },
+    []
+  );
+
+  // 页面级刷新：只对失败/待生成的格子重新发起请求，刷新不打断正常图片
+  useEffect(() => {
+    if (!resetKey || !hadErrorRef.current) return;
+    hadErrorRef.current = false;
+    triesRef.current = 0;
+    setPending(false);
+    setFailed(false);
+    setTick((t) => t + 1);
+  }, [resetKey]);
+
+  const onLoad = () => {
+    triesRef.current = 0;
+    hadErrorRef.current = false;
+    if (timerRef.current) {
+      window.clearTimeout(timerRef.current);
+      timerRef.current = 0;
+    }
+    setPending(false);
+    setFailed(false);
+  };
+
+  const onError = () => {
+    hadErrorRef.current = true;
+    const next = triesRef.current + 1;
+    triesRef.current = next;
+    if (next > DELAYS.length) {
+      setPending(false);
+      setFailed(true);
+      return;
+    }
+    setPending(true);
+    if (timerRef.current) window.clearTimeout(timerRef.current);
+    timerRef.current = window.setTimeout(() => {
+      timerRef.current = 0;
+      setTick((t) => t + 1);
+    }, DELAYS[next - 1]);
+  };
+
+  // retry=1：让后端给这张图一次插队生成的机会；tick 让 URL 变化，绕开可能被缓存的失败响应
+  const url = tick ? `${src}${src.includes('?') ? '&' : '?'}retry=1&tlr=${tick}` : src;
+
+  return (
+    <>
+      <img src={url} alt={failed ? '' : alt} loading="lazy" decoding="async" onLoad={onLoad} onError={onError} />
+      {pending && (
+        <span className="tl-thumb-ph" aria-hidden>
+          <i className="tl-thumb-spin" />
+        </span>
+      )}
+      {failed && (
+        <span className="tl-thumb-ph broken" title={i18n.t('kc75e9f9a', { p0: alt })}>
+          <IconWarning size={18} />
+        </span>
+      )}
+    </>
+  );
 }
 
 /**
@@ -91,6 +174,7 @@ function DayBlock({
   day,
   count,
   state,
+  imgEpoch,
   onLoad,
   onLoadMore,
   onOpen,
@@ -99,6 +183,8 @@ function DayBlock({
   day: string;
   count: number;
   state?: DayState;
+  /** 手动刷新序号：只让失败过的缩略图重试，不重挂载整块内容 */
+  imgEpoch: number;
   onLoad: () => void;
   onLoadMore: () => void;
   onOpen: (item: ImageItem, pool: ImageItem[]) => void;
@@ -190,7 +276,7 @@ function DayBlock({
                   onItemMenu(e, it, items);
                 }}
               >
-                <img src={it.thumbUrl} alt={it.title} loading="lazy" decoding="async" />
+                <TlThumb src={it.thumbUrl} alt={it.title} resetKey={imgEpoch} />
                 {tag && (
                   <span className={`tl-kind tl-kind-${k}`} title={it.title}>
                     {tag}
@@ -225,6 +311,7 @@ function MonthBlock({
   count,
   state,
   dayStates,
+  imgEpoch,
   onLoadDays,
   onLoadDay,
   onMoreDay,
@@ -235,6 +322,7 @@ function MonthBlock({
   count: number;
   state?: MonthState;
   dayStates: Record<string, DayState>;
+  imgEpoch: number;
   onLoadDays: () => void;
   onLoadDay: (day: string) => void;
   onMoreDay: (day: string, offset: number) => void;
@@ -301,6 +389,7 @@ function MonthBlock({
           day={b.day}
           count={b.count}
           state={dayStates[b.day]}
+          imgEpoch={imgEpoch}
           onLoad={() => onLoadDay(b.day)}
           onLoadMore={() => onMoreDay(b.day, dayStates[b.day]?.items.length || 0)}
           onOpen={onOpen}
@@ -318,6 +407,10 @@ export function Timeline({ onToast, onOpen }: Props) {
   const [months, setMonths] = useState<Record<string, MonthState>>({});
   const [days, setDays] = useState<Record<string, DayState>>({});
   const [job, setJob] = useState<Pick<JobItem, 'id' | 'status' | 'progress' | 'message'> | null>(null);
+  /** 手动刷新进行中 */
+  const [refreshing, setRefreshing] = useState(false);
+  /** 手动刷新序号：只让失败过的缩略图重试，不清空已加载内容（保住滚动位置） */
+  const [imgEpoch, setImgEpoch] = useState(0);
   const timers = useRef<number[]>([]);
   /** 跳月份后的反复对齐定时器（见 alignTo 的注释） */
   const jumpTimer = useRef<number | null>(null);
@@ -502,6 +595,47 @@ export function Timeline({ onToast, onOpen }: Props) {
   useEffect(() => {
     loadSummary();
   }, [loadSummary]);
+
+  /**
+   * 手动刷新：就地更新已加载的月份索引与每一天的图片，不清空列表。
+   * 以前清空 months/days 会让内容高度瞬间塌陷、滚动位置被顶回顶部；
+   * 现在保留现有内容，只把新数据替换进去，滚动进度自然保持。
+   * 缩略图失败是「后台正在补」的临时状态，用 imgEpoch 让它重新请求。
+   */
+  const refreshAll = useCallback(async () => {
+    if (refreshing) return;
+    setRefreshing(true);
+    try {
+      const monthList = Object.keys(months);
+      const dayList = Object.keys(days);
+      const s = await loadSummary();
+      await Promise.all([
+        ...monthList.map((m) =>
+          api
+            .timelineDays(m)
+            .then((r) =>
+              setMonths((prev) => (prev[m] ? { ...prev, [m]: { days: r.days, total: r.total, loading: false } } : prev))
+            )
+            .catch(() => undefined)
+        ),
+        ...dayList.map((d) => {
+          // 已经翻过页的日期保持已加载的张数，刷新后不回退成一页
+          const keep = Math.max(PAGE, days[d]?.items.length || 0);
+          return api
+            .timelineDay(d, 0, keep)
+            .then((r) =>
+              setDays((prev) => (prev[d] ? { ...prev, [d]: { items: r.items, total: r.total, loading: false } } : prev))
+            )
+            .catch(() => undefined);
+        }),
+      ]);
+      setImgEpoch((n) => n + 1);
+      if (s) onToast(i18n.t('k7c1d5e92'));
+      else onToast(i18n.t('k866b795e'), 'error');
+    } finally {
+      setRefreshing(false);
+    }
+  }, [refreshing, months, days, loadSummary, onToast]);
 
   useEffect(() => {
     const list = timers.current;
@@ -829,6 +963,18 @@ export function Timeline({ onToast, onOpen }: Props) {
               </span>
             </span>
           )}
+          <button
+            type="button"
+            className="btn"
+            disabled={refreshing}
+            title={i18n.t('k3d2a8710')}
+            onClick={refreshAll}
+          >
+            <span className={refreshing ? 'spinning' : ''}>
+              <IconRefresh size={14} />
+            </span>
+            {refreshing ? i18n.t('kbfb2e454') : i18n.t('k694fc5ef')}
+          </button>
         </div>
       </header>
 
@@ -898,7 +1044,7 @@ export function Timeline({ onToast, onOpen }: Props) {
               x: e.clientX,
               y: e.clientY,
               items: [
-                { label: i18n.t('k3d2a8710'), icon: '↻', action: async () => { await loadSummary(); onToast(i18n.t('k7c1d5e92')); } },
+                { label: i18n.t('k3d2a8710'), icon: '↻', action: refreshAll },
                 { label: i18n.t('k51e4c8ab'), icon: '✕', action: async () => { try { const r = await api.purgeMissing(); onToast(i18n.t('kf59ce297', { p0: r.removed || 0 })); } catch (err: any) { onToast(String(err?.message || err), 'error'); } } },
                 { label: i18n.t('k86c34d73'), icon: '📁', action: async () => { try { await openFolder(); } catch { /* 非桌面端无此能力，静默 */ } } },
               ],
@@ -912,6 +1058,7 @@ export function Timeline({ onToast, onOpen }: Props) {
               count={m.count}
               state={months[m.month]}
               dayStates={days}
+              imgEpoch={imgEpoch}
               onLoadDays={() => loadDays(m.month)}
               onLoadDay={(day) => loadDay(day, 0)}
               onMoreDay={(day, offset) => loadDay(day, offset)}

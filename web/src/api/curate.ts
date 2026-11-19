@@ -372,7 +372,10 @@ export const curateAPI = {
   deleteComment: (id: number) => request<{ ok: boolean }>(`/api/comments/${id}`, { method: 'DELETE' }),
 
   /* ------------------------------- 待整理视图 ------------------------------- */
-  pending: () => request<{ total: number; noFolder: number; noTags: number; noRating: number }>('/api/organize/pending'),
+  pending: () =>
+    request<{ total: number; inbox: number; noFolder: number; noTags: number; noRating: number }>(
+      '/api/organize/pending'
+    ),
 
   /* ------------------------- 完全重复（MD5，与 pHash 互补） ------------------------- */
   md5Dupes: () => request<{ ok: boolean; groups: DupeGroup[]; reclaim: number; missing: number }>('/api/dupes/md5'),

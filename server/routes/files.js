@@ -5,6 +5,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import sharp from 'sharp';
 import * as lib from '../library.js';
+import { db } from '../db.js';
 import * as nd from '../lib/nondestructive.js';
 import { bumpUsage } from '../lib/usage.js';
 import { existingPreviewPath, existingThumbPath, ensurePreview, mtimeOf } from '../thumbs.js';
@@ -136,6 +137,36 @@ export function register(app, ctx) {
       // 404 不能带缓存：否则 Electron 会把「暂缺」记住，补图完成后卡片仍不显示
       res.set('Cache-Control', 'no-store');
       return res.status(404).end('thumb pending');
+    })
+  );
+
+  /**
+   * 按 id 批量取素材 DTO（无限画布恢复布局、批量引用等）。
+   * 顺序按入参返回，已删除的 id 直接跳过；单次上限 500，避免超长 URL。
+   */
+  app.get(
+    '/api/images/by-ids',
+    asyncRoute(async (req, res) => {
+      const ids = [
+        ...new Set(
+          String(req.query.ids || '')
+            .split(',')
+            .map(Number)
+            .filter((n) => Number.isFinite(n) && n > 0)
+        ),
+      ].slice(0, 500);
+      if (!ids.length) return res.json({ items: [] });
+      const rows = [];
+      for (let i = 0; i < ids.length; i += 500) {
+        const chunk = ids.slice(i, i + 500);
+        rows.push(
+          ...db
+            .prepare(`SELECT * FROM images WHERE id IN (${chunk.map(() => '?').join(',')})`)
+            .all(...chunk)
+        );
+      }
+      const byId = new Map(rows.map((r) => [r.id, r]));
+      res.json({ items: ids.map((id) => byId.get(id)).filter(Boolean).map((r) => lib.toDTO(r)) });
     })
   );
 

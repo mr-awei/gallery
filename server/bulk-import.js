@@ -755,10 +755,10 @@ export async function bulkImportLocal({
  * 但 CLIP 查重保留（第二道防线，挡 pHash 挡不住的裁剪/旋转/滤镜重复）。
  *
  * @param {Array<{buffer: Buffer, source?: string, keyword?: string, sourceUrl?: string, title?: string, tags?: string}>} items
- * @param {{ onEach?: (index: number, result: object) => void, libGeneration?: number|null }} opts
+ * @param {{ onEach?: (index: number, result: object) => void, libGeneration?: number|null, inbox?: boolean }} opts
  * @returns {Promise<{total: number, saved: number, duplicate: number, dropped: number, failed: number}>}
  */
-export async function bulkIngestBuffers(items, { onEach = null, libGeneration = null } = {}) {
+export async function bulkIngestBuffers(items, { onEach = null, libGeneration = null, inbox = false } = {}) {
   const settings = getSettings();
   const generation = libGeneration ?? getLibraryGeneration();
   const rules = listRules();
@@ -862,8 +862,8 @@ export async function bulkIngestBuffers(items, { onEach = null, libGeneration = 
   /* 3) 批量 INSERT 拿 id（整批一个事务） */
   const insStmt = db.prepare(
     `INSERT OR IGNORE INTO images (title, abs_path, thumb, source, keyword, source_url, width, height,
-      size_bytes, mime, phash, favorite, tags, created_at, fs_mtime)
-     VALUES (?, ?, NULL, ?, ?, ?, ?, ?, ?, ?, '', 0, ?, ?, 0)`
+      size_bytes, mime, phash, favorite, tags, created_at, fs_mtime, inbox)
+     VALUES (?, ?, NULL, ?, ?, ?, ?, ?, ?, ?, '', 0, ?, ?, 0, ?)`
   );
   try {
     withTransaction(() => {
@@ -879,7 +879,8 @@ export async function bulkIngestBuffers(items, { onEach = null, libGeneration = 
           a.size,
           `image/${a.format === 'jpg' ? 'jpeg' : a.format}`,
           a.it.tags || '',
-          new Date().toISOString()
+          new Date().toISOString(),
+          inbox ? 1 : 0
         );
         if (info.changes) a.id = Number(info.lastInsertRowid);
         // 唯一索引拦下的（并发重复登记）：原图不能删，交给下面的重复计数

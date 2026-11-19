@@ -27,6 +27,8 @@ const People = lazy(() => import('../pages/People'));
 // 地点视图带一张世界地图 + 聚合数据，首屏用不到，按需加载
 const Places = lazy(() => import('../pages/Places'));
 const Tutorial = lazy(() => import('../pages/Tutorial'));
+// 无限画布：DOM + transform 实现，进页面才加载
+const CanvasBoard = lazy(() => import('../pages/CanvasBoard'));
 
 type Props = {
   view: View;
@@ -137,6 +139,10 @@ export default function AppPages(props: Props) {
 
         {view === 'timeline' && (
           <TimelinePage onToast={showToast} onOpen={(item, pool) => openItem(item, pool)} />
+        )}
+
+        {view === 'canvas' && (
+          <CanvasBoard onToast={showToast} onOpen={(item, pool) => openItem(item, pool)} />
         )}
 
         {(view === 'gallery' || view === 'favorites') && (

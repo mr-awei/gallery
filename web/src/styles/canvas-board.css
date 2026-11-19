@@ -1,0 +1,1000 @@
+/* 无限画布：全屏视口 + 可缩放的舞台；工具栏/缩放条/素材抽屉浮在上层 */
+.cv-root {
+  position: relative;
+  height: 100%;
+  min-height: 0;
+  overflow: hidden;
+  background: var(--bg, #0a0a12);
+}
+
+.cv-viewport {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  touch-action: none;
+  /* 点阵会随缩放一起变密/变疏，用 JS 同步 background-size 与偏移 */
+  background-image: radial-gradient(circle, rgba(127, 127, 127, 0.22) 1px, transparent 1px);
+  background-size: 24px 24px;
+}
+
+.cv-stage {
+  position: absolute;
+  top: 0;
+  left: 0;
+  transform-origin: 0 0;
+  will-change: transform;
+}
+
+.cv-card {
+  position: absolute;
+  overflow: hidden;
+  border-radius: 12px;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  background: rgba(127, 127, 127, 0.08);
+  box-shadow: 0 8px 22px rgba(0, 0, 0, 0.32);
+  cursor: grab;
+  user-select: none;
+  transition: outline-color 0.12s ease;
+  outline: 2px solid transparent;
+  outline-offset: 2px;
+}
+
+.cv-card img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  pointer-events: none;
+}
+
+.cv-card.selected {
+  outline-color: var(--accent, #ff4d8d);
+}
+
+.cv-card-ph {
+  display: block;
+  width: 100%;
+  height: 100%;
+  background: repeating-linear-gradient(45deg, rgba(127, 127, 127, 0.12) 0 8px, transparent 8px 16px);
+}
+
+.cv-card-name {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  padding: 16px 8px 6px;
+  font-size: 11px;
+  color: #fff;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  background: linear-gradient(transparent, rgba(0, 0, 0, 0.68));
+  opacity: 0;
+  transition: opacity 0.15s ease;
+  pointer-events: none;
+}
+
+.cv-card:hover .cv-card-name,
+.cv-card.selected .cv-card-name {
+  opacity: 1;
+}
+
+.cv-resize {
+  position: absolute;
+  right: 0;
+  bottom: 0;
+  z-index: 3;
+  width: 18px;
+  height: 18px;
+  cursor: nwse-resize;
+  opacity: 0;
+  transition: opacity 0.15s ease;
+}
+
+.cv-card:hover .cv-resize,
+.cv-card.selected .cv-resize {
+  opacity: 1;
+}
+
+/* 便签 / 形状 / 链接卡没有「选中态」，手柄平时淡显、悬停全亮，
+   否则用户在三角形、菱形上根本找不到缩放角 */
+.cv-note > .cv-resize,
+.cv-shape > .cv-resize,
+.cv-link > .cv-resize {
+  opacity: 0.45;
+}
+
+.cv-note:hover > .cv-resize,
+.cv-shape:hover > .cv-resize,
+.cv-link:hover > .cv-resize {
+  opacity: 1;
+}
+
+.cv-resize::after {
+  content: '';
+  position: absolute;
+  right: 4px;
+  bottom: 4px;
+  width: 8px;
+  height: 8px;
+  border-right: 2px solid rgba(255, 255, 255, 0.85);
+  border-bottom: 2px solid rgba(255, 255, 255, 0.85);
+  border-radius: 1px;
+}
+
+/* 浅色便签 / 透明形状上看不见白线，换成跟随主题的深色 */
+.cv-note .cv-resize::after,
+.cv-shape .cv-resize::after {
+  border-color: color-mix(in srgb, var(--text, #ececf6) 62%, transparent);
+}
+
+.cv-marquee {
+  position: absolute;
+  border: 1px solid var(--accent, #ff4d8d);
+  background: rgba(255, 77, 141, 0.14);
+  border-radius: 4px;
+  pointer-events: none;
+  z-index: 4;
+}
+
+/* 平移模式：光标提示 + 卡片不再抢手势 */
+.cv-root.panning .cv-viewport,
+.cv-root.panning .cv-card {
+  cursor: grab;
+}
+
+/* ------------------------------ 悬浮工具栏 ------------------------------ */
+
+.cv-toolbar {
+  position: absolute;
+  left: 16px;
+  top: 16px;
+  z-index: 6;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+  max-width: calc(100% - 32px);
+  padding: 8px;
+  border-radius: 14px;
+  background: color-mix(in srgb, var(--bg, #0a0a12) 82%, transparent);
+  border: 1px solid var(--border, rgba(255, 255, 255, 0.09));
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.35);
+  backdrop-filter: blur(12px);
+}
+
+.cv-toolbar .btn.on {
+  border-color: var(--accent, #ff4d8d);
+  color: var(--accent, #ff4d8d);
+}
+
+.cv-tool-sep {
+  width: 1px;
+  height: 18px;
+  background: var(--border, rgba(255, 255, 255, 0.09));
+  margin: 0 2px;
+}
+
+.cv-count {
+  padding: 0 6px;
+  font-size: 11px;
+  color: var(--muted, #8f8fab);
+  white-space: nowrap;
+}
+
+.cv-zoom {
+  position: absolute;
+  right: 16px;
+  bottom: 16px;
+  z-index: 6;
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  padding: 4px;
+  border-radius: 12px;
+  background: color-mix(in srgb, var(--bg, #0a0a12) 82%, transparent);
+  border: 1px solid var(--border, rgba(255, 255, 255, 0.09));
+  backdrop-filter: blur(12px);
+}
+
+.cv-zoom-val {
+  min-width: 52px;
+  height: 28px;
+  border-radius: 8px;
+  font-size: 12px;
+  color: var(--text, #ececf6);
+}
+
+.cv-icon-btn {
+  display: grid;
+  place-items: center;
+  width: 28px;
+  height: 28px;
+  border-radius: 8px;
+  color: var(--text, #ececf6);
+}
+
+/* 图标按钮里放文字（如 PDF）：固定 28px 会把「PDF」挤出去并压到相邻按钮上，
+   这里改成按内容撑开，并给足左右内边距 */
+.cv-icon-btn.cv-text-btn {
+  width: auto;
+  min-width: 34px;
+  padding: 0 8px;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  white-space: nowrap;
+}
+
+.cv-icon-btn:hover,
+.cv-zoom-val:hover {
+  background: var(--panel, rgba(255, 255, 255, 0.06));
+}
+
+.cv-hint {
+  position: absolute;
+  left: 16px;
+  bottom: 16px;
+  z-index: 4;
+  font-size: 11px;
+  color: var(--muted, #8f8fab);
+  pointer-events: none;
+}
+
+/* -------------------------------- 空状态 -------------------------------- */
+
+.cv-empty {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  padding: 24px;
+  text-align: center;
+  color: var(--muted, #8f8fab);
+  pointer-events: none;
+}
+
+.cv-empty > * {
+  pointer-events: auto;
+}
+
+.cv-empty b {
+  font-size: 15px;
+  color: var(--text, #ececf6);
+}
+
+.cv-empty p {
+  margin: 0;
+  font-size: 12px;
+}
+
+.cv-empty-icon {
+  display: grid;
+  place-items: center;
+  width: 66px;
+  height: 66px;
+  border-radius: 20px;
+  color: var(--accent, #ff4d8d);
+  background: color-mix(in srgb, var(--accent, #ff4d8d) 12%, transparent);
+}
+
+.cv-loading {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  font-size: 12px;
+  color: var(--muted, #8f8fab);
+}
+
+/* ------------------------------ 素材抽屉 ------------------------------ */
+
+.cv-picker {
+  position: absolute;
+  right: 16px;
+  top: 78px;
+  bottom: 76px;
+  z-index: 7;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  width: 320px;
+  max-width: calc(100% - 32px);
+  padding: 14px;
+  border-radius: 16px;
+  background: color-mix(in srgb, var(--bg, #0a0a12) 90%, transparent);
+  border: 1px solid var(--border, rgba(255, 255, 255, 0.09));
+  box-shadow: 0 20px 50px rgba(0, 0, 0, 0.45);
+  backdrop-filter: blur(14px);
+}
+
+.cv-picker header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-size: 13px;
+}
+
+.cv-picker-search {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 10px;
+  border-radius: 10px;
+  background: var(--panel, rgba(255, 255, 255, 0.05));
+  border: 1px solid var(--border, rgba(255, 255, 255, 0.09));
+  color: var(--muted, #8f8fab);
+}
+
+.cv-picker-search input {
+  flex: 1;
+  min-width: 0;
+  border: 0;
+  outline: 0;
+  background: none;
+  font-size: 12px;
+  color: var(--text, #ececf6);
+}
+
+/* 两列 + 4:3：比三列小方块更大，且完整显示（contain），能一眼认出是哪张图 */
+.cv-picker-grid {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 8px;
+  align-content: start;
+}
+
+.cv-picker-grid button {
+  position: relative;
+  aspect-ratio: 4 / 3;
+  padding: 0;
+  overflow: hidden;
+  border-radius: 8px;
+  border: 1px solid transparent;
+  background: rgba(127, 127, 127, 0.1);
+}
+
+.cv-picker-grid button:hover {
+  border-color: var(--border, rgba(255, 255, 255, 0.2));
+}
+
+.cv-picker-grid button.on {
+  border-color: var(--accent, #ff4d8d);
+}
+
+.cv-picker-grid button.on::after {
+  content: '✓';
+  position: absolute;
+  right: 2px;
+  top: 2px;
+  padding: 0 3px;
+  border-radius: 4px;
+  font-size: 10px;
+  line-height: 14px;
+  color: #fff;
+  background: var(--accent, #ff4d8d);
+}
+
+.cv-picker-grid img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+}
+
+.cv-picker-more {
+  width: 100%;
+}
+
+.cv-picker-note {
+  padding: 6px;
+  text-align: center;
+  font-size: 11px;
+  color: var(--muted, #8f8fab);
+}
+
+.cv-picker-grid button {
+  cursor: grab;
+}
+
+.cv-file-input {
+  display: none;
+}
+
+/* ---------------- 画布元素：便签 / 形状 / 链接 / 连线 ---------------- */
+.cv-note {
+  position: absolute;
+  z-index: 4;
+  display: flex;
+  flex-direction: column;
+  border-radius: 10px;
+  overflow: hidden;
+  box-shadow: 0 10px 26px rgba(0, 0, 0, 0.35);
+  cursor: grab;
+}
+
+/* 文本域占满整张便签，会吃掉拖动事件，所以单独留一条标题栏当拖动手柄 */
+.cv-note-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  height: 22px;
+  padding: 0 4px 0 8px;
+  background: rgba(0, 0, 0, 0.08);
+  cursor: grab;
+  touch-action: none;
+  flex: 0 0 auto;
+}
+
+/* 便签 / 形状共用样式面板（挂在视口层，层级高于工具条） */
+.cv-note-actions {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+}
+
+.cv-note-style-btn {
+  display: grid;
+  place-items: center;
+  width: 18px;
+  height: 18px;
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  background: rgba(0, 0, 0, 0.12);
+  color: #241f16;
+  font-size: 9px;
+  font-weight: 700;
+  opacity: 0.65;
+  cursor: pointer;
+}
+
+.cv-note-style-btn:hover {
+  opacity: 1;
+}
+
+.cv-node-style {
+  position: absolute;
+  z-index: 9;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  width: 244px;
+  padding: 10px;
+  border: 1px solid var(--border-strong, rgba(255, 255, 255, 0.16));
+  border-radius: 12px;
+  background: var(--bg-soft, #171720);
+  color: var(--text, #ececf6);
+  box-shadow: 0 16px 40px rgba(0, 0, 0, 0.28);
+  cursor: default;
+}
+
+.cv-style-sec {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+}
+
+.cv-style-sec + .cv-style-sec {
+  padding-top: 8px;
+  border-top: 1px solid var(--border, rgba(255, 255, 255, 0.09));
+}
+
+.cv-style-label {
+  font-size: 11px;
+  line-height: 1;
+  color: var(--muted, #8f8fab);
+}
+
+.cv-style-opts {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+/* 字号 / 外形这类文字选项：按内容撑开，别像 22px 固定宽那样把「直角」挤成竖排 */
+.cv-opt {
+  min-width: 30px;
+  height: 24px;
+  padding: 0 8px;
+  border: 1px solid var(--border, rgba(255, 255, 255, 0.12));
+  border-radius: 7px;
+  background: transparent;
+  color: var(--text, #ececf6);
+  font-size: 11px;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.cv-opt:hover {
+  background: var(--panel, rgba(255, 255, 255, 0.06));
+}
+
+.cv-opt.on {
+  border-color: var(--accent, #ff4d8d);
+  color: var(--accent, #ff4d8d);
+  background: color-mix(in srgb, var(--accent, #ff4d8d) 10%, transparent);
+}
+
+.cv-color-input {
+  width: 22px;
+  height: 18px;
+  padding: 0;
+  border: 0;
+  border-radius: 4px;
+  background: transparent;
+  cursor: pointer;
+}
+
+.cv-color-input::-webkit-color-swatch-wrapper {
+  padding: 0;
+}
+
+.cv-color-input::-webkit-color-swatch {
+  border: 1px solid var(--border-strong, rgba(255, 255, 255, 0.3));
+  border-radius: 4px;
+}
+
+.cv-note-grip {
+  width: 22px;
+  height: 4px;
+  border-radius: 2px;
+  background: rgba(36, 31, 22, 0.28);
+}
+
+.cv-note textarea {
+  flex: 1;
+  width: 100%;
+  min-height: 0;
+  padding: 8px 12px 12px;
+  border: 0;
+  outline: none;
+  resize: none;
+  background: transparent;
+  color: #241f16;
+  font: inherit;
+  font-size: 14px;
+  line-height: 1.55;
+}
+
+.cv-node-del {
+  position: absolute;
+  top: 4px;
+  right: 4px;
+  display: grid;
+  place-items: center;
+  width: 18px;
+  height: 18px;
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  background: rgba(0, 0, 0, 0.35);
+  color: #fff;
+  opacity: 0;
+  transition: opacity 0.15s;
+  cursor: pointer;
+}
+
+.cv-note:hover .cv-node-del,
+.cv-shape:hover .cv-node-del,
+.cv-link:hover .cv-node-del {
+  opacity: 1;
+}
+
+.cv-node-del.inline {
+  position: static;
+  opacity: 0.7;
+  background: transparent;
+}
+
+.cv-shape {
+  position: absolute;
+  /* 形状通常是「区域」：压在素材下面，避免整块背景把图片点击全部吃掉 */
+  z-index: 0;
+  cursor: grab;
+}
+
+.cv-shape svg {
+  display: block;
+  width: 100%;
+  height: 100%;
+  overflow: visible;
+  pointer-events: none;
+}
+
+/* 悬停时描出真实的外接矩形：三角形 / 菱形 / 星形的可见边缘不在盒子上，
+   没有这条虚线用户根本找不到右下角的缩放手柄 */
+.cv-shape:hover {
+  outline: 1px dashed color-mix(in srgb, var(--text, #ececf6) 38%, transparent);
+  outline-offset: 2px;
+}
+
+.cv-shape-toggle {
+  position: absolute;
+  left: 4px;
+  top: 4px;
+  display: grid;
+  place-items: center;
+  width: 18px;
+  height: 18px;
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  background: rgba(0, 0, 0, 0.28);
+  color: #fff;
+  opacity: 0;
+  transition: opacity 0.15s;
+  cursor: pointer;
+}
+
+.cv-shape:hover .cv-shape-toggle {
+  opacity: 1;
+}
+
+.cv-shape-kinds {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 4px;
+}
+
+.cv-shape-pick {
+  display: grid;
+  place-items: center;
+  width: 100%;
+  height: 34px;
+  padding: 0;
+  border: 1px solid transparent;
+  border-radius: 7px;
+  background: transparent;
+  color: var(--text, #ececf6);
+  cursor: pointer;
+}
+
+.cv-shape-pick svg {
+  width: 18px;
+  height: 18px;
+}
+
+.cv-shape-pick:hover {
+  background: var(--panel-strong, rgba(255, 255, 255, 0.08));
+}
+
+.cv-shape-pick.on {
+  border-color: var(--accent, #ff4d8d);
+  color: var(--accent, #ff4d8d);
+  background: color-mix(in srgb, var(--accent, #ff4d8d) 10%, transparent);
+}
+
+.cv-link {
+  position: absolute;
+  z-index: 4;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 12px;
+  background: #1d1d28;
+  box-shadow: 0 14px 34px rgba(0, 0, 0, 0.4);
+}
+
+.cv-link-head {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 8px;
+  background: rgba(255, 255, 255, 0.06);
+  color: var(--text, #ececf6);
+  font-size: 12px;
+  cursor: grab;
+  user-select: none;
+}
+
+.cv-link-head span {
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.cv-link-head a {
+  color: var(--muted, #8f8fab);
+  display: grid;
+  place-items: center;
+}
+
+.cv-link iframe {
+  flex: 1;
+  width: 100%;
+  border: 0;
+  background: #000;
+}
+
+.cv-link-body {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 14px;
+  min-height: 0;
+}
+
+.cv-link-body b {
+  font-size: 14px;
+}
+
+.cv-link-body span {
+  font-size: 12px;
+  color: var(--muted, #8f8fab);
+  word-break: break-all;
+}
+
+.cv-arrows {
+  position: absolute;
+  left: 0;
+  top: 0;
+  overflow: visible;
+  pointer-events: none;
+}
+
+.cv-arrows g {
+  pointer-events: auto;
+}
+
+.cv-arrow-hint {
+  position: absolute;
+  left: 50%;
+  bottom: 18px;
+  transform: translateX(-50%);
+  padding: 7px 14px;
+  border-radius: 999px;
+  background: rgba(0, 0, 0, 0.72);
+  color: #fff;
+  font-size: 12px;
+  pointer-events: none;
+}
+
+/* 连线样式面板：颜色 / 粗细，新建与选中的线共用 */
+.cv-arrow-panel {
+  position: absolute;
+  left: 50%;
+  bottom: 56px;
+  z-index: 7;
+  transform: translateX(-50%);
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 10px;
+  border-radius: 999px;
+  background: rgba(10, 10, 18, 0.82);
+  border: 1px solid var(--border, rgba(255, 255, 255, 0.12));
+  box-shadow: 0 12px 30px rgba(0, 0, 0, 0.45);
+  backdrop-filter: blur(10px);
+}
+
+.cv-arrow-label {
+  font-size: 11px;
+  color: var(--muted, #8f8fab);
+  margin-right: 2px;
+}
+
+.cv-swatch {
+  width: 16px;
+  height: 16px;
+  padding: 0;
+  border-radius: 50%;
+  border: 2px solid transparent;
+}
+
+.cv-swatch.on {
+  border-color: #fff;
+  box-shadow: 0 0 0 2px rgba(255, 255, 255, 0.22);
+}
+
+.cv-width {
+  width: 22px;
+  height: 20px;
+  padding: 0;
+  border: 1px solid transparent;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--muted, #b9b9cc);
+  font-size: 11px;
+}
+
+.cv-width.on {
+  background: rgba(255, 255, 255, 0.16);
+  color: #fff;
+}
+
+.cv-template-wrap {
+  position: relative;
+}
+
+.cv-template-menu {
+  position: absolute;
+  top: 40px;
+  right: 0;
+  z-index: 12;
+  display: flex;
+  flex-direction: column;
+  min-width: 148px;
+  max-height: 320px;
+  overflow: auto;
+  padding: 6px;
+  border: 1px solid var(--border-strong, rgba(255, 255, 255, 0.16));
+  border-radius: 10px;
+  background: var(--bg-soft, #171720);
+  box-shadow: 0 16px 40px rgba(0, 0, 0, 0.28);
+}
+
+.cv-template-menu button {
+  padding: 8px 10px;
+  border: 0;
+  border-radius: 7px;
+  background: transparent;
+  color: var(--text, #ececf6);
+  font-size: 12px;
+  text-align: left;
+  cursor: pointer;
+}
+
+.cv-template-menu button:hover {
+  background: var(--panel-strong, rgba(255, 255, 255, 0.08));
+}
+
+/* 形状菜单：一次展示全部形状，点一下落到画布中心 */
+.cv-shape-menu {
+  position: absolute;
+  top: 40px;
+  left: 0;
+  z-index: 12;
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 4px;
+  padding: 6px;
+  border: 1px solid var(--border-strong, rgba(255, 255, 255, 0.16));
+  border-radius: 10px;
+  background: var(--bg-soft, #171720);
+  box-shadow: 0 16px 40px rgba(0, 0, 0, 0.28);
+}
+
+.cv-shape-menu button {
+  display: grid;
+  place-items: center;
+  width: 34px;
+  height: 34px;
+  padding: 0;
+  border: 1px solid transparent;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--text, #ececf6);
+  cursor: pointer;
+}
+
+.cv-shape-menu button:hover {
+  background: var(--panel-strong, rgba(255, 255, 255, 0.1));
+  border-color: var(--border-strong, rgba(255, 255, 255, 0.16));
+}
+
+.cv-shape-menu svg {
+  width: 20px;
+  height: 20px;
+}
+
+/* 画布切换器 */
+.cv-board-select {
+  max-width: 160px;
+  height: 28px;
+  padding: 0 8px;
+  border-radius: 8px;
+  border: 1px solid var(--border, rgba(255, 255, 255, 0.09));
+  background: var(--panel, rgba(255, 255, 255, 0.05));
+  color: var(--text, #ececf6);
+  font-size: 12px;
+}
+
+/* 「添加到哪张画布」选择框 */
+.cv-mask {
+  position: absolute;
+  inset: 0;
+  z-index: 20;
+  display: grid;
+  place-items: center;
+  background: rgba(0, 0, 0, 0.45);
+  backdrop-filter: blur(2px);
+}
+
+.cv-modal {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  width: 360px;
+  max-width: calc(100% - 32px);
+  max-height: 72%;
+  padding: 18px;
+  border-radius: 16px;
+  background: var(--bg, #0a0a12);
+  border: 1px solid var(--border, rgba(255, 255, 255, 0.12));
+  box-shadow: 0 24px 60px rgba(0, 0, 0, 0.5);
+}
+
+.cv-modal p {
+  margin: 0;
+  font-size: 12px;
+  color: var(--muted, #8f8fab);
+}
+
+/* 导出预览：宽一点、图占满剩余高度，避免长图把按钮挤到屏幕外 */
+.cv-export-modal {
+  width: min(860px, calc(100% - 40px));
+  max-height: 86%;
+}
+
+.cv-export-modal img {
+  width: 100%;
+  min-height: 0;
+  flex: 1;
+  object-fit: contain;
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid var(--border, rgba(255, 255, 255, 0.1));
+}
+
+.cv-board-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-height: 0;
+  overflow: auto;
+}
+
+.cv-board-list button {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 10px 12px;
+  border-radius: 10px;
+  border: 1px solid var(--border, rgba(255, 255, 255, 0.1));
+  background: var(--panel, rgba(255, 255, 255, 0.05));
+  color: var(--text, #ececf6);
+  font-size: 13px;
+}
+
+.cv-board-list button:hover {
+  border-color: var(--accent, #ff4d8d);
+}
+
+.cv-board-list em {
+  font-style: normal;
+  font-size: 11px;
+  color: var(--muted, #8f8fab);
+}
+
+.cv-modal-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
+/* 文件拖到画布上方：整块虚线高亮，提示松手落点 */
+.cv-drop {
+  position: absolute;
+  inset: 12px;
+  z-index: 5;
+  display: grid;
+  place-items: center;
+  border: 2px dashed var(--accent, #ff4d8d);
+  border-radius: 16px;
+  background: color-mix(in srgb, var(--accent, #ff4d8d) 10%, transparent);
+  color: var(--accent, #ff4d8d);
+  font-size: 13px;
+  pointer-events: none;
+}

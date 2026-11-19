@@ -191,7 +191,25 @@ function csvCell(v) {
 
 export function exportMetadataCsv() {
   const { images } = collectMeta();
-  const head = ['id', '标题', '标签', '宽', '高', '字节', '评分', '来源', '原始地址', '创建时间', '备注', '文件夹ID', '图内文字', '文件路径'];
+  const head = [
+    'id',
+    '标题',
+    '标签',
+    '宽',
+    '高',
+    '字节',
+    '评分',
+    '来源',
+    '原始地址',
+    '创建时间',
+    '备注',
+    '文件夹ID',
+    '图内文字',
+    '文件路径',
+    // 追加列放在末尾：老版本 CSV 仍然能导回来
+    '颜色旗标',
+    '收件箱',
+  ];
   const lines = [head.join(',')];
   for (const r of images) {
     lines.push(
@@ -210,6 +228,8 @@ export function exportMetadataCsv() {
         r.folderIds || '',
         r.ocr || '',
         r.abs_path,
+        r.color_label || '',
+        Number(r.inbox) ? 1 : 0,
       ]
         .map(csvCell)
         .join(',')
@@ -217,6 +237,132 @@ export function exportMetadataCsv() {
   }
   // Excel 打开 UTF-8 CSV 需要 BOM，否则中文全是乱码
   return '\ufeff' + lines.join('\r\n');
+}
+
+/**
+ * 宽松的 CSV 解析：支持双引号包裹、转义引号、CRLF 和 BOM。
+ * 只用于「导出 → Excel 改 → 导回」这条链路，不追求完整的 RFC 边角特性。
+ */
+function parseCsv(text) {
+  const s = String(text || '').replace(/^\uFEFF/, '');
+  const rows = [];
+  let row = [];
+  let cur = '';
+  let quoted = false;
+  for (let i = 0; i < s.length; i++) {
+    const c = s[i];
+    if (quoted) {
+      if (c === '"') {
+        if (s[i + 1] === '"') {
+          cur += '"';
+          i++;
+        } else quoted = false;
+      } else cur += c;
+    } else if (c === '"') quoted = true;
+    else if (c === ',') {
+      row.push(cur);
+      cur = '';
+    } else if (c === '\n') {
+      row.push(cur);
+      rows.push(row);
+      row = [];
+      cur = '';
+    } else if (c !== '\r') cur += c;
+  }
+  if (cur !== '' || row.length) {
+    row.push(cur);
+    rows.push(row);
+  }
+  return rows.filter((r) => r.some((v) => String(v).trim() !== ''));
+}
+
+/**
+ * 批量元数据 CSV 导入。
+ *
+ * Bridge / Lightroom 都支持「导出清单 → Excel 批量改 → 导回」；它们的坑是
+ * 没有逐行校验，一个非法评分或颜色会静默写坏。这里按行校验，返回 updated / skipped，
+ * 并且只覆盖 CSV 里实际出现的列（没写备注就不会把备注清空）。
+ */
+export function importMetadataCsv(text) {
+  const rows = parseCsv(text);
+  if (rows.length < 2) return { updated: 0, skipped: 0, errors: ['CSV 没有数据行'] };
+
+  const head = rows[0].map((v) => String(v).trim());
+  const col = (...names) => {
+    for (const n of names) {
+      const i = head.findIndex((h) => h.toLowerCase() === String(n).toLowerCase());
+      if (i >= 0) return i;
+    }
+    return -1;
+  };
+  const iId = col('id');
+  const iPath = col('文件路径', 'path', 'abs_path');
+  const iTitle = col('标题', 'title');
+  const iTags = col('标签', 'tags');
+  const iRating = col('评分', 'rating');
+  const iNote = col('备注', 'note');
+  const iColor = col('颜色旗标', 'color_label', 'colorlabel');
+  const iInbox = col('收件箱', 'inbox');
+  if (iId < 0 && iPath < 0) return { updated: 0, skipped: 0, errors: ['缺少 id 或 文件路径 列'] };
+
+  const COLORS = new Set(['', 'red', 'orange', 'yellow', 'green', 'blue', 'purple', 'gray']);
+  const byPath = db.prepare('SELECT id FROM images WHERE abs_path = ?');
+  const get = db.prepare(
+    'SELECT id, title, tags, rating, note, color_label, inbox FROM images WHERE id = ?'
+  );
+  const upd = db.prepare(
+    'UPDATE images SET title = ?, tags = ?, rating = ?, note = ?, color_label = ?, inbox = ? WHERE id = ?'
+  );
+
+  let updated = 0;
+  let skipped = 0;
+  const errors = [];
+  for (let r = 1; r < rows.length; r++) {
+    const line = rows[r];
+    const cell = (i) => (i >= 0 ? String(line[i] ?? '') : '');
+    const id = iId >= 0 ? Number(cell(iId)) : Number(byPath.get(cell(iPath))?.id || 0);
+    if (!Number.isFinite(id) || id <= 0) {
+      skipped++;
+      if (errors.length < 5) errors.push(`第 ${r + 1} 行：找不到素材`);
+      continue;
+    }
+    const cur = get.get(id);
+    if (!cur) {
+      skipped++;
+      if (errors.length < 5) errors.push(`第 ${r + 1} 行：id ${id} 不存在`);
+      continue;
+    }
+    const next = {
+      title: cur.title,
+      tags: cur.tags,
+      rating: cur.rating,
+      note: cur.note,
+      color_label: cur.color_label,
+      inbox: cur.inbox,
+    };
+    try {
+      if (iTitle >= 0) next.title = cell(iTitle).slice(0, 300);
+      if (iTags >= 0) next.tags = cell(iTags).slice(0, 2000);
+      if (iRating >= 0 && cell(iRating).trim() !== '') {
+        const n = Number(cell(iRating));
+        if (!Number.isFinite(n) || n < 0 || n > 5) throw new Error('评分必须是 0-5');
+        next.rating = Math.round(n);
+      }
+      if (iNote >= 0) next.note = cell(iNote).slice(0, 1000);
+      if (iColor >= 0) {
+        const c = cell(iColor).trim();
+        if (!COLORS.has(c)) throw new Error('颜色旗标不合法');
+        next.color_label = c;
+      }
+      if (iInbox >= 0 && cell(iInbox).trim() !== '') next.inbox = Number(cell(iInbox)) ? 1 : 0;
+      upd.run(next.title, next.tags, next.rating, next.note, next.color_label, next.inbox, id);
+      updated++;
+    } catch (err) {
+      skipped++;
+      if (errors.length < 5) errors.push(`第 ${r + 1} 行：${err.message}`);
+    }
+  }
+  return { updated, skipped, errors };
 }
 
 /** 备份格式版本：改结构时递增；恢复时拒绝「比当前应用更新」的备份 */

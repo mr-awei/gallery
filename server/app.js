@@ -103,6 +103,11 @@ function sseBroadcast(type, data) {
   }
 }
 
+/* 浏览器扩展采集时勾了「存入画布」：路由只管把新入库 id 发到总线上，这里统一转成 SSE */
+liveBus.on('canvas-add', (ids) => {
+  if (Array.isArray(ids) && ids.length) sseBroadcast('canvas', { ids });
+});
+
 let importState = { running: false, progress: 0, message: '', result: null };
 
 /**
@@ -780,7 +785,13 @@ export function buildApp({ desktop = false } = {}) {
         : [];
       if (!ids.length) return res.status(400).json({ error: 'ids 不能为空' });
       const has = (k) => body[k] !== undefined && body[k] !== null;
-      if (!['rating', 'favorite', 'tags', 'note'].some(has)) return res.status(400).json({ error: '没有要修改的字段' });
+      if (!['rating', 'favorite', 'tags', 'note', 'inbox', 'colorLabel'].some(has)) {
+        return res.status(400).json({ error: '没有要修改的字段' });
+      }
+      const COLOR_LABELS = new Set(['', 'red', 'orange', 'yellow', 'green', 'blue', 'purple', 'gray']);
+      if (has('colorLabel') && !COLOR_LABELS.has(String(body.colorLabel || ''))) {
+        return res.status(400).json({ error: '颜色旗标不合法' });
+      }
       if (has('rating')) {
         const r = Number(body.rating);
         if (!Number.isInteger(r) || r < 0 || r > 5) return res.status(400).json({ error: '评分需为 0~5 的整数' });
@@ -815,17 +826,28 @@ export function buildApp({ desktop = false } = {}) {
         favorite: db.prepare('UPDATE images SET favorite = ? WHERE id = ?'),
         note: db.prepare('UPDATE images SET note = ? WHERE id = ?'),
         tags: db.prepare('UPDATE images SET tags = ? WHERE id = ?'),
+        inbox: db.prepare('UPDATE images SET inbox = ? WHERE id = ?'),
+        colorLabel: db.prepare('UPDATE images SET color_label = ? WHERE id = ?'),
       };
       withTransaction(() => {
         for (const row of beforeRows) {
           const id = Number(row.id);
           before.items.push({
             id,
-            before: { tags: row.tags || '', rating: row.rating || 0, favorite: row.favorite ? 1 : 0, note: row.note || '' },
+            before: {
+              tags: row.tags || '',
+              rating: row.rating || 0,
+              favorite: row.favorite ? 1 : 0,
+              note: row.note || '',
+              inbox: Number(row.inbox) || 0,
+              colorLabel: row.color_label || '',
+            },
           });
           if (has('rating')) upd.rating.run(Number(body.rating), id);
           if (has('favorite')) upd.favorite.run(body.favorite ? 1 : 0, id);
           if (has('note')) upd.note.run(String(body.note || '').slice(0, 1000), id);
+          if (has('inbox')) upd.inbox.run(body.inbox ? 1 : 0, id);
+          if (has('colorLabel')) upd.colorLabel.run(String(body.colorLabel || ''), id);
           if (has('tags')) {
             if (tagMode === 'set') {
               upd.tags.run(cleanTags.join(','), id);
@@ -853,6 +875,8 @@ export function buildApp({ desktop = false } = {}) {
         if (has('favorite')) parts.push(body.favorite ? '收藏' : '取消收藏');
         if (has('tags')) parts.push(`${tagMode === 'add' ? '添加' : tagMode === 'remove' ? '移除' : '设置'}标签`);
         if (has('note')) parts.push('备注');
+        if (has('inbox')) parts.push(body.inbox ? '移入收件箱' : '移出收件箱');
+        if (has('colorLabel')) parts.push(`颜色 ${body.colorLabel || '清除'}`);
         logOp({
           op: 'meta',
           summary: `批量修改 ${updated} 张素材（${parts.join('、') || '元数据'}）`,

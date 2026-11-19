@@ -112,6 +112,9 @@ export const DEFAULT_SETTINGS = {
   storageDir: DEFAULT_STORAGE_DIR,
   // 文件夹监控：往素材文件夹里丢文件即自动入库（fs.watch 递归监听，2s 防抖）
   watchEnabled: true,
+  // 采集收件箱：网页采集 / 上传 / 粘贴 / 手机投送的新素材先标记为「待整理」。
+  // 文件夹扫描与本地批量导入不算采集，不受影响；关掉后新素材直接进普通图库。
+  inboxOnCapture: true,
   // 是否已完成首次引导（首次启动让用户选择图片文件夹）；完成后置 true 不再弹出
   onboarded: false,
   // 是否已看过教程（分步导览）；跳过也算看过，可在设置里重新播放

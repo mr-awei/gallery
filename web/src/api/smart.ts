@@ -247,6 +247,13 @@ export const smartAPI = {
     }),
 
   /* --------------------------- 数据出口（备份/迁移） --------------------------- */
+  /** 批量元数据 CSV 导回（id 或文件路径匹配） */
+  importMetadataCsv: (csv: string) =>
+    request<{ ok: boolean; updated: number; skipped: number; errors: string[] }>(
+      '/api/transfer/metadata/import',
+      { method: 'POST', body: JSON.stringify({ csv }) }
+    ),
+
   transferPreview: () =>
     request<{
       ok: boolean;

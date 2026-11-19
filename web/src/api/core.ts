@@ -472,6 +472,7 @@ export function buildQuery(filters: Filters, page: number, pageSize: number) {
   }
   if (filters.kind && filters.kind !== 'all') params.set('kind', filters.kind);
   if (filters.pending) params.set(filters.pending, '1');
+  if (filters.colorLabel) params.set('colorLabel', filters.colorLabel);
   // 地图框选：minLat,minLon,maxLat,maxLon（筛选栏里会显示成「已选地点」可一键清掉）
   if (filters.bbox) params.set('bbox', filters.bbox);
   params.set('sort', filters.sort || 'newest');

@@ -3,6 +3,8 @@ import type { Dispatch, SetStateAction } from 'react';
 import { desktop, onApiError } from '../api';
 import type { ReverseTarget } from '../components/ReverseSearchDialog';
 import type { ImageItem, View } from '../types';
+import { queueCanvasAdd } from '../lib/canvas-board';
+import { subscribeEvents } from '../events';
 import type { Toast } from './types';
 import i18n from '../i18n';
 
@@ -89,6 +91,31 @@ export function useAppServices({
     window.addEventListener('tuku:locate-image', onLocate);
     return () => window.removeEventListener('tuku:locate-image', onLocate);
   }, [openItem, setFolderId, setView]);
+
+  /* 「加入画布」：图库选中项先暂存 id，再切到画布；画布挂载后取走并摆放到视口中心 */
+  useEffect(() => {
+    const onAdd = (e: Event) => {
+      const d = (e as CustomEvent<{ ids?: number[] }>).detail;
+      const ids = Array.isArray(d?.ids) ? d.ids : [];
+      if (ids.length) queueCanvasAdd(ids);
+      setView('canvas');
+    };
+    window.addEventListener('tuku:canvas-add', onAdd);
+    return () => window.removeEventListener('tuku:canvas-add', onAdd);
+  }, [setView]);
+
+  /* 扩展采集勾了「存入画布」：服务端推来新入库 id；先入队，画布开着就即时落上去 */
+  useEffect(
+    () =>
+      subscribeEvents('canvas', (d: { ids?: number[] }) => {
+        const ids = Array.isArray(d?.ids) ? d.ids.map(Number).filter((n) => n > 0) : [];
+        if (!ids.length) return;
+        queueCanvasAdd(ids);
+        window.dispatchEvent(new CustomEvent('tuku:canvas-push', { detail: { ids } }));
+        showToast(i18n.t('k7c3f1a4f', { p0: ids.length }));
+      }),
+    [showToast]
+  );
 
   return { rsTarget, setRsTarget, peopleFocus, setPeopleFocus };
 }

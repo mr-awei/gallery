@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { UPLOAD_HINT, filesFromDataTransfer, importFiles, type ImportProgress } from '../lib/importer';
 import i18n from '../i18n';
 
@@ -11,14 +11,15 @@ interface Props {
 /**
  * 全应用级「拖拽 / 粘贴入库」（Eagle 三件套之二）。
  *
- * 拖拽只认中间的圆形采集区：光标扫过窗口只弹靶盘，松手落在靶盘外一律不入库，
- * 也不会把正在用的界面当成投放区（用户拖文件路过窗口时不该突然多出一批素材）。
+ * 拖拽不再要求落进屏幕中央的靶盘：只要把文件拖进窗口，松手就入库。
+ * 老版本「必须落在圆圈里」等于给每次拖拽加了一道确认，用户拖到侧栏/空白处
+ * 都会被判失败；真正需要防的是「拖文件路过窗口」——那种场景光标不会悬停，
+ * 这里用 dragenter/dragleave 的覆盖层提示，松手才真正写入。
  * Ctrl+V 不受影响，任何页面都能粘。
  */
 export default function GlobalImport({ onImported, onToast }: Props) {
   const [dragging, setDragging] = useState(false);
   const [busy, setBusy] = useState<ImportProgress | null>(null);
-  const boxRef = useRef<HTMLDivElement | null>(null);
 
   const run = useCallback(
     async (files: File[]) => {
@@ -57,16 +58,9 @@ export default function GlobalImport({ onImported, onToast }: Props) {
     return () => window.removeEventListener('paste', onPaste);
   }, [run]);
 
-  /* 拖拽：光标扫过窗口只弹靶盘，松手必须落在靶盘内才入库 */
+  /* 拖拽：只要文件进了窗口，松手就入库（不再要求落在固定区域） */
   useEffect(() => {
     const hasFiles = (dt: DataTransfer | null) => !!dt && Array.from(dt.types || []).includes('Files');
-
-    /** 松手点是否落在圆形采集区里（靶盘是视觉圆，判定用外接矩形即可，容错更宽） */
-    const onTarget = (e: DragEvent) => {
-      const r = boxRef.current?.getBoundingClientRect();
-      if (!r) return false;
-      return e.clientX >= r.left && e.clientX <= r.right && e.clientY >= r.top && e.clientY <= r.bottom;
-    };
 
     const onEnter = (e: DragEvent) => {
       if (!hasFiles(e.dataTransfer)) return;
@@ -77,8 +71,7 @@ export default function GlobalImport({ onImported, onToast }: Props) {
       const dt = e.dataTransfer;
       if (!hasFiles(dt) || !dt) return;
       e.preventDefault();
-      // 靶盘外显示「不可放置」，用户一眼就知道该往哪拖
-      dt.dropEffect = onTarget(e) ? 'copy' : 'none';
+      dt.dropEffect = 'copy';
     };
     const onLeave = (e: DragEvent) => {
       if (!hasFiles(e.dataTransfer)) return;
@@ -87,15 +80,9 @@ export default function GlobalImport({ onImported, onToast }: Props) {
     };
     const onDrop = (e: DragEvent) => {
       if (!hasFiles(e.dataTransfer)) return;
-      // 先算命中，再收起靶盘（收起后 ref 就没了）
-      const ok = onTarget(e);
       setDragging(false);
-      if (e.defaultPrevented) return; // 页面内自己接管了
+      if (e.defaultPrevented) return; // 页面内自己接管了（画布按落点放图、文件夹重排等）
       e.preventDefault();
-      if (!ok) {
-        onToast?.(i18n.t('kc17ad804'));
-        return;
-      }
       void run(filesFromDataTransfer(e.dataTransfer));
     };
     window.addEventListener('dragenter', onEnter);
@@ -108,16 +95,16 @@ export default function GlobalImport({ onImported, onToast }: Props) {
       window.removeEventListener('dragleave', onLeave);
       window.removeEventListener('drop', onDrop);
     };
-  }, [run, onToast]);
+  }, [run]);
 
   return (
     <>
       {dragging && (
         <div className="gi-drop" aria-hidden>
-          <div className="gi-drop-box" ref={boxRef}>
+          <div className="gi-drop-box">
             <b>{i18n.t('kc928da5d')}</b>
             <span>{UPLOAD_HINT}</span>
-            <em>{i18n.t('k63f24dba')}</em>
+            <em>{i18n.t('k7c3f1c2e')}</em>
           </div>
         </div>
       )}

@@ -1,6 +1,13 @@
 const msg = document.getElementById('msg');
 const say = (t) => (msg.textContent = t);
 
+// 「采集后存入无限画布」：存本地设置，后台每次采集会自动带上 toCanvas
+const toCanvasEl = document.getElementById('toCanvas');
+chrome.storage.local.get('toCanvas', (r) => {
+  toCanvasEl.checked = !!r.toCanvas;
+});
+toCanvasEl.onchange = () => chrome.storage.local.set({ toCanvas: toCanvasEl.checked });
+
 document.getElementById('batch').onclick = () => {
   say('抓取中…');
   chrome.runtime.sendMessage(

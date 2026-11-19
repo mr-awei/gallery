@@ -866,6 +866,8 @@ async function ingestLoop(jobRef, settings, generation, ingestQueue, isClosed) {
     try {
       const r = await bulkIngestBuffers(items, {
         libGeneration: generation,
+        // 采集（网络爬取）默认进收件箱：先收后整理；文件夹扫描/本地导入不走这里
+        inbox: settings.inboxOnCapture !== false,
         onEach: (i, r2) => applyIngestResult(jobRef, batch[i].item, r2),
       });
       // 向量查重没跑成时不能假装查过：计数进统计，并在日志里明说一次

@@ -199,6 +199,59 @@
   background: rgba(0, 0, 0, 0.75);
 }
 
+/* 图库拖文件进来时的整页提示 */
+.gallery-drop-mask {
+  position: fixed;
+  inset: 12px;
+  z-index: 90;
+  display: grid;
+  place-items: center;
+  border: 2px dashed var(--accent, #ff4d8d);
+  border-radius: 18px;
+  background: color-mix(in srgb, var(--accent, #ff4d8d) 9%, transparent);
+  color: var(--accent, #ff4d8d);
+  font-size: 15px;
+  pointer-events: none;
+}
+
+/* 颜色旗标：放在右上角，避开左上的堆叠角标 */
+.card-color-label {
+  position: absolute;
+  bottom: 8px;
+  right: 8px;
+  z-index: 3;
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  border: 2px solid rgba(255, 255, 255, 0.85);
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.5);
+  pointer-events: none;
+}
+/* 评分与颜色旗标并存：左下角小星标，不抢右下角的旗标位置 */
+.card-rating {
+  position: absolute;
+  bottom: 7px;
+  left: 8px;
+  z-index: 3;
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  padding: 1px 5px;
+  border-radius: 9px;
+  font-size: 10.5px;
+  font-weight: 700;
+  color: #ffd166;
+  background: rgba(10, 10, 18, 0.62);
+  pointer-events: none;
+}
+.card-color-label.red { background: #e5484d; }
+.card-color-label.orange { background: #f76b15; }
+.card-color-label.yellow { background: #e2a300; }
+.card-color-label.green { background: #30a46c; }
+.card-color-label.blue { background: #3b82f6; }
+.card-color-label.purple { background: #8b5cf6; }
+.card-color-label.gray { background: #8b8b8b; }
+
 /* 堆叠卡片：右下角错开的一层纸，一眼看出是「一摞」 */
 .card-img.has-stack {
   box-shadow: 4px 4px 0 -1px rgba(255, 255, 255, 0.14);
@@ -243,6 +296,8 @@
   padding: 40px;
   background: rgba(0, 0, 0, 0.72);
   backdrop-filter: blur(6px);
+  /* 堆叠「展开」：背景淡入 + 卡片从略小放大，给出从一摞纸摊开的连续感 */
+  animation: stack-fade 0.18s ease-out;
 }
 
 .stack-viewer-card {
@@ -254,6 +309,24 @@
   background: var(--panel, #1b1c21);
   border: 1px solid var(--line);
   overflow: hidden;
+  animation: stack-pop 0.22s cubic-bezier(0.2, 0.9, 0.3, 1.15);
+}
+
+@keyframes stack-fade {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@keyframes stack-pop {
+  from { opacity: 0; transform: scale(0.94) translateY(8px); }
+  to { opacity: 1; transform: scale(1) translateY(0); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .stack-viewer,
+  .stack-viewer-card {
+    animation: none;
+  }
 }
 
 .stack-viewer-head {

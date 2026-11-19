@@ -176,15 +176,15 @@
   <div class="kicker"><span class="dot"></span>深度代码审计 · 单机基准 + 三项远期目标（多语言已交付）</div>
   <h1>图库 TuKu：<span class="g">本地素材管理器</span>的真实水平</h1>
   <p class="lede">
-    这不是功能宣传页，而是一次把 13.9 万行源码逐层翻过之后的计分：17 个维度、8 个竞品、
+    这不是功能宣传页，而是一次把 14.7 万行源码逐层翻过之后的计分：17 个维度、8 个竞品、
     每条结论都能落到文件与函数上。结论先说——<b>只做本地管理器，它是这一档的第一（90.8 / 100）</b>；
     云与多端、协作社区、跨平台这三项<b>不是不做，而是排在后面的远期目标</b>，多语言已在 1.2.23 交付（5 → 90）；
     同一 17 维口径下按今天的进度是 <b>75.5</b>（第 3），按目标值计分可到 <b>87.1</b>（第 1）。三个数都对，区别只在"算哪一天"。
   </p>
   <div class="chips">
-    <span class="chip">审计日期 <b>2026-11-17</b></span>
-    <span class="chip">代码版本 <b>1.2.23</b></span>
-    <span class="chip">规模 <b>554 文件 / 118,608 行</b></span>
+    <span class="chip">审计日期 <b>2026-11-19</b></span>
+    <span class="chip">代码版本 <b>1.2.29</b></span>
+    <span class="chip">规模 <b>594 文件 / 147,362 行</b></span>
     <span class="chip">方法 <b>代码审计 + 实跑基准 + 8 竞品对标</b></span>
     <span class="chip">配套文档 <b><a href="./产品介绍.html">功能资料（面向普通用户）</a></b></span>
   </div>
@@ -232,7 +232,7 @@
       <h3 style="margin:0 0 10px;font-size:15.5px;color:var(--emerald)">凭什么单机第一</h3>
       <ul class="plain">
         <li><b>数据模型是"素材库"而不是"相册"</b>：36 张表、15 触发器、30 个索引（外键已接管级联），FTS5 trigram 全文索引，设计稿 11 种、RAW 40+ 种、三维 9 种、EPUB 电子书都能进库并出缩略图。</li>
-        <li><b>自动化是原生的</b>：10 个采集源、11 个 MCP 工具、插件沙箱、REST 带 token 与 scope，/api/docs 自动生成 387 端点 + curl/JS/Python 三语言示例——同行普遍只有"导入 + 拖拽"。</li>
+        <li><b>自动化是原生的</b>：10 个采集源、11 个 MCP 工具、插件沙箱、REST 带 token 与 scope，/api/docs 自动生成 414 端点 + curl/JS/Python 三语言示例——同行普遍只有"导入 + 拖拽"。</li>
         <li><b>桌面集成到系统层</b>：托盘、可改全局热键、Windows 动态壁纸（WorkerW + GLSL）、拖出到资源管理器、右键采集、局域网只读分享。</li>
       </ul>
     </div>
@@ -272,10 +272,11 @@
   <div class="callout" style="margin-top:12px">
     <b>读数约定：</b>90 分以上 = 接近同类商用上限；80–90 = 成熟可交付，只剩打磨；
     70–80 = 能用但明显弱于头部；60 以下 = 结构性缺口，不是补丁能解决的。
-    本轮审计（2026-11-17）与上一版（2026-11-16）的差异来自两处实质补强：
+    本轮审计（2026-11-19）与上一版（2026-11-16）的差异来自两处实质补强：
     ① <b>拼图保存 will-download async bug</b> 落地（Electron 同步事件不能用 async handler，前一个框和 Chromium 默认行为叠出两个），属于 P1 级 bug 消除；
     ② 竞品 Eagle 4.0 B22（2026 Q4）上线 AI Search 插件 + Web API v2，把 Eagle 的 AI 维度从 65 拉到 72、自动化维度略有改善；Immich v3.4.0（2026-11）的 ML v2 GPU 覆盖更宽；PhotoPrism 2026-10 上 NVIDIA CUDA 全模型加速；
     ③ <b>多语言落地</b>（1.2.23）：界面 / 教程 / 托盘 / 后端错误 / 插件元数据 / 文档全部双语，词条 4,681 条，多语言维度 5 → 90（17 维当前分 +4.25）。
+    ④ <b>本轮（1.2.29）</b>补齐采集收件箱、颜色旗标筛选、无限画布与元数据 CSV 导回，属于功能面补完，不额外抬高维度分。
     TuKu 自身维度分维持：表数从 40 修正为 36（事实性修订，功能面完整），单机 90.9 → 90.8。
   </div>
 </section>
@@ -328,7 +329,7 @@
     <div class="panel">
       <h3 style="margin:0 0 8px;font-size:15px">打分怎么保证不飘</h3>
       <ul class="plain">
-        <li><b>TuKu 的每一分都能复核</b>：要么有代码位置，要么有 <span class="mono">npm run bench:quick</span> 的实测数字（15/15 项 2026-11-17 全过）。</li>
+        <li><b>TuKu 的每一分都能复核</b>：要么有代码位置，要么有 <span class="mono">npm run bench:quick</span> 的实测数字（15/15 项 2026-11-19 全过）。</li>
         <li><b>竞品分数是公开功能面的估算</b>，不是厂商官方数据。同档位不超过 93，除非有可复现的实测。</li>
         <li><b>不确定就往低打</b>：例如 Eagle 的 AI 能力，公开资料里 AI Search 是"插件"而非原生管线，因此给 72 而非 85。</li>
         <li>8 个竞品全部用同一份问卷、同一组锚点打分，避免"给对手挑刺、给自己放水"。</li>
@@ -490,7 +491,7 @@
       <div class="dimcell"><small class="s8">82</small><div class="mini"><i style="width:82%;background:#60a5fa"></i></div></div>
       <div class="dimcell"><small class="s8">85</small><div class="mini"><i style="width:85%;background:#60a5fa"></i></div></div>
       <div class="dimcell"><small class="s8">80</small><div class="mini"><i style="width:80%;background:#60a5fa"></i></div></div>
-      <span class="cmt">DTO 契约 45/52 一致、单测 573、冒烟 143、基准 15，verify 一条跑完；拼图保存 async bug 本轮修掉</span></div>
+      <span class="cmt">DTO 契约 47/54 一致、单测 573、冒烟 152、基准 15，verify 一条跑完；收件箱 / 颜色旗标 / 画布 / CSV 导回本轮补齐</span></div>
     <div class="dimrow"><span class="dname">易用与可访问</span>
       <div class="dimcell"><small class="s8">85</small><div class="mini"><i style="width:85%;background:#60a5fa"></i></div></div>
       <div class="dimcell"><small class="s9">92</small><div class="mini"><i style="width:92%;background:#34d399"></i></div></div>
@@ -545,7 +546,7 @@
   <div class="adv">
     <div class="card">
       <h3><span class="n">01</span>采集面是同类里最宽的</h3>
-      <p>10 个网络采集源，加上文件夹监听、ZIP、剪贴板、拖拽、浏览器右键、手机网页上传——入口多到可以按"我当时在哪儿看见这张图"来选。</p>
+      <p>10 个网络采集源，加上文件夹监听、ZIP、剪贴板、拖拽、浏览器右键、手机网页上传——入口多到可以按"我当时在哪儿看见这张图"来选；新素材还能先进收件箱，统一过一遍再归档。</p>
       <div class="ev">证据：<code>server/crawler.js</code> SOURCES 表 · <code>extension/</code> · 断点续采写入 <code>jobs</code> 表</div>
     </div>
     <div class="card">
@@ -561,7 +562,7 @@
     <div class="card">
       <h3><span class="n">04</span>AI 完全跑在本机</h3>
       <p>中文 CLIP 语义、ONNX 人脸检测、HNSW 近邻、本地零样本标签——没有 API Key、没有上传、断网可用。</p>
-      <div class="ev">证据：<code>server/clip.js</code> · <code>lib/hnsw.js</code> · <code>lib/face-math.js</code>；2 万条向量检索实测 46ms</div>
+      <div class="ev">证据：<code>server/clip.js</code> · <code>lib/hnsw.js</code> · <code>lib/face-math.js</code>；2 万条向量检索实测 48ms</div>
     </div>
     <div class="card">
       <h3><span class="n">05</span>自动化接口是产品的一部分</h3>
@@ -575,7 +576,7 @@
     </div>
     <div class="card">
       <h3><span class="n">07</span>数据不锁死</h3>
-      <p>XMP sidecar 双向、CSV/JSON/HTML 导出、带校验的备份与恢复、回收站、撤销/重做双栈（200 步 / 2GB 上限）、局域网只读分享带密码与过期。</p>
+      <p>XMP sidecar 双向、CSV/JSON/HTML 导出与元数据 CSV 导回、带校验的备份与恢复、回收站、撤销/重做双栈（200 步 / 2GB 上限）、局域网只读分享带密码与过期。</p>
       <div class="ev">证据：<code>lib/undo.js</code> · <code>lib/lan.js</code> · 备份排程 <code>lib/backup-schedule.js</code></div>
     </div>
     <div class="card">
@@ -585,13 +586,13 @@
     </div>
     <div class="card">
       <h3><span class="n">09</span>有真正的质量闸门</h3>
-      <p>DTO 契约 45/52 一致、单测 <b>573</b>、冒烟 <b>143</b>、基准 <b>15</b>，外加四道 typecheck 与一套 lint（261 文件）；<code>npm run verify</code> 一条命令跑完。</p>
-      <div class="ev">证据：<code>package.json</code> scripts · <code>scripts/verify*</code> · CI 与发版流程同源（2026-11-17 实跑全过）</div>
+      <p>DTO 契约 47/54 一致、单测 <b>573</b>、冒烟 <b>152</b>、基准 <b>15</b>，外加四道 typecheck 与一套 lint（275 文件）；<code>npm run verify</code> 一条命令跑完。</p>
+      <div class="ev">证据：<code>package.json</code> scripts · <code>scripts/verify*</code> · CI 与发版流程同源（2026-11-19 实跑全过）</div>
     </div>
     <div class="card">
       <h3><span class="n">10</span>规模意识写进了实现</h3>
       <p>导入走 worker 池 + 批量事务，列表用 keyset 而非 offset 深翻，缩略图分级缓存，向量检索有索引不是全表扫。</p>
-      <div class="ev">证据：灌库 <b>5893 行/秒</b>（实跑）；列表首页 p95 7ms、深页 11ms；CLIP 2 万 46ms</div>
+      <div class="ev">证据：灌库 <b>5428 行/秒</b>（实跑）；列表首页 p95 6ms、深页 7ms；CLIP 2 万 48ms</div>
     </div>
   </div>
 </section>
@@ -669,7 +670,7 @@
         <tr style="opacity:.72">
           <td><span class="sev p3">已修</span></td>
           <td><b>接口文档示例代码</b></td>
-          <td><span class="mono">/api/docs</span> 按路由表自动生成 387 端点（分组 / 参数 / 鉴权），可导出 Markdown；<b>curl / JavaScript / Python 三语言示例</b>自动填路径参数与常见请求体</td>
+          <td><span class="mono">/api/docs</span> 按路由表自动生成 414 端点（分组 / 参数 / 鉴权），可导出 Markdown；<b>curl / JavaScript / Python 三语言示例</b>自动填路径参数与常见请求体</td>
           <td>第三个开发者不用再自己拼第一个请求；示例随路由表生成，不会和实现脱节</td>
           <td>低<br><span class="tiny muted">已完成</span></td>
         </tr>
@@ -695,7 +696,9 @@
     <b>现在只剩两堵墙：</b>① 买证书签名（决定"能不能发给别人用"）；
     ② mac / Linux 真机验收（不验收就别宣称支持）。剩下的都是打磨，可以慢慢来。
     <br><br>
-    本版（1.2.22 / 2026-11-17）修的是拼图保存时叠出两个「另存为」：
+    本版（1.2.29 / 2026-11-19）把采集收件箱补成完整闭环：采集 / 上传 / 粘贴 / 手机投送可先进收件箱，侧栏批量移出，设置里能一键关掉；同时补上元数据 CSV 导回、颜色旗标筛选、无限画布与按 id 批量取素材。数据库仍是 v4，没有新增表或迁移。
+    <br><br>
+    上一版（1.2.22 / 2026-11-17）修的是拼图保存时叠出两个「另存为」：
     <span class="mono">will-download</span> 是同步事件，handler 用 <span class="mono">async</span> 会让 Chromium 默认行为先弹一个空白框、我们自己的 <span class="mono">dialog.showSaveDialog</span> 再弹第二个。改成同步 handler + 异步 IIFE 启动后续流程即可。<b>根因不在连点（已有 downloadDedupe 去重），而在 async 声明本身</b>——一次点击就能触发双响。
     <br><br>
     上一版（1.2.21）加了「热更」通道：<span class="mono">server/**</span> 与前端产物的修补可以打一个签名过的小包，客户端叠在安装包之上运行，不必再下整包覆盖安装——清单用 Ed25519 签名、<span class="mono">seq</span> 严格递增防降级、<span class="mono">shellVersion</span> 与 <span class="mono">schemaVersion</span> 双闸门。
@@ -707,14 +710,14 @@
 <section id="s7">
   <div class="sec-head"><span class="sec-no">07</span><h2>客观指标：把话换成数字</h2></div>
   <p class="sec-sub">
-    下面这些数字全部来自仓库与 <span class="mono">npm run bench:quick</span> 实跑，日期 2026-11-17。凡是没实测的，这里不写。
+    下面这些数字全部来自仓库与 <span class="mono">npm run bench:quick</span> 实跑，日期 2026-11-19。凡是没实测的，这里不写。
   </p>
 
   <div class="grid4">
-    <div class="tile"><div class="v">118,608</div><div class="k">行代码 / 554 个文件</div><div class="s">web 52,842 · server 45,755 · test 8,831</div></div>
-    <div class="tile"><div class="v">387</div><div class="k">HTTP 端点 / 34 个路由模块</div><div class="s">统一错误信封 + 输入白名单</div></div>
+    <div class="tile"><div class="v">147,362</div><div class="k">行代码 / 594 个文件</div><div class="s">web 73,779 · server 50,625 · test 9,912</div></div>
+    <div class="tile"><div class="v">414</div><div class="k">HTTP 端点 / 34 个路由模块</div><div class="s">统一错误信封 + 输入白名单</div></div>
     <div class="tile"><div class="v">36</div><div class="k">数据表 / 15 触发器 / 30 索引</div><div class="s">外键已开，FTS5 trigram 全文索引</div></div>
-    <div class="tile"><div class="v" style="font-size:17px">261 · 573 · 143 · 15</div><div class="k">lint 文件 · 单测 · 冒烟 · 基准（实跑全过）</div><div class="s">85 个 .test.mjs · verify 一条跑完</div></div>
+    <div class="tile"><div class="v" style="font-size:17px">275 · 573 · 152 · 15</div><div class="k">lint 文件 · 单测 · 冒烟 · 基准（实跑全过）</div><div class="s">85 个 .test.mjs · verify 一条跑完</div></div>
     <div class="tile"><div class="v">15 + 25</div><div class="k">页面 + 设置分区</div><div class="s">72 组件 · 25 弹窗 · 172 条教程</div></div>
     <div class="tile"><div class="v">11 + 9</div><div class="k">设计稿格式 / RAW 40+ / 三维</div><div class="s">视频 8 · 音频 8 · PDF · Office · 字体 · EPUB</div></div>
     <div class="tile"><div class="v">10 + 11</div><div class="k">采集源 + MCP 工具</div><div class="s">插件 5 类权限位、node:vm 沙箱</div></div>
@@ -728,12 +731,12 @@
         <table style="min-width:0">
           <thead><tr><th>目录</th><th>文件</th><th>行数</th><th>占比</th></tr></thead>
           <tbody>
-            <tr><td>web/src（前端）</td><td class="num">202</td><td class="num">52,842</td><td class="num">44.6%</td></tr>
-            <tr><td>server（后端）</td><td class="num">200</td><td class="num">45,755</td><td class="num">38.6%</td></tr>
-            <tr><td>test（测试）</td><td class="num">87</td><td class="num">8,831</td><td class="num">7.4%</td></tr>
-            <tr><td>electron（桌面）</td><td class="num">35</td><td class="num">5,774</td><td class="num">4.9%</td></tr>
-            <tr><td>scripts（工具）</td><td class="num">27</td><td class="num">4,343</td><td class="num">3.7%</td></tr>
-            <tr><td>extension（扩展）</td><td class="num">3</td><td class="num">1,063</td><td class="num">0.9%</td></tr>
+            <tr><td>web/src（前端）</td><td class="num">231</td><td class="num">73,779</td><td class="num">50.1%</td></tr>
+            <tr><td>server（后端）</td><td class="num">203</td><td class="num">50,625</td><td class="num">34.4%</td></tr>
+            <tr><td>test（测试）</td><td class="num">87</td><td class="num">9,912</td><td class="num">6.7%</td></tr>
+            <tr><td>electron（桌面）</td><td class="num">34</td><td class="num">6,139</td><td class="num">4.2%</td></tr>
+            <tr><td>scripts（工具）</td><td class="num">36</td><td class="num">5,844</td><td class="num">4.0%</td></tr>
+            <tr><td>extension（扩展）</td><td class="num">3</td><td class="num">1,063</td><td class="num">0.7%</td></tr>
           </tbody>
         </table>
       </div>
@@ -741,23 +744,23 @@
     </div>
 
     <div class="panel">
-      <h3 style="margin:0 0 10px;font-size:14.8px">实测性能（2 万级库 · 2026-11-17 实跑 p95）</h3>
+      <h3 style="margin:0 0 10px;font-size:14.8px">实测性能（2 万级库 · 2026-11-19 实跑 p95）</h3>
       <div class="tbl-wrap" style="border:none">
         <table style="min-width:0">
           <thead><tr><th>指标</th><th>实测</th><th>说明</th></tr></thead>
           <tbody>
-            <tr><td>批量灌库</td><td class="num s9">5,893 行/秒</td><td>worker 池 + 批量事务</td></tr>
-            <tr><td>列表首页</td><td class="num s9">7 ms</td><td>keyset 分页</td></tr>
-            <tr><td>列表深页</td><td class="num s9">11 ms</td><td>不随页码劣化</td></tr>
+            <tr><td>批量灌库</td><td class="num s9">5,428 行/秒</td><td>worker 池 + 批量事务</td></tr>
+            <tr><td>列表首页</td><td class="num s9">6 ms</td><td>keyset 分页</td></tr>
+            <tr><td>列表深页</td><td class="num s9">7 ms</td><td>不随页码劣化</td></tr>
             <tr><td>关键词检索 q=shadow</td><td class="num s9">12 ms</td><td>FTS5 trigram</td></tr>
-            <tr><td>收藏筛选 favorite=1</td><td class="num s9">3 ms</td><td>索引命中</td></tr>
-            <tr><td><span class="mono">/api/tags</span>（缓存）</td><td class="num s9">4 ms</td><td>标签树一次拉全</td></tr>
-            <tr><td>CLIP 向量检索（2 万 · minCos=0）</td><td class="num s8">46 ms</td><td>HNSW 近邻</td></tr>
-            <tr><td>调色预览 720p / 1600px</td><td class="num s8">16 / 70 ms</td><td>预览与成品一致</td></tr>
+            <tr><td>收藏筛选 favorite=1</td><td class="num s9">5 ms</td><td>索引命中</td></tr>
+            <tr><td><span class="mono">/api/tags</span>（缓存）</td><td class="num s9">2 ms</td><td>标签树一次拉全</td></tr>
+            <tr><td>CLIP 向量检索（2 万 · minCos=0）</td><td class="num s8">51 ms</td><td>HNSW 近邻</td></tr>
+            <tr><td>调色预览 720p / 1600px</td><td class="num s8">19 / 73 ms</td><td>预览与成品一致</td></tr>
           </tbody>
         </table>
       </div>
-      <p class="tiny muted" style="margin:10px 0 0">bench:quick 5 样本 · CI 环境门槛放宽 3×；未压缩 chunk：three 753KB、主包 index 260KB（gzip 86KB）、react 144KB、CSS 168KB；onnxruntime 的非 Windows 二进制打包后被裁掉。</p>
+      <p class="tiny muted" style="margin:10px 0 0">bench:quick 5 样本 · CI 环境门槛放宽 3×；未压缩 chunk：three 753KB、主包 index 983KB（gzip 376KB）、react 144KB、CSS 192KB；onnxruntime 的非 Windows 二进制打包后被裁掉。</p>
     </div>
   </div>
 </section>
@@ -778,7 +781,7 @@
       </thead>
       <tbody>
         <tr><td>1</td><td><b>代码签名</b>（包体瘦身已完成）</td><td>易用与可访问 +2</td><td class="num s6">+0.10</td><td class="num">1 周</td><td>新机器安装无 SmartScreen 警告；升级链不断</td></tr>
-        <tr><td>2</td><td><b>mac / Linux 真机验收</b></td><td>工程质量 +3</td><td class="num s6">+0.21</td><td class="num">4–6 周</td><td>两平台各跑通 143 项冒烟，并留下 CI 记录；README 才敢写"支持"</td></tr>
+        <tr><td>2</td><td><b>mac / Linux 真机验收</b></td><td>工程质量 +3</td><td class="num s6">+0.21</td><td class="num">4–6 周</td><td>两平台各跑通 152 项冒烟，并留下 CI 记录；README 才敢写"支持"</td></tr>
         <tr style="background:rgba(79,70,229,.07)">
           <td></td><td><b>合计</b></td><td>2 项，全部为打磨或补强</td><td class="num"><b>+0.31</b></td>
           <td class="num"><b>≈ 5–7 周</b></td>
@@ -801,7 +804,7 @@
       <div class="phase">
         <h4>30–90 天：mac 真机验收 <span class="tiny muted">约 91.0 → 91.1</span></h4>
         <ul>
-          <li>mac / Linux 真机验收（第 2 项）：两平台各跑一遍 143 项冒烟并留 CI 记录</li>
+          <li>mac / Linux 真机验收（第 2 项）：两平台各跑一遍 152 项冒烟并留 CI 记录</li>
           <li>渲染回归基准：10 万张、百万级各留一条可复跑的记录（v1.2.17 起布局计算已是增量）</li>
         </ul>
       </div>
@@ -898,7 +901,7 @@
       <h3 style="color:var(--amber)">跨平台 · 权重 4</h3>
       <p><b>现在 20 → 远期目标 85（+2.60）。</b>今天只验收 Windows；mac / Linux 有构建目标，但没有真机 CI，所以对外不宣称。</p>
       <p><b>为什么排在远期：</b>桌面集成（动态壁纸、拖出、热键、文件关联）逐平台实现，摊三份就是三份维护；没有真机就没有"支持"二字。</p>
-      <p><b>兑现路径：</b>第 08 节第 2 项就是它的前置件——mac 真机跑 143 项冒烟 → 安装包与公证 → 平台差异清单；Linux 顺延。</p>
+      <p><b>兑现路径：</b>第 08 节第 2 项就是它的前置件——mac 真机跑 152 项冒烟 → 安装包与公证 → 平台差异清单；Linux 顺延。</p>
       <div class="ev">达标判据：mac 上托盘/热键/拖出/文件关联均可用，且 CI 留有记录</div>
     </div>
   </div>
@@ -934,8 +937,8 @@
     <div class="panel">
       <h3 style="margin:0 0 8px;font-size:14.6px;color:var(--cyan)">导出三种形态</h3>
       <p class="tiny" style="margin:0;color:var(--muted)">
-        CSV / JSON / HTML 画廊，带缩略图内嵌的离线单文件；Eagle 导入、文件夹平铺、保留 tag_meta 结构都行。
-        证据：<code>server/routes/export.js</code> · <code>galleryExport.test.mjs</code> · <code>server/lib/gallery-html.js</code></p>
+        CSV / JSON / HTML 画廊，带缩略图内嵌的离线单文件；CSV 还能改完导回（按 id / 路径逐行匹配，只覆盖出现的列）；Eagle 导入、文件夹平铺、保留 tag_meta 结构都行。
+        证据：<code>server/routes/export.js</code> · <code>server/lib/transfer.js</code> · <code>galleryExport.test.mjs</code> · <code>server/lib/gallery-html.js</code></p>
     </div>
     <div class="panel">
       <h3 style="margin:0 0 8px;font-size:14.6px;color:var(--cyan)">剪贴板与系统级</h3>
@@ -959,10 +962,16 @@
 </section>
 
 <div class="foot">
-  审计日期 2026-11-17 · 代码版本 1.2.22 · 全量 verify（573 / 143 / 15 / 261）通过 · 实跑 bench:quick 数字已落进第 07 节。
+  审计日期 2026-11-19 · 代码版本 1.2.29 · 全量 verify（573 / 152 / 15 / 275）通过 · 实跑 bench:quick 数字已落进第 07 节。
   本文件与 <a href="./产品介绍.html">产品介绍</a> 是同一份代码的两副面孔——那一份给用户看，这一份给代码层看。
 </div>
 </div>
+
+
+
+
+
+
 
 
 

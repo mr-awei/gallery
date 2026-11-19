@@ -60,6 +60,7 @@ import {
   IconPencil,
   IconPlay,
   IconRotateCcw,
+  IconSquare,
   IconRotateCw,
   IconScissors,
   IconSearch,
@@ -1158,6 +1159,16 @@ export default function Lightbox({
       group: 'io',
       show: isImage,
       run: () => setExportOpen(true),
+    },
+    {
+      key: 'to-canvas',
+      label: i18n.t('k7c3f1a52'),
+      short: i18n.t('k7c3f1a52'),
+      icon: <IconSquare />,
+      title: i18n.t('k7c3f1a52'),
+      group: 'io',
+      run: () =>
+        window.dispatchEvent(new CustomEvent('tuku:canvas-add', { detail: { ids: [item.id] } })),
     },
     {
       key: 'reveal',

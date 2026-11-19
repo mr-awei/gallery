@@ -31,8 +31,8 @@ interface Props {
   onNav: (v: View) => void;
   stats: Stats | null;
   filters: Filters;
-  onOpenPending: (key: 'noFolder' | 'noTags' | 'noRating') => void;
-  pendingCounts: { total: number; noFolder: number; noTags: number; noRating: number } | null;
+  onOpenPending: (key: 'inbox' | 'noFolder' | 'noTags' | 'noRating') => void;
+  pendingCounts: { total: number; inbox: number; noFolder: number; noTags: number; noRating: number } | null;
 
   /** 保存的筛选器（筛选现场，一键恢复） */
   savedFilters: SavedFilter[];

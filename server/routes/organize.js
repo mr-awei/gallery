@@ -134,6 +134,8 @@ export function register(app, ctx) {
     const visible = '(stack_id = 0 OR stack_id = id)';
     res.json({
       total: one(`SELECT COUNT(*) n FROM images WHERE ${visible}`),
+      // 采集收件箱：新采集还没整理的数量，侧栏单独给一个入口
+      inbox: one(`SELECT COUNT(*) n FROM images WHERE inbox = 1 AND ${visible}`),
       noFolder: one(
         `SELECT COUNT(*) n FROM images WHERE id NOT IN (SELECT image_id FROM image_folders) AND ${visible}`
       ),

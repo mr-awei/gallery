@@ -114,19 +114,28 @@ export function useGalleryList({
   }, [load]);
 
   /**
-   * 手动刷新：先把素材文件夹里尚未登记的图片补登记，再按当前筛选重拉第 1 页。
-   * 只重读列表的话，用户往目录里放的新图永远进不了图库（曾被当成 P0）。
+   * 手动刷新：先把素材文件夹里尚未登记的图片补登记，再让列表跟上。
+   *
+   * 关键是不能把列表打回第 1 页：用户翻到第 30 屏时点刷新，items 被换成 48 张，
+   * 内容高度瞬间塌陷，滚动位置只能被顶回顶部。所以：
+   * - 还在第一屏 → 直接重拉第 1 页（新图立刻可见，滚动本来就在顶部）
+   * - 已经翻到后面 → 保留当前列表与滚动位置，只刷新统计/重试失败缩略图；
+   *   目录里确实有新图时沿用「顶部有新图」提示，让用户自己决定什么时候回顶看
    */
   const refreshGallery = useCallback(async () => {
-    pageRef.current = 1;
     setRefreshSeq((n) => n + 1);
     setRefreshing(true);
     try {
       const scan = await api.scanFolder().catch(() => null);
-      await load(1, true);
       refreshStats();
       const saved = Number(scan?.saved) || 0;
       const dropped = Number(scan?.dropped) || 0;
+      if (pageRef.current <= 1) {
+        pageRef.current = 1;
+        await load(1, true);
+      } else if (saved) {
+        newAtTopRef.current = true;
+      }
       showToast(
         saved
           ? i18n.t('k690e7bef', { p0: saved, p1: dropped ? i18n.t('kc8167703', { p0: dropped }) : '' })
@@ -137,7 +146,7 @@ export function useGalleryList({
     } finally {
       setRefreshing(false);
     }
-  }, [load, refreshStats, showToast]);
+  }, [load, refreshStats, showToast, newAtTopRef]);
 
   /** 退出大图时：把图库列表补载到最后浏览的那张所在位置，并滚动过去 */
   const reveal = useCallback(

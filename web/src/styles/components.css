@@ -300,16 +300,15 @@ select.select {
   backdrop-filter: blur(3px);
 }
 .gi-drop-box {
-  /* 屏幕正中的圆形靶盘：松手只有落在这一圈里才入库 */
+  /* 拖进窗口任意位置都能入库，这里只是「松手即入库」的提示条，不再是必须命中的靶盘 */
   display: flex;
   flex-direction: column;
   align-items: center;
   justify-content: center;
   gap: 8px;
-  width: 284px;
-  height: 284px;
-  padding: 26px;
-  border-radius: 50%;
+  max-width: min(460px, 84vw);
+  padding: 26px 40px;
+  border-radius: 18px;
   border: 2px dashed rgba(255, 77, 141, 0.75);
   background: rgba(24, 24, 34, 0.92);
   box-shadow: 0 24px 60px rgba(0, 0, 0, 0.45), 0 0 0 10px rgba(255, 77, 141, 0.08);

@@ -312,6 +312,31 @@ export default function DataTransferCard({ onLibraryChanged, onToast }: Props) {
           <button className="btn sm ghost" onClick={() => downloadFile('/api/transfer/metadata.csv')}>
             {i18n.t('ka79d1d39')}
           </button>
+          <label className="btn sm ghost" style={{ cursor: busy ? 'default' : 'pointer' }}>
+            {i18n.t('k7c3f1b16')}
+            <input
+              type="file"
+              accept=".csv,text/csv"
+              hidden
+              disabled={!!busy}
+              onChange={async (e) => {
+                const f = e.target.files?.[0];
+                e.target.value = '';
+                if (!f) return;
+                setBusy('csv');
+                try {
+                  const r = await api.importMetadataCsv(await f.text());
+                  onToast(i18n.t('k7c3f1b17', { p0: r.updated, p1: r.skipped }));
+                  if (r.errors?.length) setLog(r.errors.join('\n'));
+                  onLibraryChanged();
+                } catch (err) {
+                  onToast((err as Error).message, 'error');
+                } finally {
+                  setBusy('');
+                }
+              }}
+            />
+          </label>
         </div>
         {lastBackup && (
           <div className="hint" style={{ marginTop: 6, wordBreak: 'break-all' }}>

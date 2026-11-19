@@ -6,7 +6,13 @@ import i18n from '../i18n';
 
 type Toast = (msg: string, kind?: 'info' | 'error') => void;
 
-export type PendingCounts = { total: number; noFolder: number; noTags: number; noRating: number };
+export type PendingCounts = {
+  total: number;
+  inbox: number;
+  noFolder: number;
+  noTags: number;
+  noRating: number;
+};
 
 /**
  * 统计 / 标签 / 待整理数字 / 卡片角标。

@@ -30,6 +30,7 @@ import {
   IconSearch,
   IconSheet,
   IconStack,
+  IconStar,
   IconTag,
   IconTrash,
   IconWallpaper,
@@ -73,6 +74,11 @@ interface Props {
   onUngroupStack?: (stackId: number) => void;
   /** 把拖过来的图叠到这张上（目标是组主则并入该组，否则两张成组） */
   onStackDrop?: (dragIds: number[], target: ImageItem) => void;
+  /**
+   * 多选状态下右键：右键的是「已选中的卡片」时，菜单应作用于整批。
+   * 父级传了这个回调就交出右键，由父级渲染批量菜单；不传则维持单张菜单。
+   */
+  onSelectionMenu?: (x: number, y: number) => void;
   /**
    * Tab 停点。网格里由 MasonryGrid 用 roving tabindex 注入：
    * 只有「当前活动格」是 0，其余 -1，否则万级图库按 Tab 要逐张过一遍。
@@ -318,6 +324,7 @@ const ImageCard = React.memo(function ImageCard({
   onOpenStack,
   onUngroupStack,
   onStackDrop,
+  onSelectionMenu,
   tabIndex = 0,
 }: Props) {
   // 手动排序时被拖到本卡上方高亮：告诉用户「松手就插到这张后面」
@@ -513,8 +520,9 @@ const ImageCard = React.memo(function ImageCard({
       );
     }
     if (hasCover) {
-      // 音频 / 字体 / PDF 等可以自己指定封面，优先显示封面
-      return <img src={thumbSrc} alt={item.title} loading="lazy" decoding="async" onError={() => setBroken(true)} />;
+      // 音频 / 字体 / PDF 等可以自己指定封面，优先显示封面。
+      // 封面也可能因为补图/换盘暂时取不到，走统一重试链路，不要一次失败就判死。
+      return <img src={thumbSrc} alt={item.title} loading="lazy" decoding="async" onError={onThumbError} onLoad={onThumbLoad} />;
     }
     // 设计文件 / RAW / 网页书签：入库时已经备好了画面（PSD 合成图、Sketch 的
     // preview.png、RAW 内嵌 JPEG、网页 og:image），直接当缩略图用
@@ -800,6 +808,12 @@ const ImageCard = React.memo(function ImageCard({
         // 阻止冒泡：页面的右键菜单（撤销/刷新/清理缺失…）只处理空白区域，
         // 右键卡片时只弹卡片自己的菜单，不要两个菜单一起冒出来。
         e.stopPropagation();
+        // 右键的是多选中的一员：菜单作用于整批（跟随选择），单张菜单交回父级
+        if (onSelectionMenu && dragIds && dragIds.length > 1) {
+          setMenu(null);
+          onSelectionMenu(e.clientX, e.clientY);
+          return;
+        }
         // 记录光标位置；视口收拢在渲染后按菜单实际尺寸做（见 useLayoutEffect）
         setMenu({ x: e.clientX, y: e.clientY });
       }}
@@ -833,6 +847,23 @@ const ImageCard = React.memo(function ImageCard({
       {stackHint && (
         <span className="stack-drop-tip">
           <IconStack size={12} /> {item.stackPrimary && (item.stackCount || 0) > 1 ? i18n.t('k4e928aa4') : i18n.t('k76816294')}
+        </span>
+      )}
+      {item.colorLabel && (
+        <span
+          className={`card-color-label ${item.colorLabel}`}
+          title={i18n.t('k7c3f1b03')}
+        />
+      )}
+      {/* 评分与颜色旗标并存：旗标在右下，评分在左下，互不遮挡 */}
+      {!!item.rating && (
+        <span
+          className="card-rating"
+          title={i18n.t('k7c3f1c33')}
+          aria-label={`${i18n.t('k7c3f1c33')} ${item.rating}`}
+        >
+          <IconStar size={10} />
+          {item.rating}
         </span>
       )}
       {item.stackPrimary && (item.stackCount || 0) > 1 && (

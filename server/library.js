@@ -738,6 +738,10 @@ export function toDTO(row) {
     viewCount: row.view_count || 0,
     viewedAt: row.viewed_at || '',
     rating: row.rating || 0,
+    /** 采集收件箱：新采集默认 1，整理后置 0 */
+    inbox: Number(row.inbox) === 1,
+    /** 颜色旗标：red/orange/.../gray；空串 = 未标记 */
+    colorLabel: row.color_label || '',
     note: row.note || '',
     dominant: row.dominant || '',
     /** 主色板（导入时算好落库）：[{h:'#rrggbb', p:占比}]，供「导出调色板」直接使用 */
@@ -1166,6 +1170,18 @@ export function setRating(id, rating) {
 /** 备注 */
 export function setNote(id, note) {
   db.prepare('UPDATE images SET note = ? WHERE id = ?').run(String(note || '').slice(0, 1000), id);
+  return toDTO(getImage(id));
+}
+
+/** 颜色旗标（撤销批量修改时也要能还原，所以单独给一个 setter） */
+export function setColorLabel(id, color) {
+  db.prepare('UPDATE images SET color_label = ? WHERE id = ?').run(String(color || ''), id);
+  return toDTO(getImage(id));
+}
+
+/** 收件箱状态：0 已整理 / 1 待整理 */
+export function setInbox(id, inbox) {
+  db.prepare('UPDATE images SET inbox = ? WHERE id = ?').run(inbox ? 1 : 0, id);
   return toDTO(getImage(id));
 }
 

@@ -215,6 +215,13 @@ END;
   // stack_id = 0 表示没堆叠；否则指向「组主」那张图的 id（组主自己的 stack_id = 自己的 id）。
   // 列表默认只显示组主，成员在灯箱里展开 —— 否则同素材几个版本会把网格占满。
   ensureColumn('images', 'stack_id', 'stack_id INTEGER NOT NULL DEFAULT 0');
+  // 采集收件箱：新采集先落这里，整理完再移出。老库默认 0（不要把已有素材倒进收件箱）。
+  ensureColumn('images', 'inbox', 'inbox INTEGER NOT NULL DEFAULT 0');
+  // 颜色旗标：red/orange/yellow/green/blue/purple/gray，空串 = 未标记。
+  // 与评分互补：评分表达好坏，旗标表达流程状态（待修/已选/已交付）。
+  ensureColumn('images', 'color_label', "color_label TEXT NOT NULL DEFAULT ''");
+  conn.exec('CREATE INDEX IF NOT EXISTS idx_images_inbox ON images(inbox)');
+  conn.exec('CREATE INDEX IF NOT EXISTS idx_images_color_label ON images(color_label)');
   conn.exec('CREATE INDEX IF NOT EXISTS idx_images_stack ON images(stack_id)');
   // 使用统计：复制 / 导出次数（Eagle 详情里能看到「用过几次」，也便于找出从没用过的素材）
   ensureColumn('images', 'copy_count', 'copy_count INTEGER NOT NULL DEFAULT 0');

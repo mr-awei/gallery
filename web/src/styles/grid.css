@@ -88,6 +88,14 @@
   border-radius: 10px;
   box-shadow: 0 14px 34px rgba(0, 0, 0, 0.45);
 }
+.card-ctx-head {
+  padding: 6px 10px 7px;
+  font-size: 11.5px;
+  color: var(--muted);
+  border-bottom: 1px solid var(--border);
+  margin-bottom: 3px;
+  white-space: nowrap;
+}
 .card-ctx button {
   display: flex;
   align-items: center;
@@ -525,6 +533,13 @@
   margin: 0 0 20px;
   font-size: 13px;
   line-height: 1.8;
+}
+/* 空状态给「下一步动作」：导入 / 采集 / 清除筛选，而不是只有一句说明 */
+.empty-actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 8px;
 }
 
 .load-more {

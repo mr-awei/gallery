@@ -3,6 +3,8 @@ node_modules/
 # 构建与打包产物（可随时重新生成）
 dist/
 release-build*/
+# 桌面端热更暂存目录（开发态会落在仓库根，里面是解包后的产物）
+hotfix/
 release-out/
 .electron-dist/
 build-out*/

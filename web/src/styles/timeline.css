@@ -336,6 +336,29 @@
   transform: scale(1.04);
 }
 
+/* 缩略图待生成 / 重试耗尽：盖住浏览器默认的「坏图」图标，等补图完成后自动恢复 */
+.tl-thumb-ph {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--surface-3, rgba(127, 127, 127, 0.12));
+  color: var(--muted);
+  pointer-events: none;
+}
+.tl-thumb-ph.broken {
+  background: var(--surface-2, #14141f);
+}
+.tl-thumb-spin {
+  width: 16px;
+  height: 16px;
+  border: 2px solid rgba(127, 127, 127, 0.3);
+  border-top-color: var(--accent, #4c8dff);
+  border-radius: 50%;
+  animation: card-thumb-spin 0.9s linear infinite;
+}
+
 /* 非破坏性编辑未写回原图的角标：和 Eagle 的「有未保存调整」同一语义 */
 .tl-nondestructive {
   position: absolute;

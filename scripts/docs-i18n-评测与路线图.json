@@ -26,17 +26,17 @@
       "end": 10450
     },
     {
-      "id": "h8ebafb35d31a",
+      "id": "h2b2eed14e4f0",
       "tag": "p",
-      "html": "这不是功能宣传页，而是一次把 13.9 万行源码逐层翻过之后的计分：17 个维度、8 个竞品、\n    每条结论都能落到文件与函数上。结论先说——<b>只做本地管理器，它是这一档的第一（90.8 / 100）</b>；\n    云与多端、协作社区、跨平台这三项<b>不是不做，而是排在后面的远期目标</b>，多语言已在 1.2.23 交付（5 → 90）；\n    同一 17 维口径下按今天的进度是 <b>75.5</b>（第 3），按目标值计分可到 <b>87.1</b>（第 1）。三个数都对，区别只在\"算哪一天\"。",
+      "html": "这不是功能宣传页，而是一次把 14.7 万行源码逐层翻过之后的计分：17 个维度、8 个竞品、\n    每条结论都能落到文件与函数上。结论先说——<b>只做本地管理器，它是这一档的第一（90.8 / 100）</b>；\n    云与多端、协作社区、跨平台这三项<b>不是不做，而是排在后面的远期目标</b>，多语言已在 1.2.23 交付（5 → 90）；\n    同一 17 维口径下按今天的进度是 <b>75.5</b>（第 3），按目标值计分可到 <b>87.1</b>（第 1）。三个数都对，区别只在\"算哪一天\"。",
       "tokens": [],
       "start": 10474,
       "end": 10743
     },
     {
-      "id": "hc3ac51109561",
+      "id": "hb08b34d4ca00",
       "tag": "div",
-      "html": "<span class=\"chip\">审计日期 <b>2026-11-17</b></span>\n    <span class=\"chip\">代码版本 <b>1.2.23</b></span>\n    <span class=\"chip\">规模 <b>554 文件 / 118,608 行</b></span>\n    <span class=\"chip\">方法 <b>代码审计 + 实跑基准 + 8 竞品对标</b></span>\n    <span class=\"chip\">配套文档 <b><a href=\"./产品介绍.html\">功能资料（面向普通用户）</a></b></span>",
+      "html": "<span class=\"chip\">审计日期 <b>2026-11-19</b></span>\n    <span class=\"chip\">代码版本 <b>1.2.29</b></span>\n    <span class=\"chip\">规模 <b>594 文件 / 147,362 行</b></span>\n    <span class=\"chip\">方法 <b>代码审计 + 实跑基准 + 8 竞品对标</b></span>\n    <span class=\"chip\">配套文档 <b><a href=\"./产品介绍.html\">功能资料（面向普通用户）</a></b></span>",
       "tokens": [],
       "start": 10769,
       "end": 11075
@@ -138,9 +138,9 @@
       "end": 12948
     },
     {
-      "id": "h7941bbe0fe7c",
+      "id": "h4520baf0a19d",
       "tag": "li",
-      "html": "<b>自动化是原生的</b>：10 个采集源、11 个 MCP 工具、插件沙箱、REST 带 token 与 scope，/api/docs 自动生成 387 端点 + curl/JS/Python 三语言示例——同行普遍只有\"导入 + 拖拽\"。",
+      "html": "<b>自动化是原生的</b>：10 个采集源、11 个 MCP 工具、插件沙箱、REST 带 token 与 scope，/api/docs 自动生成 414 端点 + curl/JS/Python 三语言示例——同行普遍只有\"导入 + 拖拽\"。",
       "tokens": [],
       "start": 12966,
       "end": 13089
@@ -234,948 +234,948 @@
       "end": 14825
     },
     {
-      "id": "h3414bd96e75d",
+      "id": "h491ee7b6c01f",
       "tag": "div",
-      "html": "<b>读数约定：</b>90 分以上 = 接近同类商用上限；80–90 = 成熟可交付，只剩打磨；\n    70–80 = 能用但明显弱于头部；60 以下 = 结构性缺口，不是补丁能解决的。\n    本轮审计（2026-11-17）与上一版（2026-11-16）的差异来自两处实质补强：\n    ① <b>拼图保存 will-download async bug</b> 落地（Electron 同步事件不能用 async handler，前一个框和 Chromium 默认行为叠出两个），属于 P1 级 bug 消除；\n    ② 竞品 Eagle 4.0 B22（2026 Q4）上线 AI Search 插件 + Web API v2，把 Eagle 的 AI 维度从 65 拉到 72、自动化维度略有改善；Immich v3.4.0（2026-11）的 ML v2 GPU 覆盖更宽；PhotoPrism 2026-10 上 NVIDIA CUDA 全模型加速；\n    ③ <b>多语言落地</b>（1.2.23）：界面 / 教程 / 托盘 / 后端错误 / 插件元数据 / 文档全部双语，词条 4,681 条，多语言维度 5 → 90（17 维当前分 +4.25）。\n    TuKu 自身维度分维持：表数从 40 修正为 36（事实性修订，功能面完整），单机 90.9 → 90.8。",
+      "html": "<b>读数约定：</b>90 分以上 = 接近同类商用上限；80–90 = 成熟可交付，只剩打磨；\n    70–80 = 能用但明显弱于头部；60 以下 = 结构性缺口，不是补丁能解决的。\n    本轮审计（2026-11-19）与上一版（2026-11-16）的差异来自两处实质补强：\n    ① <b>拼图保存 will-download async bug</b> 落地（Electron 同步事件不能用 async handler，前一个框和 Chromium 默认行为叠出两个），属于 P1 级 bug 消除；\n    ② 竞品 Eagle 4.0 B22（2026 Q4）上线 AI Search 插件 + Web API v2，把 Eagle 的 AI 维度从 65 拉到 72、自动化维度略有改善；Immich v3.4.0（2026-11）的 ML v2 GPU 覆盖更宽；PhotoPrism 2026-10 上 NVIDIA CUDA 全模型加速；\n    ③ <b>多语言落地</b>（1.2.23）：界面 / 教程 / 托盘 / 后端错误 / 插件元数据 / 文档全部双语，词条 4,681 条，多语言维度 5 → 90（17 维当前分 +4.25）。\n    ④ <b>本轮（1.2.29）</b>补齐采集收件箱、颜色旗标筛选、无限画布与元数据 CSV 导回，属于功能面补完，不额外抬高维度分。\n    TuKu 自身维度分维持：表数从 40 修正为 36（事实性修订，功能面完整），单机 90.9 → 90.8。",
       "tokens": [],
       "start": 14879,
-      "end": 15487
+      "end": 15559
     },
     {
       "id": "h485bbabffd2a",
       "tag": "h2",
       "html": "评分方法：13 维算现在，4 维平台能力另算",
       "tokens": [],
-      "start": 15582,
-      "end": 15604
+      "start": 15654,
+      "end": 15676
     },
     {
       "id": "h492f0c8ae19a",
       "tag": "p",
       "html": "先把\"怎么算\"摊开，分数才有讨论价值。全部维度<b>直接按 100 分打分</b>再按权重加权：前 13 维构成单机基准（100 分，只算已实现能力）；\n    后 4 维是长期平台能力（多语言已交付 90），按\"当下的值\"与\"目标值\"各算一次，就得到 75.5 与 87.1。\n    加权就是\"维度分 × 权重 ÷ 100\"再相加，所以每个维度掉 1 分，总分掉 0.02–0.09 分。",
       "tokens": [],
-      "start": 15637,
-      "end": 15841
+      "start": 15709,
+      "end": 15913
     },
     {
       "id": "hf29c543fffb9",
       "tag": "th",
       "html": "维度",
       "tokens": [],
-      "start": 15924,
-      "end": 15926
+      "start": 15996,
+      "end": 15998
     },
     {
       "id": "h5cdd4c074f39",
       "tag": "th",
       "html": "单机权重",
       "tokens": [],
-      "start": 15954,
-      "end": 15958
+      "start": 16026,
+      "end": 16030
     },
     {
       "id": "h64cb20d56393",
       "tag": "th",
       "html": "远期 17 维权重",
       "tokens": [],
-      "start": 15987,
-      "end": 15996
+      "start": 16059,
+      "end": 16068
     },
     {
       "id": "h01b26ec08b5a",
       "tag": "th",
       "html": "这一维到底在量什么",
       "tokens": [],
-      "start": 16005,
-      "end": 16014
+      "start": 16077,
+      "end": 16086
     },
     {
       "id": "h1170386844bc",
       "tag": "td",
       "html": "导入与采集",
       "tokens": [],
-      "start": 16080,
-      "end": 16085
+      "start": 16152,
+      "end": 16157
     },
     {
       "id": "h2efe65650e87",
       "tag": "td",
       "html": "文件夹/ZIP/剪贴板/拖拽/浏览器扩展/网络采集，去重与断点续传",
       "tokens": [],
-      "start": 16138,
-      "end": 16171
+      "start": 16210,
+      "end": 16243
     },
     {
       "id": "hfe7f28ef63ad",
       "tag": "td",
       "html": "组织与元数据",
       "tokens": [],
-      "start": 16219,
-      "end": 16225
+      "start": 16291,
+      "end": 16297
     },
     {
       "id": "hcdb484613cc2",
       "tag": "td",
       "html": "文件夹树、标签、评分、集合、人物、地点、时间线、自定义字段、XMP",
       "tokens": [],
-      "start": 16279,
-      "end": 16312
+      "start": 16351,
+      "end": 16384
     },
     {
       "id": "h1118be1fd5eb",
       "tag": "td",
       "html": "浏览与检索",
       "tokens": [],
-      "start": 16360,
-      "end": 16365
+      "start": 16432,
+      "end": 16437
     },
     {
       "id": "h1e17f3188b3b",
       "tag": "td",
       "html": "关键词/语义/颜色/相似图、组合筛选、排序分组、滚动体验",
       "tokens": [],
-      "start": 16419,
-      "end": 16447
+      "start": 16491,
+      "end": 16519
     },
     {
       "id": "h5b1cb3da38f2",
       "tag": "td",
       "html": "编辑与产出",
       "tokens": [],
-      "start": 16484,
-      "end": 16489
+      "start": 16556,
+      "end": 16561
     },
     {
       "id": "hab553fa1cdd9",
       "tag": "td",
       "html": "非破坏编辑、裁切旋转调色、擦除、超分、水印相框、批处理",
       "tokens": [],
-      "start": 16542,
-      "end": 16569
+      "start": 16614,
+      "end": 16641
     },
     {
       "id": "hd1c34da5a733",
       "tag": "td",
       "html": "格式与媒体",
       "tokens": [],
-      "start": 16606,
-      "end": 16611
+      "start": 16678,
+      "end": 16683
     },
     {
       "id": "h4c239143e677",
       "tag": "td",
       "html": "RAW/设计稿/三维/音频/视频/PDF/Office/字体/EPUB 的入库与预览深度",
       "tokens": [],
-      "start": 16664,
-      "end": 16708
+      "start": 16736,
+      "end": 16780
     },
     {
       "id": "hfcba67d185b8",
       "tag": "td",
       "html": "AI 能力",
       "tokens": [],
-      "start": 16745,
-      "end": 16750
+      "start": 16817,
+      "end": 16822
     },
     {
       "id": "h1b3abe9a8b57",
       "tag": "td",
       "html": "CLIP 语义、人脸聚类、相似图、自动标签、抠图；是否本机推理",
       "tokens": [],
-      "start": 16803,
-      "end": 16834
+      "start": 16875,
+      "end": 16906
     },
     {
       "id": "h6977be4ff886",
       "tag": "td",
       "html": "自动化与开放",
       "tokens": [],
-      "start": 16882,
-      "end": 16888
+      "start": 16954,
+      "end": 16960
     },
     {
       "id": "ha0685da9d349",
       "tag": "td",
       "html": "REST + token/scope、MCP 工具、插件沙箱、脚本能力、扩展",
       "tokens": [],
-      "start": 16941,
-      "end": 16979
+      "start": 17013,
+      "end": 17051
     },
     {
       "id": "h692793302ad9",
       "tag": "td",
       "html": "桌面集成",
       "tokens": [],
-      "start": 17016,
-      "end": 17020
+      "start": 17088,
+      "end": 17092
     },
     {
       "id": "haa8f56ff2032",
       "tag": "td",
       "html": "托盘、全局热键、开机自启、拖出、动态壁纸、系统菜单、单实例",
       "tokens": [],
-      "start": 17073,
-      "end": 17102
+      "start": 17145,
+      "end": 17174
     },
     {
       "id": "h2a79dd97dd8e",
       "tag": "td",
       "html": "性能与规模",
       "tokens": [],
-      "start": 17139,
-      "end": 17144
+      "start": 17211,
+      "end": 17216
     },
     {
       "id": "he132318a8f07",
       "tag": "td",
       "html": "导入吞吐、API p95、首屏、大库滚动、缩略图缓存",
       "tokens": [],
-      "start": 17197,
-      "end": 17223
+      "start": 17269,
+      "end": 17295
     },
     {
       "id": "h1d3ba50cd50a",
       "tag": "td",
       "html": "数据安全",
       "tokens": [],
-      "start": 17261,
-      "end": 17265
+      "start": 17333,
+      "end": 17337
     },
     {
       "id": "h8c4720e3b6ef",
       "tag": "td",
       "html": "备份与校验、撤销重做、回收站、原子写、库锁、崩溃自愈",
       "tokens": [],
-      "start": 17318,
-      "end": 17344
+      "start": 17390,
+      "end": 17416
     },
     {
       "id": "hadeed157e2e1",
       "tag": "td",
       "html": "工程质量",
       "tokens": [],
-      "start": 17382,
-      "end": 17386
+      "start": 17454,
+      "end": 17458
     },
     {
       "id": "h5d0ec2171f05",
       "tag": "td",
       "html": "分层、契约守门、测试密度、迁移机制、巨型文件、可维护性",
       "tokens": [],
-      "start": 17439,
-      "end": 17466
+      "start": 17511,
+      "end": 17538
     },
     {
       "id": "h2c252f64d3f6",
       "tag": "td",
       "html": "易用与可访问",
       "tokens": [],
-      "start": 17504,
-      "end": 17510
+      "start": 17576,
+      "end": 17582
     },
     {
       "id": "h0d5df989afe7",
       "tag": "td",
       "html": "信息架构、引导与空态、快捷键、键盘可达、读屏、无障碍",
       "tokens": [],
-      "start": 17563,
-      "end": 17589
+      "start": 17635,
+      "end": 17661
     },
     {
       "id": "hfd283617a58d",
       "tag": "td",
       "html": "文档与交付",
       "tokens": [],
-      "start": 17627,
-      "end": 17632
+      "start": 17699,
+      "end": 17704
     },
     {
       "id": "heaf8faf383cc",
       "tag": "td",
       "html": "内置教程、README、API 文档、打包与签名、CI 闸门",
       "tokens": [],
-      "start": 17685,
-      "end": 17715
+      "start": 17757,
+      "end": 17787
     },
     {
       "id": "h87d54e704a6d",
       "tag": "td",
       "html": "云与多端",
       "tokens": [],
-      "start": 17753,
-      "end": 17757
+      "start": 17825,
+      "end": 17829
     },
     {
       "id": "h1441ac1c26f2",
       "tag": "td",
       "html": "不计分",
       "tokens": [],
-      "start": 17784,
-      "end": 17787
+      "start": 17856,
+      "end": 17859
     },
     {
       "id": "h258d739b70f1",
       "tag": "td",
       "html": "账号、同步、冲突合并、离线可用、移动端与网页端 · <b>目标 80</b>（现在 15）",
       "tokens": [],
-      "start": 17818,
-      "end": 17863
+      "start": 17890,
+      "end": 17935
     },
     {
       "id": "h47375c71f115",
       "tag": "td",
       "html": "协作与社区",
       "tokens": [],
-      "start": 17901,
-      "end": 17906
+      "start": 17973,
+      "end": 17978
     },
     {
       "id": "h1441ac1c26f2",
       "tag": "td",
       "html": "不计分",
       "tokens": [],
-      "start": 17933,
-      "end": 17936
+      "start": 18005,
+      "end": 18008
     },
     {
       "id": "h9f6fd91dfdc0",
       "tag": "td",
       "html": "多人共享权限、评论审批、插件与模板市场 · <b>目标 60</b>（现在 20）",
       "tokens": [],
-      "start": 17967,
-      "end": 18008
+      "start": 18039,
+      "end": 18080
     },
     {
       "id": "h056f41e5ecf5",
       "tag": "td",
       "html": "多语言",
       "tokens": [],
-      "start": 18046,
-      "end": 18049
+      "start": 18118,
+      "end": 18121
     },
     {
       "id": "h1441ac1c26f2",
       "tag": "td",
       "html": "不计分",
       "tokens": [],
-      "start": 18076,
-      "end": 18079
+      "start": 18148,
+      "end": 18151
     },
     {
       "id": "h6bc174279f36",
       "tag": "td",
       "html": "界面与内容本地化、翻译层、排版适配 · <b>目标 90（1.2.23 已达成）</b>",
       "tokens": [],
-      "start": 18110,
-      "end": 18154
+      "start": 18182,
+      "end": 18226
     },
     {
       "id": "h2c80f5f07230",
       "tag": "td",
       "html": "跨平台",
       "tokens": [],
-      "start": 18192,
-      "end": 18195
+      "start": 18264,
+      "end": 18267
     },
     {
       "id": "h1441ac1c26f2",
       "tag": "td",
       "html": "不计分",
       "tokens": [],
-      "start": 18222,
-      "end": 18225
+      "start": 18294,
+      "end": 18297
     },
     {
       "id": "hfbbe9d8bb8fc",
       "tag": "td",
       "html": "mac/Linux 真机可用、安装包、平台差异处理 · <b>目标 85</b>（现在 20）",
       "tokens": [],
-      "start": 18256,
-      "end": 18303
+      "start": 18328,
+      "end": 18375
     },
     {
       "id": "h5dad26b0e861",
       "tag": "td",
       "html": "<b>合计</b>",
       "tokens": [],
-      "start": 18378,
-      "end": 18387
+      "start": 18450,
+      "end": 18459
     },
     {
       "id": "h0bf172c1979a",
       "tag": "td",
       "html": "单机基准把 22 分压在「组织 + 检索」上；远期 17 维把这 22 分压到 15 分，前 13 维只剩 74 分，让出 26 分给四项平台维度（多语言已交付）",
       "tokens": [],
-      "start": 18477,
-      "end": 18558
+      "start": 18549,
+      "end": 18630
     },
     {
       "id": "h1585d57e6156",
       "tag": "h3",
       "html": "为什么这样配权重",
       "tokens": [],
-      "start": 18725,
-      "end": 18733
+      "start": 18797,
+      "end": 18805
     },
     {
       "id": "h7a3adcf85c4a",
       "tag": "li",
       "html": "<b>单机基准</b> 假设用户只有一台机器、一个库、自己一个人用。那么决定日常体验的就是\"能不能快速找回来\"——组织 10 分 + 检索 12 分是全场最高权重，性能 9 分紧随其后。",
       "tokens": [],
-      "start": 18776,
-      "end": 18869
+      "start": 18848,
+      "end": 18941
     },
     {
       "id": "h512ce88a679f",
       "tag": "li",
       "html": "<b>远期 17 维</b> 假设有一天要拿去和 Immich 这类\"能装下一整个团队\"的产品比。这时同步与协作合计 17 分、多语言与跨平台 9 分，前 13 维被稀释到 74 分——四维按今天的进度计是 75.5，按目标值计是 87.1。",
       "tokens": [],
-      "start": 18887,
-      "end": 19008
+      "start": 18959,
+      "end": 19080
     },
     {
       "id": "h8473aebbf639",
       "tag": "li",
       "html": "两个口径都<b>不奖励 PPT 功能</b>：AI 维度要求本机可跑、有失败回退；性能维度要求有基准脚本可复现。",
       "tokens": [],
-      "start": 19026,
-      "end": 19082
+      "start": 19098,
+      "end": 19154
     },
     {
       "id": "ha6bcdea5fb88",
       "tag": "h3",
       "html": "打分怎么保证不飘",
       "tokens": [],
-      "start": 19183,
-      "end": 19191
+      "start": 19255,
+      "end": 19263
     },
     {
-      "id": "h113804ce10b1",
+      "id": "hb7d95b6650bd",
       "tag": "li",
-      "html": "<b>TuKu 的每一分都能复核</b>：要么有代码位置，要么有 <span class=\"mono\">npm run bench:quick</span> 的实测数字（15/15 项 2026-11-17 全过）。",
+      "html": "<b>TuKu 的每一分都能复核</b>：要么有代码位置，要么有 <span class=\"mono\">npm run bench:quick</span> 的实测数字（15/15 项 2026-11-19 全过）。",
       "tokens": [],
-      "start": 19234,
-      "end": 19342
+      "start": 19306,
+      "end": 19414
     },
     {
       "id": "h1305683ffa3c",
       "tag": "li",
       "html": "<b>竞品分数是公开功能面的估算</b>，不是厂商官方数据。同档位不超过 93，除非有可复现的实测。",
       "tokens": [],
-      "start": 19360,
-      "end": 19410
+      "start": 19432,
+      "end": 19482
     },
     {
       "id": "h7a81a7d82eb3",
       "tag": "li",
       "html": "<b>不确定就往低打</b>：例如 Eagle 的 AI 能力，公开资料里 AI Search 是\"插件\"而非原生管线，因此给 72 而非 85。",
       "tokens": [],
-      "start": 19428,
-      "end": 19501
+      "start": 19500,
+      "end": 19573
     },
     {
       "id": "h6ddcce5aa916",
       "tag": "li",
       "html": "8 个竞品全部用同一份问卷、同一组锚点打分，避免\"给对手挑刺、给自己放水\"。",
       "tokens": [],
-      "start": 19519,
-      "end": 19557
+      "start": 19591,
+      "end": 19629
     },
     {
       "id": "h73ed6d4668df",
       "tag": "h2",
       "html": "三档排名：同一批 8 个产品，三种排法",
       "tokens": [],
-      "start": 19683,
-      "end": 19702
+      "start": 19755,
+      "end": 19774
     },
     {
       "id": "hfac19d40debb",
       "tag": "p",
       "html": "榜单里既有商业闭源（Eagle、Billfish、Pixcall、Bridge、XnView），也有开源自托管（Immich、PhotoPrism）。\n    条形长度就是加权总分，绿色那一行是本项目。两张榜唯一的区别是：四项平台能力按\"目标值\"还是按\"今天的进度\"算（多语言已交付，两种算法都是 90）。",
       "tokens": [],
-      "start": 19735,
-      "end": 19896
+      "start": 19807,
+      "end": 19968
     },
     {
       "id": "h0f881a2a35a4",
       "tag": "h3",
       "html": "单机基准 · 13 维（已实现）",
       "tokens": [],
-      "start": 19996,
-      "end": 20012
+      "start": 20068,
+      "end": 20084
     },
     {
       "id": "hdca6912bc673",
       "tag": "p",
       "html": "今天安装就能复核的分数",
       "tokens": [],
-      "start": 20070,
-      "end": 20081
+      "start": 20142,
+      "end": 20153
     },
     {
       "id": "h8fc94ebf1268",
       "tag": "span",
       "html": "图库 TuKu",
       "tokens": [],
-      "start": 20169,
-      "end": 20176
+      "start": 20241,
+      "end": 20248
     },
     {
       "id": "hc5bf683d7d1b",
       "tag": "h3",
       "html": "远期目标 · 17 维（按目标值）",
       "tokens": [],
-      "start": 21629,
-      "end": 21646
+      "start": 21701,
+      "end": 21718
     },
     {
       "id": "hf9eac9fed984",
       "tag": "p",
       "html": "云 80 / 协作 60 / 多语言 90 / 跨平台 85",
       "tokens": [],
-      "start": 21704,
-      "end": 21734
+      "start": 21776,
+      "end": 21806
     },
     {
       "id": "h8fc94ebf1268",
       "tag": "span",
       "html": "图库 TuKu",
       "tokens": [],
-      "start": 21822,
-      "end": 21829
+      "start": 21894,
+      "end": 21901
     },
     {
       "id": "ha6f9b2a850d7",
       "tag": "h3",
       "html": "竞品各自强在哪（只讲事实）",
       "tokens": [],
-      "start": 23339,
-      "end": 23352
+      "start": 23411,
+      "end": 23424
     },
     {
       "id": "hc345291ed1a5",
       "tag": "li",
       "html": "<b>Eagle（4.0 B22 · 2026 Q4）</b>：本地素材库的老牌标准。格式预览深度、界面手感、模板生态仍是第一；AI Search 插件（反向图搜 + 语义搜索）和 Web API v2 于 2026-03 正式发布，补了之前最大短板；自动化仍是插件化而非原生脚本入口。",
       "tokens": [],
-      "start": 23395,
-      "end": 23538
+      "start": 23467,
+      "end": 23610
     },
     {
       "id": "h9750bcf254a4",
       "tag": "li",
       "html": "<b>Immich（v3.4.0 · 2026-11）</b>：开源自托管相册标杆。ML v2 硬件加速覆盖 RKNPU/TensorRT/OpenVINO，Search v2，跨用户人脸聚类，JPEG XL 支持；弱在\"素材\"而非\"照片\"——设计稿、三维、桌面集成基本不覆盖。",
       "tokens": [],
-      "start": 23556,
-      "end": 23695
+      "start": 23628,
+      "end": 23767
     },
     {
       "id": "h27ad860def3a",
       "tag": "li",
       "html": "<b>PhotoPrism（2026-10）</b>：照片管理型。NVIDIA CUDA 全模型加速（图像分类/NSFW/人脸检测/嵌入），Ollama 集成标签命名，Vulkan 视频转码，NOT/AND 运算符标签过滤；编辑能力几乎为零。",
       "tokens": [],
-      "start": 23713,
-      "end": 23834
+      "start": 23785,
+      "end": 23906
     },
     {
       "id": "h680af3f42970",
       "tag": "li",
       "html": "<b>Billfish 3.1.5.12 / Pixcall 0.9.7 / Bridge v17.0 / XnView MP 1.11.5</b>：国产、新锐、Adobe 配套、看图工具——各有特色但天花板清晰，自动化接口、AI 深度、桌面集成三项普遍弱于前三。",
       "tokens": [],
-      "start": 23852,
-      "end": 23984
+      "start": 23924,
+      "end": 24056
     },
     {
       "id": "h0240ea3c919a",
       "tag": "h3",
       "html": "三条最该记住的对比",
       "tokens": [],
-      "start": 24087,
-      "end": 24096
+      "start": 24159,
+      "end": 24168
     },
     {
       "id": "h933144dcbafc",
       "tag": "p",
       "html": "<b style=\"color:var(--emerald)\">单机（90.8）：领先 Eagle 7.3 分。</b>差距不在界面，而在三处 Eagle 没做的事——\n        网络采集与脚本接口、本机 AI（CLIP + 人脸聚类 + HNSW）、数据出口（XMP / 备份校验 / 双栈撤销）。Eagle 的 AI 是插件而非原生管线。",
       "tokens": [],
-      "start": 24171,
-      "end": 24361
+      "start": 24243,
+      "end": 24433
     },
     {
       "id": "h5bd1df474c2d",
       "tag": "p",
       "html": "<b style=\"color:var(--amber)\">17 维口径现在（75.5）：落后 Immich 4.0 分。</b>\n        差的正是账号、变更合并、移动端——三项都在云与多端/协作这两个远期维度里。",
       "tokens": [],
-      "start": 24435,
-      "end": 24562
+      "start": 24507,
+      "end": 24634
     },
     {
       "id": "hd2858cab935a",
       "tag": "p",
       "html": "<b style=\"color:var(--cyan)\">远期目标（87.1）：反超 Immich 7.6 分。</b>同一把尺子下，\n        现在 75.5 → 远期 87.1，还差 11.7 分；剩下三个目标值（80 / 60 / 85）都能逐项验收。",
       "tokens": [],
-      "start": 24629,
-      "end": 24777
+      "start": 24701,
+      "end": 24849
     },
     {
       "id": "h441ccf2f40f3",
       "tag": "div",
       "html": "换句话说：<b style=\"color:var(--text)\">单机它已经是领先者，平台能力是待兑现的路线图。</b>两个判断可以同时成立。",
       "tokens": [],
-      "start": 24898,
-      "end": 24986
+      "start": 24970,
+      "end": 25058
     },
     {
       "id": "h85eb73fe35e1",
       "tag": "h2",
       "html": "17 个维度逐项对打",
       "tokens": [],
-      "start": 25101,
-      "end": 25111
+      "start": 25173,
+      "end": 25183
     },
     {
       "id": "h22c5c2e2bdd5",
       "tag": "p",
       "html": "只选 4 个最有参照价值的产品：Eagle（本地库上限）、Immich（开源平台上限）、PhotoPrism（照片管理上限），\n    加上本项目。条形越长越强，右侧一句话说明分差来自哪里。TuKu 分数为实查值，Eagle/Immich/PhotoPrism 为 2025-2026 最新公开功能面粗估。",
       "tokens": [],
-      "start": 25144,
-      "end": 25305
+      "start": 25216,
+      "end": 25377
     },
     {
       "id": "h3395b822380e",
       "tag": "div",
       "html": "<span><i style=\"background:#34d399\"></i>90 分以上 接近商用上限</span>\n    <span><i style=\"background:#60a5fa\"></i>80–90 成熟可交付</span>\n    <span><i style=\"background:#fbbf24\"></i>70–80 明显弱于头部</span>\n    <span><i style=\"background:#fb7185\"></i>70 以下 结构性缺口</span>",
       "tokens": [],
-      "start": 25332,
-      "end": 25590
+      "start": 25404,
+      "end": 25662
     },
     {
       "id": "hd9bfa0dab4d3",
       "tag": "div",
       "html": "<span class=\"dname\">维度</span>\n      <span>图库 TuKu</span><span>Eagle</span><span>Immich</span><span>PhotoPrism</span>\n      <span>分差来自哪里</span>",
       "tokens": [],
-      "start": 25648,
-      "end": 25802
+      "start": 25720,
+      "end": 25874
     },
     {
       "id": "h1170386844bc",
       "tag": "span",
       "html": "导入与采集",
       "tokens": [],
-      "start": 25853,
-      "end": 25858
+      "start": 25925,
+      "end": 25930
     },
     {
       "id": "h6ad31d287e06",
       "tag": "span",
       "html": "10 个采集源 + 扩展 + 剪贴板；进度带速度与剩余时间，万张重名去重走内存索引",
       "tokens": [],
-      "start": 26410,
-      "end": 26451
+      "start": 26482,
+      "end": 26523
     },
     {
       "id": "hfe7f28ef63ad",
       "tag": "span",
       "html": "组织与元数据",
       "tokens": [],
-      "start": 26509,
-      "end": 26515
+      "start": 26581,
+      "end": 26587
     },
     {
       "id": "h53ac9adc1cd1",
       "tag": "span",
       "html": "36 表 / 15 触发器 / 30 索引，外键已接管级联；文件夹树/标签树/集合/人物/地点/XMP 全有，与 Eagle 打平",
       "tokens": [],
-      "start": 27067,
-      "end": 27132
+      "start": 27139,
+      "end": 27204
     },
     {
       "id": "h1118be1fd5eb",
       "tag": "span",
       "html": "浏览与检索",
       "tokens": [],
-      "start": 27190,
-      "end": 27195
+      "start": 27262,
+      "end": 27267
     },
     {
       "id": "h63e707d29fc4",
       "tag": "span",
       "html": "关键词 + 语义 + 颜色 + 相似图四路并行，筛选可叠加；瀑布流坐标增量追加，滚动只查可见段",
       "tokens": [],
-      "start": 27747,
-      "end": 27794
+      "start": 27819,
+      "end": 27866
     },
     {
       "id": "h5b1cb3da38f2",
       "tag": "span",
       "html": "编辑与产出",
       "tokens": [],
-      "start": 27852,
-      "end": 27857
+      "start": 27924,
+      "end": 27929
     },
     {
       "id": "h9ad8eb7156e4",
       "tag": "span",
       "html": "非破坏 edit_ops + 撤销栈；拼图所有版式可逐格构图、海报文字可调字体字号颜色、质量到 100",
       "tokens": [],
-      "start": 28409,
-      "end": 28460
+      "start": 28481,
+      "end": 28532
     },
     {
       "id": "hd1c34da5a733",
       "tag": "span",
       "html": "格式与媒体",
       "tokens": [],
-      "start": 28518,
-      "end": 28523
+      "start": 28590,
+      "end": 28595
     },
     {
       "id": "h563f4f0cea7e",
       "tag": "span",
       "html": "覆盖最广（RAW 40+ / 设计稿 11 / 三维 9 / EPUB 真阅读器）；字体、3D、Office 仍浅于 Eagle",
       "tokens": [],
-      "start": 29075,
-      "end": 29139
+      "start": 29147,
+      "end": 29211
     },
     {
       "id": "hfcba67d185b8",
       "tag": "span",
       "html": "AI 能力",
       "tokens": [],
-      "start": 29197,
-      "end": 29202
+      "start": 29269,
+      "end": 29274
     },
     {
       "id": "he111ddd48e3b",
       "tag": "span",
       "html": "本机 CLIP + 人脸聚类 + HNSW 全离线；索引缺口可在夜间时段串行补算（不抢前台）",
       "tokens": [],
-      "start": 29754,
-      "end": 29800
+      "start": 29826,
+      "end": 29872
     },
     {
       "id": "h6977be4ff886",
       "tag": "span",
       "html": "自动化与开放",
       "tokens": [],
-      "start": 29858,
-      "end": 29864
+      "start": 29930,
+      "end": 29936
     },
     {
       "id": "h06eebdc37328",
       "tag": "span",
       "html": "REST + token/scope、11 个 MCP 工具、插件沙箱；同类基本没有脚本入口",
       "tokens": [],
-      "start": 30416,
-      "end": 30462
+      "start": 30488,
+      "end": 30534
     },
     {
       "id": "h692793302ad9",
       "tag": "span",
       "html": "桌面集成",
       "tokens": [],
-      "start": 30520,
-      "end": 30524
+      "start": 30592,
+      "end": 30596
     },
     {
       "id": "h6f30268436ee",
       "tag": "span",
       "html": "托盘/可改热键/动态壁纸/拖出到资源管理器/右键采集；自托管相册没有桌面壳",
       "tokens": [],
-      "start": 31076,
-      "end": 31113
+      "start": 31148,
+      "end": 31185
     },
     {
       "id": "h2a79dd97dd8e",
       "tag": "span",
       "html": "性能与规模",
       "tokens": [],
-      "start": 31171,
-      "end": 31176
+      "start": 31243,
+      "end": 31248
     },
     {
       "id": "hae2852026de7",
       "tag": "span",
       "html": "灌库 5893 行/秒（实跑）；API p95 个位数毫秒；DOM 与布局计算都不随库增长（坐标增量追加 + 底边分桶查询可见区）",
       "tokens": [],
-      "start": 31728,
-      "end": 31793
+      "start": 31800,
+      "end": 31865
     },
     {
       "id": "h1d3ba50cd50a",
       "tag": "span",
       "html": "数据安全",
       "tokens": [],
-      "start": 31851,
-      "end": 31855
+      "start": 31923,
+      "end": 31927
     },
     {
       "id": "h36dbedcc83e3",
       "tag": "span",
       "html": "外键已开（迁移带旧库备份）+ 孤儿检测/清理接口 + 备份校验 + 双栈撤销 + 回收站 + 库锁",
       "tokens": [],
-      "start": 32407,
-      "end": 32456
+      "start": 32479,
+      "end": 32528
     },
     {
       "id": "hadeed157e2e1",
       "tag": "span",
       "html": "工程质量",
       "tokens": [],
-      "start": 32514,
-      "end": 32518
+      "start": 32586,
+      "end": 32590
     },
     {
-      "id": "h7e3e2ad992df",
+      "id": "h5155aa7cdf2c",
       "tag": "span",
-      "html": "DTO 契约 45/52 一致、单测 573、冒烟 143、基准 15，verify 一条跑完；拼图保存 async bug 本轮修掉",
+      "html": "DTO 契约 47/54 一致、单测 573、冒烟 152、基准 15，verify 一条跑完；收件箱 / 颜色旗标 / 画布 / CSV 导回本轮补齐",
       "tokens": [],
-      "start": 33070,
-      "end": 33137
+      "start": 33142,
+      "end": 33218
     },
     {
       "id": "h2c252f64d3f6",
       "tag": "span",
       "html": "易用与可访问",
       "tokens": [],
-      "start": 33195,
-      "end": 33201
+      "start": 33276,
+      "end": 33282
     },
     {
       "id": "h209448fde6d0",
       "tag": "span",
       "html": "引导与 172 条教程做得好；25 个弹窗统一焦点陷阱/Esc/焦点归还；主网格 roving tabindex + 方向键/Home/End/PageUp/Down",
       "tokens": [],
-      "start": 33753,
-      "end": 33836
+      "start": 33834,
+      "end": 33917
     },
     {
       "id": "hfd283617a58d",
       "tag": "span",
       "html": "文档与交付",
       "tokens": [],
-      "start": 33894,
-      "end": 33899
+      "start": 33975,
+      "end": 33980
     },
     {
       "id": "he7603e333715",
       "tag": "span",
       "html": "内置教程厚 + API 参考自动生成（/api/docs 与 Markdown 导出）；安装包仍未代码签名",
       "tokens": [],
-      "start": 34451,
-      "end": 34504
+      "start": 34532,
+      "end": 34585
     },
     {
       "id": "h87d54e704a6d",
       "tag": "span",
       "html": "云与多端",
       "tokens": [],
-      "start": 34562,
-      "end": 34566
+      "start": 34643,
+      "end": 34647
     },
     {
       "id": "h7ab3e2c48caa",
       "tag": "span",
       "html": "现在 15 · 远期目标 80：先账号与只读多端，再增量同步与移动端",
       "tokens": [],
-      "start": 35118,
-      "end": 35152
+      "start": 35199,
+      "end": 35233
     },
     {
       "id": "h47375c71f115",
       "tag": "span",
       "html": "协作与社区",
       "tokens": [],
-      "start": 35210,
-      "end": 35215
+      "start": 35291,
+      "end": 35296
     },
     {
       "id": "hc39f2251257a",
       "tag": "span",
       "html": "现在 20 · 远期目标 60：评论、分享、最小权限闭环（插件市场不承诺）",
       "tokens": [],
-      "start": 35767,
-      "end": 35804
+      "start": 35848,
+      "end": 35885
     },
     {
       "id": "h056f41e5ecf5",
       "tag": "span",
       "html": "多语言",
       "tokens": [],
-      "start": 35862,
-      "end": 35865
+      "start": 35943,
+      "end": 35946
     },
     {
       "id": "h6672b02c4750",
       "tag": "span",
       "html": "现在 90（1.2.23 已交付）· 远期目标 90：文案抽词条 → 翻译层 → 排版适配",
       "tokens": [],
-      "start": 36417,
-      "end": 36462
+      "start": 36498,
+      "end": 36543
     },
     {
       "id": "h2c80f5f07230",
       "tag": "span",
       "html": "跨平台",
       "tokens": [],
-      "start": 36520,
-      "end": 36523
+      "start": 36601,
+      "end": 36604
     },
     {
       "id": "hbcc8ba7928fd",
       "tag": "span",
       "html": "现在 20 · 远期目标 85：mac 真机冒烟 + 安装包，Linux 顺延",
       "tokens": [],
-      "start": 37075,
-      "end": 37114
+      "start": 37156,
+      "end": 37195
     },
     {
       "id": "h3513f15a8f01",
       "tag": "span",
       "html": "加权总分",
       "tokens": [],
-      "start": 37276,
-      "end": 37280
+      "start": 37357,
+      "end": 37361
     },
     {
       "id": "h84156c80b518",
       "tag": "span",
       "html": "每格为 单机基准分 / 当前 17 维分；后四行的远期目标依次为 80 / 60 / 90 / 85",
       "tokens": [],
-      "start": 37999,
-      "end": 38049
+      "start": 38080,
+      "end": 38130
     },
     {
       "id": "he4b2ed95b8b3",
       "tag": "h2",
       "html": "真正的优势：十件\"别人没做\"的事",
       "tokens": [],
-      "start": 38160,
-      "end": 38176
+      "start": 38241,
+      "end": 38257
     },
     {
       "id": "h028542b01f15",
       "tag": "p",
       "html": "这一节只收录<b>能落到代码或实测数字</b>的优势。凡是\"体验不错\"\"界面好看\"这类主观项，一律不进榜。",
       "tokens": [],
-      "start": 38209,
-      "end": 38270
+      "start": 38290,
+      "end": 38351
     },
     {
       "id": "h2418bc387e64",
       "tag": "h3",
       "html": "<span class=\"n\">01</span>采集面是同类里最宽的",
       "tokens": [],
-      "start": 38328,
-      "end": 38363
+      "start": 38409,
+      "end": 38444
     },
     {
-      "id": "h23f03791f3c9",
+      "id": "h5f1471bd3d30",
       "tag": "p",
-      "html": "10 个网络采集源，加上文件夹监听、ZIP、剪贴板、拖拽、浏览器右键、手机网页上传——入口多到可以按\"我当时在哪儿看见这张图\"来选。",
+      "html": "10 个网络采集源，加上文件夹监听、ZIP、剪贴板、拖拽、浏览器右键、手机网页上传——入口多到可以按\"我当时在哪儿看见这张图\"来选；新素材还能先进收件箱，统一过一遍再归档。",
       "tokens": [],
-      "start": 38378,
-      "end": 38444
+      "start": 38459,
+      "end": 38545
     },
     {
       "id": "ha98a0439e5b1",
@@ -1186,24 +1186,24 @@
         "<code>extension/</code>",
         "<code>jobs</code>"
       ],
-      "start": 38471,
-      "end": 38569
+      "start": 38572,
+      "end": 38670
     },
     {
       "id": "h1d66aeef731a",
       "tag": "h3",
       "html": "<span class=\"n\">02</span>组织模型是\"库\"不是\"相册\"",
       "tokens": [],
-      "start": 38620,
-      "end": 38659
+      "start": 38721,
+      "end": 38760
     },
     {
       "id": "h4cc6d13f58be",
       "tag": "p",
       "html": "文件夹树、标签树、集合、书签、播放列表、人物、地点、时间线八套视图共用一套索引，素材可以同时属于多个维度而不复制文件。",
       "tokens": [],
-      "start": 38674,
-      "end": 38733
+      "start": 38775,
+      "end": 38834
     },
     {
       "id": "hcd7a0ffe6fd1",
@@ -1212,24 +1212,24 @@
       "tokens": [
         "<code>server/db/schema-sql.js</code>"
       ],
-      "start": 38760,
-      "end": 38833
+      "start": 38861,
+      "end": 38934
     },
     {
       "id": "hc983e9bd76d0",
       "tag": "h3",
       "html": "<span class=\"n\">03</span>检索是四路并行，不是四个按钮",
       "tokens": [],
-      "start": 38884,
-      "end": 38923
+      "start": 38985,
+      "end": 39024
     },
     {
       "id": "h017b27ae1d0b",
       "tag": "p",
       "html": "FTS5 trigram 让中文子串也能命中，语义检索补\"我记得画面但忘了词\"，颜色与相似图补\"我要找同款\"。四路结果能叠在同一组筛选里。",
       "tokens": [],
-      "start": 38938,
-      "end": 39007
+      "start": 39039,
+      "end": 39108
     },
     {
       "id": "h470fcb458a77",
@@ -1238,44 +1238,44 @@
       "tokens": [
         "<code>/api/tags</code>"
       ],
-      "start": 39034,
-      "end": 39091
+      "start": 39135,
+      "end": 39192
     },
     {
       "id": "hdab40bf9f829",
       "tag": "h3",
       "html": "<span class=\"n\">04</span>AI 完全跑在本机",
       "tokens": [],
-      "start": 39142,
-      "end": 39176
+      "start": 39243,
+      "end": 39277
     },
     {
       "id": "h8ef5af14c131",
       "tag": "p",
       "html": "中文 CLIP 语义、ONNX 人脸检测、HNSW 近邻、本地零样本标签——没有 API Key、没有上传、断网可用。",
       "tokens": [],
-      "start": 39191,
-      "end": 39250
+      "start": 39292,
+      "end": 39351
     },
     {
-      "id": "heb8dea3a0c9c",
+      "id": "h0627d11d7fab",
       "tag": "div",
-      "html": "证据：%%TOKEN0%% · %%TOKEN1%% · %%TOKEN2%%；2 万条向量检索实测 46ms",
+      "html": "证据：%%TOKEN0%% · %%TOKEN1%% · %%TOKEN2%%；2 万条向量检索实测 48ms",
       "tokens": [
         "<code>server/clip.js</code>",
         "<code>lib/hnsw.js</code>",
         "<code>lib/face-math.js</code>"
       ],
-      "start": 39277,
-      "end": 39382
+      "start": 39378,
+      "end": 39483
     },
     {
       "id": "h5657a3eb7bdd",
       "tag": "h3",
       "html": "<span class=\"n\">05</span>自动化接口是产品的一部分",
       "tokens": [],
-      "start": 39433,
-      "end": 39470
+      "start": 39534,
+      "end": 39571
     },
     {
       "id": "h296ffc84b9c7",
@@ -1284,8 +1284,8 @@
       "tokens": [
         "<code>node:vm</code>"
       ],
-      "start": 39485,
-      "end": 39575
+      "start": 39586,
+      "end": 39676
     },
     {
       "id": "h6d9e13482174",
@@ -1296,24 +1296,24 @@
         "<code>lib/plugin-host.js</code>",
         "<code>lib/plugin-manifest.js</code>"
       ],
-      "start": 39602,
-      "end": 39711
+      "start": 39703,
+      "end": 39812
     },
     {
       "id": "he3b1e39d2d01",
       "tag": "h3",
       "html": "<span class=\"n\">06</span>桌面集成扎到系统层",
       "tokens": [],
-      "start": 39762,
-      "end": 39796
+      "start": 39863,
+      "end": 39897
     },
     {
       "id": "hca34d8b05cae",
       "tag": "p",
       "html": "托盘、可改全局热键、开机自启、单实例、拖出到资源管理器、右键采集，以及 Windows 的动态壁纸（WorkerW + GLSL）。",
       "tokens": [],
-      "start": 39811,
-      "end": 39877
+      "start": 39912,
+      "end": 39978
     },
     {
       "id": "h1014dd9348d9",
@@ -1322,24 +1322,24 @@
       "tokens": [
         "<code>electron/main/</code>"
       ],
-      "start": 39904,
-      "end": 39979
+      "start": 40005,
+      "end": 40080
     },
     {
       "id": "hcbec1e83980c",
       "tag": "h3",
       "html": "<span class=\"n\">07</span>数据不锁死",
       "tokens": [],
-      "start": 40030,
-      "end": 40060
+      "start": 40131,
+      "end": 40161
     },
     {
-      "id": "had9245a92d92",
+      "id": "h06c9c1a2dfe8",
       "tag": "p",
-      "html": "XMP sidecar 双向、CSV/JSON/HTML 导出、带校验的备份与恢复、回收站、撤销/重做双栈（200 步 / 2GB 上限）、局域网只读分享带密码与过期。",
+      "html": "XMP sidecar 双向、CSV/JSON/HTML 导出与元数据 CSV 导回、带校验的备份与恢复、回收站、撤销/重做双栈（200 步 / 2GB 上限）、局域网只读分享带密码与过期。",
       "tokens": [],
-      "start": 40075,
-      "end": 40159
+      "start": 40176,
+      "end": 40271
     },
     {
       "id": "h9fe5d6fb3b9f",
@@ -1350,16 +1350,16 @@
         "<code>lib/lan.js</code>",
         "<code>lib/backup-schedule.js</code>"
       ],
-      "start": 40186,
-      "end": 40282
+      "start": 40298,
+      "end": 40394
     },
     {
       "id": "h8f333b2ddf24",
       "tag": "h3",
       "html": "<span class=\"n\">08</span>编辑是非破坏的，而且能对账",
       "tokens": [],
-      "start": 40333,
-      "end": 40371
+      "start": 40445,
+      "end": 40483
     },
     {
       "id": "h9ad0cb2d64da",
@@ -1368,8 +1368,8 @@
       "tokens": [
         "<code>edit_ops</code>"
       ],
-      "start": 40386,
-      "end": 40459
+      "start": 40498,
+      "end": 40571
     },
     {
       "id": "h3f684d9be462",
@@ -1378,133 +1378,133 @@
       "tokens": [
         "<code>routes/edit*</code>"
       ],
-      "start": 40486,
-      "end": 40557
+      "start": 40598,
+      "end": 40669
     },
     {
       "id": "h6f60a662a989",
       "tag": "h3",
       "html": "<span class=\"n\">09</span>有真正的质量闸门",
       "tokens": [],
-      "start": 40608,
-      "end": 40641
+      "start": 40720,
+      "end": 40753
     },
     {
-      "id": "hd85b9de9f7b9",
+      "id": "h0c7e6721949a",
       "tag": "p",
-      "html": "DTO 契约 45/52 一致、单测 <b>573</b>、冒烟 <b>143</b>、基准 <b>15</b>，外加四道 typecheck 与一套 lint（261 文件）；%%TOKEN0%% 一条命令跑完。",
+      "html": "DTO 契约 47/54 一致、单测 <b>573</b>、冒烟 <b>152</b>、基准 <b>15</b>，外加四道 typecheck 与一套 lint（275 文件）；%%TOKEN0%% 一条命令跑完。",
       "tokens": [
         "<code>npm run verify</code>"
       ],
-      "start": 40656,
-      "end": 40780
+      "start": 40768,
+      "end": 40892
     },
     {
-      "id": "hc7c67f8c75a4",
+      "id": "h70c69634ef3b",
       "tag": "div",
-      "html": "证据：%%TOKEN0%% scripts · %%TOKEN1%% · CI 与发版流程同源（2026-11-17 实跑全过）",
+      "html": "证据：%%TOKEN0%% scripts · %%TOKEN1%% · CI 与发版流程同源（2026-11-19 实跑全过）",
       "tokens": [
         "<code>package.json</code>",
         "<code>scripts/verify*</code>"
       ],
-      "start": 40807,
-      "end": 40904
+      "start": 40919,
+      "end": 41016
     },
     {
       "id": "h6c6783f3e123",
       "tag": "h3",
       "html": "<span class=\"n\">10</span>规模意识写进了实现",
       "tokens": [],
-      "start": 40955,
-      "end": 40989
+      "start": 41067,
+      "end": 41101
     },
     {
       "id": "hf151a2dc4dcc",
       "tag": "p",
       "html": "导入走 worker 池 + 批量事务，列表用 keyset 而非 offset 深翻，缩略图分级缓存，向量检索有索引不是全表扫。",
       "tokens": [],
-      "start": 41004,
-      "end": 41069
+      "start": 41116,
+      "end": 41181
     },
     {
-      "id": "h6733040371f5",
+      "id": "h58d6a8857f16",
       "tag": "div",
-      "html": "证据：灌库 <b>5893 行/秒</b>（实跑）；列表首页 p95 7ms、深页 11ms；CLIP 2 万 46ms",
+      "html": "证据：灌库 <b>5428 行/秒</b>（实跑）；列表首页 p95 6ms、深页 7ms；CLIP 2 万 48ms",
       "tokens": [],
-      "start": 41096,
-      "end": 41156
+      "start": 41208,
+      "end": 41267
     },
     {
       "id": "hdf9f3c71660a",
       "tag": "h2",
       "html": "缺点：按\"会不会出事\"排序，不按\"好不好看\"",
       "tokens": [],
-      "start": 41271,
-      "end": 41293
+      "start": 41382,
+      "end": 41404
     },
     {
       "id": "hd0d619835088",
       "tag": "p",
       "html": "排序规则很简单：会让用户<b>丢数据或打不开</b>的排最前，其次才是<b>掉分</b>的，最后是<b>长尾</b>的。\n    好消息是先说结论——<b>本轮审计没有发现 P0 级问题</b>，崩溃与数据丢失这一类在前几轮已经清干净了。\n    本页保留 11 条清单做回归对照：<b>7 条已落地</b>（灰色标注，含验收口径），<b>4 条未修</b>——签名、真机验收、预览深度、平台化。",
       "tokens": [],
-      "start": 41326,
-      "end": 41532
+      "start": 41437,
+      "end": 41643
     },
     {
       "id": "he78e4b2dc4f8",
       "tag": "th",
       "html": "级别",
       "tokens": [],
-      "start": 41624,
-      "end": 41626
+      "start": 41735,
+      "end": 41737
     },
     {
       "id": "h5dc99f6efe53",
       "tag": "th",
       "html": "问题",
       "tokens": [],
-      "start": 41655,
-      "end": 41657
+      "start": 41766,
+      "end": 41768
     },
     {
       "id": "he15268a8ecb1",
       "tag": "th",
       "html": "证据（可核对）",
       "tokens": [],
-      "start": 41666,
-      "end": 41673
+      "start": 41777,
+      "end": 41784
     },
     {
       "id": "haaced5bb958d",
       "tag": "th",
       "html": "为什么是问题",
       "tokens": [],
-      "start": 41682,
-      "end": 41688
+      "start": 41793,
+      "end": 41799
     },
     {
       "id": "hdc2a7b186c14",
       "tag": "th",
       "html": "修复成本",
       "tokens": [],
-      "start": 41716,
-      "end": 41720
+      "start": 41827,
+      "end": 41831
     },
     {
       "id": "ha3b599990366",
       "tag": "td",
       "html": "<span class=\"sev p3\">已修</span>",
       "tokens": [],
-      "start": 41807,
-      "end": 41837
+      "start": 41918,
+      "end": 41948
     },
     {
       "id": "h9e4de51d0eb8",
       "tag": "td",
       "html": "<b>拼图保存叠出两个「另存为」</b>",
       "tokens": [],
-      "start": 41857,
-      "end": 41877
+      "start": 41968,
+      "end": 41988
     },
     {
       "id": "hb57a5b8eae0c",
@@ -1517,8 +1517,8 @@
         "<code>pause()</code>",
         "<code>dialog.showSaveDialog</code>"
       ],
-      "start": 41897,
-      "end": 42186
+      "start": 42008,
+      "end": 42297
     },
     {
       "id": "h253a2f21fa4d",
@@ -1527,1584 +1527,1584 @@
       "tokens": [
         "<code>downloadDedupe</code>"
       ],
-      "start": 42206,
-      "end": 42297
+      "start": 42317,
+      "end": 42408
     },
     {
       "id": "h2acdfbba83f3",
       "tag": "td",
       "html": "低<br><span class=\"tiny muted\">v1.2.22 已完成</span>",
       "tokens": [],
-      "start": 42317,
-      "end": 42365
+      "start": 42428,
+      "end": 42476
     },
     {
       "id": "ha3b599990366",
       "tag": "td",
       "html": "<span class=\"sev p3\">已修</span>",
       "tokens": [],
-      "start": 42432,
-      "end": 42462
+      "start": 42543,
+      "end": 42573
     },
     {
       "id": "h41f5ef2f61a6",
       "tag": "td",
       "html": "<b>图库主网格虚拟滚动与布局计算</b>",
       "tokens": [],
-      "start": 42482,
-      "end": 42503
+      "start": 42593,
+      "end": 42614
     },
     {
       "id": "h9029c100832f",
       "tag": "td",
       "html": "时间线 / 清单 / 人物走 <span class=\"mono\">VirtualGrid</span>；主网格坐标与可见区计算抽到 <span class=\"mono\">web/src/lib/masonryLayout.ts</span>：坐标<b>增量追加</b>、可见区按底边<b>分桶查询</b>",
       "tokens": [],
-      "start": 42523,
-      "end": 42676
+      "start": 42634,
+      "end": 42787
     },
     {
       "id": "hf0567a2dd2bc",
       "tag": "td",
       "html": "DOM 节点数早已恒定；本版把<b>布局计算</b>也一起收掉——10 万张时不再每次追加一页就全量重算坐标再排序。增量与全量结果的一致性有单测守着",
       "tokens": [],
-      "start": 42696,
-      "end": 42770
+      "start": 42807,
+      "end": 42881
     },
     {
       "id": "h025454620d4b",
       "tag": "td",
       "html": "低<br><span class=\"tiny muted\">已完成</span>",
       "tokens": [],
-      "start": 42790,
-      "end": 42830
+      "start": 42901,
+      "end": 42941
     },
     {
       "id": "h706111195727",
       "tag": "td",
       "html": "<b>安装包未签名</b>",
       "tokens": [],
-      "start": 42927,
-      "end": 42940
+      "start": 43038,
+      "end": 43051
     },
     {
       "id": "h0c061f8c8d41",
       "tag": "td",
       "html": "<span class=\"mono\">package.json</span> 的 build 里 <span class=\"mono\">forceCodeSigning=false</span>，无签名证书配置",
       "tokens": [],
-      "start": 42960,
-      "end": 43065
+      "start": 43071,
+      "end": 43176
     },
     {
       "id": "h55ecc87df23a",
       "tag": "td",
       "html": "Windows SmartScreen 会拦\"未知发布者\"，企业环境无法静默部署；每次更新都可能弹警告",
       "tokens": [],
-      "start": 43085,
-      "end": 43136
+      "start": 43196,
+      "end": 43247
     },
     {
       "id": "h5b673d0e9d16",
       "tag": "td",
       "html": "低<br><span class=\"tiny muted\">主要是证书年费</span>",
       "tokens": [],
-      "start": 43156,
-      "end": 43200
+      "start": 43267,
+      "end": 43311
     },
     {
       "id": "he2e3459ffff9",
       "tag": "td",
       "html": "<b>跨平台只是\"能构建\"</b>",
       "tokens": [],
-      "start": 43297,
-      "end": 43314
+      "start": 43408,
+      "end": 43425
     },
     {
       "id": "hc8f0c068ed0b",
       "tag": "td",
       "html": "build 里有 mac / linux 目标，但没有真机 CI，没有平台差异测试",
       "tokens": [],
-      "start": 43334,
-      "end": 43375
+      "start": 43445,
+      "end": 43486
     },
     {
       "id": "h67db5fe8d1dc",
       "tag": "td",
       "html": "一旦对外宣称支持 mac/Linux，用户装上去就会发现热键、路径、壁纸、文件关联全不对。宣称成本远高于实现成本",
       "tokens": [],
-      "start": 43395,
-      "end": 43451
+      "start": 43506,
+      "end": 43562
     },
     {
       "id": "h25618515d542",
       "tag": "td",
       "html": "高<br><span class=\"tiny muted\">三套 CI + 逐项适配</span>",
       "tokens": [],
-      "start": 43471,
-      "end": 43520
+      "start": 43582,
+      "end": 43631
     },
     {
       "id": "h91ad08ac8e78",
       "tag": "td",
       "html": "<b>预览深度不如 Eagle</b>",
       "tokens": [],
-      "start": 43617,
-      "end": 43636
+      "start": 43728,
+      "end": 43747
     },
     {
       "id": "h472371e443c3",
       "tag": "td",
       "html": "EPUB 已是真阅读器（目录 / 正文 / 插图 / 记住读到第几章）；字体已 FontFace 动态挂载；三维已有 OrbitControls 旋转缩放；Office 仍只有 mammoth/SheetJS 前端解析，没有 PDF 真阅读器、没有批注",
       "tokens": [],
-      "start": 43656,
-      "end": 43782
+      "start": 43767,
+      "end": 43893
     },
     {
       "id": "h70525d9864d3",
       "tag": "td",
       "html": "设计师选型时会拿\"能不能直接看\"做决策。格式覆盖赢了，深度还差 Office/PDF/批注，抵消一部分",
       "tokens": [],
-      "start": 43802,
-      "end": 43853
+      "start": 43913,
+      "end": 43964
     },
     {
       "id": "haed1dfbc3170",
       "tag": "td",
       "html": "中",
       "tokens": [],
-      "start": 43873,
-      "end": 43874
+      "start": 43984,
+      "end": 43985
     },
     {
       "id": "ha3b599990366",
       "tag": "td",
       "html": "<span class=\"sev p3\">已修</span>",
       "tokens": [],
-      "start": 43941,
-      "end": 43971
+      "start": 44052,
+      "end": 44082
     },
     {
       "id": "hf0f28e1a02e8",
       "tag": "td",
       "html": "<b>首屏与包体</b>",
       "tokens": [],
-      "start": 43991,
-      "end": 44003
+      "start": 44102,
+      "end": 44114
     },
     {
       "id": "hcf277fea6674",
       "tag": "td",
       "html": "已把 <span class=\"mono\">mammoth / three / xlsx</span> 移出运行时依赖，<span class=\"mono\">afterPack</span> 裁掉 onnxruntime 的非 Windows 二进制；浮层与低频页面全部 <span class=\"mono\">React.lazy</span> 分包",
       "tokens": [],
-      "start": 44023,
-      "end": 44198
+      "start": 44134,
+      "end": 44309
     },
     {
       "id": "h638e281f473e",
       "tag": "td",
       "html": "剩余重量是结构性的（three 与 onnxruntime 本身），再压只能牺牲功能；首屏已无低频代码",
       "tokens": [],
-      "start": 44218,
-      "end": 44269
+      "start": 44329,
+      "end": 44380
     },
     {
       "id": "h34a9f43bd6d5",
       "tag": "td",
       "html": "低<br><span class=\"tiny muted\">按需继续拆</span>",
       "tokens": [],
-      "start": 44289,
-      "end": 44331
+      "start": 44400,
+      "end": 44442
     },
     {
       "id": "ha3b599990366",
       "tag": "td",
       "html": "<span class=\"sev p3\">已修</span>",
       "tokens": [],
-      "start": 44398,
-      "end": 44428
+      "start": 44509,
+      "end": 44539
     },
     {
       "id": "h864008fc53fd",
       "tag": "td",
       "html": "<b>无障碍网格键盘</b>",
       "tokens": [],
-      "start": 44448,
-      "end": 44462
+      "start": 44559,
+      "end": 44573
     },
     {
       "id": "h55abc0af572e",
       "tag": "td",
       "html": "25 个弹窗统一焦点陷阱 / Esc / 焦点归还；主网格改为 <b>roving tabindex</b>（整块网格只留一个 Tab 停点）+ 方向键 / Home / End / PageUp / PageDown",
       "tokens": [],
-      "start": 44482,
-      "end": 44591
+      "start": 44593,
+      "end": 44702
     },
     {
       "id": "h20a1f3ca1981",
       "tag": "td",
       "html": "已能全键盘走完整库；瀑布流的读屏朗读顺序（按 DOM 顺序而非视觉列序）仍可改善",
       "tokens": [],
-      "start": 44611,
-      "end": 44651
+      "start": 44722,
+      "end": 44762
     },
     {
       "id": "h025454620d4b",
       "tag": "td",
       "html": "低<br><span class=\"tiny muted\">已完成</span>",
       "tokens": [],
-      "start": 44671,
-      "end": 44711
+      "start": 44782,
+      "end": 44822
     },
     {
       "id": "ha3b599990366",
       "tag": "td",
       "html": "<span class=\"sev p3\">已修</span>",
       "tokens": [],
-      "start": 44778,
-      "end": 44808
+      "start": 44889,
+      "end": 44919
     },
     {
       "id": "hf8d1b3b25503",
       "tag": "td",
       "html": "<b>首次导入慢</b>",
       "tokens": [],
-      "start": 44828,
-      "end": 44840
+      "start": 44939,
+      "end": 44951
     },
     {
       "id": "h0da8458c0922",
       "tag": "td",
       "html": "导入走 worker 池（上限 12，<span class=\"mono\">os.freemem()</span> 内存闸），RAW 预览解压并发 8；CLIP / 人脸 / 抠图 / 超分统一走 <span class=\"mono\">server/lib/onnx-device.js</span>：Windows 用 DirectML、Linux x64 用 CUDA，建会话失败自动回退 CPU 且本进程不再重试",
       "tokens": [],
-      "start": 44860,
-      "end": 45069
+      "start": 44971,
+      "end": 45180
     },
     {
       "id": "h3f9289f43da0",
       "tag": "td",
       "html": "吞吐实测提升；模型仍需首次下载，属于一次性成本",
       "tokens": [],
-      "start": 45089,
-      "end": 45112
+      "start": 45200,
+      "end": 45223
     },
     {
       "id": "h025454620d4b",
       "tag": "td",
       "html": "低<br><span class=\"tiny muted\">已完成</span>",
       "tokens": [],
-      "start": 45132,
-      "end": 45172
+      "start": 45243,
+      "end": 45283
     },
     {
       "id": "ha3b599990366",
       "tag": "td",
       "html": "<span class=\"sev p3\">已修</span>",
       "tokens": [],
-      "start": 45239,
-      "end": 45269
+      "start": 45350,
+      "end": 45380
     },
     {
       "id": "h718519882398",
       "tag": "td",
       "html": "<b>接口文档示例代码</b>",
       "tokens": [],
-      "start": 45289,
-      "end": 45304
+      "start": 45400,
+      "end": 45415
     },
     {
-      "id": "haecdfdf985aa",
+      "id": "hde9f20b7d5dc",
       "tag": "td",
-      "html": "<span class=\"mono\">/api/docs</span> 按路由表自动生成 387 端点（分组 / 参数 / 鉴权），可导出 Markdown；<b>curl / JavaScript / Python 三语言示例</b>自动填路径参数与常见请求体",
+      "html": "<span class=\"mono\">/api/docs</span> 按路由表自动生成 414 端点（分组 / 参数 / 鉴权），可导出 Markdown；<b>curl / JavaScript / Python 三语言示例</b>自动填路径参数与常见请求体",
       "tokens": [],
-      "start": 45324,
-      "end": 45455
+      "start": 45435,
+      "end": 45566
     },
     {
       "id": "h06306eb0ee7d",
       "tag": "td",
       "html": "第三个开发者不用再自己拼第一个请求；示例随路由表生成，不会和实现脱节",
       "tokens": [],
-      "start": 45475,
-      "end": 45509
+      "start": 45586,
+      "end": 45620
     },
     {
       "id": "h025454620d4b",
       "tag": "td",
       "html": "低<br><span class=\"tiny muted\">已完成</span>",
       "tokens": [],
-      "start": 45529,
-      "end": 45569
+      "start": 45640,
+      "end": 45680
     },
     {
       "id": "ha3b599990366",
       "tag": "td",
       "html": "<span class=\"sev p3\">已修</span>",
       "tokens": [],
-      "start": 45636,
-      "end": 45666
+      "start": 45747,
+      "end": 45777
     },
     {
       "id": "h97d9f7e3cf50",
       "tag": "td",
       "html": "<b>单机算力天花板</b>",
       "tokens": [],
-      "start": 45686,
-      "end": 45700
+      "start": 45797,
+      "end": 45811
     },
     {
       "id": "h51dfbff4277f",
       "tag": "td",
       "html": "全部 ONNX 模型统一经 <span class=\"mono\">server/lib/onnx-device.js</span> 选择执行器：Windows <span class=\"mono\">['dml','cpu']</span>、Linux x64 <span class=\"mono\">['cuda','cpu']</span>，其余平台纯 CPU；<span class=\"mono\">device-state.json</span> 记录一次性熔断。索引缺口另由 <span class=\"mono\">server/lib/night-batch.js</span> 在设定时段串行补算",
       "tokens": [],
-      "start": 45720,
-      "end": 46021
+      "start": 45831,
+      "end": 46132
     },
     {
       "id": "hca4aec7ef386",
       "tag": "td",
       "html": "占绝大多数的 Windows 用户能吃到显卡；没有独显或驱动不支持的机器仍是 CPU，于是把白天来不及跑的语义 / 人脸索引挪到闲置时段——只补缺口、串行、前台一忙就让路",
       "tokens": [],
-      "start": 46041,
-      "end": 46126
+      "start": 46152,
+      "end": 46237
     },
     {
       "id": "h025454620d4b",
       "tag": "td",
       "html": "低<br><span class=\"tiny muted\">已完成</span>",
       "tokens": [],
-      "start": 46146,
-      "end": 46186
+      "start": 46257,
+      "end": 46297
     },
     {
       "id": "hb0c6e1e0eb73",
       "tag": "td",
       "html": "<b>平台化能力尚在远期</b>",
       "tokens": [],
-      "start": 46283,
-      "end": 46299
+      "start": 46394,
+      "end": 46410
     },
     {
       "id": "ha52e7690875c",
       "tag": "td",
       "html": "无账号、无多人权限、无移动端",
       "tokens": [],
-      "start": 46319,
-      "end": 46333
+      "start": 46430,
+      "end": 46444
     },
     {
       "id": "hbe25af1a1dee",
       "tag": "td",
       "html": "三项已写进<b>远期目标</b>（目标值 80 / 60 / 85），多语言已于 1.2.23 交付（90）。不是不做，而是排在单机能力之后：个人项目没有服务器预算、没有运维人力，云一旦上线就要对用户数据负责。排序原因见第 09 节",
       "tokens": [],
-      "start": 46353,
-      "end": 46469
+      "start": 46464,
+      "end": 46580
     },
     {
       "id": "h461d479e9ee4",
       "tag": "td",
       "html": "极高<br><span class=\"tiny muted\">按年做</span>",
       "tokens": [],
-      "start": 46489,
-      "end": 46530
+      "start": 46600,
+      "end": 46641
     },
     {
-      "id": "h5a2378df8d74",
+      "id": "h724b42b69672",
       "tag": "div",
-      "html": "<b>现在只剩两堵墙：</b>① 买证书签名（决定\"能不能发给别人用\"）；\n    ② mac / Linux 真机验收（不验收就别宣称支持）。剩下的都是打磨，可以慢慢来。\n    <br><br>\n    本版（1.2.22 / 2026-11-17）修的是拼图保存时叠出两个「另存为」：\n    <span class=\"mono\">will-download</span> 是同步事件，handler 用 <span class=\"mono\">async</span> 会让 Chromium 默认行为先弹一个空白框、我们自己的 <span class=\"mono\">dialog.showSaveDialog</span> 再弹第二个。改成同步 handler + 异步 IIFE 启动后续流程即可。<b>根因不在连点（已有 downloadDedupe 去重），而在 async 声明本身</b>——一次点击就能触发双响。\n    <br><br>\n    上一版（1.2.21）加了「热更」通道：<span class=\"mono\">server/**</span> 与前端产物的修补可以打一个签名过的小包，客户端叠在安装包之上运行，不必再下整包覆盖安装——清单用 Ed25519 签名、<span class=\"mono\">seq</span> 严格递增防降级、<span class=\"mono\">shellVersion</span> 与 <span class=\"mono\">schemaVersion</span> 双闸门。\n    <br><br>\n    更早几版修掉的（均含代码位置，有兴趣可追溯）：显卡后端 DML 驱动崩溃自动降级 CPU；模块求值期依赖只读 asar 目录导致 \"A JavaScript error\" 启动即失败；网格布局 O(n) 全量重算改成增量追加 + 底边分桶；显卡状态记录进 <span class=\"mono\">device-state.json</span> 后不再重试；AI 夜间批处理队列把白天跑不完的语义/人脸索引挪到闲置时段。",
+      "html": "<b>现在只剩两堵墙：</b>① 买证书签名（决定\"能不能发给别人用\"）；\n    ② mac / Linux 真机验收（不验收就别宣称支持）。剩下的都是打磨，可以慢慢来。\n    <br><br>\n    本版（1.2.29 / 2026-11-19）把采集收件箱补成完整闭环：采集 / 上传 / 粘贴 / 手机投送可先进收件箱，侧栏批量移出，设置里能一键关掉；同时补上元数据 CSV 导回、颜色旗标筛选、无限画布与按 id 批量取素材。数据库仍是 v4，没有新增表或迁移。\n    <br><br>\n    上一版（1.2.22 / 2026-11-17）修的是拼图保存时叠出两个「另存为」：\n    <span class=\"mono\">will-download</span> 是同步事件，handler 用 <span class=\"mono\">async</span> 会让 Chromium 默认行为先弹一个空白框、我们自己的 <span class=\"mono\">dialog.showSaveDialog</span> 再弹第二个。改成同步 handler + 异步 IIFE 启动后续流程即可。<b>根因不在连点（已有 downloadDedupe 去重），而在 async 声明本身</b>——一次点击就能触发双响。\n    <br><br>\n    上一版（1.2.21）加了「热更」通道：<span class=\"mono\">server/**</span> 与前端产物的修补可以打一个签名过的小包，客户端叠在安装包之上运行，不必再下整包覆盖安装——清单用 Ed25519 签名、<span class=\"mono\">seq</span> 严格递增防降级、<span class=\"mono\">shellVersion</span> 与 <span class=\"mono\">schemaVersion</span> 双闸门。\n    <br><br>\n    更早几版修掉的（均含代码位置，有兴趣可追溯）：显卡后端 DML 驱动崩溃自动降级 CPU；模块求值期依赖只读 asar 目录导致 \"A JavaScript error\" 启动即失败；网格布局 O(n) 全量重算改成增量追加 + 底边分桶；显卡状态记录进 <span class=\"mono\">device-state.json</span> 后不再重试；AI 夜间批处理队列把白天跑不完的语义/人脸索引挪到闲置时段。",
       "tokens": [],
-      "start": 46635,
-      "end": 47543
+      "start": 46746,
+      "end": 47807
     },
     {
       "id": "had619fa27093",
       "tag": "h2",
       "html": "客观指标：把话换成数字",
       "tokens": [],
-      "start": 47638,
-      "end": 47649
+      "start": 47902,
+      "end": 47913
     },
     {
-      "id": "h8311719badac",
+      "id": "h5faefab2a7ae",
       "tag": "p",
-      "html": "下面这些数字全部来自仓库与 <span class=\"mono\">npm run bench:quick</span> 实跑，日期 2026-11-17。凡是没实测的，这里不写。",
+      "html": "下面这些数字全部来自仓库与 <span class=\"mono\">npm run bench:quick</span> 实跑，日期 2026-11-19。凡是没实测的，这里不写。",
       "tokens": [],
-      "start": 47682,
-      "end": 47779
+      "start": 47946,
+      "end": 48043
     },
     {
-      "id": "h7a4d8a68058e",
+      "id": "h1acc34579429",
       "tag": "div",
-      "html": "行代码 / 554 个文件",
+      "html": "行代码 / 594 个文件",
       "tokens": [],
-      "start": 47872,
-      "end": 47885
+      "start": 48136,
+      "end": 48149
     },
     {
       "id": "h05ee4d6ffad4",
       "tag": "div",
       "html": "HTTP 端点 / 34 个路由模块",
       "tokens": [],
-      "start": 48019,
-      "end": 48037
+      "start": 48283,
+      "end": 48301
     },
     {
       "id": "h507188ff7cf0",
       "tag": "div",
       "html": "统一错误信封 + 输入白名单",
       "tokens": [],
-      "start": 48058,
-      "end": 48072
+      "start": 48322,
+      "end": 48336
     },
     {
       "id": "h6704896bc89e",
       "tag": "div",
       "html": "数据表 / 15 触发器 / 30 索引",
       "tokens": [],
-      "start": 48145,
-      "end": 48165
+      "start": 48409,
+      "end": 48429
     },
     {
       "id": "h25cc0b8621fd",
       "tag": "div",
       "html": "外键已开，FTS5 trigram 全文索引",
       "tokens": [],
-      "start": 48186,
-      "end": 48208
+      "start": 48450,
+      "end": 48472
     },
     {
       "id": "h822e809d7459",
       "tag": "div",
       "html": "lint 文件 · 单测 · 冒烟 · 基准（实跑全过）",
       "tokens": [],
-      "start": 48322,
-      "end": 48350
+      "start": 48586,
+      "end": 48614
     },
     {
       "id": "h8abcbd374e86",
       "tag": "div",
       "html": "85 个 .test.mjs · verify 一条跑完",
       "tokens": [],
-      "start": 48371,
-      "end": 48399
+      "start": 48635,
+      "end": 48663
     },
     {
       "id": "h749b49b71f22",
       "tag": "div",
       "html": "页面 + 设置分区",
       "tokens": [],
-      "start": 48477,
-      "end": 48486
+      "start": 48741,
+      "end": 48750
     },
     {
       "id": "h25c6b85bfe27",
       "tag": "div",
       "html": "72 组件 · 25 弹窗 · 172 条教程",
       "tokens": [],
-      "start": 48507,
-      "end": 48530
+      "start": 48771,
+      "end": 48794
     },
     {
       "id": "hb9412c850e78",
       "tag": "div",
       "html": "设计稿格式 / RAW 40+ / 三维",
       "tokens": [],
-      "start": 48607,
-      "end": 48627
+      "start": 48871,
+      "end": 48891
     },
     {
       "id": "h8d61e488bd58",
       "tag": "div",
       "html": "视频 8 · 音频 8 · PDF · Office · 字体 · EPUB",
       "tokens": [],
-      "start": 48648,
-      "end": 48686
+      "start": 48912,
+      "end": 48950
     },
     {
       "id": "h5992190c6db8",
       "tag": "div",
       "html": "采集源 + MCP 工具",
       "tokens": [],
-      "start": 48764,
-      "end": 48776
+      "start": 49028,
+      "end": 49040
     },
     {
       "id": "hbb9d69016041",
       "tag": "div",
       "html": "插件 5 类权限位、node:vm 沙箱",
       "tokens": [],
-      "start": 48797,
-      "end": 48817
+      "start": 49061,
+      "end": 49081
     },
     {
       "id": "h70408d41335f",
       "tag": "div",
       "html": "运行时依赖",
       "tokens": [],
-      "start": 48890,
-      "end": 48895
+      "start": 49154,
+      "end": 49159
     },
     {
       "id": "ha2274f7633d7",
       "tag": "div",
       "html": "Node ≥ 22.5，Electron 44.4 + Express 5（three / xlsx / mammoth 已划出运行时）",
       "tokens": [],
-      "start": 48916,
-      "end": 48984
+      "start": 49180,
+      "end": 49248
     },
     {
       "id": "h96b23af28b3f",
       "tag": "h3",
       "html": "代码分布（行数 · wc -l 实跑）",
       "tokens": [],
-      "start": 49128,
-      "end": 49147
+      "start": 49392,
+      "end": 49411
     },
     {
       "id": "h767fa455bb68",
       "tag": "th",
       "html": "目录",
       "tokens": [],
-      "start": 49263,
-      "end": 49265
+      "start": 49527,
+      "end": 49529
     },
     {
       "id": "h2a0c4740f156",
       "tag": "th",
       "html": "文件",
       "tokens": [],
-      "start": 49274,
-      "end": 49276
+      "start": 49538,
+      "end": 49540
     },
     {
       "id": "h65680044ac73",
       "tag": "th",
       "html": "行数",
       "tokens": [],
-      "start": 49285,
-      "end": 49287
+      "start": 49549,
+      "end": 49551
     },
     {
       "id": "hc909e6eb65aa",
       "tag": "th",
       "html": "占比",
       "tokens": [],
-      "start": 49296,
-      "end": 49298
+      "start": 49560,
+      "end": 49562
     },
     {
       "id": "h118d6cc28f4e",
       "tag": "td",
       "html": "web/src（前端）",
       "tokens": [],
-      "start": 49355,
-      "end": 49366
+      "start": 49619,
+      "end": 49630
     },
     {
       "id": "h2468eeccf052",
       "tag": "td",
       "html": "server（后端）",
       "tokens": [],
-      "start": 49474,
-      "end": 49484
+      "start": 49738,
+      "end": 49748
     },
     {
       "id": "h6da2dbe97371",
       "tag": "td",
       "html": "test（测试）",
       "tokens": [],
-      "start": 49592,
-      "end": 49600
+      "start": 49856,
+      "end": 49864
     },
     {
       "id": "h97a055eb4119",
       "tag": "td",
       "html": "electron（桌面）",
       "tokens": [],
-      "start": 49705,
-      "end": 49717
+      "start": 49969,
+      "end": 49981
     },
     {
       "id": "h26665168a8b1",
       "tag": "td",
       "html": "scripts（工具）",
       "tokens": [],
-      "start": 49822,
-      "end": 49833
+      "start": 50086,
+      "end": 50097
     },
     {
       "id": "hd3df3944efe2",
       "tag": "td",
       "html": "extension（扩展）",
       "tokens": [],
-      "start": 49938,
-      "end": 49951
+      "start": 50202,
+      "end": 50215
     },
     {
       "id": "hbcbbdd3b4e08",
       "tag": "p",
       "html": "前端占近一半：这是个把复杂度放在交互上的产品，而不是又一个\"缩略图墙 + 一个按钮\"。统计口径：wc -l 排除 node_modules / dist / .git，与上一版（git ls-files 含声明文件）略有差异。",
       "tokens": [],
-      "start": 50136,
-      "end": 50249
+      "start": 50400,
+      "end": 50513
     },
     {
-      "id": "h778c983ec0b0",
+      "id": "hb5cda6f2be2a",
       "tag": "h3",
-      "html": "实测性能（2 万级库 · 2026-11-17 实跑 p95）",
+      "html": "实测性能（2 万级库 · 2026-11-19 实跑 p95）",
       "tokens": [],
-      "start": 50341,
-      "end": 50372
+      "start": 50605,
+      "end": 50636
     },
     {
       "id": "h7e687515fc56",
       "tag": "th",
       "html": "指标",
       "tokens": [],
-      "start": 50488,
-      "end": 50490
+      "start": 50752,
+      "end": 50754
     },
     {
       "id": "he21d9457638b",
       "tag": "th",
       "html": "实测",
       "tokens": [],
-      "start": 50499,
-      "end": 50501
+      "start": 50763,
+      "end": 50765
     },
     {
       "id": "hf411d0f1f925",
       "tag": "th",
       "html": "说明",
       "tokens": [],
-      "start": 50510,
-      "end": 50512
+      "start": 50774,
+      "end": 50776
     },
     {
       "id": "h7d7005d3e1e7",
       "tag": "td",
       "html": "批量灌库",
       "tokens": [],
-      "start": 50569,
-      "end": 50573
+      "start": 50833,
+      "end": 50837
     },
     {
-      "id": "h5fd2f9416fa2",
+      "id": "ha89023194719",
       "tag": "td",
-      "html": "5,893 行/秒",
+      "html": "5,428 行/秒",
       "tokens": [],
-      "start": 50597,
-      "end": 50606
+      "start": 50861,
+      "end": 50870
     },
     {
       "id": "h4637f0d0394a",
       "tag": "td",
       "html": "worker 池 + 批量事务",
       "tokens": [],
-      "start": 50615,
-      "end": 50630
+      "start": 50879,
+      "end": 50894
     },
     {
       "id": "ha140ff142063",
       "tag": "td",
       "html": "列表首页",
       "tokens": [],
-      "start": 50661,
-      "end": 50665
+      "start": 50925,
+      "end": 50929
     },
     {
       "id": "h9ca99275d2c3",
       "tag": "td",
       "html": "keyset 分页",
       "tokens": [],
-      "start": 50702,
-      "end": 50711
+      "start": 50966,
+      "end": 50975
     },
     {
       "id": "h0f326405fbd2",
       "tag": "td",
       "html": "列表深页",
       "tokens": [],
-      "start": 50742,
-      "end": 50746
+      "start": 51006,
+      "end": 51010
     },
     {
       "id": "h16c2b82fd363",
       "tag": "td",
       "html": "不随页码劣化",
       "tokens": [],
-      "start": 50784,
-      "end": 50790
+      "start": 51047,
+      "end": 51053
     },
     {
       "id": "hc685f44a9394",
       "tag": "td",
       "html": "关键词检索 q=shadow",
       "tokens": [],
-      "start": 50821,
-      "end": 50835
+      "start": 51084,
+      "end": 51098
     },
     {
       "id": "h5261b8c45597",
       "tag": "td",
       "html": "收藏筛选 favorite=1",
       "tokens": [],
-      "start": 50916,
-      "end": 50931
+      "start": 51179,
+      "end": 51194
     },
     {
       "id": "h10a576711295",
       "tag": "td",
       "html": "索引命中",
       "tokens": [],
-      "start": 50968,
-      "end": 50972
+      "start": 51231,
+      "end": 51235
     },
     {
       "id": "h4fb2da703176",
       "tag": "td",
       "html": "<span class=\"mono\">/api/tags</span>（缓存）",
       "tokens": [],
-      "start": 51003,
-      "end": 51042
+      "start": 51266,
+      "end": 51305
     },
     {
       "id": "hc4b258f1e4f8",
       "tag": "td",
       "html": "标签树一次拉全",
       "tokens": [],
-      "start": 51079,
-      "end": 51086
+      "start": 51342,
+      "end": 51349
     },
     {
       "id": "h0b5fca92709e",
       "tag": "td",
       "html": "CLIP 向量检索（2 万 · minCos=0）",
       "tokens": [],
-      "start": 51117,
-      "end": 51142
+      "start": 51380,
+      "end": 51405
     },
     {
       "id": "h3ce98a796a27",
       "tag": "td",
       "html": "HNSW 近邻",
       "tokens": [],
-      "start": 51180,
-      "end": 51187
+      "start": 51443,
+      "end": 51450
     },
     {
       "id": "h496d58e81288",
       "tag": "td",
       "html": "调色预览 720p / 1600px",
       "tokens": [],
-      "start": 51218,
-      "end": 51236
+      "start": 51481,
+      "end": 51499
     },
     {
       "id": "hbc6f180c9bc2",
       "tag": "td",
       "html": "预览与成品一致",
       "tokens": [],
-      "start": 51279,
-      "end": 51286
+      "start": 51542,
+      "end": 51549
     },
     {
-      "id": "h82f728f2f33e",
+      "id": "h2c281efa920e",
       "tag": "p",
-      "html": "bench:quick 5 样本 · CI 环境门槛放宽 3×；未压缩 chunk：three 753KB、主包 index 260KB（gzip 86KB）、react 144KB、CSS 168KB；onnxruntime 的非 Windows 二进制打包后被裁掉。",
+      "html": "bench:quick 5 样本 · CI 环境门槛放宽 3×；未压缩 chunk：three 753KB、主包 index 983KB（gzip 376KB）、react 144KB、CSS 192KB；onnxruntime 的非 Windows 二进制打包后被裁掉。",
       "tokens": [],
-      "start": 51398,
-      "end": 51533
+      "start": 51661,
+      "end": 51797
     },
     {
       "id": "hcc0ac1942637",
       "tag": "h2",
       "html": "还剩两项打磨：单机 90.8 → 91.1",
       "tokens": [],
-      "start": 51646,
-      "end": 51667
+      "start": 51910,
+      "end": 51931
     },
     {
       "id": "hc2d57b55f689",
       "tag": "p",
       "html": "上一版这里列 8 项，到现在已经做完 <b>7 项</b>（含本轮的拼图保存 async bug 消除），\n    它们的分数已经计入当前的 90.8。剩下这 <b>2 项</b>是单机基准还能吃到的分：做完 90.8 → <b>91.1</b>，成本 5–7 周。\n    剩余三项远期目标是另一个量级的工程（含持续支出），单独放在第 09 节。\n    \"分数增量\"= 维度提升值 × 该维度权重，可直接相加核对。",
       "tokens": [],
-      "start": 51700,
-      "end": 51917
+      "start": 51964,
+      "end": 52181
     },
     {
       "id": "hde463041fbd7",
       "tag": "th",
       "html": "做什么",
       "tokens": [],
-      "start": 52039,
-      "end": 52042
+      "start": 52303,
+      "end": 52306
     },
     {
       "id": "h0f018c2bc360",
       "tag": "th",
       "html": "动到的维度",
       "tokens": [],
-      "start": 52051,
-      "end": 52056
+      "start": 52315,
+      "end": 52320
     },
     {
       "id": "h276267ad680a",
       "tag": "th",
       "html": "分数增量",
       "tokens": [],
-      "start": 52084,
-      "end": 52088
+      "start": 52348,
+      "end": 52352
     },
     {
       "id": "hf68db16ef092",
       "tag": "th",
       "html": "工作量",
       "tokens": [],
-      "start": 52116,
-      "end": 52119
+      "start": 52380,
+      "end": 52383
     },
     {
       "id": "h5137be68dc82",
       "tag": "th",
       "html": "验收标准（可判定）",
       "tokens": [],
-      "start": 52128,
-      "end": 52137
+      "start": 52392,
+      "end": 52401
     },
     {
       "id": "h9a8093762fa1",
       "tag": "td",
       "html": "<b>代码签名</b>（包体瘦身已完成）",
       "tokens": [],
-      "start": 52203,
-      "end": 52223
+      "start": 52467,
+      "end": 52487
     },
     {
       "id": "hdec645c53759",
       "tag": "td",
       "html": "易用与可访问 +2",
       "tokens": [],
-      "start": 52232,
-      "end": 52241
+      "start": 52496,
+      "end": 52505
     },
     {
       "id": "h3a6e3f784df7",
       "tag": "td",
       "html": "1 周",
       "tokens": [],
-      "start": 52291,
-      "end": 52294
+      "start": 52555,
+      "end": 52558
     },
     {
       "id": "hc4f589cf175c",
       "tag": "td",
       "html": "新机器安装无 SmartScreen 警告；升级链不断",
       "tokens": [],
-      "start": 52303,
-      "end": 52330
+      "start": 52567,
+      "end": 52594
     },
     {
       "id": "he39032572479",
       "tag": "td",
       "html": "<b>mac / Linux 真机验收</b>",
       "tokens": [],
-      "start": 52367,
-      "end": 52390
+      "start": 52631,
+      "end": 52654
     },
     {
       "id": "hbe5ae0180fa4",
       "tag": "td",
       "html": "工程质量 +3",
       "tokens": [],
-      "start": 52399,
-      "end": 52406
+      "start": 52663,
+      "end": 52670
     },
     {
       "id": "h788cf2a8eb44",
       "tag": "td",
       "html": "4–6 周",
       "tokens": [],
-      "start": 52456,
-      "end": 52461
+      "start": 52720,
+      "end": 52725
     },
     {
-      "id": "hb1e6effa8d8a",
+      "id": "heda05091318f",
       "tag": "td",
-      "html": "两平台各跑通 143 项冒烟，并留下 CI 记录；README 才敢写\"支持\"",
+      "html": "两平台各跑通 152 项冒烟，并留下 CI 记录；README 才敢写\"支持\"",
       "tokens": [],
-      "start": 52470,
-      "end": 52509
+      "start": 52734,
+      "end": 52773
     },
     {
       "id": "h5dad26b0e861",
       "tag": "td",
       "html": "<b>合计</b>",
       "tokens": [],
-      "start": 52595,
-      "end": 52604
+      "start": 52859,
+      "end": 52868
     },
     {
       "id": "he3df3c891e3b",
       "tag": "td",
       "html": "2 项，全部为打磨或补强",
       "tokens": [],
-      "start": 52613,
-      "end": 52625
+      "start": 52877,
+      "end": 52889
     },
     {
       "id": "h7f8d38dd09c1",
       "tag": "td",
       "html": "<b>≈ 5–7 周</b>",
       "tokens": [],
-      "start": 52690,
-      "end": 52704
+      "start": 52954,
+      "end": 52968
     },
     {
       "id": "hdfec4386c078",
       "tag": "td",
       "html": "<b>单机基准：91.1</b>（90.8 + 0.31）· <b>17 维当前分：75.7</b>（75.5 + 0.25，前 13 维在 17 维权重下占 74%）",
       "tokens": [],
-      "start": 52724,
-      "end": 52808
+      "start": 52988,
+      "end": 53072
     },
     {
       "id": "h18143f69d5a1",
       "tag": "h3",
       "html": "路线图（按\"先止血、再长肉\"）",
       "tokens": [],
-      "start": 52985,
-      "end": 53000
+      "start": 53249,
+      "end": 53264
     },
     {
       "id": "h4c7ff4c01dca",
       "tag": "h4",
       "html": "0–30 天：把\"发给别人\"这关过了 <span class=\"tiny muted\">90.8 → 约 91.0</span>",
       "tokens": [],
-      "start": 53044,
-      "end": 53108
+      "start": 53308,
+      "end": 53372
     },
     {
       "id": "h717158652491",
       "tag": "li",
       "html": "代码签名（第 1 项）：决定\"能不能放心发给别人\"",
       "tokens": [],
-      "start": 53141,
-      "end": 53166
+      "start": 53405,
+      "end": 53430
     },
     {
       "id": "h49be0e483d16",
       "tag": "li",
       "html": "顺带把 Office / PDF / 批注预览补齐最后三块（EPUB 已在 v1.2.16 补上，3D 环境光贴图可一并做）",
       "tokens": [],
-      "start": 53186,
-      "end": 53248
+      "start": 53450,
+      "end": 53512
     },
     {
       "id": "hd7c332d6dc9e",
       "tag": "h4",
       "html": "30–90 天：mac 真机验收 <span class=\"tiny muted\">约 91.0 → 91.1</span>",
       "tokens": [],
-      "start": 53319,
-      "end": 53381
+      "start": 53583,
+      "end": 53645
     },
     {
-      "id": "h11ed352c164c",
+      "id": "hba80e5b0a82f",
       "tag": "li",
-      "html": "mac / Linux 真机验收（第 2 项）：两平台各跑一遍 143 项冒烟并留 CI 记录",
+      "html": "mac / Linux 真机验收（第 2 项）：两平台各跑一遍 152 项冒烟并留 CI 记录",
       "tokens": [],
-      "start": 53414,
-      "end": 53461
+      "start": 53678,
+      "end": 53725
     },
     {
       "id": "he4b970450682",
       "tag": "li",
       "html": "渲染回归基准：10 万张、百万级各留一条可复跑的记录（v1.2.17 起布局计算已是增量）",
       "tokens": [],
-      "start": 53481,
-      "end": 53526
+      "start": 53745,
+      "end": 53790
     },
     {
       "id": "h25310419aa91",
       "tag": "h4",
       "html": "90–180 天：单机到此见顶 <span class=\"tiny muted\">≈ 91.1</span>",
       "tokens": [],
-      "start": 53621,
-      "end": 53675
+      "start": 53885,
+      "end": 53939
     },
     {
       "id": "h0547894df2fb",
       "tag": "li",
       "html": "再往上就是第 09 节的远期目标：多语言已完成（1.2.23），先一次性的（跨平台），后持续支出的（云与协作）",
       "tokens": [],
-      "start": 53708,
-      "end": 53763
+      "start": 53972,
+      "end": 54027
     },
     {
       "id": "h5462e467d417",
       "tag": "li",
       "html": "单机基准 91.1 之后不再追分——剩下的都是\"平台能力\"，不是打磨能补的",
       "tokens": [],
-      "start": 53783,
-      "end": 53820
+      "start": 54047,
+      "end": 54084
     },
     {
       "id": "h06e93ce9e564",
       "tag": "h3",
       "html": "做完之后，分数会变成什么样",
       "tokens": [],
-      "start": 53938,
-      "end": 53951
+      "start": 54202,
+      "end": 54215
     },
     {
       "id": "he7295e239b42",
       "tag": "p",
       "html": "单机基准 90.8 → <b class=\"s9\">91.1</b>，仍然第一，与 Eagle 的差距从 7.3 拉到 7.6；\n      17 维当前分 75.5 → <b class=\"s8\">75.7</b>，名次不变（第 3）。\n      若再把剩余三项远期目标做到目标值，17 维可到 <b class=\"s9\">87.3</b>（87.1 + 0.25）。",
       "tokens": [],
-      "start": 54026,
-      "end": 54226
+      "start": 54290,
+      "end": 54490
     },
     {
       "id": "h5fe992f2be0c",
       "tag": "span",
       "html": "单机 · 现在",
       "tokens": [],
-      "start": 54312,
-      "end": 54319
+      "start": 54576,
+      "end": 54583
     },
     {
       "id": "h088272df33a8",
       "tag": "span",
       "html": "单机 · 提分后",
       "tokens": [],
-      "start": 54486,
-      "end": 54494
+      "start": 54750,
+      "end": 54758
     },
     {
       "id": "hb07b5e721771",
       "tag": "span",
       "html": "17 维 · 现在",
       "tokens": [],
-      "start": 54681,
-      "end": 54690
+      "start": 54945,
+      "end": 54954
     },
     {
       "id": "h8f800569ece2",
       "tag": "span",
       "html": "17 维 · 提分后",
       "tokens": [],
-      "start": 54858,
-      "end": 54868
+      "start": 55122,
+      "end": 55132
     },
     {
       "id": "h1c8c85c28221",
       "tag": "span",
       "html": "17 维 · 远期",
       "tokens": [],
-      "start": 55039,
-      "end": 55048
+      "start": 55303,
+      "end": 55312
     },
     {
       "id": "hbf32cd162777",
       "tag": "div",
       "html": "<b style=\"color:var(--text)\">注意这个不对称：</b>同样 5–7 周，单机涨 0.3 分、17 维当前分只涨 0.2 分，名次一动没动。\n      真正把 17 维从 75.5 推到 87.1 的是剩余三项远期目标（+11.7）——两者不冲突，但投入量级差一个数量级。",
       "tokens": [],
-      "start": 55292,
-      "end": 55456
+      "start": 55556,
+      "end": 55720
     },
     {
       "id": "h8374803b4229",
       "tag": "h2",
       "html": "剩余三项远期目标：现在 75.5，兑现后 87.1",
       "tokens": [],
-      "start": 55571,
-      "end": 55596
+      "start": 55835,
+      "end": 55860
     },
     {
       "id": "h7561c1795942",
       "tag": "p",
       "html": "先把容易被误读的地方讲清楚：这些项<b>不是\"明确不做\"</b>，而是排在单机能力之后的远期目标（多语言已在 1.2.23 交付，直接按 90 计入）。\n    这三个数是<b>同一把尺子</b>在三个时点上的分：前 13 维固定贡献 <b>67.2</b>，\n    四项平台维度按\"今天 8.25 / 中期 13.4 / 目标值 19.9\"分别相加，就得到 75.5 / 80.6 / 87.1。\n    所以\"远期目标低于现在\"不可能发生——同一口径下它是从 75.5 往上涨 11.7 分。",
       "tokens": [],
-      "start": 55629,
-      "end": 55886
+      "start": 55893,
+      "end": 56150
     },
     {
       "id": "hf29c543fffb9",
       "tag": "th",
       "html": "维度",
       "tokens": [],
-      "start": 55986,
-      "end": 55988
+      "start": 56250,
+      "end": 56252
     },
     {
       "id": "h4aac559105a1",
       "tag": "th",
       "html": "权重",
       "tokens": [],
-      "start": 56016,
-      "end": 56018
+      "start": 56280,
+      "end": 56282
     },
     {
       "id": "h505ccfb0e8b6",
       "tag": "th",
       "html": "现在",
       "tokens": [],
-      "start": 56046,
-      "end": 56048
+      "start": 56310,
+      "end": 56312
     },
     {
       "id": "hc7b9d1148568",
       "tag": "th",
       "html": "中期",
       "tokens": [],
-      "start": 56076,
-      "end": 56078
+      "start": 56340,
+      "end": 56342
     },
     {
       "id": "hab8020a6e9c6",
       "tag": "th",
       "html": "远期目标",
       "tokens": [],
-      "start": 56106,
-      "end": 56110
+      "start": 56370,
+      "end": 56374
     },
     {
       "id": "h229734d0bfa7",
       "tag": "th",
       "html": "兑现增量",
       "tokens": [],
-      "start": 56138,
-      "end": 56142
+      "start": 56402,
+      "end": 56406
     },
     {
       "id": "h34da27c9d09d",
       "tag": "th",
       "html": "前置条件（先有 A 才能有 B）",
       "tokens": [],
-      "start": 56151,
-      "end": 56167
+      "start": 56415,
+      "end": 56431
     },
     {
       "id": "h5af80e42cf89",
       "tag": "td",
       "html": "<b>云与多端</b>",
       "tokens": [],
-      "start": 56223,
-      "end": 56234
+      "start": 56487,
+      "end": 56498
     },
     {
       "id": "he4be70af512a",
       "tag": "td",
       "html": "账号体系 + 增量同步；只读多端可以先做，写入同步要冲突合并",
       "tokens": [],
-      "start": 56372,
-      "end": 56402
+      "start": 56636,
+      "end": 56666
     },
     {
       "id": "h9c5219d041d7",
       "tag": "td",
       "html": "<b>协作与社区</b>",
       "tokens": [],
-      "start": 56429,
-      "end": 56441
+      "start": 56693,
+      "end": 56705
     },
     {
       "id": "hf16c6903f775",
       "tag": "td",
       "html": "依赖账号与权限模型；先评论/分享，审批流与市场后置",
       "tokens": [],
-      "start": 56579,
-      "end": 56604
+      "start": 56843,
+      "end": 56868
     },
     {
       "id": "ha893118e347c",
       "tag": "td",
       "html": "<b>多语言</b>",
       "tokens": [],
-      "start": 56631,
-      "end": 56641
+      "start": 56895,
+      "end": 56905
     },
     {
       "id": "h751d301f9af1",
       "tag": "td",
       "html": "+4.25 已兑现",
       "tokens": [],
-      "start": 56765,
-      "end": 56774
+      "start": 57029,
+      "end": 57038
     },
     {
       "id": "hf3afdec58bc1",
       "tag": "td",
       "html": "已完成：文案抽词条 + i18n 层 + 双语文档（1.2.23）",
       "tokens": [],
-      "start": 56783,
-      "end": 56816
+      "start": 57047,
+      "end": 57080
     },
     {
       "id": "hf38ea63af4c5",
       "tag": "td",
       "html": "<b>跨平台</b>",
       "tokens": [],
-      "start": 56843,
-      "end": 56853
+      "start": 57107,
+      "end": 57117
     },
     {
       "id": "h2ba37469b593",
       "tag": "td",
       "html": "mac 真机 CI + 安装包公证；Linux 顺延",
       "tokens": [],
-      "start": 56991,
-      "end": 57017
+      "start": 57255,
+      "end": 57281
     },
     {
       "id": "h5dad26b0e861",
       "tag": "td",
       "html": "<b>合计</b>",
       "tokens": [],
-      "start": 57083,
-      "end": 57092
+      "start": 57347,
+      "end": 57356
     },
     {
       "id": "h55f2deaf9a60",
       "tag": "td",
       "html": "加上前 13 维的 67.2：75.5 → 80.6 → 87.1",
       "tokens": [],
-      "start": 57279,
-      "end": 57312
+      "start": 57543,
+      "end": 57576
     },
     {
       "id": "hd316330b742e",
       "tag": "th",
       "html": "阶段",
       "tokens": [],
-      "start": 57466,
-      "end": 57468
+      "start": 57730,
+      "end": 57732
     },
     {
       "id": "h5cfac64e8024",
       "tag": "th",
       "html": "四项取值",
       "tokens": [],
-      "start": 57497,
-      "end": 57501
+      "start": 57761,
+      "end": 57765
     },
     {
       "id": "hc19420c9a9a3",
       "tag": "th",
       "html": "17 维总分",
       "tokens": [],
-      "start": 57530,
-      "end": 57536
+      "start": 57794,
+      "end": 57800
     },
     {
       "id": "h02bd8fd564d1",
       "tag": "th",
       "html": "名次",
       "tokens": [],
-      "start": 57564,
-      "end": 57566
+      "start": 57828,
+      "end": 57830
     },
     {
       "id": "h7195150cb787",
       "tag": "th",
       "html": "需要什么",
       "tokens": [],
-      "start": 57575,
-      "end": 57579
+      "start": 57839,
+      "end": 57843
     },
     {
       "id": "h505ccfb0e8b6",
       "tag": "td",
       "html": "现在",
       "tokens": [],
-      "start": 57628,
-      "end": 57630
+      "start": 57892,
+      "end": 57894
     },
     {
       "id": "haac8e7af1597",
       "tag": "td",
       "html": "第 3",
       "tokens": [],
-      "start": 57717,
-      "end": 57720
+      "start": 57981,
+      "end": 57984
     },
     {
       "id": "h81f3796c732e",
       "tag": "td",
       "html": "已交付：单机库 + 局域网只读分享 + 中英双语界面与文档 + Windows",
       "tokens": [],
-      "start": 57729,
-      "end": 57768
+      "start": 57993,
+      "end": 58032
     },
     {
       "id": "h2503895765b9",
       "tag": "td",
       "html": "中期目标",
       "tokens": [],
-      "start": 57795,
-      "end": 57799
+      "start": 58059,
+      "end": 58063
     },
     {
       "id": "h57d6227812fd",
       "tag": "td",
       "html": "第 2",
       "tokens": [],
-      "start": 57886,
-      "end": 57889
+      "start": 58150,
+      "end": 58153
     },
     {
       "id": "hae935f8ee10d",
       "tag": "td",
       "html": "只读多端 + 分享批注 + mac 真机验收（仍不做账号体系与写入同步）",
       "tokens": [],
-      "start": 57898,
-      "end": 57934
+      "start": 58162,
+      "end": 58198
     },
     {
       "id": "hab8020a6e9c6",
       "tag": "td",
       "html": "远期目标",
       "tokens": [],
-      "start": 57961,
-      "end": 57965
+      "start": 58225,
+      "end": 58229
     },
     {
       "id": "h3e5fd9ef4877",
       "tag": "td",
       "html": "第 1",
       "tokens": [],
-      "start": 58052,
-      "end": 58055
+      "start": 58316,
+      "end": 58319
     },
     {
       "id": "h9f6fb46f45df",
       "tag": "td",
       "html": "账号与增量同步 + 权限与审批 + 三平台安装包",
       "tokens": [],
-      "start": 58064,
-      "end": 58088
+      "start": 58328,
+      "end": 58352
     },
     {
       "id": "h436034e608aa",
       "tag": "td",
       "html": "远期 + 2 项打磨",
       "tokens": [],
-      "start": 58115,
-      "end": 58125
+      "start": 58379,
+      "end": 58389
     },
     {
       "id": "hbda3beaa1e89",
       "tag": "td",
       "html": "同上",
       "tokens": [],
-      "start": 58146,
-      "end": 58148
+      "start": 58410,
+      "end": 58412
     },
     {
       "id": "h3e5fd9ef4877",
       "tag": "td",
       "html": "第 1",
       "tokens": [],
-      "start": 58197,
-      "end": 58200
+      "start": 58461,
+      "end": 58464
     },
     {
       "id": "h57df887f9703",
       "tag": "td",
       "html": "在第 08 节的 5–7 周改造之后（+0.25）",
       "tokens": [],
-      "start": 58209,
-      "end": 58234
+      "start": 58473,
+      "end": 58498
     },
     {
       "id": "h0464e274702b",
       "tag": "h3",
       "html": "云与多端 · 权重 9",
       "tokens": [],
-      "start": 58365,
-      "end": 58376
+      "start": 58629,
+      "end": 58640
     },
     {
       "id": "hfba5a3765afb",
       "tag": "p",
       "html": "<b>现在 15 → 远期目标 80（+5.85）。</b>今天不是零：局域网只读分享（密码 / 过期 / 禁下载）、备份到任意网盘或移动盘、多资源库切换。",
       "tokens": [],
-      "start": 58391,
-      "end": 58469
+      "start": 58655,
+      "end": 58733
     },
     {
       "id": "h0ae4db981f0b",
       "tag": "p",
       "html": "<b>为什么排在远期：</b>三项里唯一需要<b>持续花钱</b>的——服务器、带宽、存储、备份，按月计。个人项目没有这笔预算，也不该在没钱时先许诺数据安全责任。",
       "tokens": [],
-      "start": 58483,
-      "end": 58564
+      "start": 58747,
+      "end": 58828
     },
     {
       "id": "he8cdd5f07741",
       "tag": "p",
       "html": "<b>兑现路径：</b>先只读多端（手机/网页看图，不写入）→ 账号与增量同步 → 冲突合并。只读阶段就能拿到约 50。",
       "tokens": [],
-      "start": 58578,
-      "end": 58638
+      "start": 58842,
+      "end": 58902
     },
     {
       "id": "h2d93cf1b7e99",
       "tag": "div",
       "html": "达标判据：同一账号在两台设备看到同一批素材；离线可读；冲突有明确提示而不是静默覆盖",
       "tokens": [],
-      "start": 58665,
-      "end": 58706
+      "start": 58929,
+      "end": 58970
     },
     {
       "id": "hd5823acafc83",
       "tag": "h3",
       "html": "协作与社区 · 权重 8",
       "tokens": [],
-      "start": 58784,
-      "end": 58796
+      "start": 59048,
+      "end": 59060
     },
     {
       "id": "hfd766882ac15",
       "tag": "p",
       "html": "<b>现在 20 → 远期目标 60（+3.20）。</b>今天能做的是导出包 + 只读分享链接；插件系统可承载小范围内部工具，只是还没人写。",
       "tokens": [],
-      "start": 58811,
-      "end": 58882
+      "start": 59075,
+      "end": 59146
     },
     {
       "id": "h422cdb48118c",
       "tag": "p",
       "html": "<b>为什么排在远期：</b>协作的前提是账号、权限、变更记录——三样都在云那一项里。先做协作等于把云做一半，顺序反了。",
       "tokens": [],
-      "start": 58896,
-      "end": 58956
+      "start": 59160,
+      "end": 59220
     },
     {
       "id": "h46f9cfc9d12d",
       "tag": "p",
       "html": "<b>兑现路径：</b>分享链接加批注 → 成员角色（查看/编辑/管理）→ 审批流。<b>插件与模板市场不作承诺</b>：空市场比没有市场更伤。",
       "tokens": [],
-      "start": 58970,
-      "end": 59042
+      "start": 59234,
+      "end": 59306
     },
     {
       "id": "hd849fb1090ca",
       "tag": "div",
       "html": "达标判据：两个账号对同一集合有不同权限，每次改动留操作记录",
       "tokens": [],
-      "start": 59069,
-      "end": 59098
+      "start": 59333,
+      "end": 59362
     },
     {
       "id": "heefe0036d7fc",
       "tag": "h3",
       "html": "多语言 · 权重 5",
       "tokens": [],
-      "start": 59176,
-      "end": 59186
+      "start": 59440,
+      "end": 59450
     },
     {
       "id": "hf0c9558649c3",
       "tag": "p",
       "html": "<b>现在 90（已交付）→ 远期目标 90。</b>1.2.23 已完成：界面文案全部抽成词条（zh-CN / en-US 各 4,681 条）、内置教程双语、托盘与原生对话框跟随界面语言、后端错误与任务进度按 Accept-Language 返回、插件元数据与运行日志双语、两份 HTML 文档双语且可切换。",
       "tokens": [],
-      "start": 59201,
-      "end": 59357
+      "start": 59465,
+      "end": 59621
     },
     {
       "id": "h32927f530164",
       "tag": "p",
       "html": "<b>为什么先做它：</b>它是四项里<b>唯一不需要服务器和预算</b>的，成本集中在\"把上万条文案抽出来、翻好、再冻结\"的大范围机械改动——趁重构窗口一起做才划算。",
       "tokens": [],
-      "start": 59371,
-      "end": 59455
+      "start": 59635,
+      "end": 59719
     },
     {
       "id": "hd4c82b0a1cf8",
       "tag": "p",
       "html": "<b>还差的 10 分：</b>配置项显示名（AI 服务商 / 模型 / 采集源 label）仍是中文；插件包内部日志未国际化；RTL 语言明确不支持。",
       "tokens": [],
-      "start": 59469,
-      "end": 59545
+      "start": 59733,
+      "end": 59809
     },
     {
       "id": "hec461cf112f8",
       "tag": "div",
       "html": "达标判据：切到英文后无硬编码中文残留；日期、数字、单位按区域格式化",
       "tokens": [],
-      "start": 59572,
-      "end": 59605
+      "start": 59836,
+      "end": 59869
     },
     {
       "id": "h7c3c53216461",
       "tag": "h3",
       "html": "跨平台 · 权重 4",
       "tokens": [],
-      "start": 59683,
-      "end": 59693
+      "start": 59947,
+      "end": 59957
     },
     {
       "id": "h8b894bba1698",
       "tag": "p",
       "html": "<b>现在 20 → 远期目标 85（+2.60）。</b>今天只验收 Windows；mac / Linux 有构建目标，但没有真机 CI，所以对外不宣称。",
       "tokens": [],
-      "start": 59708,
-      "end": 59787
+      "start": 59972,
+      "end": 60051
     },
     {
       "id": "hbd87429992b1",
       "tag": "p",
       "html": "<b>为什么排在远期：</b>桌面集成（动态壁纸、拖出、热键、文件关联）逐平台实现，摊三份就是三份维护；没有真机就没有\"支持\"二字。",
       "tokens": [],
-      "start": 59801,
-      "end": 59867
+      "start": 60065,
+      "end": 60131
     },
     {
-      "id": "had4f4e1b9539",
+      "id": "h870f403dcaf5",
       "tag": "p",
-      "html": "<b>兑现路径：</b>第 08 节第 2 项就是它的前置件——mac 真机跑 143 项冒烟 → 安装包与公证 → 平台差异清单；Linux 顺延。",
+      "html": "<b>兑现路径：</b>第 08 节第 2 项就是它的前置件——mac 真机跑 152 项冒烟 → 安装包与公证 → 平台差异清单；Linux 顺延。",
       "tokens": [],
-      "start": 59881,
-      "end": 59956
+      "start": 60145,
+      "end": 60220
     },
     {
       "id": "h3d4564f929bc",
       "tag": "div",
       "html": "达标判据：mac 上托盘/热键/拖出/文件关联均可用，且 CI 留有记录",
       "tokens": [],
-      "start": 59983,
-      "end": 60019
+      "start": 60247,
+      "end": 60283
     },
     {
       "id": "h3fde42785835",
       "tag": "div",
       "html": "<b>为什么这些分数要标\"目标值\"：</b>目标值是验收线，不是承诺书。\n    任何一项下调 1 分，17 维总分就掉 0.4–0.9（× 权重 ÷ 100），表里可以自己核。\n    <br><br>\n    <b>为什么顺序是先跨平台，后云与协作：</b>跨平台是<b>一次性工程</b>，不吃预算，做完就固定在那里（多语言已按这个思路在 1.2.23 先做完）；\n    后两项是<b>持续性支出</b>（服务器 + 带宽 + 备份 + 值班），也是个人项目真实的财力边界。\n    所以路线图里写得清楚：先把不花钱的做完，再按收入决定云做到哪一档——这是取舍，不是能力问题。",
       "tokens": [],
-      "start": 60094,
-      "end": 60394
+      "start": 60358,
+      "end": 60658
     },
     {
       "id": "h32db149bfb4a",
       "tag": "h2",
       "html": "互操作与\"数据带走\"：这是被低估的优势",
       "tokens": [],
-      "start": 60490,
-      "end": 60509
+      "start": 60754,
+      "end": 60773
     },
     {
       "id": "h19fedbf3fcbe",
       "tag": "p",
       "html": "素材管理工具最大的隐性成本是\"用了三年，想换换不掉\"。这一项在评分里只占少量权重，但对真实用户可能是决定性的。",
       "tokens": [],
-      "start": 60542,
-      "end": 60605
+      "start": 60806,
+      "end": 60869
     },
     {
       "id": "h7ca216bea4a5",
       "tag": "h3",
       "html": "元数据双向",
       "tokens": [],
-      "start": 60724,
-      "end": 60729
+      "start": 60988,
+      "end": 60993
     },
     {
       "id": "h85b620165465",
@@ -3115,16 +3115,16 @@
         "<code>test/xmp.test.mjs</code>",
         "<code>edit_ops</code>"
       ],
-      "start": 60793,
-      "end": 60961
+      "start": 61057,
+      "end": 61225
     },
     {
       "id": "h240ca8a618ed",
       "tag": "h3",
       "html": "备份可校验",
       "tokens": [],
-      "start": 61069,
-      "end": 61074
+      "start": 61333,
+      "end": 61338
     },
     {
       "id": "h8bf227169f20",
@@ -3135,36 +3135,37 @@
         "<code>integrity.test.mjs</code>",
         "<code>lib/integrity.js</code>"
       ],
-      "start": 61138,
-      "end": 61315
+      "start": 61402,
+      "end": 61579
     },
     {
       "id": "h109557b722a0",
       "tag": "h3",
       "html": "导出三种形态",
       "tokens": [],
-      "start": 61423,
-      "end": 61429
+      "start": 61687,
+      "end": 61693
     },
     {
-      "id": "hf539795d4fc3",
+      "id": "hba5c55db1cc6",
       "tag": "p",
-      "html": "CSV / JSON / HTML 画廊，带缩略图内嵌的离线单文件；Eagle 导入、文件夹平铺、保留 tag_meta 结构都行。\n        证据：%%TOKEN0%% · %%TOKEN1%% · %%TOKEN2%%",
+      "html": "CSV / JSON / HTML 画廊，带缩略图内嵌的离线单文件；CSV 还能改完导回（按 id / 路径逐行匹配，只覆盖出现的列）；Eagle 导入、文件夹平铺、保留 tag_meta 结构都行。\n        证据：%%TOKEN0%% · %%TOKEN1%% · %%TOKEN2%% · %%TOKEN3%%",
       "tokens": [
         "<code>server/routes/export.js</code>",
+        "<code>server/lib/transfer.js</code>",
         "<code>galleryExport.test.mjs</code>",
         "<code>server/lib/gallery-html.js</code>"
       ],
-      "start": 61493,
-      "end": 61696
+      "start": 61757,
+      "end": 62032
     },
     {
       "id": "h72b19f3e07ed",
       "tag": "h3",
       "html": "剪贴板与系统级",
       "tokens": [],
-      "start": 61804,
-      "end": 61811
+      "start": 62140,
+      "end": 62147
     },
     {
       "id": "h03e05b9e1c07",
@@ -3176,16 +3177,16 @@
         "<code>lib/lan.js</code>",
         "<code>preload.cjs</code>"
       ],
-      "start": 61875,
-      "end": 62068
+      "start": 62211,
+      "end": 62404
     },
     {
       "id": "h3cb87899db58",
       "tag": "h3",
       "html": "撤销重做双栈",
       "tokens": [],
-      "start": 62176,
-      "end": 62182
+      "start": 62512,
+      "end": 62518
     },
     {
       "id": "hd75615ce9aa3",
@@ -3196,16 +3197,16 @@
         "<code>test/trash.test.mjs</code>",
         "<code>trash-restore.test.mjs</code>"
       ],
-      "start": 62246,
-      "end": 62411
+      "start": 62582,
+      "end": 62747
     },
     {
       "id": "hbecb27519948",
       "tag": "h3",
       "html": "可被脚本调用",
       "tokens": [],
-      "start": 62519,
-      "end": 62525
+      "start": 62855,
+      "end": 62861
     },
     {
       "id": "h9854fbd09af7",
@@ -3216,16 +3217,16 @@
         "<code>routes/docs.js</code>",
         "<code>lib/plugin-host.js</code>"
       ],
-      "start": 62589,
-      "end": 62775
+      "start": 62925,
+      "end": 63111
     },
     {
-      "id": "h2b9ea93ed03a",
+      "id": "hc4cd72945eab",
       "tag": "div",
-      "html": "审计日期 2026-11-17 · 代码版本 1.2.22 · 全量 verify（573 / 143 / 15 / 261）通过 · 实跑 bench:quick 数字已落进第 07 节。\n  本文件与 <a href=\"./产品介绍.html\">产品介绍</a> 是同一份代码的两副面孔——那一份给用户看，这一份给代码层看。",
+      "html": "审计日期 2026-11-19 · 代码版本 1.2.29 · 全量 verify（573 / 152 / 15 / 275）通过 · 实跑 bench:quick 数字已落进第 07 节。\n  本文件与 <a href=\"./产品介绍.html\">产品介绍</a> 是同一份代码的两副面孔——那一份给用户看，这一份给代码层看。",
       "tokens": [],
-      "start": 62830,
-      "end": 62998
+      "start": 63166,
+      "end": 63334
     }
   ],
   "attrs": []

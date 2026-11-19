@@ -6,6 +6,7 @@ import {
   exportMetadataCsv,
   exportMetadataJson,
   importEagleLibrary,
+  importMetadataCsv,
   restoreLibrary,
   verifyBackup,
 } from '../lib/transfer.js';
@@ -33,6 +34,17 @@ export function register(app, ctx) {
       res.json(r);
     })
   );
+
+  /* 元数据导回：Excel 改完 CSV 直接写回，支持 id 或文件路径匹配 */
+  app.post('/api/transfer/metadata/import', (req, res) => {
+    try {
+      const csv = req.body?.csv;
+      if (typeof csv !== 'string' || !csv.trim()) return res.status(400).json({ error: 'CSV 内容为空' });
+      res.json({ ok: true, ...importMetadataCsv(csv) });
+    } catch (err) {
+      res.status(400).json({ error: String(err?.message || err) });
+    }
+  });
 
   /* 元数据清单：JSON / CSV（不依赖软件也能打开，是最基础的「数据出口」） */
   app.get('/api/transfer/metadata.json', (req, res) => {

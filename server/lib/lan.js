@@ -955,6 +955,11 @@ export function buildLanApp(tokenOrGetter) {
           folderWarning = `归类到文件夹失败：${err?.message || err}`;
           console.warn('[lan] 手机投送归类失败', folderWarning);
         }
+        // 采集收件箱：手机投送也是采集来源。已经明确归到文件夹的算整理过，不再塞进收件箱；
+        // 没选文件夹的裸投送先进收件箱，回桌面后统一过一遍。
+        if (settings.inboxOnCapture !== false && !folderId) {
+          db.prepare('UPDATE images SET inbox = 1 WHERE id = ?').run(r.id);
+        }
         return res.json({
           ok: true,
           id: r.id,

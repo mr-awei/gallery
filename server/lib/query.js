@@ -322,6 +322,20 @@ export function buildImageFilter(query = {}, { colorTable = '' } = {}) {
   if (String(query.noFolder || '') === '1') where.push('id NOT IN (SELECT image_id FROM image_folders)');
   if (String(query.noTags || '') === '1') where.push("tags = ''");
   if (String(query.noRating || '') === '1') where.push('rating = 0');
+  // 收件箱：只影响采集来源的新素材，不改变文件夹扫描的既有流程
+  if (String(query.inbox || '') === '1') where.push('inbox = 1');
+  else if (String(query.inbox || '') === '0') where.push('inbox = 0');
+
+  // 颜色旗标：逗号分隔多选；非法值直接忽略，避免拼进 SQL
+  const COLOR_LABELS = new Set(['red', 'orange', 'yellow', 'green', 'blue', 'purple', 'gray']);
+  const colorLabels = String(query.colorLabel || '')
+    .split(',')
+    .map((s) => s.trim())
+    .filter((s) => COLOR_LABELS.has(s));
+  if (colorLabels.length) {
+    where.push(`color_label IN (${colorLabels.map(() => '?').join(',')})`);
+    params.push(...colorLabels);
+  }
 
   // 文件夹范围（含全部子夹）：Ctrl+A 全选必须与列表视图同范围，
   // 否则在子文件夹里全选会选中全库，批量删/移动直接波及范围外的图。

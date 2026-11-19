@@ -716,6 +716,18 @@ try {
       `${bulk.status} ${JSON.stringify({ updated: bulkBody?.updated, skipped: bulkBody?.skipped, items: bulkBody?.items?.length })}`
     );
 
+    // 无限画布：按 id 批量回查，顺序与入参一致，已删除的 id 跳过
+    const byIds = await fetch(
+      `${BASE}/api/images/by-ids?ids=${imageId},1000000001,${imageId}`,
+      { headers: auth.headers }
+    );
+    const byIdsBody = await byIds.json().catch(() => ({}));
+    check(
+      '按 id 批量取素材：去重、跳过缺失并保持顺序',
+      byIds.status === 200 && byIdsBody?.items?.length === 1 && byIdsBody.items[0]?.id === imageId,
+      `${byIds.status} ${JSON.stringify({ n: byIdsBody?.items?.length, id: byIdsBody?.items?.[0]?.id })}`
+    );
+
     const actionCount = await fetch(`${BASE}/api/actions/count`, {
       method: 'POST',
       headers: { ...auth.headers, 'Content-Type': 'application/json' },
@@ -726,6 +738,91 @@ try {
       '动作计数跨 500 条分批且按唯一存在素材计数',
       actionCount.status === 200 && actionCountBody?.ok === true && actionCountBody?.count === 1,
       `${actionCount.status} ${JSON.stringify(actionCountBody)}`
+    );
+
+    // 收件箱 + 颜色旗标：先收后整理的两条主链路，写入必须能被筛选精确命中
+    const setMeta = (body) =>
+      fetch(`${BASE}/api/images/bulk-metadata`, {
+        method: 'POST',
+        headers: { ...auth.headers, 'Content-Type': 'application/json' },
+        body: JSON.stringify(body),
+      });
+    await setMeta({ ids: [imageId], colorLabel: 'red', inbox: true });
+    const hit = await (await fetch(`${BASE}/api/images?colorLabel=red&inbox=1&limit=200`, auth)).json();
+    check(
+      '颜色旗标 + 收件箱写入后可被筛选命中',
+      (hit?.items || []).some(
+        (it) => it.id === imageId && it.colorLabel === 'red' && it.inbox === true
+      ),
+      `命中 ${(hit?.items || []).length} 张`
+    );
+
+    await setMeta({ ids: [imageId], inbox: false });
+    const inboxOnly = await (await fetch(`${BASE}/api/images?inbox=1&limit=200`, auth)).json();
+    check(
+      '移出收件箱后不再出现在收件箱筛选里',
+      !(inboxOnly?.items || []).some((it) => it.id === imageId),
+      `收件箱 ${(inboxOnly?.items || []).length} 张`
+    );
+
+    // CSV 导入：导出清单 → Excel 改 → 导回。逐行校验，坏行只跳过不写坏数据。
+    const full = await getImage(imageId);
+    const csvCell = (v) => `"${String(v ?? '').replace(/"/g, '""')}"`;
+    const csv = [
+      'id,文件路径,颜色旗标,收件箱,评分',
+      [imageId, full?.path || '', 'blue', 1, 5].map(csvCell).join(','),
+      [imageId, full?.path || '', 'neon', 0, 3].map(csvCell).join(','),
+      [imageId, full?.path || '', 'red', 0, 9].map(csvCell).join(','),
+      ['', 'Z:\\不存在\\幽灵.png', 'red', 0, 3].map(csvCell).join(','),
+    ].join('\r\n');
+    const imp = await fetch(`${BASE}/api/transfer/metadata/import`, {
+      method: 'POST',
+      headers: { ...auth.headers, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ csv }),
+    });
+    const impBody = await imp.json().catch(() => ({}));
+    const after = await getImage(imageId);
+    check(
+      'CSV 导入逐行校验：合法行写入，非法颜色/评分/缺失行跳过',
+      imp.status === 200 &&
+        impBody?.ok === true &&
+        impBody?.updated === 1 &&
+        impBody?.skipped === 3 &&
+        (impBody?.errors || []).length === 3 &&
+        after?.colorLabel === 'blue' &&
+        after?.inbox === true &&
+        Number(after?.rating) === 5,
+      `${imp.status} ${JSON.stringify({ updated: impBody?.updated, skipped: impBody?.skipped, errors: impBody?.errors?.length })}`
+    );
+
+    // 按路径匹配（没有 id 列的清单：别的软件导出的表只有路径）
+    const byPathCsv = ['文件路径,颜色旗标', [full?.path || '', 'green'].map(csvCell).join(',')].join('\n');
+    const impPath = await fetch(`${BASE}/api/transfer/metadata/import`, {
+      method: 'POST',
+      headers: { ...auth.headers, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ csv: byPathCsv }),
+    });
+    const impPathBody = await impPath.json().catch(() => ({}));
+    check(
+      'CSV 缺少 id 时按文件路径匹配',
+      impPath.status === 200 &&
+        impPathBody?.updated === 1 &&
+        (await getImage(imageId))?.colorLabel === 'green',
+      `${impPath.status} ${JSON.stringify({ updated: impPathBody?.updated, errors: impPathBody?.errors })}`
+    );
+
+    // 还原，避免影响后面的撤销/回收站用例
+    await setMeta({ ids: [imageId], colorLabel: '', inbox: false });
+
+    // 批量操作可撤销：颜色旗标 + 收件箱也要能回滚（只回滚标签/评分是不够的）
+    await setMeta({ ids: [imageId], colorLabel: 'purple', inbox: true });
+    const metaOp = await latestOp('meta');
+    const undoMeta = await undoById(metaOp?.id);
+    const back = await getImage(imageId);
+    check(
+      '撤销批量修改同时还原颜色旗标与收件箱',
+      undoMeta.status === 200 && back?.colorLabel === '' && back?.inbox === false,
+      `undo=${undoMeta.status} color=${JSON.stringify(back?.colorLabel)} inbox=${back?.inbox}`
     );
   }
 

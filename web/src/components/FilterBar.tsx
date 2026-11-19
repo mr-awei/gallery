@@ -25,6 +25,7 @@ interface Props {
 
 /** 「待整理」智能视图（Eagle 式固定入口） */
 const PENDING_LABEL: Record<string, string> = {
+  inbox: i18n.t('k7c3f1b01'),
   noFolder: i18n.t('kb77b7afb'),
   noTags: i18n.t('k78e16a87'),
   noRating: i18n.t('kd0648c72'),
@@ -200,6 +201,24 @@ export default function FilterBar({
     onChange({ hue: next.join(',') });
   };
 
+  // 颜色旗标筛选（与「画面色系」是两回事：这里筛的是用户自己打的流程标记）
+  const selectedLabels = filters.colorLabel ? filters.colorLabel.split(',').filter(Boolean) : [];
+  const toggleColorLabel = (v: string) => {
+    const next = selectedLabels.includes(v)
+      ? selectedLabels.filter((x) => x !== v)
+      : [...selectedLabels, v];
+    onChange({ colorLabel: next.join(',') });
+  };
+  const COLOR_FLAGS = [
+    { key: 'red', hex: '#e5484d', label: i18n.t('k7c3f1b09') },
+    { key: 'orange', hex: '#f76b15', label: i18n.t('k7c3f1b0a') },
+    { key: 'yellow', hex: '#e2a300', label: i18n.t('k7c3f1b0b') },
+    { key: 'green', hex: '#30a46c', label: i18n.t('k7c3f1b0c') },
+    { key: 'blue', hex: '#3b82f6', label: i18n.t('k7c3f1b0d') },
+    { key: 'purple', hex: '#8b5cf6', label: i18n.t('k7c3f1b0e') },
+    { key: 'gray', hex: '#8b8b8b', label: i18n.t('k7c3f1b0f') },
+  ];
+
   /* 颜色草稿：色盘拖动/选色高频变化，静止 150ms 后才提交筛选（与「停下即搜」一致）。
    * 用 useEffect 去抖（与智能检索页同款），比“事件内 setTimeout”更稳，不会被卸载清理误清。 */
   const [draft, setDraft] = useState({ hex: filters.colorHex || '#ff4d6d', tol: filters.colorTol ?? 48 });
@@ -363,6 +382,15 @@ export default function FilterBar({
     });
   }
 
+  if (filters.colorLabel) {
+    const names = filters.colorLabel
+      .split(',')
+      .map((k) => COLOR_FLAGS.find((c) => c.key === k)?.label)
+      .filter(Boolean)
+      .join('、');
+    chips.push({ label: `${i18n.t('k7c3f1b03')} · ${names}`, clear: () => onChange({ colorLabel: '' }) });
+  }
+
   const resetAll = () =>
     onChange({
       favorite: 'all',
@@ -376,6 +404,7 @@ export default function FilterBar({
       kind: 'all',
       pending: '',
       bbox: '',
+      colorLabel: '',
     });
 
   return (
@@ -656,6 +685,23 @@ export default function FilterBar({
             >
               {i18n.t('k4b90efb3')}
             </button>
+          </div>
+          <div className="sec-label" style={{ marginTop: 14 }}>
+            {i18n.t('k7c3f1b03')}
+          </div>
+          <div className="hue-row">
+            {COLOR_FLAGS.map((c) => (
+              <button
+                key={c.key}
+                type="button"
+                className={`hue-chip${selectedLabels.includes(c.key) ? ' on' : ''}`}
+                style={{ background: c.hex }}
+                title={c.label}
+                aria-label={c.label}
+                aria-pressed={selectedLabels.includes(c.key)}
+                onClick={() => toggleColorLabel(c.key)}
+              />
+            ))}
           </div>
           <div className="sec-label" style={{ marginTop: 14 }}>
             {i18n.t('kca8096f2')}

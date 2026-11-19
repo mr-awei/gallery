@@ -1,6 +1,7 @@
 import React, { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { api, downloadFile, exportZipUrl, formatSize, openFolder, quiet } from '../api';
+import { isMediaFile } from '../lib/drop-files';
 import type { Filters, ImageItem, FolderNode, Playlist, ViewMode } from '../types';
 import FilterBar from '../components/FilterBar';
 import ImageCard from '../components/ImageCard';
@@ -10,7 +11,7 @@ import type { CropItem } from '../components/BatchCropStudio';
 import MasonryGrid from '../components/MasonryGrid';
 import ActionsPanel from '../components/ActionsPanel';
 import { IconDownload, IconFolder, IconHeart, IconTrash } from '../components/Icons';
-import { IconWarning, IconImages, IconGear, IconRotateCcw, IconGlobe, IconFolderOpen, IconClose, IconPencil, IconCheck, IconStar, IconRefresh } from '../components/Icons';
+import { IconWarning, IconImages, IconGear, IconRotateCcw, IconGlobe, IconFolderOpen, IconClose, IconPencil, IconCheck, IconStar, IconRefresh, IconSquare } from '../components/Icons';
 import Select from '../components/Select';
 import ToolbarCustomizer from '../components/ToolbarCustomizer';
 import { usePinnedActions } from '../lib/pinned';
@@ -147,6 +148,8 @@ const RESET_FILTERS: Partial<Filters> = {
   colorTol: 48,
   kind: 'all',
   pending: '',
+  colorLabel: '',
+  bbox: '',
 };
 
 /** 批量条默认露出的动作（其余收在「更多」里，用户可在面板里自由调整） */
@@ -226,6 +229,38 @@ const KIND_TEXT: Record<string, string> = {
 // 前提见 App.tsx：所有回调 props 都必须是 useCallback/useMemo 稳定引用。
 function Gallery(props: Props) {
   const sentinel = useRef<HTMLDivElement | null>(null);
+
+  /* 图库级入库入口（空状态里的「导入本地文件」用）：全局拖拽/粘贴由 App 的 GlobalImport 接管 */
+  const emptyFileRef = useRef<HTMLInputElement | null>(null);
+  const importFiles = useCallback(
+    async (files: File[]) => {
+      const media = files.filter(isMediaFile);
+      if (!media.length) return;
+      const queue = [...media];
+      let ok = 0;
+      let failed = 0;
+      const worker = async () => {
+        for (;;) {
+          const f = queue.shift();
+          if (!f) return;
+          try {
+            await api.uploadFile(f);
+            ok++;
+          } catch {
+            failed++;
+          }
+        }
+      };
+      await Promise.all(Array.from({ length: Math.min(4, queue.length) }, worker));
+      if (ok) {
+        props.onToast?.(i18n.t('k7c3f1b13', { p0: ok }));
+        props.onRefresh?.();
+      }
+      if (failed) props.onToast?.(i18n.t('k7c3f1b14'), 'error');
+    },
+    [props.onToast, props.onRefresh]
+  );
+
   /**
    * 可见区预览预热：屏幕上的这几张，除了让服务端把生成任务插到队首，
    * 还要把预览图字节真的拉进浏览器缓存 —— 只生成不下载的话，点开时浏览器
@@ -265,6 +300,12 @@ function Gallery(props: Props) {
   /** 页面级右键菜单：原顶部工具栏的撤销 / 刷新 / 清理缺失 / 去采集 / 重置筛选 */
   const [pageMenu, setPageMenu] = useState<{ x: number; y: number } | null>(null);
   const pageMenuRef = useRef<HTMLDivElement | null>(null);
+  /**
+   * 多选状态下的卡片右键菜单（跟随选择，Eagle / 资源管理器的手感）：
+   * 右键已选中的卡片 → 菜单作用于整批；右键未选中的卡片 → 先只选它，再出单张菜单。
+   */
+  const [cardMenu, setCardMenu] = useState<{ x: number; y: number } | null>(null);
+  const cardMenuRef = useRef<HTMLDivElement | null>(null);
 
   // 页面右键菜单：点击/滚动/缩放/Esc 关闭；渲染后按实际尺寸把菜单收进视口
   useEffect(() => {
@@ -291,6 +332,32 @@ function Gallery(props: Props) {
     el.style.left = `${Math.max(4, Math.min(pageMenu.x, window.innerWidth - r.width - 4))}px`;
     el.style.top = `${Math.max(4, Math.min(pageMenu.y, window.innerHeight - r.height - 4))}px`;
   }, [pageMenu]);
+
+  // 多选右键菜单：与页面菜单同款关闭/收进视口逻辑
+  useEffect(() => {
+    if (!cardMenu) return;
+    const close = () => setCardMenu(null);
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setCardMenu(null);
+    };
+    window.addEventListener('click', close);
+    window.addEventListener('resize', close);
+    window.addEventListener('scroll', close, true);
+    window.addEventListener('keydown', onKey);
+    return () => {
+      window.removeEventListener('click', close);
+      window.removeEventListener('resize', close);
+      window.removeEventListener('scroll', close, true);
+      window.removeEventListener('keydown', onKey);
+    };
+  }, [cardMenu]);
+  useLayoutEffect(() => {
+    const el = cardMenuRef.current;
+    if (!cardMenu || !el) return;
+    const r = el.getBoundingClientRect();
+    el.style.left = `${Math.max(4, Math.min(cardMenu.x, window.innerWidth - r.width - 4))}px`;
+    el.style.top = `${Math.max(4, Math.min(cardMenu.y, window.innerHeight - r.height - 4))}px`;
+  }, [cardMenu]);
   const {
     items,
     hasMore,
@@ -491,6 +558,31 @@ function Gallery(props: Props) {
       run: () => setExportIds([...selected]),
     },
     {
+      key: 'canvas',
+      label: i18n.t('k7c3f1a52'),
+      title: i18n.t('k7c3f1a52'),
+      hint: i18n.t('k7c3f1a2e'),
+      icon: <IconSquare />,
+      run: () =>
+        window.dispatchEvent(new CustomEvent('tuku:canvas-add', { detail: { ids: [...selected] } })),
+    },
+    {
+      key: 'inbox-clear',
+      label: i18n.t('k7c3f1b11'),
+      title: i18n.t('k7c3f1b10'),
+      hint: i18n.t('k7c3f1b02'),
+      icon: <IconCheck />,
+      run: () => {
+        void api
+          .bulkMetadata({ ids: [...selected], inbox: false })
+          .then((r) => {
+            props.onToast?.(i18n.t('k7c3f1b12', { p0: r.updated }));
+            props.onRefresh();
+          })
+          .catch((err) => props.onToast?.((err as Error).message, 'error'));
+      },
+    },
+    {
       key: 'stitch',
       label: i18n.t('k3715e24a'),
       title: i18n.t('k609c5800'),
@@ -613,6 +705,42 @@ function Gallery(props: Props) {
   const bulkOnBar = bulkPinned
     .map((k) => bulkShown.find((a) => a.key === k))
     .filter((a): a is BulkAct => Boolean(a));
+
+  /* 多选右键菜单的动作：只放对整批有意义的，避免单张专属项（旋转/设为封面）混进来 */
+  const selectionMenuActions = [
+    'download',
+    'export',
+    'canvas',
+    'inbox-clear',
+    'favorite',
+    'unfavorite',
+    'metadata',
+    'rename',
+    'delete',
+  ]
+    .map((k) => bulkShown.find((a) => a.key === k))
+    .filter((a): a is BulkAct => Boolean(a));
+
+  /** 是否有任何非默认筛选：空状态里只在这种情况显示「清除筛选」 */
+  const filtersActive = useMemo(() => {
+    const f = props.filters;
+    return !!(
+      f.q ||
+      f.tag ||
+      f.colorLabel ||
+      f.bbox ||
+      f.hue ||
+      f.colorHex ||
+      f.pending ||
+      (f.kind && f.kind !== 'all') ||
+      f.minRating > 0 ||
+      f.source.length ||
+      f.bucket.length ||
+      (f.favorite && f.favorite !== 'all') ||
+      (f.orientation && f.orientation !== 'all') ||
+      (f.seen && f.seen !== 'all')
+    );
+  }, [props.filters]);
   const bulkInMenu = bulkShown.filter((a) => !bulkPinned.includes(a.key));
 
   return (
@@ -637,6 +765,34 @@ function Gallery(props: Props) {
         <div className="page-head-meta">
           <span className="page-view-badge">{VIEW_LABELS[viewMode]}</span>
           <span className="page-count">共 {total.toLocaleString('zh-CN')} 张</span>
+          {/* 选中的素材直接铺到无限画布上；没选中就只是切过去 */}
+          <button
+            type="button"
+            className="btn sm"
+            title={selected.size ? i18n.t('k7c3f1a34') : i18n.t('k7c3f1a3b')}
+            onClick={() =>
+              window.dispatchEvent(
+                new CustomEvent('tuku:canvas-add', { detail: { ids: [...selected] } })
+              )
+            }
+          >
+            <IconSquare size={14} />
+            {i18n.t('k7c3f1a3b')}
+            {selected.size ? ` · ${selected.size}` : ''}
+          </button>
+          {/* 显式刷新入口：坏图/缩略图暂缺时不用再记「空白处右键」 */}
+          <button
+            type="button"
+            className="btn sm"
+            disabled={props.refreshing}
+            title={i18n.t('k39b74a74')}
+            onClick={props.onRefresh}
+          >
+            <span className={props.refreshing ? 'spinning' : ''}>
+              <IconRefresh size={14} />
+            </span>
+            {props.refreshing ? i18n.t('kbfb2e454') : i18n.t('k694fc5ef')}
+          </button>
         </div>
       </div>
 
@@ -716,18 +872,34 @@ function Gallery(props: Props) {
                 ) })
               : i18n.t('kd4932f14')}
           </h3>
-          {props.importing ? (
-            <p>{i18n.t('ka07ddcd9')}</p>
-          ) : (
-            <p>
-              {i18n.t('k33c03ca4')}
-            </p>
-          )}
+          <p>{props.importing ? i18n.t('ka07ddcd9') : i18n.t('k7c3f1c32')}</p>
           {!props.importing && (
-            <button className="btn primary" onClick={props.onStartCrawl}>
-              {i18n.t('kff4a3771')}
-            </button>
+            <div className="empty-actions">
+              <button className="btn primary" onClick={() => emptyFileRef.current?.click()}>
+                {i18n.t('k7c3f1c2f')}
+              </button>
+              <button className="btn" onClick={props.onStartCrawl}>
+                {i18n.t('kff4a3771')}
+              </button>
+              {filtersActive && (
+                <button className="btn ghost" onClick={() => props.onFiltersChange(RESET_FILTERS)}>
+                  {i18n.t('k7c3f1c30')}
+                </button>
+              )}
+            </div>
           )}
+          <input
+            ref={emptyFileRef}
+            type="file"
+            multiple
+            hidden
+            accept="image/*,video/*,audio/*,.pdf,.gif,.ttf,.otf,.woff,.woff2"
+            onChange={(e) => {
+              const files = Array.from(e.target.files || []);
+              e.target.value = '';
+              if (files.length) void importFiles(files);
+            }}
+          />
         </div>
       )}
 
@@ -934,6 +1106,11 @@ function Gallery(props: Props) {
               annotationCount={props.annotationCounts?.[String(item.id)]}
               dupeCount={props.dupeCounts?.[String(item.id)]}
               dragIds={dragIds && selected.has(item.id) ? dragIds : undefined}
+              onSelectionMenu={
+                dragIds && selected.has(item.id)
+                  ? (x, y) => setCardMenu({ x, y })
+                  : undefined
+              }
               manualSort={props.manualSort}
               onReorderDrop={props.onReorder}
               onDropTag={props.onDropTag}
@@ -1268,6 +1445,22 @@ function Gallery(props: Props) {
             >
               <IconRotateCcw size={13} /> {i18n.t('k2b48f892')}
             </button>
+            {/* 批量操作（标签/评分/颜色/收件箱/删除…）都会进操作日志，这里给一次统一后悔药 */}
+            <button
+              title={i18n.t('k7c3f1c34')}
+              onClick={() => {
+                setPageMenu(null);
+                void api
+                  .undoLastOp()
+                  .then((r) => {
+                    props.onToast?.(i18n.t('k7c3f1c35', { p0: r?.op || '' }));
+                    props.onRefresh();
+                  })
+                  .catch((err) => props.onToast?.((err as Error).message, 'error'));
+              }}
+            >
+              <IconRotateCcw size={13} /> {i18n.t('k7c3f1c34')}
+            </button>
             <button
               disabled={props.refreshing}
               title={i18n.t('k39b74a74')}
@@ -1334,6 +1527,34 @@ function Gallery(props: Props) {
             >
               <IconClose size={13} /> {i18n.t('k0f47025e')}
             </button>
+          </div>,
+          document.body
+        )}
+
+      {/* 右键「已选中的卡片」：菜单跟随选择，作用于整批 */}
+      {cardMenu &&
+        createPortal(
+          <div
+            ref={cardMenuRef}
+            className="card-ctx"
+            style={{ left: cardMenu.x, top: cardMenu.y }}
+            onClick={(e) => e.stopPropagation()}
+            onContextMenu={(e) => e.preventDefault()}
+          >
+            <div className="card-ctx-head">{i18n.t('k7c3f1c31', { p0: selected.size })}</div>
+            {selectionMenuActions.map((a) => (
+              <button
+                key={a.key}
+                className={a.danger ? 'danger' : undefined}
+                title={a.title || a.hint}
+                onClick={() => {
+                  setCardMenu(null);
+                  a.run();
+                }}
+              >
+                {a.icon} {a.label}
+              </button>
+            ))}
           </div>,
           document.body
         )}

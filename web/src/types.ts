@@ -44,6 +44,10 @@ export interface ImageItem extends ImageDTOShape {
   viewedAt: string;
   /** 星级 0-5（0 = 未评分） */
   rating: number;
+  /** 采集收件箱：还没整理过的新采集 */
+  inbox?: boolean;
+  /** 颜色旗标：red/orange/yellow/green/blue/purple/gray；空串 = 未标记 */
+  colorLabel?: string;
   /** 自己的备注 */
   note: string;
   /** 主色 #rrggbb；色系为多值：逗号分隔的 0-11（例 "2,5,7"），空串表示接近黑白灰 */
@@ -298,8 +302,10 @@ export interface Filters {
   colorTol: number;
   /** 素材类型：all / image / video / gif / audio / font / pdf / office / model */
   kind?: string;
-  /** 待整理入口：noFolder 未分类 / noTags 无标签 / noRating 未评分 */
-  pending?: '' | 'noFolder' | 'noTags' | 'noRating';
+  /** 待整理入口：inbox 收件箱 / noFolder 未分类 / noTags 无标签 / noRating 未评分 */
+  pending?: '' | 'inbox' | 'noFolder' | 'noTags' | 'noRating';
+  /** 颜色旗标筛选：逗号分隔 red/orange/... */
+  colorLabel?: string;
   /** 地图框选：minLat,minLon,maxLat,maxLon（地点视图点某个地方时写入） */
   bbox?: string;
 }
@@ -832,6 +838,8 @@ export interface Settings {
   storageDir: string;
   /** 文件夹监控：递归监听素材文件夹，新文件自动入库（默认开） */
   watchEnabled?: boolean;
+  /** 采集收件箱：网页采集 / 上传 / 粘贴 / 手机投送的新素材先标记为待整理（默认开） */
+  inboxOnCapture?: boolean;
   /** 是否已完成首次引导（首次启动选择图片文件夹） */
   onboarded?: boolean;
   /** 是否已看过教程（跳过也算），设置页可重新播放 */
@@ -1401,6 +1409,7 @@ export type View =
   | 'dashboard'
   | 'gallery'
   | 'timeline'
+  | 'canvas'
   | 'favorites'
   | 'people'
   | 'tidy'

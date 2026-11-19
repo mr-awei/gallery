@@ -176,16 +176,14 @@
   <div class="kicker"><span class="dot"></span>In-depth code audit · standalone baseline + three long-term goals (multilingual delivered)</div>
   <h1>TuKu: where the <span class="g">local asset manager</span> really stands</h1>
   <p class="lede">
-    This is not a feature marketing page, but a score after going through 139,000 lines of source code layer by layer: 17 dimensions, 8 competitors, and every conclusion can be traced to a file and a function. The conclusion first—<b>as a local manager alone, it is first in this tier (90.8 / 100)</b>;
-    cloud and multi-device, collaborative community, and cross-platform are <b>not abandoned, but long-term goals placed later</b>; multilingual was already delivered in 1.2.23 (5 → 90);
-    under the same 17-dimension basis, today's progress gives <b>75.5</b> (3rd), while scoring target values gives <b>87.1</b> (1st). All three numbers are right; the only difference is which day you count.
+    This is not a marketing page, but a score after reading through 147k lines of source: 17 dimensions, 8 competitors, and every conclusion traceable to a file and a function. The conclusion first — <b>as a local-only manager, it ranks first in its class (90.8 / 100)</b>; cloud & multi-device, collaboration, and cross-platform are <b>not abandoned but deferred long-term goals</b>, while multilingual support shipped in 1.2.23 (5 → 90); under the same 17-dimension rubric today's progress is <b>75.5</b> (3rd), and scoring against target values gives <b>87.1</b> (1st). All three numbers are correct — they just answer "which day".
   </p>
   <div class="chips">
-    <span class="chip">Audit date <b>2026-11-17</b></span>
-    <span class="chip">Code version <b>1.2.23</b></span>
-    <span class="chip">Scale <b>554 files / 118,608 lines</b></span>
-    <span class="chip">Method <b>code audit + hands-on benchmark + 8-competitor comparison</b></span>
-    <span class="chip">Companion doc <b><a href="./产品介绍.en.html">feature documentation (for general users)</a></b></span>
+    <span class="chip">Audit date <b>2026-11-19</b></span>
+    <span class="chip">Code version <b>1.2.29</b></span>
+    <span class="chip">Size <b>594 files / 147,362 lines</b></span>
+    <span class="chip">Method <b>Code audit + measured benchmarks + 8-competitor comparison</b></span>
+    <span class="chip">Companion doc <b><a href="./产品介绍.en.html">Feature overview (for end users)</a></b></span>
   </div>
 
   <div class="scores">
@@ -231,7 +229,7 @@
       <h3 style="margin:0 0 10px;font-size:15.5px;color:var(--emerald)">Why it ranks first on local</h3>
       <ul class="plain">
         <li><b>The data model is a "library" rather than an "album"</b>: 36 tables, 15 triggers, 30 indexes (foreign keys already handle cascades), an FTS5 trigram full-text index; 11 kinds of design files, 40+ RAW formats, 9 3D formats, and EPUB e-books can all enter the library and produce thumbnails.</li>
-        <li><b>Automation is native</b>: 10 capture sources, 11 MCP tools, a plugin sandbox, REST with token and scope, and /api/docs generating 387 endpoints plus examples in curl, JS, and Python—peers generally offer only "import + drag and drop".</li>
+        <li><b>Automation is native</b>: 10 capture sources, 11 MCP tools, a plugin sandbox, token- and scope-based REST; /api/docs auto-generates 414 endpoints plus curl/JS/Python examples — peers usually offer only "import + drag".</li>
         <li><b>Desktop integration reaches the system layer</b>: tray, remappable global hotkeys, Windows live wallpaper (WorkerW + GLSL), drag-out to Explorer, right-click capture, and read-only LAN sharing.</li>
       </ul>
     </div>
@@ -269,13 +267,14 @@
     Its denominator excludes the 26 points of platform weight not yet delivered, so <b>90.8 and 87.1 cannot be subtracted directly</b>—under the same basis the equivalent figure is 75.5.
   </div>
   <div class="callout" style="margin-top:12px">
-    <b>Reading convention:</b> above 90 = close to the commercial ceiling of its class; 80–90 = mature and deliverable, only polishing left;
-    70–80 = usable but clearly weaker than the leaders; below 60 = structural gap that patches cannot fix.
-    The difference between this audit round (2026-11-17) and the previous version (2026-11-16) comes from three substantive improvements:
-    ① <b>puzzle save will-download async bug</b> fixed (Electron synchronous events cannot use an async handler; the previous dialog stacked with Chromium's default behavior to produce two), eliminating a P1-level bug;
-    ② competitor Eagle 4.0 B22 (2026 Q4) shipped an AI Search plugin + Web API v2, raising Eagle's AI dimension from 65 to 72 with a slight improvement in automation; Immich v3.4.0 (2026-11) brings broader GPU coverage in ML v2; PhotoPrism 2026-10 added NVIDIA CUDA acceleration for all models;
-    ③ <b>multilingual delivered</b> (1.2.23): interface / tutorials / tray / backend errors / plugin metadata / docs all bilingual, 4,681 strings, multilingual dimension 5 → 90 (+4.25 on the current 17-dimension score).
-    TuKu's own dimension scores are maintained: the table count was corrected from 40 to 36 (a factual revision; the feature surface is complete), standalone 90.9 → 90.8.
+    <b>Reading the scale:</b> above 90 = close to the commercial ceiling in this class; 80–90 = mature and shippable, only polish left;
+    70–80 = usable but clearly behind the leaders; below 60 = a structural gap that patches cannot fix.
+    This audit (2026-11-19) differs from the previous version (2026-11-16) in two substantive fixes:
+    ① the <b>collage save will-download async bug</b> is fixed (Electron sync events cannot use an async handler, which stacked the default blank dialog on top of ours) — a P1 bug removed;
+    ② competitor Eagle 4.0 B22 (2026 Q4) shipped the AI Search plugin + Web API v2, lifting Eagle's AI dimension from 65 to 72 and slightly improving automation; Immich v3.4.0 (2026-11) broadened ML v2 GPU coverage; PhotoPrism enabled NVIDIA CUDA for all models in 2026-10;
+    ③ <b>multilingual support shipped</b> (1.2.23): UI / tutorials / tray / backend errors / plugin metadata / docs are all bilingual, 4,681 strings, moving the multilingual dimension from 5 to 90 (+4.25 on the current 17-dimension score).
+    ④ <b>This round (1.2.29)</b> completes the capture inbox, color-label filtering, the infinite canvas and metadata CSV round-trip; these fill feature gaps without inflating dimension scores.
+    TuKu dimension scores otherwise hold: table count corrected from 40 to 36 (a factual fix, feature surface intact), local score 90.9 → 90.8.
   </div>
 </section>
 
@@ -327,7 +326,7 @@
     <div class="panel">
       <h3 style="margin:0 0 8px;font-size:15px">How the scores are kept from drifting</h3>
       <ul class="plain">
-        <li><b>Every TuKu point can be checked</b>: either there is a code location, or there is a measured number from <span class="mono">npm run bench:quick</span> (all 15/15 passed on 2026-11-17).</li>
+        <li><b>Every point for TuKu can be re-checked</b>: either a code location or a measured number from <span class="mono">npm run bench:quick</span> (15/15 passed on 2026-11-19).</li>
         <li><b>Competitor scores are estimates based on public feature surfaces</b>, not official vendor data. Within a tier they do not exceed 93 unless there is reproducible measurement.</li>
         <li><b>When uncertain, score low</b>: Eagle's AI capability, for example—in public materials AI Search is a "plugin" rather than a native pipeline, so it gets 72 rather than 85.</li>
         <li>All 8 competitors are scored with the same questionnaire and the same set of anchors, avoiding "nitpicking rivals while going easy on ourselves".</li>
@@ -489,7 +488,7 @@
       <div class="dimcell"><small class="s8">82</small><div class="mini"><i style="width:82%;background:#60a5fa"></i></div></div>
       <div class="dimcell"><small class="s8">85</small><div class="mini"><i style="width:85%;background:#60a5fa"></i></div></div>
       <div class="dimcell"><small class="s8">80</small><div class="mini"><i style="width:80%;background:#60a5fa"></i></div></div>
-      <span class="cmt">DTO contract 45/52 aligned, 573 unit tests, 143 smoke tests, 15 benchmarks, all run by a single verify command; the collage-save async bug is fixed this round</span></div>
+      <span class="cmt">DTO contract 47/54 in sync, 573 unit tests, 152 smoke tests, 15 benchmarks; verify runs in one command; inbox / color labels / canvas / CSV round-trip landed this round</span></div>
     <div class="dimrow"><span class="dname">Usability and accessibility</span>
       <div class="dimcell"><small class="s8">85</small><div class="mini"><i style="width:85%;background:#60a5fa"></i></div></div>
       <div class="dimcell"><small class="s9">92</small><div class="mini"><i style="width:92%;background:#34d399"></i></div></div>
@@ -544,7 +543,7 @@
   <div class="adv">
     <div class="card">
       <h3><span class="n">01</span>The broadest capture surface in its class</h3>
-      <p>10 web capture sources, plus folder watching, ZIP, clipboard, drag-and-drop, browser right-click, and mobile web upload—enough entry points to choose by "where I happened to see this image".</p>
+      <p>10 web capture sources, plus folder watching, ZIP, clipboard, drag-and-drop, browser right-click and phone upload — enough entry points to pick by "where I saw the image"; new assets can also land in the inbox for a single review pass before filing.</p>
       <div class="ev">Evidence: <code>server/crawler.js</code> SOURCES table · <code>extension/</code> · resumable capture writes to the <code>jobs</code> table</div>
     </div>
     <div class="card">
@@ -560,7 +559,7 @@
     <div class="card">
       <h3><span class="n">04</span>AI runs entirely on-device</h3>
       <p>Chinese CLIP semantics, ONNX face detection, HNSW nearest neighbors, local zero-shot tagging—no API key, no uploads, works offline.</p>
-      <div class="ev">Evidence: <code>server/clip.js</code> · <code>lib/hnsw.js</code> · <code>lib/face-math.js</code>; measured 46ms for vector search over 20k items</div>
+      <div class="ev">Evidence: <code>server/clip.js</code> · <code>lib/hnsw.js</code> · <code>lib/face-math.js</code>; 20k vector search measured at 48 ms</div>
     </div>
     <div class="card">
       <h3><span class="n">05</span>Automation interfaces are part of the product</h3>
@@ -574,7 +573,7 @@
     </div>
     <div class="card">
       <h3><span class="n">07</span>Data is not locked in</h3>
-      <p>Two-way XMP sidecars, CSV/JSON/HTML export, verified backup and restore, trash, dual-stack undo/redo (200 steps / 2GB cap), and read-only LAN sharing with password and expiry.</p>
+      <p>Bidirectional XMP sidecars, CSV/JSON/HTML export plus metadata CSV import, verified backup and restore, trash, dual undo/redo stacks (200 steps / 2 GB), and read-only LAN sharing with password and expiry.</p>
       <div class="ev">Evidence: <code>lib/undo.js</code> · <code>lib/lan.js</code> · backup scheduling <code>lib/backup-schedule.js</code></div>
     </div>
     <div class="card">
@@ -584,13 +583,13 @@
     </div>
     <div class="card">
       <h3><span class="n">09</span>There are real quality gates</h3>
-      <p>45/52 DTO contracts consistent, <b>573</b> unit tests, <b>143</b> smoke tests, <b>15</b> benchmarks, plus four typecheck passes and one lint suite (261 files); <code>npm run verify</code> runs it all with one command.</p>
-      <div class="ev">Evidence: <code>package.json</code> scripts · <code>scripts/verify*</code> · CI and the release process share the same source (all passed in a live run on 2026-11-17)</div>
+      <p>DTO contract 47/54 in sync, <b>573</b> unit tests, <b>152</b> smoke tests, <b>15</b> benchmarks, plus four typecheck configs and one lint pass (275 files); <code>npm run verify</code> runs it all in one command.</p>
+      <div class="ev">Evidence: <code>package.json</code> scripts · <code>scripts/verify*</code> · CI and release share the same pipeline (all passed on 2026-11-19)</div>
     </div>
     <div class="card">
       <h3><span class="n">10</span>Awareness of scale is built into the implementation</h3>
       <p>Import uses a worker pool plus batched transactions, lists paginate by keyset rather than deep offset scans, thumbnails are cached in tiers, and vector search uses an index instead of a full table scan.</p>
-      <div class="ev">Evidence: bulk insert at <b>5893 rows/sec</b> (measured); list first page p95 7ms, deep page 11ms; CLIP over 20k items 46ms</div>
+      <div class="ev">Evidence: bulk ingest <b>5,428 rows/s</b> (measured); list first page p95 6 ms, deep page 7 ms; CLIP 20k in 48 ms</div>
     </div>
   </div>
 </section>
@@ -668,7 +667,7 @@
         <tr style="opacity:.72">
           <td><span class="sev p3">Fixed</span></td>
           <td><b>API doc sample code</b></td>
-          <td><span class="mono">/api/docs</span> auto-generates 387 endpoints from the route table (grouping / parameters / auth) and can export Markdown; <b>curl / JavaScript / Python samples</b> auto-fill path parameters and common request bodies</td>
+          <td><span class="mono">/api/docs</span> auto-generates 414 endpoints from the route table (groups / params / auth) and exports Markdown; <b>curl / JavaScript / Python examples</b> fill path params and common request bodies automatically</td>
           <td>A third-party developer no longer has to assemble the first request by hand; samples are generated from the route table, so they cannot drift from the implementation</td>
           <td>Low<br><span class="tiny muted">Done</span></td>
         </tr>
@@ -691,29 +690,31 @@
   </div>
 
   <div class="callout" style="margin-top:18px">
-    <b>Only two walls remain:</b> ① buying a certificate to sign the build (this decides "can it be handed to someone else");
-    ② acceptance testing on real mac / Linux hardware (no testing, no support claim). Everything else is polish and can wait.
+    <b>Only two walls remain:</b> ① buy a code-signing certificate (decides whether it can be handed to others);
+    ② real-device acceptance on mac / Linux (don't claim support without it). Everything else is polish and can wait.
     <br><br>
-    This version (1.2.22 / 2026-11-17) fixes a collage save that stacked two "Save As" dialogs:
-    <span class="mono">will-download</span> is a synchronous event, and declaring the handler <span class="mono">async</span> let Chromium's default behavior pop an empty dialog first, with our own <span class="mono">dialog.showSaveDialog</span> popping a second. Making the handler synchronous and starting the follow-up flow in an async IIFE is enough. <b>The root cause is not rapid clicking (downloadDedupe already deduplicates) but the async declaration itself</b> — a single click was enough to trigger both.
+    This version (1.2.29 / 2026-11-19) closes the capture inbox loop: capture / upload / paste / phone upload can land in the inbox first, be cleared in bulk from the sidebar, and be switched off in Settings. It also adds metadata CSV import, color-label filtering, the infinite canvas and by-id asset lookup. The database stays at v4 with no new tables or migrations.
     <br><br>
-    The previous version (1.2.21) added a "hot update" channel: patches to <span class="mono">server/**</span> and front-end artifacts can ship as a small signed package that the client layers over the installed build, so a full reinstall is no longer needed — the manifest is Ed25519-signed, <span class="mono">seq</span> strictly increases to prevent downgrades, and <span class="mono">shellVersion</span> and <span class="mono">schemaVersion</span> act as two gates.
+    The previous version (1.2.22 / 2026-11-17) fixed the collage save bug that stacked two "Save as" dialogs:
+    <span class="mono">will-download</span> is a sync event, and an <span class="mono">async</span> handler lets Chromium's default behavior show a blank dialog before our own <span class="mono">dialog.showSaveDialog</span> opens a second one. A sync handler plus an async IIFE for the follow-up work fixes it.<b>The root cause was not double-clicking (downloadDedupe already handled that) but the async declaration itself</b> — one click was enough to trigger both.
     <br><br>
-    Fixed in earlier versions (code locations included, traceable if you are interested): automatic fallback to CPU when the GPU backend crashes in the DML driver; module evaluation depending on the read-only asar directory, which made "A JavaScript error" abort startup; grid layout changed from a full O(n) recomputation to incremental append plus bottom-edge bucketing; no more retries after GPU state is recorded in <span class="mono">device-state.json</span>; the AI night batch queue moves semantic/face indexing that cannot finish during the day to idle hours.
+    The version before that (1.2.21) added the hotfix channel: patches to <span class="mono">server/**</span> and the web bundle can ship as a small signed package layered over the installer, with no full reinstall — Ed25519-signed manifests, a strictly increasing <span class="mono">seq</span> to block downgrades, and <span class="mono">shellVersion</span> + <span class="mono">schemaVersion</span> gates.
+    <br><br>
+    Earlier versions fixed (all with code locations, traceable if you care): GPU DML driver crashes now fall back to CPU; module-evaluation dependencies writing to the read-only asar directory no longer cause a startup "A JavaScript error"; O(n) full grid layout recomputation became incremental appends + bottom-edge bucketing; GPU state is recorded in <span class="mono">device-state.json</span> so it is not retried; the AI nightly queue moves unfinished semantic / face indexing into idle hours.
   </div>
 </section>
 
 <section id="s7">
   <div class="sec-head"><span class="sec-no">07</span><h2>Objective metrics: turning words into numbers</h2></div>
   <p class="sec-sub">
-    Every number below comes from the repository and an actual run of <span class="mono">npm run bench:quick</span> on 2026-11-17. Anything not measured is not listed here.
+    All numbers below come from the repo and measured <span class="mono">npm run bench:quick</span> runs on 2026-11-19. Anything not measured is omitted.
   </p>
 
   <div class="grid4">
-    <div class="tile"><div class="v">118,608</div><div class="k">lines of code / 554 files</div><div class="s">web 52,842 · server 45,755 · test 8,831</div></div>
-    <div class="tile"><div class="v">387</div><div class="k">HTTP endpoints / 34 route modules</div><div class="s">Unified error envelope + input allowlist</div></div>
+    <div class="tile"><div class="v">147,362</div><div class="k">lines of code / 594 files</div><div class="s">web 73,779 · server 50,625 · test 9,912</div></div>
+    <div class="tile"><div class="v">414</div><div class="k">HTTP endpoints / 34 route modules</div><div class="s">Unified error envelope + input allowlist</div></div>
     <div class="tile"><div class="v">36</div><div class="k">tables / 15 triggers / 30 indexes</div><div class="s">Foreign keys on, FTS5 trigram full-text index</div></div>
-    <div class="tile"><div class="v" style="font-size:17px">261 · 573 · 143 · 15</div><div class="k">lint files · unit tests · smoke · benchmarks (all passed in a real run)</div><div class="s">85 .test.mjs files · verify finishes in one command</div></div>
+    <div class="tile"><div class="v" style="font-size:17px">275 · 573 · 152 · 15</div><div class="k">lint files · unit tests · smoke · benchmarks (all passed in a real run)</div><div class="s">85 .test.mjs files · verify finishes in one command</div></div>
     <div class="tile"><div class="v">15 + 25</div><div class="k">pages + settings sections</div><div class="s">72 components · 25 dialogs · 172 tutorial entries</div></div>
     <div class="tile"><div class="v">11 + 9</div><div class="k">design-file formats / RAW 40+ / 3D</div><div class="s">video 8 · audio 8 · PDF · Office · fonts · EPUB</div></div>
     <div class="tile"><div class="v">10 + 11</div><div class="k">capture sources + MCP tools</div><div class="s">plugins with 5 permission classes, node:vm sandbox</div></div>
@@ -727,12 +728,12 @@
         <table style="min-width:0">
           <thead><tr><th>Directory</th><th>Files</th><th>Lines</th><th>Share</th></tr></thead>
           <tbody>
-            <tr><td>web/src (front end)</td><td class="num">202</td><td class="num">52,842</td><td class="num">44.6%</td></tr>
-            <tr><td>server (back end)</td><td class="num">200</td><td class="num">45,755</td><td class="num">38.6%</td></tr>
-            <tr><td>test (tests)</td><td class="num">87</td><td class="num">8,831</td><td class="num">7.4%</td></tr>
-            <tr><td>electron (desktop)</td><td class="num">35</td><td class="num">5,774</td><td class="num">4.9%</td></tr>
-            <tr><td>scripts (tooling)</td><td class="num">27</td><td class="num">4,343</td><td class="num">3.7%</td></tr>
-            <tr><td>extension (extension)</td><td class="num">3</td><td class="num">1,063</td><td class="num">0.9%</td></tr>
+            <tr><td>web/src (front end)</td><td class="num">231</td><td class="num">73,779</td><td class="num">50.1%</td></tr>
+            <tr><td>server (back end)</td><td class="num">203</td><td class="num">50,625</td><td class="num">34.4%</td></tr>
+            <tr><td>test (tests)</td><td class="num">87</td><td class="num">9,912</td><td class="num">6.7%</td></tr>
+            <tr><td>electron (desktop)</td><td class="num">34</td><td class="num">6,139</td><td class="num">4.2%</td></tr>
+            <tr><td>scripts (tooling)</td><td class="num">36</td><td class="num">5,844</td><td class="num">4.0%</td></tr>
+            <tr><td>extension (extension)</td><td class="num">3</td><td class="num">1,063</td><td class="num">0.7%</td></tr>
           </tbody>
         </table>
       </div>
@@ -740,23 +741,23 @@
     </div>
 
     <div class="panel">
-      <h3 style="margin:0 0 10px;font-size:14.8px">Measured performance (20k-item library · p95 from an actual run on 2026-11-17)</h3>
+      <h3 style="margin:0 0 10px;font-size:14.8px">Measured performance (20k library · p95, 2026-11-19)</h3>
       <div class="tbl-wrap" style="border:none">
         <table style="min-width:0">
           <thead><tr><th>Metric</th><th>Measured</th><th>Notes</th></tr></thead>
           <tbody>
-            <tr><td>Bulk library ingest</td><td class="num s9">5,893 rows/s</td><td>worker pool + batched transactions</td></tr>
-            <tr><td>List first page</td><td class="num s9">7 ms</td><td>keyset pagination</td></tr>
-            <tr><td>List deep page</td><td class="num s9">11 ms</td><td>No degradation with page depth</td></tr>
+            <tr><td>Bulk library ingest</td><td class="num s9">5,428 rows/s</td><td>worker pool + batched transactions</td></tr>
+            <tr><td>List first page</td><td class="num s9">6 ms</td><td>keyset pagination</td></tr>
+            <tr><td>List deep page</td><td class="num s9">7 ms</td><td>No degradation with page depth</td></tr>
             <tr><td>Keyword search q=shadow</td><td class="num s9">12 ms</td><td>FTS5 trigram</td></tr>
-            <tr><td>Favorite filter favorite=1</td><td class="num s9">3 ms</td><td>Index hit</td></tr>
-            <tr><td><span class="mono">/api/tags</span> (cached)</td><td class="num s9">4 ms</td><td>Whole tag tree in one call</td></tr>
-            <tr><td>CLIP vector search (20k · minCos=0)</td><td class="num s8">46 ms</td><td>HNSW nearest neighbors</td></tr>
-            <tr><td>Color grading preview 720p / 1600px</td><td class="num s8">16 / 70 ms</td><td>Preview matches the final output</td></tr>
+            <tr><td>Favorite filter favorite=1</td><td class="num s9">5 ms</td><td>Index hit</td></tr>
+            <tr><td><span class="mono">/api/tags</span> (cached)</td><td class="num s9">2 ms</td><td>Whole tag tree in one call</td></tr>
+            <tr><td>CLIP vector search (20k · minCos=0)</td><td class="num s8">51 ms</td><td>HNSW nearest neighbors</td></tr>
+            <tr><td>Color grading preview 720p / 1600px</td><td class="num s8">19 / 73 ms</td><td>Preview matches the final output</td></tr>
           </tbody>
         </table>
       </div>
-      <p class="tiny muted" style="margin:10px 0 0">bench:quick with 5 samples · CI environment thresholds relaxed 3×; uncompressed chunks: three 753KB, main index bundle 260KB (gzip 86KB), react 144KB, CSS 168KB; the non-Windows onnxruntime binaries are trimmed after packaging.</p>
+      <p class="tiny muted" style="margin:10px 0 0">bench:quick, 5 samples · CI thresholds are relaxed 3×; uncompressed chunks: three 753 KB, main index 983 KB (gzip 376 KB), react 144 KB, CSS 192 KB; onnxruntime non-Windows binaries are stripped at packaging.</p>
     </div>
   </div>
 </section>
@@ -777,7 +778,7 @@
       </thead>
       <tbody>
         <tr><td>1</td><td><b>Code signing</b> (bundle slimming already done)</td><td>Usability &amp; accessibility +2</td><td class="num s6">+0.10</td><td class="num">1 week</td><td>No SmartScreen warning on a fresh machine; the upgrade chain stays intact</td></tr>
-        <tr><td>2</td><td><b>Real-hardware acceptance for mac / Linux</b></td><td>Engineering quality +3</td><td class="num s6">+0.21</td><td class="num">4–6 weeks</td><td>143 smoke tests pass on each platform with CI records kept; only then can the README say "supported"</td></tr>
+        <tr><td>2</td><td><b>Real-hardware acceptance for mac / Linux</b></td><td>Engineering quality +3</td><td class="num s6">+0.21</td><td class="num">4–6 weeks</td><td>Both platforms pass all 152 smoke tests with CI records; only then can the README claim "supported"</td></tr>
         <tr style="background:rgba(79,70,229,.07)">
           <td></td><td><b>Total</b></td><td>2 items, all polish or reinforcement</td><td class="num"><b>+0.31</b></td>
           <td class="num"><b>≈ 5–7 weeks</b></td>
@@ -800,7 +801,7 @@
       <div class="phase">
         <h4>30–90 days: real-hardware acceptance on mac <span class="tiny muted">about 91.0 → 91.1</span></h4>
         <ul>
-          <li>mac / Linux real-hardware acceptance (item 2): run the 143 smoke tests once on each platform and keep CI records</li>
+          <li>mac / Linux real-device acceptance (item 2): run all 152 smoke tests on both platforms and keep CI records</li>
           <li>Render regression baseline: keep one reproducible record each for 100k and 1M items (layout computation has been incremental since v1.2.17)</li>
         </ul>
       </div>
@@ -897,7 +898,7 @@
       <h3 style="color:var(--amber)">Cross-platform · weight 4</h3>
       <p><b>Now 20 → long-term target 85 (+2.60).</b> Only Windows is validated today; mac / Linux have build targets but no real-hardware CI, so no support is claimed.</p>
       <p><b>Why it is long-term:</b> desktop integration (live wallpaper, drag-out, hotkeys, file associations) is implemented per platform, and three platforms means three maintenance burdens; without real hardware there is no "support".</p>
-      <p><b>Delivery path:</b> item 2 in Section 08 is its prerequisite — run the 143 smoke tests on real mac hardware → installer and notarization → a platform-difference checklist; Linux deferred.</p>
+      <p><b>Delivery path:</b> item 2 in section 08 is its prerequisite — run 152 smoke tests on real Macs → installer and notarization → platform difference list; Linux follows.</p>
       <div class="ev">Pass criteria: tray/hotkeys/drag-out/file associations all work on mac, with CI records kept</div>
     </div>
   </div>
@@ -933,8 +934,8 @@
     <div class="panel">
       <h3 style="margin:0 0 8px;font-size:14.6px;color:var(--cyan)">Three export forms</h3>
       <p class="tiny" style="margin:0;color:var(--muted)">
-        CSV / JSON / HTML gallery, including an offline single file with embedded thumbnails; Eagle import, flattened folders, and preserved tag_meta structure all work.
-        Evidence: <code>server/routes/export.js</code> · <code>galleryExport.test.mjs</code> · <code>server/lib/gallery-html.js</code></p>
+        CSV / JSON / HTML galleries, including offline single files with embedded thumbnails; CSV can also be edited and imported back (matched row by row by id / path, only present columns overwritten); Eagle import, folder flattening and tag_meta preservation all work.
+        Evidence: <code>server/routes/export.js</code> · <code>server/lib/transfer.js</code> · <code>galleryExport.test.mjs</code> · <code>server/lib/gallery-html.js</code></p>
     </div>
     <div class="panel">
       <h3 style="margin:0 0 8px;font-size:14.6px;color:var(--cyan)">Clipboard and system-level</h3>
@@ -958,10 +959,16 @@
 </section>
 
 <div class="foot">
-  Audit date 2026-11-17 · code version 1.2.22 · full verify (573 / 143 / 15 / 261) passed · numbers from the actual bench:quick run are recorded in Section 07.
-  This file and the <a href="./产品介绍.en.html">Product Introduction</a> are two faces of the same code — that one is for users, this one is for the code layer.
+  Audit date 2026-11-19 · code version 1.2.29 · full verify (573 / 152 / 15 / 275) passed · measured bench:quick numbers are in section 07.
+  This file and <a href="./产品介绍.en.html">the product overview</a> are two faces of the same code — one for users, one for the code level.
 </div>
 </div>
+
+
+
+
+
+
 
 
 

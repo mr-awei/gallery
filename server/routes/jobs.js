@@ -52,6 +52,8 @@ registerUndoer('meta', async (p) => {
     if (b.rating !== undefined) lib.setRating(it.id, b.rating);
     if (b.favorite !== undefined) lib.setFavorite(it.id, !!b.favorite);
     if (b.note !== undefined) lib.setNote(it.id, b.note);
+    if (b.inbox !== undefined) lib.setInbox(it.id, Number(b.inbox) === 1);
+    if (b.colorLabel !== undefined) lib.setColorLabel(it.id, b.colorLabel);
     n++;
   }
   return { restored: n };

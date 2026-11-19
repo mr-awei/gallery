@@ -50,10 +50,20 @@ async function discoverBase(force = false) {
 async function postIngest(payload) {
   let base = await discoverBase();
   if (!base) throw new Error('本地图库未启动（已扫描 3001-3012 端口）');
+  // popup 里的「存入画布」开关：所有采集入口统一在这里附加，避免漏改每条路径
+  let body = payload;
+  try {
+    const toCanvas = await new Promise((resolve) =>
+      chrome.storage.local.get('toCanvas', (r) => resolve(!!r.toCanvas))
+    );
+    if (toCanvas) body = { ...payload, toCanvas: true };
+  } catch {
+    /* 存储不可用时按不存画布处理 */
+  }
   let res = await fetch(`${base}/api/extension/ingest`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(payload),
+    body: JSON.stringify(body),
   });
   if (res.status === 401 || res.status === 404 || res.status === 502) {
     base = await discoverBase(true);
@@ -61,7 +71,7 @@ async function postIngest(payload) {
     res = await fetch(`${base}/api/extension/ingest`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(payload),
+      body: JSON.stringify(body),
     });
   }
   if (!res.ok) throw new Error(`本地图库返回 HTTP ${res.status}`);

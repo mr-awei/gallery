@@ -73,6 +73,9 @@ export function register(app, ctx) {
       // 用户主动拖/点采集：不过 minFileSize / minResolution 门槛（爬虫才需要那两道闸）。
       // 批量采集（右键「采集本页所有图片」）不带这个标记，继续按质量过滤，免得收一屏图标。
       const skipQuality = req.body?.skipQuality === true;
+      // 扩展里勾了「存入画布」：记下本次新入库的 id，处理完统一推给前端画布
+      const toCanvas = req.body?.toCanvas === true;
+      const canvasIds = [];
 
       for (const u of urls) {
         try {
@@ -88,6 +91,7 @@ export function register(app, ctx) {
             settings
           );
           results.push({ ...r, url: String(u) });
+          if (r.ok && Number(r.id) > 0) canvasIds.push(Number(r.id));
         } catch (err) {
           results.push({ ok: false, reason: 'failed', url: String(u), error: String(err?.message || err).slice(0, 120) });
         }
@@ -102,10 +106,17 @@ export function register(app, ctx) {
             settings
           );
           results.push(r);
+          if (r.ok && Number(r.id) > 0) canvasIds.push(Number(r.id));
         } catch (err) {
           results.push({ ok: false, reason: 'failed', error: String(err?.message || err).slice(0, 120) });
         }
       }
+      // 采集收件箱：网页采集先收后整理（文件夹扫描不走这里，避免把老库倒进收件箱）
+      if (canvasIds.length && getSettings().inboxOnCapture !== false) {
+        const upd = db.prepare('UPDATE images SET inbox = 1 WHERE id = ?');
+        for (const id of canvasIds) upd.run(id);
+      }
+      if (toCanvas && canvasIds.length) liveBus.emit('canvas-add', canvasIds);
       res.json({
         ok: true,
         saved: results.filter((r) => r.ok).length,
